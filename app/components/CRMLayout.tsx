@@ -1,179 +1,108 @@
 "use client";
 
-import React from "react";
 import Link from "next/link";
+import { ReactNode, useEffect, useState } from "react";
 
-export default function CRMLayout({
-  children,
-  title,
-}: {
-  children: React.ReactNode;
+type Props = {
   title?: string;
-}) {
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "#000",
-        color: "#fff",
-      }}
-    >
-      <header
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 50,
-          backdropFilter: "blur(12px)",
-          WebkitBackdropFilter: "blur(12px)",
-          background: "rgba(0,0,0,0.88)",
-          borderBottom: "1px solid rgba(255,255,255,0.08)",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: "1400px",
-            margin: "0 auto",
-            padding: "16px 24px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "16px",
-            flexWrap: "wrap",
-          }}
-        >
-          <div>
-            <div
-              style={{
-                fontSize: "20px",
-                fontWeight: 800,
-                letterSpacing: "0.08em",
-                color: "#fff",
-              }}
-            >
-              GYMUP CRM
-            </div>
-            {title ? (
-              <div
-                style={{
-                  fontSize: "12px",
-                  color: "rgba(255,255,255,0.5)",
-                  marginTop: "4px",
-                  letterSpacing: "0.06em",
-                }}
-              >
-                {title}
-              </div>
-            ) : null}
-          </div>
+  children: ReactNode;
+};
 
-          <nav
-            style={{
-              display: "flex",
-              gap: "10px",
-              flexWrap: "wrap",
-            }}
-          >
-            <Link href="/" style={navLinkStyle}>
-              管理メニュー
-            </Link>
-            <Link href="/customer" style={navLinkStyle}>
-              顧客管理
-            </Link>
-            <Link href="/sales" style={navLinkStyle}>
-              売上管理
-            </Link>
-            <Link href="/accounting" style={navLinkStyle}>
-              会計管理
-            </Link>
-            <Link href="/attendance" style={navLinkStyle}>
-              勤怠
-            </Link>
-          </nav>
+export default function CRMLayout({ title, children }: Props) {
+  const [mounted, setMounted] = useState(false);
+  const [role, setRole] = useState("");
+  const [staffName, setStaffName] = useState("");
+
+  useEffect(() => {
+    setMounted(true);
+
+    const loggedIn = localStorage.getItem("gymup_logged_in");
+    const savedRole = localStorage.getItem("gymup_user_role") || "";
+    const savedStaffName = localStorage.getItem("gymup_current_staff_name") || "";
+
+    if (loggedIn !== "true") {
+      window.location.href = "/login";
+      return;
+    }
+
+    setRole(savedRole);
+    setStaffName(savedStaffName);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-[linear-gradient(180deg,#eef2f7_0%,#e5ebf3_100%)] px-4 py-6">
+        <div className="mx-auto max-w-[1200px] rounded-[24px] border border-white/70 bg-white/70 p-6 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-md">
+          <p className="text-sm text-slate-500">読み込み中...</p>
         </div>
-      </header>
+      </div>
+    );
+  }
 
-      <main
-        style={{
-          maxWidth: "1400px",
-          margin: "0 auto",
-          padding: "28px 24px 40px",
-        }}
-      >
-        {children}
-      </main>
+  const navItems = [
+    { href: "/", label: "ホーム" },
+    { href: "/reservation", label: "予約管理" },
+    { href: "/customer", label: "顧客管理" },
+    { href: "/sales", label: "売上管理" },
+    { href: "/accounting", label: "会計管理" },
+    { href: "/attendance", label: "勤怠管理" },
+    { href: "/meal", label: "食事管理" },
+    { href: "/account", label: "アカウント管理" },
+  ];
+
+  return (
+    <div className="min-h-screen w-full overflow-x-hidden bg-[linear-gradient(180deg,#eef2f7_0%,#e5ebf3_100%)] text-slate-900">
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 px-3 py-3 sm:px-4 sm:py-4 lg:flex-row lg:items-start lg:gap-6 lg:px-6">
+        {/* サイドメニュー */}
+        <aside className="w-full min-w-0 lg:sticky lg:top-4 lg:w-[280px] lg:min-w-[280px]">
+          <div className="rounded-[28px] border border-white/70 bg-white/70 p-4 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-md">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-inner">
+                <img
+                  src="/gymup-logo.png"
+                  alt="GYMUP"
+                  className="h-7 w-auto object-contain"
+                />
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-xs font-bold tracking-[0.18em] text-slate-500">
+                  GYMUP CRM
+                </p>
+                <p className="truncate text-lg font-black text-slate-900">
+                  {title || "管理画面"}
+                </p>
+              </div>
+            </div>
+
+            <div className="mb-4 rounded-[20px] bg-slate-50 px-4 py-3">
+              <p className="text-xs text-slate-500">ログイン中</p>
+              <p className="mt-1 break-words text-base font-bold text-slate-900">
+                {staffName || (role === "admin" ? "管理者" : "スタッフ")}
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                権限: {role === "admin" ? "管理者" : "スタッフ"}
+              </p>
+            </div>
+
+            <nav className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-1">
+              {navItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="flex min-h-[52px] items-center justify-center rounded-2xl bg-slate-100 px-3 py-3 text-center text-sm font-bold text-slate-700 transition hover:bg-slate-900 hover:text-white"
+                >
+                  <span className="break-words">{item.label}</span>
+                </Link>
+              ))}
+            </nav>
+          </div>
+        </aside>
+
+        {/* メイン */}
+        <main className="w-full min-w-0 flex-1">
+          <div className="w-full min-w-0">{children}</div>
+        </main>
+      </div>
     </div>
   );
 }
-
-const navLinkStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "10px 14px",
-  borderRadius: "12px",
-  color: "#fff",
-  textDecoration: "none",
-  fontSize: "14px",
-  fontWeight: 600,
-  background: "#0d0d0d",
-  border: "1px solid rgba(255,255,255,0.08)",
-  boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
-};
-
-export const card: React.CSSProperties = {
-  padding: "22px",
-  borderRadius: "20px",
-  background: "#0b0b0b",
-  border: "1px solid rgba(255,255,255,0.08)",
-  boxShadow: "0 16px 40px rgba(0,0,0,0.45)",
-};
-
-export const input: React.CSSProperties = {
-  width: "100%",
-  padding: "12px 14px",
-  borderRadius: "12px",
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "#050505",
-  color: "#fff",
-  outline: "none",
-  fontSize: "14px",
-  boxSizing: "border-box",
-};
-
-export const button: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "12px 16px",
-  borderRadius: "12px",
-  color: "#fff",
-  fontSize: "14px",
-  fontWeight: 700,
-  background: "#111",
-  border: "1px solid rgba(255,255,255,0.12)",
-  cursor: "pointer",
-  textDecoration: "none",
-  boxShadow: "0 10px 24px rgba(0,0,0,0.35)",
-};
-
-export const label: React.CSSProperties = {
-  display: "block",
-  marginBottom: "8px",
-  fontSize: "13px",
-  color: "rgba(255,255,255,0.72)",
-  letterSpacing: "0.03em",
-};
-
-export const ghostLink: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "10px 14px",
-  borderRadius: "12px",
-  color: "#fff",
-  textDecoration: "none",
-  fontSize: "14px",
-  fontWeight: 600,
-  background: "transparent",
-  border: "1px solid rgba(255,255,255,0.14)",
-};
