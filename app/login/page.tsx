@@ -1,178 +1,266 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import CRMLayout from "../../components/CRMLayout";
+import { supabase } from "../../lib/supabase";
 
-export default function LoginPage() {
-  const router = useRouter();
+type Customer = {
+  id: string;
+  created_at: string;
+  name: string;
+  phone: string | null;
+};
 
-  const [loginId, setLoginId] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+export default function CustomerPage() {
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
 
-  const handleLogin = () => {
-    setError("");
+  const fetchCustomers = async () => {
+    setLoading(true);
+    setMessage("");
 
-    // 管理者
-    if (loginId === "admin" && password === "1234") {
-      localStorage.setItem("gymup_logged_in", "true");
-      localStorage.setItem("gymup_user_role", "admin");
-      localStorage.setItem("gymup_current_staff_name", "管理者");
-      localStorage.setItem("gymup_login_id", "admin");
-      localStorage.setItem("gymup_current_login_id", "admin");
-      router.push("/");
+    const { data, error } = await supabase
+      .from("customers")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("顧客取得エラー:", error);
+      setMessage("顧客一覧の取得に失敗しました");
+      setCustomers([]);
+    } else {
+      setCustomers(data ?? []);
+    }
+
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchCustomers();
+  }, []);
+
+  const handleAddCustomer = async () => {
+    if (!name.trim()) {
+      setMessage("名前を入力してください");
       return;
     }
 
-    // スタッフ
-    if (loginId === "staff01" && password === "1234") {
-      localStorage.setItem("gymup_logged_in", "true");
-      localStorage.setItem("gymup_user_role", "staff");
-      localStorage.setItem("gymup_current_staff_name", "スタッフ");
-      localStorage.setItem("gymup_login_id", "staff01");
-      localStorage.setItem("gymup_current_login_id", "staff01");
-      router.push("/");
+    setSaving(true);
+    setMessage("");
+
+    const { error } = await supabase.from("customers").insert([
+      {
+        name: name.trim(),
+        phone: phone.trim() || null,
+      },
+    ]);
+
+    if (error) {
+      console.error("顧客追加エラー:", error);
+      setMessage("顧客追加に失敗しました");
+      setSaving(false);
       return;
     }
 
-    setError("IDまたはパスワードが違います");
+    setName("");
+    setPhone("");
+    setMessage("顧客を追加しました");
+    await fetchCustomers();
+    setSaving(false);
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        position: "relative",
-        overflow: "hidden",
-        background: `
-          radial-gradient(circle at 20% 20%, rgba(255,255,255,0.9), transparent 40%),
-          radial-gradient(circle at 80% 30%, rgba(255,255,255,0.7), transparent 40%),
-          linear-gradient(135deg, #eef2f7 0%, #dfe7ef 50%, #cfd6df 100%)
-        `,
-        fontFamily: "system-ui, sans-serif",
-      }}
-    >
-      {/* キラキラ光 */}
-      <div
-        style={{
-          position: "absolute",
-          width: "300px",
-          height: "300px",
-          background:
-            "radial-gradient(circle, rgba(255,255,255,0.9), transparent)",
-          top: "-80px",
-          left: "-80px",
-          filter: "blur(40px)",
-        }}
-      />
-
-      <div
-        style={{
-          width: "360px",
-          padding: "28px",
-          borderRadius: "26px",
-          background: "rgba(255,255,255,0.55)",
-          backdropFilter: "blur(20px)",
-          border: "1px solid rgba(255,255,255,0.8)",
-          boxShadow:
-            "0 30px 80px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.9)",
-        }}
-      >
-        {/* ロゴ */}
-        <div style={{ textAlign: "center", marginBottom: "20px" }}>
-          <img
-            src="/gymup-logo.png"
-            style={{
-              width: "80px",
-              height: "80px",
-              objectFit: "contain",
-            }}
-          />
+    <CRMLayout title="顧客管理">
+      <div style={styles.container}>
+        <div style={styles.headerRow}>
+          <h1 style={styles.title}>顧客管理</h1>
+          <button style={styles.reloadButton} onClick={fetchCustomers}>
+            再読み込み
+          </button>
         </div>
 
-        <h1
-          style={{
-            textAlign: "center",
-            fontSize: "22px",
-            fontWeight: 800,
-            marginBottom: "20px",
-          }}
-        >
-          GYMUP CRM ログイン
-        </h1>
+        <div style={styles.card}>
+          <h2 style={styles.cardTitle}>新規顧客追加</h2>
 
-        {/* ID */}
-        <input
-          type="text"
-          placeholder="ログインID"
-          value={loginId}
-          onChange={(e) => setLoginId(e.target.value)}
-          style={inputStyle}
-        />
+          <div style={styles.formGrid}>
+            <div>
+              <label style={styles.label}>名前</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="山田 太郎"
+                style={styles.input}
+              />
+            </div>
 
-        {/* PASS */}
-        <input
-          type="password"
-          placeholder="パスワード"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={{ ...inputStyle, marginTop: "12px" }}
-        />
-
-        {/* エラー */}
-        {error && (
-          <div
-            style={{
-              marginTop: "12px",
-              color: "#dc2626",
-              fontSize: "13px",
-              textAlign: "center",
-            }}
-          >
-            {error}
+            <div>
+              <label style={styles.label}>電話番号</label>
+              <input
+                type="text"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="090-1234-5678"
+                style={styles.input}
+              />
+            </div>
           </div>
-        )}
 
-        {/* ボタン */}
-        <button onClick={handleLogin} style={loginButtonStyle}>
-          ログイン
-        </button>
+          <button
+            onClick={handleAddCustomer}
+            disabled={saving}
+            style={styles.addButton}
+          >
+            {saving ? "保存中..." : "顧客を追加"}
+          </button>
 
-        {/* 補助 */}
-        <div
-          style={{
-            marginTop: "16px",
-            fontSize: "12px",
-            color: "#6b7280",
-            textAlign: "center",
-          }}
-        >
-          staff01 / 1234<br />
-          admin / 1234
+          {message ? <p style={styles.message}>{message}</p> : null}
+        </div>
+
+        <div style={styles.card}>
+          <h2 style={styles.cardTitle}>顧客一覧</h2>
+
+          {loading ? (
+            <p style={styles.empty}>読み込み中...</p>
+          ) : customers.length === 0 ? (
+            <p style={styles.empty}>まだ顧客が登録されていません</p>
+          ) : (
+            <div style={styles.list}>
+              {customers.map((customer) => (
+                <Link
+                  key={customer.id}
+                  href={`/customer/${customer.id}`}
+                  style={styles.customerItem}
+                >
+                  <div>
+                    <div style={styles.customerName}>{customer.name}</div>
+                    <div style={styles.customerPhone}>
+                      電話番号: {customer.phone || "未登録"}
+                    </div>
+                  </div>
+                  <div style={styles.arrow}>›</div>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </div>
-    </div>
+    </CRMLayout>
   );
 }
 
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "14px",
-  borderRadius: "14px",
-  border: "1px solid #ddd",
-  fontSize: "14px",
-};
-
-const loginButtonStyle: React.CSSProperties = {
-  width: "100%",
-  marginTop: "18px",
-  padding: "14px",
-  borderRadius: "14px",
-  background: "#111827",
-  color: "#fff",
-  fontWeight: 700,
-  border: "none",
-  cursor: "pointer",
+const styles: { [key: string]: React.CSSProperties } = {
+  container: {
+    display: "grid",
+    gap: "24px",
+  },
+  headerRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "12px",
+    flexWrap: "wrap",
+  },
+  title: {
+    fontSize: "28px",
+    fontWeight: 700,
+    color: "#ffffff",
+    margin: 0,
+  },
+  reloadButton: {
+    background: "#2a2a2a",
+    color: "#fff",
+    border: "1px solid #444",
+    borderRadius: "10px",
+    padding: "10px 16px",
+    cursor: "pointer",
+  },
+  card: {
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    borderRadius: "16px",
+    padding: "20px",
+    backdropFilter: "blur(8px)",
+  },
+  cardTitle: {
+    fontSize: "20px",
+    fontWeight: 700,
+    color: "#fff",
+    marginTop: 0,
+    marginBottom: "16px",
+  },
+  formGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "16px",
+  },
+  label: {
+    display: "block",
+    color: "#ddd",
+    fontSize: "14px",
+    marginBottom: "8px",
+  },
+  input: {
+    width: "100%",
+    padding: "12px 14px",
+    borderRadius: "10px",
+    border: "1px solid #555",
+    background: "#111",
+    color: "#fff",
+    outline: "none",
+    boxSizing: "border-box",
+  },
+  addButton: {
+    marginTop: "16px",
+    background: "linear-gradient(135deg, #c89b6d, #9f6b3f)",
+    color: "#fff",
+    border: "none",
+    borderRadius: "10px",
+    padding: "12px 18px",
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+  message: {
+    marginTop: "12px",
+    color: "#f3d7b6",
+    fontSize: "14px",
+  },
+  empty: {
+    color: "#ccc",
+    margin: 0,
+  },
+  list: {
+    display: "grid",
+    gap: "12px",
+  },
+  customerItem: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "16px",
+    borderRadius: "12px",
+    background: "#161616",
+    border: "1px solid #2d2d2d",
+    textDecoration: "none",
+  },
+  customerName: {
+    color: "#fff",
+    fontSize: "18px",
+    fontWeight: 700,
+    marginBottom: "6px",
+  },
+  customerPhone: {
+    color: "#bbb",
+    fontSize: "14px",
+  },
+  arrow: {
+    color: "#c89b6d",
+    fontSize: "28px",
+    fontWeight: 700,
+  },
 };
