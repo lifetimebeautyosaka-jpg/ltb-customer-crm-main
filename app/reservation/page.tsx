@@ -36,24 +36,52 @@ const STAFF_COLORS: Record<string, string> = {
   その他: "#6b7280",
 };
 
-function formatDateLabel(dateStr: string) {
-  const date = new Date(dateStr);
-  const week = ["日", "月", "火", "水", "木", "金", "土"];
-  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日（${week[date.getDay()]}）`;
+const WEEK_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
+
+function formatMonthInputValue(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
 }
 
-function todayString() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
+function formatDateString(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
 
+function getCalendarDays(targetMonth: string) {
+  const [year, month] = targetMonth.split("-").map(Number);
+  const firstDay = new Date(year, month - 1, 1);
+  const lastDay = new Date(year, month, 0);
+
+  const startDate = new Date(firstDay);
+  startDate.setDate(firstDay.getDate() - firstDay.getDay());
+
+  const endDate = new Date(lastDay);
+  endDate.setDate(lastDay.getDate() + (6 - lastDay.getDay()));
+
+  const days: Date[] = [];
+  const current = new Date(startDate);
+
+  while (current <= endDate) {
+    days.push(new Date(current));
+    current.setDate(current.getDate() + 1);
+  }
+
+  return days;
+}
+
+function buildReservationLabel(item: Reservation) {
+  const customer = item.customer_name?.trim() || item.menu;
+  return `${item.start_time} ${customer}`;
+}
+
 export default function ReservationPage() {
+  const [monthValue, setMonthValue] = useState(formatMonthInputValue(new Date()));
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(todayString());
   const [storeFilter, setStoreFilter] = useState("すべて");
   const [staffFilter, setStaffFilter] = useState("すべて");
   const [errorMessage, setErrorMessage] = useState("");
@@ -62,15 +90,21 @@ export default function ReservationPage() {
     setLoading(true);
     setErrorMessage("");
 
+    const [year, month] = monthValue.split("-").map(Number);
+    const startDate = `${monthValue}-01`;
+    const endDate = formatDateString(new Date(year, month, 0));
+
     const { data, error } = await supabase
       .from("reservations")
       .select("*")
-      .eq("date", selectedDate)
+      .gte("date", startDate)
+      .lte("date", endDate)
+      .order("date", { ascending: true })
       .order("start_time", { ascending: true });
 
     if (error) {
-      setErrorMessage("予約データの取得に失敗しました。");
       setReservations([]);
+      setErrorMessage("予約データの取得に失敗しました。");
       setLoading(false);
       return;
     }
@@ -81,7 +115,7 @@ export default function ReservationPage() {
 
   useEffect(() => {
     fetchReservations();
-  }, [selectedDate]);
+  }, [monthValue]);
 
   const filteredReservations = useMemo(() => {
     return reservations.filter((item) => {
@@ -91,64 +125,82 @@ export default function ReservationPage() {
     });
   }, [reservations, storeFilter, staffFilter]);
 
-  const groupedByStore = useMemo(() => {
-    const groups: Record<string, Reservation[]> = {};
-
-    for (const store of STORES) {
-      groups[store] = [];
-    }
+  const reservationMap = useMemo(() => {
+    const map: Record<string, Reservation[]> = {};
 
     for (const item of filteredReservations) {
-      if (!groups[item.store_name]) {
-        groups[item.store_name] = [];
+      if (!map[item.date]) {
+        map[item.date] = [];
       }
-      groups[item.store_name].push(item);
+      map[item.date].push(item);
     }
 
-    return groups;
+    return map;
   }, [filteredReservations]);
 
-  const handleDelete = async (id: number) => {
-    const ok = window.confirm("この予約を削除しますか？");
-    if (!ok) return;
+  const calendarDays = useMemo(() => getCalendarDays(monthValue), [monthValue]);
 
-    const { error } = await supabase.from("reservations").delete().eq("id", id);
+  const currentMonth = Number(monthValue.split("-")[1]);
 
-    if (error) {
-      alert("削除に失敗しました。");
-      return;
-    }
+  const handlePrevMonth = () => {
+    const [year, month] = monthValue.split("-").map(Number);
+    const prev = new Date(year, month - 2, 1);
+    setMonthValue(formatMonthInputValue(prev));
+  };
 
-    await fetchReservations();
+  const handleNextMonth = () => {
+    const [year, month] = monthValue.split("-").map(Number);
+    const next = new Date(year, month, 1);
+    setMonthValue(formatMonthInputValue(next));
   };
 
   return (
-    <main className="min-h-screen bg-[#f7f7f7] px-4 py-6 text-[#222]">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-6 rounded-2xl bg-white p-5 shadow-sm">
+    <main className="min-h-screen bg-[#f7f7f7] px-3 py-4 text-[#222] md:px-6 md:py-6">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-4 rounded-3xl bg-white p-4 shadow-sm md:p-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <h1 className="text-2xl font-bold">予約管理</h1>
-              <p className="mt-1 text-sm text-gray-500">タイムツリー風の見やすい予約一覧</p>
+              <h1 className="text-2xl font-bold">予約カレンダー</h1>
+              <p className="mt-1 text-sm text-gray-500">TimeTree風の月表示</p>
             </div>
 
-            <Link
-              href="/reservation/new"
-              className="inline-flex items-center justify-center rounded-xl bg-[#111827] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
-            >
-              ＋ 新規予約を追加
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/reservation/new"
+                className="inline-flex items-center justify-center rounded-xl bg-[#111827] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
+              >
+                ＋ 新規予約
+              </Link>
+            </div>
           </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-3">
+          <div className="mt-5 flex flex-col gap-3 md:flex-row md:items-end">
             <div>
-              <label className="mb-1 block text-sm font-medium">日付</label>
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-full rounded-xl border border-gray-300 bg-white px-3 py-3 text-sm outline-none focus:border-black"
-              />
+              <label className="mb-1 block text-sm font-medium">月</label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handlePrevMonth}
+                  className="rounded-xl border border-gray-300 bg-white px-3 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                  ←
+                </button>
+
+                <input
+                  type="month"
+                  value={monthValue}
+                  onChange={(e) => setMonthValue(e.target.value)}
+                  className="rounded-xl border border-gray-300 bg-white px-3 py-3 text-sm outline-none focus:border-black"
+                />
+
+                <button
+                  type="button"
+                  onClick={handleNextMonth}
+                  className="rounded-xl border border-gray-300 bg-white px-3 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                  →
+                </button>
+              </div>
             </div>
 
             <div>
@@ -156,7 +208,7 @@ export default function ReservationPage() {
               <select
                 value={storeFilter}
                 onChange={(e) => setStoreFilter(e.target.value)}
-                className="w-full rounded-xl border border-gray-300 bg-white px-3 py-3 text-sm outline-none focus:border-black"
+                className="w-full rounded-xl border border-gray-300 bg-white px-3 py-3 text-sm outline-none focus:border-black md:min-w-[180px]"
               >
                 <option value="すべて">すべて</option>
                 {STORES.map((store) => (
@@ -172,7 +224,7 @@ export default function ReservationPage() {
               <select
                 value={staffFilter}
                 onChange={(e) => setStaffFilter(e.target.value)}
-                className="w-full rounded-xl border border-gray-300 bg-white px-3 py-3 text-sm outline-none focus:border-black"
+                className="w-full rounded-xl border border-gray-300 bg-white px-3 py-3 text-sm outline-none focus:border-black md:min-w-[180px]"
               >
                 <option value="すべて">すべて</option>
                 {STAFFS.map((staff) => (
@@ -185,109 +237,107 @@ export default function ReservationPage() {
           </div>
         </div>
 
-        <div className="mb-4 rounded-2xl bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-bold">{formatDateLabel(selectedDate)}</h2>
-          <p className="mt-1 text-sm text-gray-500">
-            件数：{filteredReservations.length}件
-          </p>
+        <div className="mb-4 rounded-3xl bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold">
+              {monthValue.replace("-", "年")}月
+            </h2>
+            <p className="text-sm text-gray-500">件数：{filteredReservations.length}件</p>
+          </div>
         </div>
 
         {loading ? (
-          <div className="rounded-2xl bg-white p-8 text-center shadow-sm">
+          <div className="rounded-3xl bg-white p-8 text-center shadow-sm">
             <p className="text-sm text-gray-500">読み込み中...</p>
           </div>
         ) : errorMessage ? (
-          <div className="rounded-2xl bg-white p-8 text-center shadow-sm">
+          <div className="rounded-3xl bg-white p-8 text-center shadow-sm">
             <p className="text-sm text-red-500">{errorMessage}</p>
           </div>
-        ) : filteredReservations.length === 0 ? (
-          <div className="rounded-2xl bg-white p-8 text-center shadow-sm">
-            <p className="text-sm text-gray-500">この日の予約はまだありません。</p>
-          </div>
         ) : (
-          <div className="space-y-6">
-            {Object.entries(groupedByStore).map(([store, items]) => {
-              if (items.length === 0) return null;
+          <div className="overflow-x-auto rounded-3xl bg-white shadow-sm">
+            <div className="grid min-w-[980px] grid-cols-7 border-b border-gray-200 bg-[#fafafa]">
+              {WEEK_LABELS.map((label, index) => (
+                <div
+                  key={label}
+                  className={`px-3 py-3 text-center text-sm font-bold ${
+                    index === 0
+                      ? "text-red-500"
+                      : index === 6
+                      ? "text-blue-500"
+                      : "text-gray-700"
+                  }`}
+                >
+                  {label}
+                </div>
+              ))}
+            </div>
 
-              return (
-                <section key={store} className="rounded-2xl bg-white p-5 shadow-sm">
-                  <div className="mb-4 flex items-center justify-between border-b border-gray-100 pb-3">
-                    <h3 className="text-lg font-bold">{store}</h3>
-                    <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
-                      {items.length}件
-                    </span>
-                  </div>
+            <div className="grid min-w-[980px] grid-cols-7">
+              {calendarDays.map((date) => {
+                const dateString = formatDateString(date);
+                const items = reservationMap[dateString] || [];
+                const isCurrentMonth = date.getMonth() + 1 === currentMonth;
+                const day = date.getDay();
 
-                  <div className="space-y-3">
-                    {items.map((item) => {
-                      const color = STAFF_COLORS[item.staff_name] || "#6b7280";
+                return (
+                  <div
+                    key={dateString}
+                    className={`min-h-[150px] border-b border-r border-gray-200 p-2 ${
+                      !isCurrentMonth ? "bg-[#fafafa]" : "bg-white"
+                    }`}
+                  >
+                    <div className="mb-2 flex items-center justify-between">
+                      <Link
+                        href={`/reservation/day?date=${dateString}`}
+                        className={`inline-flex h-8 min-w-[32px] items-center justify-center rounded-full px-2 text-sm font-bold transition hover:bg-gray-100 ${
+                          day === 0
+                            ? "text-red-500"
+                            : day === 6
+                            ? "text-blue-500"
+                            : "text-gray-800"
+                        } ${!isCurrentMonth ? "opacity-40" : ""}`}
+                      >
+                        {date.getDate()}
+                      </Link>
 
-                      return (
-                        <div
-                          key={item.id}
-                          className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
-                          style={{
-                            borderLeft: `8px solid ${color}`,
-                            backgroundColor: `${color}12`,
-                          }}
+                      {items.length > 0 ? (
+                        <span className="rounded-full bg-gray-100 px-2 py-1 text-[10px] font-semibold text-gray-600">
+                          {items.length}件
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <div className="space-y-1">
+                      {items.slice(0, 4).map((item) => {
+                        const color = STAFF_COLORS[item.staff_name] || "#6b7280";
+
+                        return (
+                          <Link
+                            key={item.id}
+                            href={`/reservation/day?date=${item.date}`}
+                            className="block rounded-md px-2 py-1 text-[11px] font-medium text-white"
+                            style={{ backgroundColor: color }}
+                            title={`${item.start_time} / ${item.staff_name} / ${item.customer_name || item.menu}`}
+                          >
+                            <div className="truncate">{buildReservationLabel(item)}</div>
+                          </Link>
+                        );
+                      })}
+
+                      {items.length > 4 ? (
+                        <Link
+                          href={`/reservation/day?date=${dateString}`}
+                          className="block px-1 text-[11px] font-semibold text-gray-500 hover:text-gray-700"
                         >
-                          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                            <div className="flex-1">
-                              <div className="mb-2 flex flex-wrap items-center gap-2">
-                                <span className="text-lg font-bold text-[#111827]">
-                                  {item.start_time}
-                                </span>
-                                <span
-                                  className="rounded-full px-3 py-1 text-xs font-bold text-white"
-                                  style={{ backgroundColor: color }}
-                                >
-                                  {item.staff_name}
-                                </span>
-                                <span className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-700">
-                                  {item.menu}
-                                </span>
-                                {item.payment_method ? (
-                                  <span className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-700">
-                                    {item.payment_method}
-                                  </span>
-                                ) : null}
-                              </div>
-
-                              <div className="space-y-1 text-sm text-gray-700">
-                                <p>
-                                  <span className="font-semibold">顧客名：</span>
-                                  {item.customer_name || "未入力"}
-                                </p>
-                                <p>
-                                  <span className="font-semibold">店舗：</span>
-                                  {item.store_name}
-                                </p>
-                                {item.memo ? (
-                                  <p>
-                                    <span className="font-semibold">メモ：</span>
-                                    {item.memo}
-                                  </p>
-                                ) : null}
-                              </div>
-                            </div>
-
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                onClick={() => handleDelete(item.id)}
-                                className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-500 transition hover:bg-red-50"
-                              >
-                                削除
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
+                          +あと{items.length - 4}件
+                        </Link>
+                      ) : null}
+                    </div>
                   </div>
-                </section>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
