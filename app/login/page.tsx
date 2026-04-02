@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import CRMLayout from "../../components/CRMLayout";
+import CRMLayout from "@/components/CRMLayout";
 import { supabase } from "../../lib/supabase";
 
 type Customer = {

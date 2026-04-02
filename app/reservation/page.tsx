@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import CRMLayout from "@/components/CRMLayout";
+import CRMLayout from "../../components/CRMLayout";
 
 type Customer = {
   id: string;

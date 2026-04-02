@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import CRMLayout from "../../components/CRMLayout";
+import CRMLayout from "../components/CRMLayout";
 
 type UserRole = "admin" | "staff" | "";
 
