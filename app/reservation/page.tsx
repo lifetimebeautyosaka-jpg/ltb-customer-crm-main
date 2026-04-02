@@ -36,7 +36,7 @@ const STAFF_COLORS: Record<string, string> = {
   その他: "#6b7280",
 };
 
-const WEEK_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
+const WEEK_LABELS = ["月", "火", "水", "木", "金", "土", "日"];
 
 function formatMonthInputValue(date: Date) {
   const y = date.getFullYear();
@@ -51,16 +51,19 @@ function formatDateString(date: Date) {
   return `${y}-${m}-${d}`;
 }
 
-function getCalendarDays(targetMonth: string) {
+function getCalendarDaysMondayStart(targetMonth: string) {
   const [year, month] = targetMonth.split("-").map(Number);
   const firstDay = new Date(year, month - 1, 1);
   const lastDay = new Date(year, month, 0);
 
+  const firstDayIndex = (firstDay.getDay() + 6) % 7;
+  const lastDayIndex = (lastDay.getDay() + 6) % 7;
+
   const startDate = new Date(firstDay);
-  startDate.setDate(firstDay.getDate() - firstDay.getDay());
+  startDate.setDate(firstDay.getDate() - firstDayIndex);
 
   const endDate = new Date(lastDay);
-  endDate.setDate(lastDay.getDate() + (6 - lastDay.getDay()));
+  endDate.setDate(lastDay.getDate() + (6 - lastDayIndex));
 
   const days: Date[] = [];
   const current = new Date(startDate);
@@ -73,9 +76,9 @@ function getCalendarDays(targetMonth: string) {
   return days;
 }
 
-function buildReservationLabel(item: Reservation) {
-  const customer = item.customer_name?.trim() || item.menu;
-  return `${item.start_time} ${customer}`;
+function buildCompactLabel(item: Reservation) {
+  const raw = item.customer_name?.trim() || item.menu;
+  return raw.length > 7 ? `${raw.slice(0, 7)}…` : raw;
 }
 
 export default function ReservationPage() {
@@ -129,17 +132,14 @@ export default function ReservationPage() {
     const map: Record<string, Reservation[]> = {};
 
     for (const item of filteredReservations) {
-      if (!map[item.date]) {
-        map[item.date] = [];
-      }
+      if (!map[item.date]) map[item.date] = [];
       map[item.date].push(item);
     }
 
     return map;
   }, [filteredReservations]);
 
-  const calendarDays = useMemo(() => getCalendarDays(monthValue), [monthValue]);
-
+  const calendarDays = useMemo(() => getCalendarDaysMondayStart(monthValue), [monthValue]);
   const currentMonth = Number(monthValue.split("-")[1]);
 
   const handlePrevMonth = () => {
@@ -155,94 +155,80 @@ export default function ReservationPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#f7f7f7] px-3 py-4 text-[#222] md:px-6 md:py-6">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-4 rounded-3xl bg-white p-4 shadow-sm md:p-5">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <main className="min-h-screen bg-[#f3f4f6] text-[#222]">
+      <div className="mx-auto w-full max-w-md px-2 py-3 sm:max-w-none sm:px-4 md:max-w-6xl md:px-6 md:py-6">
+        <div className="mb-3 rounded-3xl bg-white p-3 shadow-sm md:p-5">
+          <div className="flex items-center justify-between gap-2">
             <div>
-              <h1 className="text-2xl font-bold">予約カレンダー</h1>
-              <p className="mt-1 text-sm text-gray-500">TimeTree風の月表示</p>
+              <h1 className="text-[18px] font-bold md:text-2xl">予約カレンダー</h1>
+              <p className="mt-0.5 text-[10px] text-gray-500 md:text-sm">
+                スマホ1画面で見やすい月表示
+              </p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Link
-                href="/reservation/new"
-                className="inline-flex items-center justify-center rounded-xl bg-[#111827] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90"
-              >
-                ＋ 新規予約
-              </Link>
-            </div>
+            <Link
+              href="/reservation/new"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#111827] text-xl font-bold text-white shadow-sm"
+            >
+              ＋
+            </Link>
           </div>
 
-          <div className="mt-5 flex flex-col gap-3 md:flex-row md:items-end">
-            <div>
-              <label className="mb-1 block text-sm font-medium">月</label>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handlePrevMonth}
-                  className="rounded-xl border border-gray-300 bg-white px-3 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                >
-                  ←
-                </button>
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handlePrevMonth}
+              className="rounded-xl border border-gray-300 bg-white px-2.5 py-2 text-xs font-semibold text-gray-700"
+            >
+              ←
+            </button>
 
-                <input
-                  type="month"
-                  value={monthValue}
-                  onChange={(e) => setMonthValue(e.target.value)}
-                  className="rounded-xl border border-gray-300 bg-white px-3 py-3 text-sm outline-none focus:border-black"
-                />
+            <input
+              type="month"
+              value={monthValue}
+              onChange={(e) => setMonthValue(e.target.value)}
+              className="min-w-0 flex-1 rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs outline-none focus:border-black md:text-sm"
+            />
 
-                <button
-                  type="button"
-                  onClick={handleNextMonth}
-                  className="rounded-xl border border-gray-300 bg-white px-3 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                >
-                  →
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-medium">店舗で絞り込み</label>
-              <select
-                value={storeFilter}
-                onChange={(e) => setStoreFilter(e.target.value)}
-                className="w-full rounded-xl border border-gray-300 bg-white px-3 py-3 text-sm outline-none focus:border-black md:min-w-[180px]"
-              >
-                <option value="すべて">すべて</option>
-                {STORES.map((store) => (
-                  <option key={store} value={store}>
-                    {store}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-medium">担当者で絞り込み</label>
-              <select
-                value={staffFilter}
-                onChange={(e) => setStaffFilter(e.target.value)}
-                className="w-full rounded-xl border border-gray-300 bg-white px-3 py-3 text-sm outline-none focus:border-black md:min-w-[180px]"
-              >
-                <option value="すべて">すべて</option>
-                {STAFFS.map((staff) => (
-                  <option key={staff} value={staff}>
-                    {staff}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <button
+              type="button"
+              onClick={handleNextMonth}
+              className="rounded-xl border border-gray-300 bg-white px-2.5 py-2 text-xs font-semibold text-gray-700"
+            >
+              →
+            </button>
           </div>
-        </div>
 
-        <div className="mb-4 rounded-3xl bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold">
-              {monthValue.replace("-", "年")}月
-            </h2>
-            <p className="text-sm text-gray-500">件数：{filteredReservations.length}件</p>
+          <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
+            <select
+              value={storeFilter}
+              onChange={(e) => setStoreFilter(e.target.value)}
+              className="rounded-xl border border-gray-300 bg-white px-2 py-2 text-[11px] outline-none focus:border-black md:text-sm"
+            >
+              <option value="すべて">全店舗</option>
+              {STORES.map((store) => (
+                <option key={store} value={store}>
+                  {store}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={staffFilter}
+              onChange={(e) => setStaffFilter(e.target.value)}
+              className="rounded-xl border border-gray-300 bg-white px-2 py-2 text-[11px] outline-none focus:border-black md:text-sm"
+            >
+              <option value="すべて">全担当者</option>
+              {STAFFS.map((staff) => (
+                <option key={staff} value={staff}>
+                  {staff}
+                </option>
+              ))}
+            </select>
+
+            <div className="col-span-2 flex items-center justify-center rounded-xl bg-[#fafafa] px-2 py-2 text-[11px] text-gray-600 md:col-span-2 md:text-sm">
+              件数：<span className="ml-1 font-bold text-[#111827]">{filteredReservations.length}</span>
+            </div>
           </div>
         </div>
 
@@ -255,16 +241,16 @@ export default function ReservationPage() {
             <p className="text-sm text-red-500">{errorMessage}</p>
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-3xl bg-white shadow-sm">
-            <div className="grid min-w-[980px] grid-cols-7 border-b border-gray-200 bg-[#fafafa]">
+          <div className="overflow-hidden rounded-3xl bg-white shadow-sm">
+            <div className="grid grid-cols-7 border-b border-gray-200 bg-[#fafafa]">
               {WEEK_LABELS.map((label, index) => (
                 <div
                   key={label}
-                  className={`px-3 py-3 text-center text-sm font-bold ${
-                    index === 0
-                      ? "text-red-500"
-                      : index === 6
+                  className={`py-1.5 text-center text-[10px] font-bold md:py-3 md:text-sm ${
+                    index === 5
                       ? "text-blue-500"
+                      : index === 6
+                      ? "text-red-500"
                       : "text-gray-700"
                   }`}
                 >
@@ -273,28 +259,29 @@ export default function ReservationPage() {
               ))}
             </div>
 
-            <div className="grid min-w-[980px] grid-cols-7">
+            <div className="grid grid-cols-7">
               {calendarDays.map((date) => {
                 const dateString = formatDateString(date);
                 const items = reservationMap[dateString] || [];
                 const isCurrentMonth = date.getMonth() + 1 === currentMonth;
-                const day = date.getDay();
+
+                const dayIndex = (date.getDay() + 6) % 7;
 
                 return (
                   <div
                     key={dateString}
-                    className={`min-h-[150px] border-b border-r border-gray-200 p-2 ${
-                      !isCurrentMonth ? "bg-[#fafafa]" : "bg-white"
+                    className={`min-h-[88px] border-b border-r border-gray-200 px-1 py-1 md:min-h-[150px] md:p-2 ${
+                      !isCurrentMonth ? "bg-[#f8f8f8]" : "bg-white"
                     }`}
                   >
-                    <div className="mb-2 flex items-center justify-between">
+                    <div className="mb-1 flex items-center justify-between">
                       <Link
                         href={`/reservation/day?date=${dateString}`}
-                        className={`inline-flex h-8 min-w-[32px] items-center justify-center rounded-full px-2 text-sm font-bold transition hover:bg-gray-100 ${
-                          day === 0
-                            ? "text-red-500"
-                            : day === 6
+                        className={`inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1 text-[10px] font-bold md:h-8 md:min-w-[32px] md:px-2 md:text-sm ${
+                          dayIndex === 5
                             ? "text-blue-500"
+                            : dayIndex === 6
+                            ? "text-red-500"
                             : "text-gray-800"
                         } ${!isCurrentMonth ? "opacity-40" : ""}`}
                       >
@@ -302,35 +289,35 @@ export default function ReservationPage() {
                       </Link>
 
                       {items.length > 0 ? (
-                        <span className="rounded-full bg-gray-100 px-2 py-1 text-[10px] font-semibold text-gray-600">
-                          {items.length}件
+                        <span className="text-[8px] font-semibold text-gray-400 md:text-[10px]">
+                          {items.length}
                         </span>
                       ) : null}
                     </div>
 
-                    <div className="space-y-1">
-                      {items.slice(0, 4).map((item) => {
+                    <div className="space-y-[2px] md:space-y-1">
+                      {items.slice(0, 3).map((item) => {
                         const color = STAFF_COLORS[item.staff_name] || "#6b7280";
 
                         return (
                           <Link
                             key={item.id}
-                            href={`/reservation/day?date=${item.date}`}
-                            className="block rounded-md px-2 py-1 text-[11px] font-medium text-white"
+                            href={`/reservation/detail/${item.id}`}
+                            className="block rounded px-1 py-[2px] text-[8px] font-medium leading-tight text-white md:rounded-md md:px-2 md:py-1 md:text-[11px]"
                             style={{ backgroundColor: color }}
                             title={`${item.start_time} / ${item.staff_name} / ${item.customer_name || item.menu}`}
                           >
-                            <div className="truncate">{buildReservationLabel(item)}</div>
+                            <div className="truncate">{buildCompactLabel(item)}</div>
                           </Link>
                         );
                       })}
 
-                      {items.length > 4 ? (
+                      {items.length > 3 ? (
                         <Link
                           href={`/reservation/day?date=${dateString}`}
-                          className="block px-1 text-[11px] font-semibold text-gray-500 hover:text-gray-700"
+                          className="block px-0.5 text-[8px] font-semibold text-gray-500 md:px-1 md:text-[11px]"
                         >
-                          +あと{items.length - 4}件
+                          +{items.length - 3}
                         </Link>
                       ) : null}
                     </div>
