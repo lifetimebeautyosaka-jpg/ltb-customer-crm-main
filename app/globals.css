@@ -27,7 +27,23 @@ body {
 * {
   box-sizing: border-box;
 }
+@media (max-width: 900px) {
+  .reservation-top-row {
+    grid-template-columns: 1fr !important;
+  }
+}
 
+@media (max-width: 768px) {
+  .reservation-drawer {
+    top: auto !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 78vh !important;
+    border-top-left-radius: 24px;
+    border-top-right-radius: 24px;
+  }
+}
 html,
 body {
   margin: 0;

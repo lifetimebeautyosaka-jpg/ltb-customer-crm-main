@@ -1,137 +1,112 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import CRMLayout from "@/components/CRMLayout";
 
-type ReservationStatus = "reserved" | "visited" | "tentative" | "blocked" | "holiday";
+type Customer = {
+  id: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  createdAt: string;
+  updatedAt?: string;
+};
+
+type ReservationStatus = "予約" | "来店" | "完了" | "キャンセル";
 
 type Reservation = {
   id: string;
   customerId: string;
   customerName: string;
+  phone?: string;
   menu: string;
-  startAt: string;
-  endAt: string;
   staff: string;
-  store: string;
-  price: number;
-  paymentMethod: string;
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:mm
+  endTime: string; // HH:mm
+  memo?: string;
   status: ReservationStatus;
-  memo?: string;
+  createdAt: string;
 };
 
-type TimelineItem =
-  | { type: "reservation"; reservation: Reservation }
-  | { type: "gap"; startAt: string; endAt: string };
+const RESERVATIONS_KEY = "gymup_reservations";
+const CUSTOMERS_PRIMARY_KEY = "gymup_customers";
+const CUSTOMERS_FALLBACK_KEY = "customers";
 
-type Sale = {
-  id: string;
-  date: string;
-  customerId: string;
-  customerName: string;
-  menuName: string;
-  staff: string;
-  totalAmount: number;
-  paymentMethod: string;
-  reservationId: string;
+const STAFF_COLORS: Record<
+  string,
+  { bg: string; border: string; text: string; dot: string }
+> = {
+  山口: { bg: "#e8fff4", border: "#38d39f", text: "#158f62", dot: "#2ecc71" },
+  池田: { bg: "#eef8ff", border: "#5ab6ff", text: "#1e78c8", dot: "#3498db" },
+  服部: { bg: "#fff6e8", border: "#ffb74d", text: "#c47a00", dot: "#f39c12" },
+  中野: { bg: "#f4efff", border: "#a78bfa", text: "#6d4aff", dot: "#8b5cf6" },
+  菱谷: { bg: "#fff0f3", border: "#ff8cab", text: "#cf4269", dot: "#ec4899" },
+  その他: { bg: "#f3f4f6", border: "#cbd5e1", text: "#475569", dot: "#94a3b8" },
 };
 
-type TicketHistory = {
-  id: string;
-  date: string;
-  staff: string;
-  memo: string;
-};
-
-type CustomerTicket = {
-  name: string;
-  total: number;
-  used: number;
-  remaining: number;
-  expiryDate: string;
-  status: "有効" | "停止" | "終了";
-  history: TicketHistory[];
-};
-
-type CustomerDetail = {
-  memo?: string;
-  lastVisit?: string;
-  bodyRecords?: unknown[];
-  trainingHistory?: unknown[];
-  subscription?: unknown;
-  ticket?: CustomerTicket;
-};
-
-const STORAGE_KEY = "gymup_reservations";
-const SALES_KEY = "gymup_sales";
-
-const STAFFS = ["全員", "山口", "石川", "池田", "羽田", "中西", "井上", "菱谷", "その他"];
-const STORES = ["江戸堀", "箕面", "福島", "中崎町", "天満橋", "江坂", "西梅田"];
-const MENUS = ["ストレッチ", "トレーニング", "業務", "休み"];
-const PAYMENT_METHODS = ["トレーニングコース", "ストレッチ回数券", "現金", "カード", "その他"];
-const WEEKDAYS = ["月", "火", "水", "木", "金", "土", "日"];
-
-function pad(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function createId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
+function safeParse<T>(value: string | null, fallback: T): T {
+  if (!value) return fallback;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
   }
-  return `id-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function getTodayString() {
-  return new Date().toISOString().slice(0, 10);
+function normalizePhone(phone: string) {
+  return phone.replace(/[^\d]/g, "").trim();
 }
 
-function toLocalDateString(date: Date) {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+function normalizeName(name: string) {
+  return name.trim().replace(/\s+/g, "");
 }
 
-function formatMonthLabel(date: Date) {
-  return `${date.getFullYear()}年${date.getMonth() + 1}月`;
+function createId(prefix: string) {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function formatDateJP(date: Date) {
-  return new Intl.DateTimeFormat("ja-JP", {
-    month: "long",
-    day: "numeric",
-    weekday: "long",
-  }).format(date);
+function loadCustomers(): Customer[] {
+  const a = safeParse<Customer[]>(localStorage.getItem(CUSTOMERS_PRIMARY_KEY), []);
+  const b = safeParse<Customer[]>(localStorage.getItem(CUSTOMERS_FALLBACK_KEY), []);
+  const merged = [...a, ...b];
+  const map = new Map<string, Customer>();
+  merged.forEach((c) => {
+    if (c?.id) map.set(c.id, c);
+  });
+  return Array.from(map.values());
 }
 
-function formatTime(value: string) {
-  const d = new Date(value);
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+function saveCustomers(customers: Customer[]) {
+  localStorage.setItem(CUSTOMERS_PRIMARY_KEY, JSON.stringify(customers));
+  localStorage.setItem(CUSTOMERS_FALLBACK_KEY, JSON.stringify(customers));
 }
 
-function isSameDay(dateTime: string, targetDate: Date) {
-  const d = new Date(dateTime);
-  return (
-    d.getFullYear() === targetDate.getFullYear() &&
-    d.getMonth() === targetDate.getMonth() &&
-    d.getDate() === targetDate.getDate()
-  );
+function loadReservations(): Reservation[] {
+  return safeParse<Reservation[]>(localStorage.getItem(RESERVATIONS_KEY), []);
 }
 
-function isSameMonth(a: Date, b: Date) {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+function saveReservations(reservations: Reservation[]) {
+  localStorage.setItem(RESERVATIONS_KEY, JSON.stringify(reservations));
 }
 
-function startOfMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), 1);
+function formatDateKey(date: Date) {
+  const y = date.getFullYear();
+  const m = `${date.getMonth() + 1}`.padStart(2, "0");
+  const d = `${date.getDate()}`.padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
-function getMonthGrid(baseDate: Date) {
-  const firstDay = startOfMonth(baseDate);
-  const weekday = firstDay.getDay();
-  const mondayIndex = weekday === 0 ? 6 : weekday - 1;
+function buildMonthDays(baseDate: Date) {
+  const year = baseDate.getFullYear();
+  const month = baseDate.getMonth();
+
+  const firstDay = new Date(year, month, 1);
   const start = new Date(firstDay);
-  start.setDate(firstDay.getDate() - mondayIndex);
+  start.setDate(firstDay.getDate() - firstDay.getDay());
 
   const days: Date[] = [];
-  for (let i = 0; i < 35; i += 1) {
+  for (let i = 0; i < 42; i += 1) {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
     days.push(d);
@@ -139,1351 +114,997 @@ function getMonthGrid(baseDate: Date) {
   return days;
 }
 
-function getStatusPillStyle(status: ReservationStatus) {
-  switch (status) {
-    case "reserved":
-      return { bg: "#d9f7e8", color: "#0f9f5f", line: "#35c985" };
-    case "tentative":
-      return { bg: "#ffe0e5", color: "#ef6b79", line: "#ff8c95" };
-    case "blocked":
-      return { bg: "#dff0ff", color: "#3192e6", line: "#5db1f2" };
-    case "holiday":
-      return { bg: "#d7ebff", color: "#2486e8", line: "#4ca2f2" };
-    case "visited":
-      return { bg: "#ece7e4", color: "#8e7f75", line: "#a99a90" };
-    default:
-      return { bg: "#eef2f6", color: "#64748b", line: "#94a3b8" };
-  }
+function getStaffStyle(staff: string) {
+  return STAFF_COLORS[staff] || STAFF_COLORS["その他"];
 }
 
-function getStatusLabel(status: ReservationStatus) {
-  switch (status) {
-    case "reserved":
-      return "通常";
-    case "tentative":
-      return "仮";
-    case "blocked":
-      return "業務";
-    case "visited":
-      return "来店済み";
-    case "holiday":
-      return "休み";
-    default:
-      return status;
-  }
+function sortReservations(list: Reservation[]) {
+  return [...list].sort((a, b) =>
+    `${a.date} ${a.startTime}`.localeCompare(`${b.date} ${b.startTime}`)
+  );
 }
 
-function buildTimeline(items: Reservation[]): TimelineItem[] {
-  if (items.length === 0) return [];
+function saveCustomerDetail(customer: Customer) {
+  const key = `customer-${customer.id}`;
+  const existing = safeParse<Record<string, unknown> | null>(
+    localStorage.getItem(key),
+    null
+  );
 
-  const sorted = [...items].sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
-  const result: TimelineItem[] = [];
+  const next = {
+    ...(existing || {}),
+    id: customer.id,
+    name: customer.name,
+    phone: customer.phone || "",
+    email: customer.email || "",
+    createdAt:
+      typeof existing?.createdAt === "string"
+        ? existing.createdAt
+        : customer.createdAt,
+    updatedAt: new Date().toISOString(),
+  };
 
-  sorted.forEach((reservation, index) => {
-    if (index > 0) {
-      const prev = sorted[index - 1];
-      const prevEnd = new Date(prev.endAt).getTime();
-      const currentStart = new Date(reservation.startAt).getTime();
-      if (currentStart > prevEnd) {
-        result.push({
-          type: "gap",
-          startAt: prev.endAt,
-          endAt: reservation.startAt,
-        });
-      }
-    }
-    result.push({ type: "reservation", reservation });
+  localStorage.setItem(key, JSON.stringify(next));
+}
+
+export default function ReservationsPage() {
+  const [mounted, setMounted] = useState(false);
+
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
   });
 
-  return result;
-}
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string>("");
+  const [openedReservation, setOpenedReservation] = useState<Reservation | null>(null);
 
-function defaultTicket(): CustomerTicket {
-  return {
-    name: "10回券",
-    total: 10,
-    used: 0,
-    remaining: 10,
-    expiryDate: "",
-    status: "有効",
-    history: [],
-  };
-}
+  const [customerName, setCustomerName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [menu, setMenu] = useState("ストレッチ");
+  const [staff, setStaff] = useState("山口");
+  const [date, setDate] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const [memo, setMemo] = useState("");
 
-function normalizeTicket(ticket?: Partial<CustomerTicket>): CustomerTicket {
-  const base = defaultTicket();
-  const merged = { ...base, ...ticket };
-  const total = Math.max(0, Number(merged.total || 0));
-  const used = Math.max(0, Number(merged.used || 0));
-  const remaining = Math.max(0, total - used);
+  useEffect(() => {
+    setMounted(true);
 
-  let status = merged.status || "有効";
-  if (remaining <= 0 && status === "有効") status = "終了";
+    const loggedIn =
+      localStorage.getItem("gymup_logged_in") || localStorage.getItem("isLoggedIn");
 
-  return {
-    ...merged,
-    total,
-    used,
-    remaining,
-    status,
-    expiryDate: merged.expiryDate || "",
-    history: Array.isArray(merged.history) ? merged.history : [],
-  };
-}
-
-function getTicketRemaining(customerId: string) {
-  try {
-    const raw = localStorage.getItem(`customer-${customerId}`);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed?.ticket) return null;
-    const ticket = normalizeTicket(parsed.ticket);
-    return ticket.remaining;
-  } catch {
-    return null;
-  }
-}
-
-function buildInitialReservations(): Reservation[] {
-  const today = new Date();
-  const monthBase = new Date(today.getFullYear(), today.getMonth(), 1);
-
-  const d = (day: number, time: string) =>
-    `${monthBase.getFullYear()}-${pad(monthBase.getMonth() + 1)}-${pad(day)}T${time}`;
-
-  return [
-    {
-      id: createId(),
-      customerId: "1",
-      customerName: "森本様",
-      menu: "トレーニング",
-      startAt: d(18, "07:50"),
-      endAt: d(18, "08:50"),
-      staff: "山口",
-      store: "西梅田",
-      price: 7000,
-      paymentMethod: "トレーニングコース",
-      status: "reserved",
-      memo: "",
-    },
-    {
-      id: createId(),
-      customerId: "2",
-      customerName: "服部様",
-      menu: "トレーニング",
-      startAt: d(18, "09:30"),
-      endAt: d(18, "11:00"),
-      staff: "山口",
-      store: "西梅田",
-      price: 7000,
-      paymentMethod: "トレーニングコース",
-      status: "reserved",
-      memo: "",
-    },
-    {
-      id: createId(),
-      customerId: "3",
-      customerName: "消防点検",
-      menu: "業務",
-      startAt: d(18, "10:00"),
-      endAt: d(18, "12:00"),
-      staff: "中西",
-      store: "福島",
-      price: 0,
-      paymentMethod: "その他",
-      status: "blocked",
-      memo: "室内の検査あり",
-    },
-    {
-      id: createId(),
-      customerId: "4",
-      customerName: "湯山様",
-      menu: "ストレッチ",
-      startAt: d(18, "12:00"),
-      endAt: d(18, "13:00"),
-      staff: "山口",
-      store: "西梅田",
-      price: 6000,
-      paymentMethod: "その他",
-      status: "tentative",
-      memo: "仮予約",
-    },
-    {
-      id: createId(),
-      customerId: "5",
-      customerName: "大井様",
-      menu: "ストレッチ",
-      startAt: d(18, "13:30"),
-      endAt: d(18, "14:30"),
-      staff: "中西",
-      store: "福島",
-      price: 7000,
-      paymentMethod: "カード",
-      status: "reserved",
-      memo: "指名料込み",
-    },
-    {
-      id: createId(),
-      customerId: "6",
-      customerName: "星谷様",
-      menu: "ストレッチ",
-      startAt: d(18, "14:00"),
-      endAt: d(18, "15:00"),
-      staff: "山口",
-      store: "西梅田",
-      price: 6000,
-      paymentMethod: "ストレッチ回数券",
-      status: "reserved",
-      memo: "",
-    },
-    {
-      id: createId(),
-      customerId: "7",
-      customerName: "谷川様",
-      menu: "トレーニング",
-      startAt: d(18, "16:30"),
-      endAt: d(18, "17:30"),
-      staff: "池田",
-      store: "江戸堀",
-      price: 7000,
-      paymentMethod: "トレーニングコース",
-      status: "reserved",
-      memo: "",
-    },
-  ];
-}
-
-function loadReservations(): Reservation[] {
-  if (typeof window === "undefined") return [];
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return buildInitialReservations();
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : buildInitialReservations();
-  } catch {
-    return buildInitialReservations();
-  }
-}
-
-function saveReservations(items: Reservation[]) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-}
-
-function loadSales(): Sale[] {
-  if (typeof window === "undefined") return [];
-  const raw = localStorage.getItem(SALES_KEY);
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveSales(items: Sale[]) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(SALES_KEY, JSON.stringify(items));
-}
-
-function MonthCalendar({
-  calendarDate,
-  selectedDate,
-  reservations,
-  selectedStaff,
-  onPrevMonth,
-  onNextMonth,
-  onSelectDate,
-  onOpenDate,
-}: {
-  calendarDate: Date;
-  selectedDate: Date;
-  reservations: Reservation[];
-  selectedStaff: string;
-  onPrevMonth: () => void;
-  onNextMonth: () => void;
-  onSelectDate: (date: Date) => void;
-  onOpenDate: (date: Date) => void;
-}) {
-  const days = useMemo(() => getMonthGrid(calendarDate), [calendarDate]);
-  const todayKey = toLocalDateString(new Date());
-  const tapRef = useRef<{ key: string; time: number } | null>(null);
-
-  const handleTap = (date: Date) => {
-    const key = toLocalDateString(date);
-    const now = Date.now();
-
-    if (tapRef.current && tapRef.current.key === key && now - tapRef.current.time < 320) {
-      onOpenDate(date);
-      tapRef.current = null;
+    if (loggedIn !== "true") {
+      window.location.href = "/login";
       return;
     }
 
-    tapRef.current = { key, time: now };
-    onSelectDate(date);
+    const loadedCustomers = loadCustomers();
+    const loadedReservations = sortReservations(loadReservations());
+
+    setCustomers(loadedCustomers);
+    setReservations(loadedReservations);
+
+    const today = formatDateKey(new Date());
+    setSelectedDate(today);
+    setDate(today);
+  }, []);
+
+  const monthDays = useMemo(() => buildMonthDays(currentMonth), [currentMonth]);
+
+  const groupedByDate = useMemo(() => {
+    const map = new Map<string, Reservation[]>();
+    reservations.forEach((r) => {
+      const arr = map.get(r.date) || [];
+      arr.push(r);
+      map.set(r.date, sortReservations(arr));
+    });
+    return map;
+  }, [reservations]);
+
+  const selectedReservations = useMemo(() => {
+    if (!selectedDate) return [];
+    return groupedByDate.get(selectedDate) || [];
+  }, [groupedByDate, selectedDate]);
+
+  const handleCreateReservation = () => {
+    if (!customerName.trim()) {
+      alert("お客様名を入力してください");
+      return;
+    }
+    if (!date) {
+      alert("日付を入力してください");
+      return;
+    }
+    if (!startTime) {
+      alert("開始時間を入力してください");
+      return;
+    }
+    if (!endTime) {
+      alert("終了時間を入力してください");
+      return;
+    }
+    if (!staff.trim()) {
+      alert("担当スタッフを選択してください");
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const normalizedInputPhone = normalizePhone(phone);
+    const normalizedInputName = normalizeName(customerName);
+
+    let currentCustomers = loadCustomers();
+
+    let matchedCustomer =
+      currentCustomers.find((c) => {
+        if (!normalizedInputPhone) return false;
+        return normalizePhone(c.phone || "") === normalizedInputPhone;
+      }) ||
+      currentCustomers.find((c) => normalizeName(c.name) === normalizedInputName);
+
+    if (!matchedCustomer) {
+      matchedCustomer = {
+        id: createId("customer"),
+        name: customerName.trim(),
+        phone: phone.trim(),
+        createdAt: now,
+        updatedAt: now,
+      };
+      currentCustomers = [matchedCustomer, ...currentCustomers];
+      saveCustomers(currentCustomers);
+      saveCustomerDetail(matchedCustomer);
+      setCustomers(currentCustomers);
+    } else {
+      const updatedCustomer: Customer = {
+        ...matchedCustomer,
+        name: matchedCustomer.name || customerName.trim(),
+        phone: matchedCustomer.phone || phone.trim(),
+        updatedAt: now,
+      };
+      currentCustomers = currentCustomers.map((c) =>
+        c.id === updatedCustomer.id ? updatedCustomer : c
+      );
+      saveCustomers(currentCustomers);
+      saveCustomerDetail(updatedCustomer);
+      setCustomers(currentCustomers);
+      matchedCustomer = updatedCustomer;
+    }
+
+    const newReservation: Reservation = {
+      id: createId("reservation"),
+      customerId: matchedCustomer.id,
+      customerName: matchedCustomer.name,
+      phone: matchedCustomer.phone || phone.trim(),
+      menu,
+      staff,
+      date,
+      startTime,
+      endTime,
+      memo: memo.trim(),
+      status: "予約",
+      createdAt: now,
+    };
+
+    const nextReservations = sortReservations([...loadReservations(), newReservation]);
+    saveReservations(nextReservations);
+    setReservations(nextReservations);
+    setSelectedDate(date);
+
+    setCustomerName("");
+    setPhone("");
+    setMenu("ストレッチ");
+    setStaff("山口");
+    setStartTime("");
+    setEndTime("");
+    setMemo("");
+
+    alert("予約を保存しました。顧客管理にも自動登録しました。");
   };
 
+  const updateReservationStatus = (id: string, status: ReservationStatus) => {
+    const next = reservations.map((r) => (r.id === id ? { ...r, status } : r));
+    saveReservations(next);
+    setReservations(sortReservations(next));
+
+    if (openedReservation?.id === id) {
+      const updated = next.find((r) => r.id === id) || null;
+      setOpenedReservation(updated);
+    }
+  };
+
+  const deleteReservation = (id: string) => {
+    const ok = window.confirm("この予約を削除しますか？");
+    if (!ok) return;
+
+    const next = reservations.filter((r) => r.id !== id);
+    saveReservations(next);
+    setReservations(sortReservations(next));
+
+    if (openedReservation?.id === id) {
+      setOpenedReservation(null);
+    }
+  };
+
+  const changeMonth = (diff: number) => {
+    setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + diff, 1));
+  };
+
+  if (!mounted) return null;
+
   return (
-    <section style={monthWrapStyle}>
-      <div style={monthHeaderStyle}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={onPrevMonth} style={monthArrowStyle}>‹</button>
-          <h1 style={monthTitleStyle}>{formatMonthLabel(calendarDate)}</h1>
-          <button onClick={onNextMonth} style={monthArrowStyle}>›</button>
-        </div>
-
-        <div style={monthHintStyle}>日付ダブルタップで詳細</div>
-      </div>
-
-      <div style={weekHeaderStyle}>
-        {WEEKDAYS.map((day) => (
-          <div key={day} style={weekCellStyle}>
-            {day}
-          </div>
-        ))}
-      </div>
-
-      <div style={calendarGridStyle}>
-        {days.map((day) => {
-          const dateKey = toLocalDateString(day);
-          const items = reservations
-            .filter((r) => isSameDay(r.startAt, day))
-            .filter((r) => selectedStaff === "全員" || r.staff === selectedStaff)
-            .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
-
-          const isCurrentMonth = isSameMonth(day, calendarDate);
-          const isSelected = dateKey === toLocalDateString(selectedDate);
-          const isToday = dateKey === todayKey;
-
-          return (
-            <button
-              key={dateKey}
-              onClick={() => handleTap(day)}
-              onDoubleClick={() => onOpenDate(day)}
-              style={{
-                ...dayCellStyle,
-                opacity: isCurrentMonth ? 1 : 0.45,
-                background: isSelected ? "#f6f7f8" : "#ffffff",
-                borderColor: isSelected ? "#111111" : "#e9e9eb",
-              }}
-            >
-              <div style={dayHeaderMiniStyle}>
-                <span
-                  style={{
-                    ...dayNumberStyle,
-                    ...(isToday
-                      ? {
-                          background: "#111111",
-                          color: "#ffffff",
-                          borderRadius: 999,
-                          padding: "1px 8px",
-                        }
-                      : {}),
-                  }}
-                >
-                  {day.getDate()}
-                </span>
+    <CRMLayout title="予約管理">
+      <main style={styles.page}>
+        <section style={styles.topRow}>
+          <div style={styles.calendarCard}>
+            <div style={styles.calendarHeader}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <button style={styles.navButton} onClick={() => changeMonth(-1)}>
+                  ‹
+                </button>
+                <h1 style={styles.monthTitle}>
+                  {currentMonth.getFullYear()}年{currentMonth.getMonth() + 1}月
+                </h1>
+                <button style={styles.navButton} onClick={() => changeMonth(1)}>
+                  ›
+                </button>
               </div>
 
-              <div style={dayEventsWrapStyle}>
-                {items.slice(0, 4).map((item) => {
-                  const style = getStatusPillStyle(item.status);
-                  return (
+              <button
+                style={styles.todayButton}
+                onClick={() => {
+                  const now = new Date();
+                  const today = formatDateKey(now);
+                  setCurrentMonth(new Date(now.getFullYear(), now.getMonth(), 1));
+                  setSelectedDate(today);
+                  setDate(today);
+                }}
+              >
+                今日
+              </button>
+            </div>
+
+            <div style={styles.weekHeader}>
+              {["日", "月", "火", "水", "木", "金", "土"].map((day) => (
+                <div key={day} style={styles.weekCell}>
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            <div style={styles.calendarGrid}>
+              {monthDays.map((day) => {
+                const key = formatDateKey(day);
+                const items = groupedByDate.get(key) || [];
+                const isCurrentMonth = day.getMonth() === currentMonth.getMonth();
+                const isToday = key === formatDateKey(new Date());
+                const isSelected = key === selectedDate;
+
+                return (
+                  <div
+                    key={key}
+                    style={{
+                      ...styles.dayCell,
+                      ...(isCurrentMonth ? {} : styles.dayCellMuted),
+                      ...(isSelected ? styles.dayCellSelected : {}),
+                    }}
+                    onClick={() => {
+                      setSelectedDate(key);
+                      setDate(key);
+                    }}
+                  >
                     <div
-                      key={item.id}
                       style={{
-                        ...monthEventPillStyle,
-                        background: style.bg,
-                        color: style.color,
+                        ...styles.dayNumber,
+                        ...(isToday ? styles.todayDot : {}),
                       }}
                     >
-                      {item.customerName}
+                      {day.getDate()}
+                    </div>
+
+                    <div style={styles.dayReservations}>
+                      {items.slice(0, 4).map((item) => {
+                        const staffStyle = getStaffStyle(item.staff);
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            style={{
+                              ...styles.resChip,
+                              background: staffStyle.bg,
+                              borderLeft: `4px solid ${staffStyle.border}`,
+                              color: staffStyle.text,
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedDate(key);
+                            }}
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              setOpenedReservation(item);
+                              setSelectedDate(key);
+                            }}
+                          >
+                            {item.startTime} {item.customerName}
+                          </button>
+                        );
+                      })}
+
+                      {items.length > 4 ? (
+                        <div style={styles.moreText}>+{items.length - 4}件</div>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <aside style={styles.formCard}>
+            <h2 style={styles.sectionTitle}>新規予約</h2>
+
+            <div style={styles.formGrid}>
+              <div style={styles.field}>
+                <label style={styles.label}>お客様名</label>
+                <input
+                  style={styles.input}
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="例：山田 花子"
+                />
+              </div>
+
+              <div style={styles.field}>
+                <label style={styles.label}>電話番号</label>
+                <input
+                  style={styles.input}
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="09012345678"
+                />
+              </div>
+
+              <div style={styles.field}>
+                <label style={styles.label}>メニュー</label>
+                <select
+                  style={styles.input}
+                  value={menu}
+                  onChange={(e) => setMenu(e.target.value)}
+                >
+                  <option value="ストレッチ">ストレッチ</option>
+                  <option value="トレーニング">トレーニング</option>
+                  <option value="ペアトレーニング">ペアトレーニング</option>
+                  <option value="食事管理">食事管理</option>
+                  <option value="体験">体験</option>
+                  <option value="その他">その他</option>
+                </select>
+              </div>
+
+              <div style={styles.field}>
+                <label style={styles.label}>担当スタッフ</label>
+                <select
+                  style={styles.input}
+                  value={staff}
+                  onChange={(e) => setStaff(e.target.value)}
+                >
+                  <option value="山口">山口</option>
+                  <option value="池田">池田</option>
+                  <option value="服部">服部</option>
+                  <option value="中野">中野</option>
+                  <option value="菱谷">菱谷</option>
+                  <option value="その他">その他</option>
+                </select>
+              </div>
+
+              <div style={styles.field}>
+                <label style={styles.label}>日付</label>
+                <input
+                  style={styles.input}
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                />
+              </div>
+
+              <div style={styles.field}>
+                <label style={styles.label}>開始</label>
+                <input
+                  style={styles.input}
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                />
+              </div>
+
+              <div style={styles.field}>
+                <label style={styles.label}>終了</label>
+                <input
+                  style={styles.input}
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                />
+              </div>
+
+              <div style={{ ...styles.field, gridColumn: "1 / -1" }}>
+                <label style={styles.label}>メモ</label>
+                <textarea
+                  style={styles.textarea}
+                  value={memo}
+                  onChange={(e) => setMemo(e.target.value)}
+                  placeholder="駐車場 / 指名料 / 回数券 / 注意点など"
+                />
+              </div>
+            </div>
+
+            <button style={styles.primaryButton} onClick={handleCreateReservation}>
+              予約を保存
+            </button>
+
+            <div style={styles.legendBox}>
+              <div style={styles.legendTitle}>スタッフ色分け</div>
+              <div style={styles.legendWrap}>
+                {Object.keys(STAFF_COLORS).map((name) => {
+                  const c = STAFF_COLORS[name];
+                  return (
+                    <div key={name} style={styles.legendItem}>
+                      <span
+                        style={{
+                          ...styles.legendDot,
+                          background: c.dot,
+                        }}
+                      />
+                      {name}
                     </div>
                   );
                 })}
-
-                {items.length > 4 ? (
-                  <div style={moreTextStyle}>+{items.length - 4}</div>
-                ) : null}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function StaffTabs({
-  selected,
-  onChange,
-}: {
-  selected: string;
-  onChange: (staff: string) => void;
-}) {
-  return (
-    <div style={staffScrollStyle}>
-      {STAFFS.map((staff) => {
-        const active = selected === staff;
-        return (
-          <button
-            key={staff}
-            onClick={() => onChange(staff)}
-            style={{
-              ...staffTabStyle,
-              ...(active
-                ? { background: "#111111", color: "#ffffff", borderColor: "#111111" }
-                : {}),
-            }}
-          >
-            {staff}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function DayTimeline({
-  items,
-  onSelect,
-}: {
-  items: TimelineItem[];
-  onSelect: (reservation: Reservation) => void;
-}) {
-  if (items.length === 0) {
-    return <div style={emptyStyle}>この日の予約はありません</div>;
-  }
-
-  return (
-    <div style={{ display: "grid", gap: 16 }}>
-      {items.map((item, idx) =>
-        item.type === "gap" ? (
-          <div key={`gap-${idx}`} style={gapStyle}>
-            {formatTime(item.startAt)}〜{formatTime(item.endAt)} 空き
-          </div>
-        ) : (
-          <button
-            key={item.reservation.id}
-            onClick={() => onSelect(item.reservation)}
-            style={timelineCardButtonStyle}
-          >
-            <div style={timeColStyle}>
-              <div style={startTimeStyle}>{formatTime(item.reservation.startAt)}</div>
-              <div style={endTimeStyle}>{formatTime(item.reservation.endAt)}</div>
-            </div>
-
-            <div
-              style={{
-                ...timeLineBarStyle,
-                background: getStatusPillStyle(item.reservation.status).line,
-              }}
-            />
-
-            <div style={timelineMainStyle}>
-              <div style={timelineTopStyle}>
-                <div style={timelineTitleStyle}>{item.reservation.customerName}</div>
-                <div style={avatarCircleStyle}>
-                  {item.reservation.staff.slice(0, 1)}
-                </div>
-              </div>
-
-              <div style={timelineSubStyle}>
-                {item.reservation.menu} / {item.reservation.paymentMethod} / {item.reservation.store}
-              </div>
-
-              {item.reservation.paymentMethod === "ストレッチ回数券" && (
-                <div
-                  style={{
-                    marginTop: 6,
-                    fontSize: 12,
-                    fontWeight: 800,
-                    color:
-                      (getTicketRemaining(item.reservation.customerId) ?? 0) <= 0
-                        ? "#dc2626"
-                        : "#111111",
-                  }}
-                >
-                  残り：{getTicketRemaining(item.reservation.customerId) ?? "-"}回
-                </div>
-              )}
-
-              {item.reservation.memo ? (
-                <div style={timelineMemoStyle}>{item.reservation.memo}</div>
-              ) : null}
-            </div>
-          </button>
-        )
-      )}
-    </div>
-  );
-}
-
-function ModalShell({
-  open,
-  onClose,
-  children,
-}: {
-  open: boolean;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  if (!open) return null;
-
-  return (
-    <div style={overlayStyle} onClick={onClose}>
-      <div style={sheetStyle} onClick={(e) => e.stopPropagation()}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function ReservationDetailModal({
-  reservation,
-  open,
-  onClose,
-  onVisit,
-}: {
-  reservation: Reservation | null;
-  open: boolean;
-  onClose: () => void;
-  onVisit: (reservation: Reservation) => void;
-}) {
-  if (!reservation) return null;
-
-  const alreadyVisited = reservation.status === "visited";
-
-  return (
-    <ModalShell open={open} onClose={onClose}>
-      <div style={sheetHeaderStyle}>
-        <div>
-          <div style={sheetEyebrowStyle}>DETAIL</div>
-          <div style={sheetTitleStyle}>{reservation.customerName}</div>
-        </div>
-        <button onClick={onClose} style={closeStyle}>閉じる</button>
-      </div>
-
-      <div style={detailListStyle}>
-        <DetailRow label="メニュー" value={reservation.menu} />
-        <DetailRow label="時間" value={`${formatTime(reservation.startAt)}〜${formatTime(reservation.endAt)}`} />
-        <DetailRow label="担当" value={reservation.staff} />
-        <DetailRow label="店舗" value={reservation.store} />
-        <DetailRow label="金額" value={`¥${reservation.price.toLocaleString()}`} />
-        <DetailRow label="支払方法" value={reservation.paymentMethod} />
-        <DetailRow label="状態" value={getStatusLabel(reservation.status)} />
-        <DetailRow label="メモ" value={reservation.memo || "-"} />
-      </div>
-
-      <div style={{ display: "grid", gap: 12, marginTop: 18 }}>
-        <button
-          onClick={() => onVisit(reservation)}
-          disabled={alreadyVisited}
-          style={{
-            ...submitStyle,
-            opacity: alreadyVisited ? 0.55 : 1,
-            cursor: alreadyVisited ? "not-allowed" : "pointer",
-          }}
-        >
-          {alreadyVisited ? "来店処理済み" : "来店済みにする"}
-        </button>
-      </div>
-    </ModalShell>
-  );
-}
-
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={detailRowStyle}>
-      <span style={detailLabelStyle}>{label}</span>
-      <span style={detailValueStyle}>{value}</span>
-    </div>
-  );
-}
-
-function AddReservationModal({
-  open,
-  onClose,
-  selectedDate,
-  onAdd,
-}: {
-  open: boolean;
-  onClose: () => void;
-  selectedDate: Date;
-  onAdd: (reservation: Reservation) => void;
-}) {
-  const baseDate = toLocalDateString(selectedDate);
-
-  const [form, setForm] = useState({
-    customerId: "",
-    customerName: "",
-    menu: MENUS[0],
-    startAt: `${baseDate}T10:00`,
-    endAt: `${baseDate}T11:00`,
-    staff: "山口",
-    store: STORES[0],
-    price: "6600",
-    paymentMethod: PAYMENT_METHODS[0],
-    status: "reserved" as ReservationStatus,
-    memo: "",
-  });
-
-  useEffect(() => {
-    if (open) {
-      setForm((prev) => ({
-        ...prev,
-        startAt: `${baseDate}T10:00`,
-        endAt: `${baseDate}T11:00`,
-      }));
-    }
-  }, [open, baseDate]);
-
-  const setValue = (key: string, value: string) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.customerName.trim()) return;
-
-    onAdd({
-      id: createId(),
-      customerId: form.customerId.trim() || String(Date.now()),
-      customerName: form.customerName.trim(),
-      menu: form.menu,
-      startAt: form.startAt,
-      endAt: form.endAt,
-      staff: form.staff,
-      store: form.store,
-      price: Number(form.price) || 0,
-      paymentMethod: form.paymentMethod,
-      status: form.status,
-      memo: form.memo.trim(),
-    });
-
-    onClose();
-    setForm({
-      customerId: "",
-      customerName: "",
-      menu: MENUS[0],
-      startAt: `${baseDate}T10:00`,
-      endAt: `${baseDate}T11:00`,
-      staff: "山口",
-      store: STORES[0],
-      price: "6600",
-      paymentMethod: PAYMENT_METHODS[0],
-      status: "reserved",
-      memo: "",
-    });
-  };
-
-  return (
-    <ModalShell open={open} onClose={onClose}>
-      <div style={sheetHeaderStyle}>
-        <div>
-          <div style={sheetEyebrowStyle}>ADD</div>
-          <div style={sheetTitleStyle}>予約追加</div>
-        </div>
-        <button onClick={onClose} style={closeStyle}>閉じる</button>
-      </div>
-
-      <form onSubmit={handleSubmit} style={{ display: "grid", gap: 14 }}>
-        <Field label="顧客ID">
-          <input value={form.customerId} onChange={(e) => setValue("customerId", e.target.value)} style={inputStyle} placeholder="customer id" />
-        </Field>
-
-        <Field label="顧客名">
-          <input value={form.customerName} onChange={(e) => setValue("customerName", e.target.value)} style={inputStyle} placeholder="山田様" />
-        </Field>
-
-        <Field label="メニュー">
-          <select value={form.menu} onChange={(e) => setValue("menu", e.target.value)} style={selectStyle}>
-            {MENUS.map((item) => (
-              <option key={item}>{item}</option>
-            ))}
-          </select>
-        </Field>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Field label="開始">
-            <input type="datetime-local" value={form.startAt} onChange={(e) => setValue("startAt", e.target.value)} style={inputStyle} />
-          </Field>
-          <Field label="終了">
-            <input type="datetime-local" value={form.endAt} onChange={(e) => setValue("endAt", e.target.value)} style={inputStyle} />
-          </Field>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Field label="担当">
-            <select value={form.staff} onChange={(e) => setValue("staff", e.target.value)} style={selectStyle}>
-              {STAFFS.filter((s) => s !== "全員").map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="店舗">
-            <select value={form.store} onChange={(e) => setValue("store", e.target.value)} style={selectStyle}>
-              {STORES.map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </select>
-          </Field>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Field label="金額">
-            <input type="number" value={form.price} onChange={(e) => setValue("price", e.target.value)} style={inputStyle} />
-          </Field>
-          <Field label="支払方法">
-            <select value={form.paymentMethod} onChange={(e) => setValue("paymentMethod", e.target.value)} style={selectStyle}>
-              {PAYMENT_METHODS.map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </select>
-          </Field>
-        </div>
-
-        <Field label="状態">
-          <select value={form.status} onChange={(e) => setValue("status", e.target.value)} style={selectStyle}>
-            <option value="reserved">通常</option>
-            <option value="tentative">仮</option>
-            <option value="blocked">業務</option>
-            <option value="visited">来店済み</option>
-            <option value="holiday">休み</option>
-          </select>
-        </Field>
-
-        <Field label="メモ">
-          <textarea value={form.memo} onChange={(e) => setValue("memo", e.target.value)} style={{ ...inputStyle, minHeight: 90, height: "auto", resize: "vertical", paddingTop: 12 }} />
-        </Field>
-
-        <button type="submit" style={submitStyle}>追加する</button>
-      </form>
-    </ModalShell>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label style={{ display: "grid", gap: 8 }}>
-      <span style={fieldLabelStyle}>{label}</span>
-      {children}
-    </label>
-  );
-}
-
-export default function ReservationPage() {
-  const [calendarDate, setCalendarDate] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [selectedStaff, setSelectedStaff] = useState("全員");
-  const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [addOpen, setAddOpen] = useState(false);
-  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
-
-  const detailSectionRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const initial = loadReservations();
-    setReservations(initial);
-    saveReservations(initial);
-  }, []);
-
-  useEffect(() => {
-    saveReservations(reservations);
-  }, [reservations]);
-
-  const filteredByStaff = useMemo(() => {
-    return reservations.filter((item) => selectedStaff === "全員" || item.staff === selectedStaff);
-  }, [reservations, selectedStaff]);
-
-  const selectedDayReservations = useMemo(() => {
-    return filteredByStaff
-      .filter((item) => isSameDay(item.startAt, selectedDate))
-      .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
-  }, [filteredByStaff, selectedDate]);
-
-  const timeline = useMemo(() => buildTimeline(selectedDayReservations), [selectedDayReservations]);
-
-  const summary = useMemo(() => {
-    const tentativeCount = selectedDayReservations.filter((r) => r.status === "tentative").length;
-    const salesForecast = selectedDayReservations
-      .filter((r) => r.status === "reserved" || r.status === "visited")
-      .reduce((sum, r) => sum + (Number(r.price) || 0), 0);
-
-    return {
-      count: selectedDayReservations.length,
-      tentativeCount,
-      salesForecast,
-    };
-  }, [selectedDayReservations]);
-
-  const openDayDetail = (date: Date) => {
-    setSelectedDate(date);
-    setTimeout(() => {
-      detailSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 50);
-  };
-
-  const handleAddReservation = (reservation: Reservation) => {
-    setReservations((prev) =>
-      [...prev, reservation].sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime())
-    );
-    setSelectedDate(new Date(reservation.startAt));
-    setCalendarDate(new Date(reservation.startAt));
-  };
-
-  const handleVisit = (reservation: Reservation) => {
-    if (reservation.status === "visited") {
-      alert("この予約はすでに来店処理済みです");
-      return;
-    }
-
-    const updatedReservations = reservations.map((r) =>
-      r.id === reservation.id ? { ...r, status: "visited" as ReservationStatus } : r
-    );
-    setReservations(updatedReservations);
-
-    const currentSales = loadSales();
-    const alreadyAdded = currentSales.some((sale) => sale.reservationId === reservation.id);
-
-    if (!alreadyAdded) {
-      const newSale: Sale = {
-        id: createId(),
-        date: new Date().toISOString(),
-        customerId: reservation.customerId,
-        customerName: reservation.customerName,
-        menuName: reservation.menu,
-        staff: reservation.staff,
-        totalAmount: Number(reservation.price) || 0,
-        paymentMethod: reservation.paymentMethod,
-        reservationId: reservation.id,
-      };
-
-      saveSales([...currentSales, newSale]);
-    }
-
-    const customerKey = `customer-${reservation.customerId}`;
-    let customerDetail: CustomerDetail = {};
-
-    try {
-      const raw = localStorage.getItem(customerKey);
-      customerDetail = raw ? JSON.parse(raw) : {};
-    } catch {
-      customerDetail = {};
-    }
-
-    customerDetail.lastVisit = getTodayString();
-
-    if (reservation.paymentMethod === "ストレッチ回数券") {
-      const ticket = normalizeTicket(customerDetail.ticket);
-
-      if (ticket.status === "停止") {
-        alert("この顧客の回数券は停止中です。来店処理はしましたが、回数券は消化していません。");
-      } else if (ticket.remaining <= 0) {
-        alert("この顧客の回数券残数がありません。来店処理はしましたが、回数券は消化していません。");
-      } else {
-        ticket.used += 1;
-        ticket.remaining = Math.max(0, ticket.total - ticket.used);
-        ticket.history = [
-          ...ticket.history,
-          {
-            id: createId(),
-            date: getTodayString(),
-            staff: reservation.staff,
-            memo: `予約連動 / ${reservation.menu}`,
-          },
-        ];
-
-        if (ticket.remaining <= 0 && ticket.status === "有効") {
-          ticket.status = "終了";
-        }
-
-        customerDetail.ticket = ticket;
-      }
-    }
-
-    localStorage.setItem(customerKey, JSON.stringify(customerDetail));
-
-    setSelectedReservation((prev) =>
-      prev && prev.id === reservation.id ? { ...prev, status: "visited" } : prev
-    );
-
-    alert("来店処理が完了しました");
-  };
-
-  return (
-    <main style={pageStyle}>
-      <div style={phoneWrapStyle}>
-        <div style={topBarStyle}>
-          <div style={topBarLeftStyle}>予約管理</div>
-          <button onClick={() => setAddOpen(true)} style={plusStyle}>＋</button>
-        </div>
-
-        <MonthCalendar
-          calendarDate={calendarDate}
-          selectedDate={selectedDate}
-          reservations={filteredByStaff}
-          selectedStaff={selectedStaff}
-          onPrevMonth={() => setCalendarDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
-          onNextMonth={() => setCalendarDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
-          onSelectDate={(date) => setSelectedDate(date)}
-          onOpenDate={openDayDetail}
-        />
-
-        <StaffTabs selected={selectedStaff} onChange={setSelectedStaff} />
-
-        <section ref={detailSectionRef} style={detailWrapStyle}>
-          <div style={detailHeadStyle}>
-            <div>
-              <div style={detailDateStyle}>{formatDateJP(selectedDate)}</div>
-              <div style={detailSubTextStyle}>
-                予約 {summary.count}件 / 仮 {summary.tentativeCount}件 / 売上見込み ¥{summary.salesForecast.toLocaleString()}
               </div>
             </div>
-          </div>
-
-          <DayTimeline
-            items={timeline}
-            onSelect={(reservation) => {
-              setSelectedReservation(reservation);
-              setDetailOpen(true);
-            }}
-          />
+          </aside>
         </section>
-      </div>
 
-      <AddReservationModal
-        open={addOpen}
-        onClose={() => setAddOpen(false)}
-        selectedDate={selectedDate}
-        onAdd={handleAddReservation}
-      />
+        <section style={styles.daySection}>
+          <div style={styles.dayHeader}>
+            <div>
+              <h2 style={styles.sectionTitle}>
+                {selectedDate ? selectedDate.replace(/-/g, "/") : ""} の予約一覧
+              </h2>
+              <p style={styles.daySub}>
+                予約チップを**ダブルクリック**すると詳細が開きます。スマホは**1回タップ**で下から開きます。
+              </p>
+            </div>
+          </div>
 
-      <ReservationDetailModal
-        reservation={selectedReservation}
-        open={detailOpen}
-        onClose={() => setDetailOpen(false)}
-        onVisit={handleVisit}
-      />
-    </main>
+          {selectedReservations.length === 0 ? (
+            <div style={styles.emptyBox}>この日の予約はありません。</div>
+          ) : (
+            <div style={styles.dayList}>
+              {selectedReservations.map((item) => {
+                const staffStyle = getStaffStyle(item.staff);
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    style={{
+                      ...styles.dayListCard,
+                      borderLeft: `6px solid ${staffStyle.border}`,
+                    }}
+                    onClick={() => setOpenedReservation(item)}
+                    onDoubleClick={() => setOpenedReservation(item)}
+                  >
+                    <div style={styles.dayListLeft}>
+                      <div style={styles.timeBig}>
+                        {item.startTime} - {item.endTime}
+                      </div>
+                      <div style={styles.nameBig}>{item.customerName}</div>
+                      <div style={styles.metaText}>
+                        {item.menu} / {item.staff} / {item.phone || "電話番号なし"}
+                      </div>
+                      {item.memo ? <div style={styles.memoText}>{item.memo}</div> : null}
+                    </div>
+
+                    <div
+                      style={{
+                        ...styles.staffCircle,
+                        background: staffStyle.dot,
+                      }}
+                    >
+                      {item.staff.slice(0, 1)}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {openedReservation ? (
+          <>
+            <div style={styles.overlay} onClick={() => setOpenedReservation(null)} />
+
+            <div style={styles.drawer}>
+              <div style={styles.drawerHandle} />
+              <div style={styles.drawerHeader}>
+                <div>
+                  <div style={styles.drawerDate}>{openedReservation.date}</div>
+                  <h3 style={styles.drawerTitle}>{openedReservation.customerName}</h3>
+                </div>
+                <button
+                  style={styles.closeButton}
+                  onClick={() => setOpenedReservation(null)}
+                >
+                  ×
+                </button>
+              </div>
+
+              <div style={styles.detailGrid}>
+                <DetailItem label="開始" value={openedReservation.startTime} />
+                <DetailItem label="終了" value={openedReservation.endTime} />
+                <DetailItem label="メニュー" value={openedReservation.menu} />
+                <DetailItem label="スタッフ" value={openedReservation.staff} />
+                <DetailItem label="電話番号" value={openedReservation.phone || "-"} />
+                <DetailItem label="状態" value={openedReservation.status} />
+              </div>
+
+              <div style={styles.memoDetail}>
+                <div style={styles.label}>メモ</div>
+                <div style={styles.memoDetailText}>
+                  {openedReservation.memo || "メモはありません"}
+                </div>
+              </div>
+
+              <div style={styles.actionBar}>
+                <button
+                  style={styles.smallAction}
+                  onClick={() => updateReservationStatus(openedReservation.id, "来店")}
+                >
+                  来店
+                </button>
+                <button
+                  style={styles.smallAction}
+                  onClick={() => updateReservationStatus(openedReservation.id, "完了")}
+                >
+                  完了
+                </button>
+                <button
+                  style={styles.smallAction}
+                  onClick={() => updateReservationStatus(openedReservation.id, "キャンセル")}
+                >
+                  キャンセル
+                </button>
+                <button
+                  style={styles.deleteAction}
+                  onClick={() => deleteReservation(openedReservation.id)}
+                >
+                  削除
+                </button>
+              </div>
+            </div>
+          </>
+        ) : null}
+      </main>
+    </CRMLayout>
   );
 }
 
-const pageStyle: React.CSSProperties = {
-  minHeight: "100vh",
-  background: "#efefef",
-  padding: "16px 0 32px",
-  fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-};
+function DetailItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={styles.detailCard}>
+      <div style={styles.detailLabel}>{label}</div>
+      <div style={styles.detailValue}>{value}</div>
+    </div>
+  );
+}
 
-const phoneWrapStyle: React.CSSProperties = {
-  width: "100%",
-  maxWidth: 860,
-  margin: "0 auto",
-  background: "#f5f5f5",
-  borderRadius: 32,
-  padding: 18,
-  boxSizing: "border-box",
-};
-
-const topBarStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  marginBottom: 14,
-};
-
-const topBarLeftStyle: React.CSSProperties = {
-  fontSize: 16,
-  fontWeight: 800,
-  color: "#111",
-};
-
-const plusStyle: React.CSSProperties = {
-  width: 44,
-  height: 44,
-  borderRadius: 999,
-  border: "none",
-  background: "#111",
-  color: "#fff",
-  fontSize: 28,
-  lineHeight: 1,
-  cursor: "pointer",
-};
-
-const monthWrapStyle: React.CSSProperties = {
-  background: "#f5f5f5",
-};
-
-const monthHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 12,
-  marginBottom: 12,
-};
-
-const monthTitleStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: 24,
-  fontWeight: 900,
-  color: "#111",
-};
-
-const monthArrowStyle: React.CSSProperties = {
-  width: 34,
-  height: 34,
-  borderRadius: 12,
-  border: "1px solid #dddddf",
-  background: "#fff",
-  fontSize: 22,
-  cursor: "pointer",
-};
-
-const monthHintStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: "#777",
-  fontWeight: 600,
-};
-
-const weekHeaderStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(7, minmax(0,1fr))",
-  gap: 6,
-  marginBottom: 6,
-};
-
-const weekCellStyle: React.CSSProperties = {
-  textAlign: "center",
-  fontSize: 13,
-  fontWeight: 700,
-  color: "#8b8b8f",
-  padding: "4px 0",
-};
-
-const calendarGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(7, minmax(0,1fr))",
-  gap: 6,
-};
-
-const dayCellStyle: React.CSSProperties = {
-  minHeight: 118,
-  borderRadius: 16,
-  border: "1px solid #e9e9eb",
-  background: "#fff",
-  padding: 6,
-  textAlign: "left",
-  cursor: "pointer",
-  boxSizing: "border-box",
-};
-
-const dayHeaderMiniStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  marginBottom: 4,
-};
-
-const dayNumberStyle: React.CSSProperties = {
-  fontSize: 13,
-  fontWeight: 800,
-  color: "#222",
-};
-
-const dayEventsWrapStyle: React.CSSProperties = {
-  display: "grid",
-  gap: 4,
-};
-
-const monthEventPillStyle: React.CSSProperties = {
-  borderRadius: 6,
-  padding: "4px 6px",
-  fontSize: 11,
-  fontWeight: 800,
-  whiteSpace: "nowrap",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-};
-
-const moreTextStyle: React.CSSProperties = {
-  fontSize: 11,
-  color: "#777",
-  fontWeight: 700,
-};
-
-const staffScrollStyle: React.CSSProperties = {
-  display: "flex",
-  gap: 8,
-  overflowX: "auto",
-  padding: "14px 0 16px",
-};
-
-const staffTabStyle: React.CSSProperties = {
-  flex: "0 0 auto",
-  borderRadius: 999,
-  border: "1px solid #dddddf",
-  background: "#fff",
-  color: "#222",
-  padding: "10px 14px",
-  fontSize: 13,
-  fontWeight: 700,
-  cursor: "pointer",
-};
-
-const detailWrapStyle: React.CSSProperties = {
-  background: "#f5f5f5",
-  paddingTop: 8,
-};
-
-const detailHeadStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  marginBottom: 16,
-};
-
-const detailDateStyle: React.CSSProperties = {
-  fontSize: 22,
-  fontWeight: 900,
-  color: "#111",
-};
-
-const detailSubTextStyle: React.CSSProperties = {
-  fontSize: 13,
-  color: "#777",
-  marginTop: 6,
-};
-
-const emptyStyle: React.CSSProperties = {
-  background: "#fff",
-  borderRadius: 18,
-  border: "1px solid #ececef",
-  padding: 24,
-  color: "#777",
-  textAlign: "center",
-};
-
-const gapStyle: React.CSSProperties = {
-  background: "#f0f0f2",
-  borderRadius: 16,
-  padding: "12px 16px",
-  fontSize: 14,
-  color: "#666",
-  border: "1px solid #e3e3e5",
-};
-
-const timelineCardButtonStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "74px 6px 1fr",
-  gap: 14,
-  alignItems: "stretch",
-  width: "100%",
-  textAlign: "left",
-  background: "transparent",
-  border: "none",
-  padding: 0,
-  cursor: "pointer",
-};
-
-const timeColStyle: React.CSSProperties = {
-  paddingTop: 6,
-};
-
-const startTimeStyle: React.CSSProperties = {
-  fontSize: 16,
-  fontWeight: 800,
-  color: "#222",
-};
-
-const endTimeStyle: React.CSSProperties = {
-  fontSize: 15,
-  color: "#9a9a9f",
-  marginTop: 8,
-};
-
-const timeLineBarStyle: React.CSSProperties = {
-  width: 4,
-  borderRadius: 999,
-};
-
-const timelineMainStyle: React.CSSProperties = {
-  background: "transparent",
-  paddingBottom: 12,
-};
-
-const timelineTopStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 12,
-};
-
-const timelineTitleStyle: React.CSSProperties = {
-  fontSize: 22,
-  fontWeight: 900,
-  color: "#171717",
-  lineHeight: 1.2,
-};
-
-const avatarCircleStyle: React.CSSProperties = {
-  width: 44,
-  height: 44,
-  borderRadius: 999,
-  background: "#33c86f",
-  color: "#fff",
-  fontWeight: 900,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  flex: "0 0 auto",
-};
-
-const timelineSubStyle: React.CSSProperties = {
-  marginTop: 10,
-  fontSize: 14,
-  color: "#7d7d82",
-  lineHeight: 1.7,
-};
-
-const timelineMemoStyle: React.CSSProperties = {
-  marginTop: 4,
-  fontSize: 14,
-  color: "#8b8b90",
-  lineHeight: 1.7,
-};
-
-const overlayStyle: React.CSSProperties = {
-  position: "fixed",
-  inset: 0,
-  background: "rgba(0,0,0,0.28)",
-  display: "flex",
-  alignItems: "flex-end",
-  justifyContent: "center",
-  padding: 12,
-  zIndex: 100,
-};
-
-const sheetStyle: React.CSSProperties = {
-  width: "100%",
-  maxWidth: 560,
-  maxHeight: "90vh",
-  overflowY: "auto",
-  borderRadius: 28,
-  background: "#fff",
-  padding: 20,
-  boxSizing: "border-box",
-};
-
-const sheetHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: 12,
-  marginBottom: 18,
-};
-
-const sheetEyebrowStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 800,
-  color: "#8b8b90",
-  letterSpacing: "0.12em",
-};
-
-const sheetTitleStyle: React.CSSProperties = {
-  fontSize: 24,
-  fontWeight: 900,
-  color: "#111",
-  marginTop: 4,
-};
-
-const closeStyle: React.CSSProperties = {
-  border: "1px solid #e3e3e5",
-  background: "#fff",
-  borderRadius: 999,
-  padding: "10px 14px",
-  fontWeight: 700,
-  cursor: "pointer",
-};
-
-const detailListStyle: React.CSSProperties = {
-  display: "grid",
-  gap: 10,
-};
-
-const detailRowStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: 16,
-  padding: "14px 16px",
-  borderRadius: 16,
-  background: "#f7f7f8",
-};
-
-const detailLabelStyle: React.CSSProperties = {
-  color: "#7d7d82",
-  fontSize: 14,
-};
-
-const detailValueStyle: React.CSSProperties = {
-  color: "#111",
-  fontWeight: 700,
-  fontSize: 14,
-  textAlign: "right",
-};
-
-const fieldLabelStyle: React.CSSProperties = {
-  fontSize: 13,
-  fontWeight: 800,
-  color: "#555",
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  height: 46,
-  borderRadius: 14,
-  border: "1px solid #dedee2",
-  backgroundColor: "#fff",
-  padding: "12px 14px",
-  fontSize: 14,
-  color: "#111",
-  boxSizing: "border-box",
-  outline: "none",
-};
-
-const selectStyle: React.CSSProperties = {
-  width: "100%",
-  height: 46,
-  borderRadius: 14,
-  border: "1px solid #dedee2",
-  backgroundColor: "#fff",
-  padding: "0 40px 0 14px",
-  fontSize: 14,
-  color: "#111",
-  boxSizing: "border-box",
-  appearance: "none",
-  WebkitAppearance: "none",
-  MozAppearance: "none",
-  outline: "none",
-  backgroundImage:
-    "linear-gradient(45deg, transparent 50%, #666 50%), linear-gradient(135deg, #666 50%, transparent 50%)",
-  backgroundPosition:
-    "calc(100% - 18px) calc(50% - 3px), calc(100% - 12px) calc(50% - 3px)",
-  backgroundSize: "6px 6px, 6px 6px",
-  backgroundRepeat: "no-repeat",
-};
-
-const submitStyle: React.CSSProperties = {
-  marginTop: 4,
-  width: "100%",
-  border: "none",
-  borderRadius: 16,
-  background: "#111",
-  color: "#fff",
-  fontSize: 15,
-  fontWeight: 800,
-  padding: "14px 16px",
-  cursor: "pointer",
+const styles: Record<string, React.CSSProperties> = {
+  page: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 18,
+    padding: 16,
+    position: "relative",
+  },
+  topRow: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1.6fr) minmax(320px, 0.9fr)",
+    gap: 18,
+  },
+  calendarCard: {
+    background: "#fff",
+    borderRadius: 20,
+    padding: 16,
+    border: "1px solid #e5e7eb",
+    boxShadow: "0 10px 25px rgba(15,23,42,0.05)",
+    minWidth: 0,
+  },
+  formCard: {
+    background: "#fff",
+    borderRadius: 20,
+    padding: 16,
+    border: "1px solid #e5e7eb",
+    boxShadow: "0 10px 25px rgba(15,23,42,0.05)",
+  },
+  calendarHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 14,
+    flexWrap: "wrap",
+  },
+  navButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    border: "1px solid #d1d5db",
+    background: "#fff",
+    fontSize: 22,
+    cursor: "pointer",
+  },
+  todayButton: {
+    height: 38,
+    borderRadius: 10,
+    border: "none",
+    background: "#111827",
+    color: "#fff",
+    padding: "0 14px",
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+  monthTitle: {
+    margin: 0,
+    fontSize: 26,
+    fontWeight: 800,
+    color: "#111827",
+  },
+  weekHeader: {
+    display: "grid",
+    gridTemplateColumns: "repeat(7, 1fr)",
+    gap: 8,
+    marginBottom: 8,
+  },
+  weekCell: {
+    textAlign: "center",
+    color: "#6b7280",
+    fontWeight: 700,
+    fontSize: 13,
+    padding: "6px 0",
+  },
+  calendarGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(7, 1fr)",
+    gap: 8,
+  },
+  dayCell: {
+    minHeight: 140,
+    borderRadius: 16,
+    border: "1px solid #e5e7eb",
+    background: "#fff",
+    padding: 8,
+    cursor: "pointer",
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+    overflow: "hidden",
+  },
+  dayCellMuted: {
+    background: "#fafafa",
+    opacity: 0.55,
+  },
+  dayCellSelected: {
+    border: "2px solid #111827",
+  },
+  dayNumber: {
+    fontSize: 16,
+    fontWeight: 800,
+    color: "#111827",
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  todayDot: {
+    background: "#111827",
+    color: "#fff",
+  },
+  dayReservations: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    minWidth: 0,
+  },
+  resChip: {
+    border: "none",
+    borderRadius: 8,
+    padding: "5px 7px",
+    fontSize: 11,
+    lineHeight: 1.3,
+    textAlign: "left",
+    cursor: "pointer",
+    overflow: "hidden",
+    whiteSpace: "nowrap",
+    textOverflow: "ellipsis",
+  },
+  moreText: {
+    fontSize: 11,
+    color: "#6b7280",
+    paddingLeft: 4,
+  },
+  sectionTitle: {
+    margin: 0,
+    fontSize: 20,
+    fontWeight: 800,
+    color: "#111827",
+  },
+  formGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 12,
+    marginTop: 14,
+    marginBottom: 14,
+  },
+  field: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 7,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: 700,
+    color: "#374151",
+  },
+  input: {
+    height: 44,
+    borderRadius: 12,
+    border: "1px solid #d1d5db",
+    background: "#fff",
+    padding: "0 12px",
+    fontSize: 14,
+    outline: "none",
+  },
+  textarea: {
+    minHeight: 90,
+    borderRadius: 12,
+    border: "1px solid #d1d5db",
+    background: "#fff",
+    padding: 12,
+    fontSize: 14,
+    outline: "none",
+    resize: "vertical",
+  },
+  primaryButton: {
+    width: "100%",
+    height: 46,
+    borderRadius: 14,
+    border: "none",
+    background: "#111827",
+    color: "#fff",
+    fontWeight: 800,
+    cursor: "pointer",
+    fontSize: 15,
+  },
+  legendBox: {
+    marginTop: 14,
+    background: "#f9fafb",
+    border: "1px solid #e5e7eb",
+    borderRadius: 14,
+    padding: 12,
+  },
+  legendTitle: {
+    fontWeight: 800,
+    fontSize: 13,
+    marginBottom: 8,
+    color: "#111827",
+  },
+  legendWrap: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  legendItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    fontSize: 12,
+    color: "#374151",
+    fontWeight: 700,
+  },
+  legendDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 999,
+    display: "inline-block",
+  },
+  daySection: {
+    background: "#fff",
+    borderRadius: 20,
+    padding: 16,
+    border: "1px solid #e5e7eb",
+    boxShadow: "0 10px 25px rgba(15,23,42,0.05)",
+  },
+  dayHeader: {
+    marginBottom: 12,
+  },
+  daySub: {
+    margin: "6px 0 0",
+    color: "#6b7280",
+    fontSize: 13,
+  },
+  emptyBox: {
+    padding: 24,
+    borderRadius: 16,
+    background: "#f9fafb",
+    border: "1px dashed #d1d5db",
+    textAlign: "center",
+    color: "#6b7280",
+  },
+  dayList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+  dayListCard: {
+    border: "1px solid #e5e7eb",
+    background: "#fff",
+    borderRadius: 16,
+    padding: 14,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+    textAlign: "left",
+    cursor: "pointer",
+  },
+  dayListLeft: {
+    minWidth: 0,
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  },
+  timeBig: {
+    fontSize: 13,
+    fontWeight: 700,
+    color: "#6b7280",
+  },
+  nameBig: {
+    fontSize: 20,
+    fontWeight: 800,
+    color: "#111827",
+  },
+  metaText: {
+    fontSize: 13,
+    color: "#4b5563",
+  },
+  memoText: {
+    fontSize: 13,
+    color: "#6b7280",
+  },
+  staffCircle: {
+    minWidth: 44,
+    width: 44,
+    height: 44,
+    borderRadius: 999,
+    color: "#fff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 800,
+    fontSize: 18,
+  },
+  overlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(15,23,42,0.35)",
+    zIndex: 40,
+  },
+  drawer: {
+    position: "fixed",
+    top: 0,
+    right: 0,
+    width: "min(460px, 100vw)",
+    height: "100vh",
+    background: "#fff",
+    zIndex: 50,
+    boxShadow: "-10px 0 30px rgba(15,23,42,0.15)",
+    padding: 18,
+    display: "flex",
+    flexDirection: "column",
+    gap: 16,
+    overflowY: "auto",
+  },
+  drawerHandle: {
+    width: 56,
+    height: 5,
+    borderRadius: 999,
+    background: "#d1d5db",
+    alignSelf: "center",
+    display: "none",
+  },
+  drawerHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  drawerDate: {
+    fontSize: 14,
+    color: "#6b7280",
+    fontWeight: 700,
+  },
+  drawerTitle: {
+    margin: "6px 0 0",
+    fontSize: 28,
+    fontWeight: 900,
+    color: "#111827",
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    border: "1px solid #d1d5db",
+    background: "#fff",
+    cursor: "pointer",
+    fontSize: 24,
+  },
+  detailGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 10,
+  },
+  detailCard: {
+    border: "1px solid #e5e7eb",
+    borderRadius: 14,
+    padding: 12,
+    background: "#f9fafb",
+  },
+  detailLabel: {
+    fontSize: 12,
+    color: "#6b7280",
+    fontWeight: 700,
+    marginBottom: 4,
+  },
+  detailValue: {
+    fontSize: 16,
+    color: "#111827",
+    fontWeight: 800,
+  },
+  memoDetail: {
+    border: "1px solid #e5e7eb",
+    borderRadius: 14,
+    padding: 12,
+    background: "#fff",
+  },
+  memoDetailText: {
+    marginTop: 6,
+    lineHeight: 1.8,
+    color: "#374151",
+    fontSize: 14,
+  },
+  actionBar: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: "auto",
+  },
+  smallAction: {
+    height: 40,
+    borderRadius: 12,
+    border: "1px solid #d1d5db",
+    background: "#fff",
+    padding: "0 14px",
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  deleteAction: {
+    height: 40,
+    borderRadius: 12,
+    border: "1px solid #fecaca",
+    background: "#fff1f2",
+    color: "#b91c1c",
+    padding: "0 14px",
+    fontWeight: 800,
+    cursor: "pointer",
+  },
 };
