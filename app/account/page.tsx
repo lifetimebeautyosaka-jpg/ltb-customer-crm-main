@@ -434,4 +434,4 @@ const noteTextStyle: React.CSSProperties = {
   fontSize: "13px",
   lineHeight: 1.8,
   color: "rgba(255,255,255,0.88)",
-};
+};　
