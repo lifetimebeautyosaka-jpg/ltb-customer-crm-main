@@ -7,7 +7,7 @@ export default function ReservationPage() {
     <CRMLayout title="予約管理">
       <div style={{ padding: 20 }}>
         <h1>予約管理</h1>
-        <p>ここに予約機能を追加していく</p>
+        <p>予約機能はここに追加していく</p>
       </div>
     </CRMLayout>
   );
