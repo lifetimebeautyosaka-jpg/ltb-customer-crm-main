@@ -1,18 +1,48 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
+type Customer = {
+  id: number;
+  name: string;
+  phone: string | null;
+};
+
 export default function CustomerPage() {
-  const handleTest = async () => {
-    alert("追加開始");
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
 
-    const { data, error } = await supabase
+  useEffect(() => {
+    fetchCustomers();
+  }, []);
+
+  const fetchCustomers = async () => {
+    const { data, error } = await supabase.from("customers").select("*");
+
+    if (error) {
+      alert("取得エラー: " + error.message);
+      return;
+    }
+
+    setCustomers(data || []);
+  };
+
+  const handleAddCustomer = async () => {
+    if (!name.trim()) {
+      alert("名前を入力してください");
+      return;
+    }
+
+    const { error } = await supabase
       .from("customers")
-      .insert([{ name: "テスト太郎", phone: "09000000000" }])
-      .select();
-
-    console.log("data:", data);
-    console.log("error:", error);
+      .insert([
+        {
+          name: name.trim(),
+          phone: phone.trim() || null,
+        },
+      ]);
 
     if (error) {
       alert("登録エラー: " + error.message);
@@ -20,12 +50,36 @@ export default function CustomerPage() {
     }
 
     alert("登録成功");
+    setName("");
+    setPhone("");
+    fetchCustomers();
   };
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>顧客管理_SUPABASE_CHECK</h1>
-      <button onClick={handleTest}>追加</button>
+      <h1>顧客管理</h1>
+
+      <input
+        placeholder="名前"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
+
+      <input
+        placeholder="電話番号"
+        value={phone}
+        onChange={(e) => setPhone(e.target.value)}
+      />
+
+      <button onClick={handleAddCustomer}>追加</button>
+
+      <div style={{ marginTop: 20 }}>
+        {customers.map((c) => (
+          <div key={c.id}>
+            {c.name} - {c.phone}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
