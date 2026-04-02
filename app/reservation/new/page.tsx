@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -36,8 +36,12 @@ function todayString() {
 
 export default function ReservationNewPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const queryDate = searchParams.get("date");
 
-  const [date, setDate] = useState(todayString());
+  const initialDate = useMemo(() => queryDate || todayString(), [queryDate]);
+
+  const [date, setDate] = useState(initialDate);
   const [startTime, setStartTime] = useState("10:00");
   const [storeName, setStoreName] = useState("江戸堀");
   const [staffName, setStaffName] = useState("山口");
@@ -81,15 +85,15 @@ export default function ReservationNewPage() {
         <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-2xl font-bold">新規予約追加</h1>
-            <p className="mt-1 text-sm text-gray-500">TimeTree風の予約を追加します</p>
+            <p className="mt-1 text-sm text-gray-500">予約内容を入力してください</p>
           </div>
 
           <div className="flex gap-2">
             <Link
-              href="/reservation"
+              href={queryDate ? `/reservation/day?date=${queryDate}` : "/reservation"}
               className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
             >
-              月表示へ戻る
+              戻る
             </Link>
           </div>
         </div>
@@ -222,7 +226,7 @@ export default function ReservationNewPage() {
             </button>
 
             <Link
-              href="/reservation"
+              href={queryDate ? `/reservation/day?date=${queryDate}` : "/reservation"}
               className="rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
             >
               キャンセル
