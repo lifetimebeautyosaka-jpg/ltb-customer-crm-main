@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import CRMLayout from "../../components/CRMLayout";
 import { supabase } from "../../lib/supabase";
 
 type Customer = {
@@ -75,13 +74,44 @@ export default function CustomerPage() {
   };
 
   return (
-    <CRMLayout title="顧客管理">
+    <main style={styles.page}>
+      <header style={styles.header}>
+        <div style={styles.headerInner}>
+          <div style={styles.brandWrap}>
+            <img
+              src="/gymup-logo.png"
+              alt="GYMUP"
+              style={styles.logo}
+            />
+            <div>
+              <div style={styles.brandTitle}>GYMUP CRM</div>
+              <div style={styles.brandSub}>顧客管理</div>
+            </div>
+          </div>
+
+          <div style={styles.headerButtons}>
+            <Link href="/" style={styles.headerLink}>
+              ホームへ
+            </Link>
+          </div>
+        </div>
+      </header>
+
       <div style={styles.container}>
-        <div style={styles.headerRow}>
-          <h1 style={styles.title}>顧客管理</h1>
-          <button style={styles.reloadButton} onClick={fetchCustomers}>
-            再読み込み
-          </button>
+        <div style={styles.heroCard}>
+          <div style={styles.badge}>CUSTOMER MANAGEMENT</div>
+          <div style={styles.heroRow}>
+            <div>
+              <h1 style={styles.title}>顧客管理</h1>
+              <p style={styles.subText}>
+                Supabaseに保存された顧客情報を一覧表示・追加できます。
+              </p>
+            </div>
+
+            <button style={styles.reloadButton} onClick={fetchCustomers}>
+              再読み込み
+            </button>
+          </div>
         </div>
 
         <div style={styles.card}>
@@ -111,13 +141,15 @@ export default function CustomerPage() {
             </div>
           </div>
 
-          <button
-            onClick={handleAddCustomer}
-            disabled={saving}
-            style={styles.addButton}
-          >
-            {saving ? "保存中..." : "顧客を追加"}
-          </button>
+          <div style={styles.actionRow}>
+            <button
+              onClick={handleAddCustomer}
+              disabled={saving}
+              style={styles.addButton}
+            >
+              {saving ? "保存中..." : "顧客を追加"}
+            </button>
+          </div>
 
           {message ? <p style={styles.message}>{message}</p> : null}
         </div>
@@ -150,27 +182,113 @@ export default function CustomerPage() {
           )}
         </div>
       </div>
-    </CRMLayout>
+    </main>
   );
 }
 
 const styles: { [key: string]: React.CSSProperties } = {
-  container: {
-    display: "grid",
-    gap: "24px",
+  page: {
+    minHeight: "100vh",
+    background: "linear-gradient(135deg, #0f0f0f, #1a1a1a, #242424)",
+    color: "#fff",
   },
-  headerRow: {
+  header: {
+    position: "sticky",
+    top: 0,
+    zIndex: 10,
+    borderBottom: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(18,18,18,0.78)",
+    backdropFilter: "blur(10px)",
+  },
+  headerInner: {
+    maxWidth: "1100px",
+    margin: "0 auto",
+    padding: "16px 24px",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: "12px",
+    gap: "16px",
+    flexWrap: "wrap",
+  },
+  brandWrap: {
+    display: "flex",
+    alignItems: "center",
+    gap: "14px",
+  },
+  logo: {
+    height: "42px",
+    width: "auto",
+    objectFit: "contain",
+  },
+  brandTitle: {
+    fontSize: "18px",
+    fontWeight: 700,
+    letterSpacing: "0.06em",
+  },
+  brandSub: {
+    fontSize: "12px",
+    color: "#bdbdbd",
+    marginTop: "2px",
+  },
+  headerButtons: {
+    display: "flex",
+    gap: "10px",
+    flexWrap: "wrap",
+  },
+  headerLink: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    textDecoration: "none",
+    background: "#2a2a2a",
+    color: "#fff",
+    border: "1px solid #444",
+    borderRadius: "10px",
+    padding: "10px 16px",
+    fontWeight: 700,
+  },
+  container: {
+    maxWidth: "1100px",
+    margin: "0 auto",
+    padding: "24px",
+    display: "grid",
+    gap: "24px",
+  },
+  heroCard: {
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    borderRadius: "18px",
+    padding: "24px",
+    backdropFilter: "blur(8px)",
+  },
+  badge: {
+    display: "inline-block",
+    marginBottom: "14px",
+    padding: "6px 12px",
+    fontSize: "12px",
+    letterSpacing: "0.12em",
+    borderRadius: "999px",
+    background: "rgba(255,255,255,0.08)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    color: "#d6d6d6",
+  },
+  heroRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    gap: "16px",
     flexWrap: "wrap",
   },
   title: {
-    fontSize: "28px",
+    fontSize: "32px",
     fontWeight: 700,
     color: "#ffffff",
     margin: 0,
+  },
+  subText: {
+    marginTop: "8px",
+    color: "#bdbdbd",
+    fontSize: "14px",
   },
   reloadButton: {
     background: "#2a2a2a",
@@ -179,6 +297,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: "10px",
     padding: "10px 16px",
     cursor: "pointer",
+    fontWeight: 700,
   },
   card: {
     background: "rgba(255,255,255,0.06)",
@@ -215,8 +334,13 @@ const styles: { [key: string]: React.CSSProperties } = {
     outline: "none",
     boxSizing: "border-box",
   },
-  addButton: {
+  actionRow: {
     marginTop: "16px",
+    display: "flex",
+    gap: "12px",
+    flexWrap: "wrap",
+  },
+  addButton: {
     background: "linear-gradient(135deg, #c89b6d, #9f6b3f)",
     color: "#fff",
     border: "none",
