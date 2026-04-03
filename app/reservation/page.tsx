@@ -235,7 +235,7 @@ export default function ReservationPage() {
                 fontSize: "14px",
               }}
             >
-              🏠 トップ
+               トップへ
             </Link>
 
             <Link
