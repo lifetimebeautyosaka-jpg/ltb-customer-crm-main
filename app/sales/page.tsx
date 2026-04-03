@@ -13,7 +13,6 @@ type Customer = {
 
 type ServiceType = "ストレッチ" | "トレーニング";
 type AccountingType = "通常売上" | "前受金";
-type NominationType = "なし" | "あり";
 type PaymentMethod = "現金" | "カード" | "銀行振込" | "その他";
 
 type SaleCategory =
@@ -28,21 +27,24 @@ type SaleCategory =
   | "トレーニングその他"
   | "トレーニング前受金";
 
+type PaymentRow = {
+  id: string;
+  saleType: AccountingType;
+  paymentMethod: PaymentMethod;
+  amount: string;
+};
+
 type Sale = {
   id: string;
   date: string;
-  customerId: string;
   customerName: string;
   menuName: string;
   staff: string;
   storeName: string;
-  baseAmount: number;
-  nominationType: NominationType;
-  nominationFee: number;
-  totalAmount: number;
   serviceType: ServiceType;
   accountingType: AccountingType;
   paymentMethod: PaymentMethod;
+  amount: number;
   category: SaleCategory;
   note: string;
   createdAt: string;
@@ -128,22 +130,36 @@ function rowToSale(row: SupabaseSaleRow): Sale {
   return {
     id: String(row.id),
     date: row.sale_date || todayString(),
-    customerId: "",
     customerName: row.customer_name || "未設定",
     menuName: serviceType === "ストレッチ" ? "ストレッチ" : "トレーニング",
     staff: row.staff_name || "未設定",
     storeName: row.store_name || "未設定",
-    baseAmount: amount,
-    nominationType: "なし",
-    nominationFee: 0,
-    totalAmount: amount,
     serviceType,
     accountingType,
     paymentMethod,
+    amount,
     category: buildCategory(serviceType, accountingType, paymentMethod),
     note: row.memo || "",
     createdAt: row.created_at || new Date().toISOString(),
   };
+}
+
+function createPaymentRow(): PaymentRow {
+  return {
+    id:
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : String(Date.now() + Math.random()),
+    saleType: "通常売上",
+    paymentMethod: "現金",
+    amount: "",
+  };
+}
+
+function getQueryParam(name: string) {
+  if (typeof window === "undefined") return "";
+  const params = new URLSearchParams(window.location.search);
+  return params.get(name) || "";
 }
 
 export default function SalesPage() {
@@ -157,14 +173,11 @@ export default function SalesPage() {
   const [menuName, setMenuName] = useState("");
   const [staff, setStaff] = useState(STAFF_OPTIONS[0]);
   const [storeName, setStoreName] = useState(STORE_OPTIONS[0]);
-  const [baseAmount, setBaseAmount] = useState("");
-  const [nominationType, setNominationType] = useState<NominationType>("なし");
-  const [nominationFee, setNominationFee] = useState("");
   const [serviceType, setServiceType] = useState<ServiceType>("トレーニング");
-  const [accountingType, setAccountingType] = useState<AccountingType>("通常売上");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("現金");
   const [note, setNote] = useState("");
   const [search, setSearch] = useState("");
+
+  const [payments, setPayments] = useState<PaymentRow[]>([createPaymentRow()]);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -185,13 +198,36 @@ export default function SalesPage() {
 
       if (savedCustomers) {
         const parsed = JSON.parse(savedCustomers);
-        setCustomers(Array.isArray(parsed) ? parsed : []);
+        const list = Array.isArray(parsed) ? parsed : [];
+        setCustomers(list);
+
+        const queryCustomer = getQueryParam("customer");
+        if (queryCustomer) {
+          const found = list.find((c) => c.name === queryCustomer);
+          if (found) {
+            setCustomerId(String(found.id));
+          }
+        }
       } else {
         setCustomers([]);
       }
     } catch {
       setCustomers([]);
     }
+
+    const queryDate = getQueryParam("date");
+    const queryStore = getQueryParam("store");
+    const queryStaff = getQueryParam("staff");
+    const queryService = getQueryParam("service");
+    const queryMenu = getQueryParam("menu");
+
+    if (queryDate) setDate(queryDate);
+    if (queryStore) setStoreName(queryStore);
+    if (queryStaff) setStaff(queryStaff);
+    if (queryService === "ストレッチ" || queryService === "トレーニング") {
+      setServiceType(queryService);
+    }
+    if (queryMenu) setMenuName(queryMenu);
   }, []);
 
   const fetchSales = async () => {
@@ -221,21 +257,13 @@ export default function SalesPage() {
     fetchSales();
   }, [mounted]);
 
-  useEffect(() => {
-    if (accountingType === "前受金" && paymentMethod !== "その他") {
-      setPaymentMethod("その他");
-    }
-  }, [accountingType, paymentMethod]);
-
   const selectedCustomer = useMemo(() => {
     return customers.find((c) => String(c.id) === customerId);
   }, [customers, customerId]);
 
   const totalAmount = useMemo(() => {
-    const base = Number(baseAmount || 0);
-    const fee = nominationType === "あり" ? Number(nominationFee || 0) : 0;
-    return base + fee;
-  }, [baseAmount, nominationType, nominationFee]);
+    return payments.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  }, [payments]);
 
   const filteredSales = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -255,7 +283,8 @@ export default function SalesPage() {
         sale.staff.toLowerCase().includes(keyword) ||
         sale.category.toLowerCase().includes(keyword) ||
         sale.date.toLowerCase().includes(keyword) ||
-        sale.storeName.toLowerCase().includes(keyword)
+        sale.storeName.toLowerCase().includes(keyword) ||
+        sale.paymentMethod.toLowerCase().includes(keyword)
       );
     });
   }, [sales, search]);
@@ -266,7 +295,7 @@ export default function SalesPage() {
     sales.forEach((sale) => {
       const month = (sale.date || "").slice(0, 7);
       if (!month) return;
-      grouped[month] = (grouped[month] || 0) + Number(sale.totalAmount || 0);
+      grouped[month] = (grouped[month] || 0) + Number(sale.amount || 0);
     });
 
     return Object.entries(grouped).sort((a, b) => (a[0] < b[0] ? 1 : -1));
@@ -277,7 +306,7 @@ export default function SalesPage() {
 
     sales.forEach((sale) => {
       const key = sale.staff || "未設定";
-      grouped[key] = (grouped[key] || 0) + Number(sale.totalAmount || 0);
+      grouped[key] = (grouped[key] || 0) + Number(sale.amount || 0);
     });
 
     return Object.entries(grouped).sort((a, b) => b[1] - a[1]);
@@ -288,7 +317,7 @@ export default function SalesPage() {
 
     sales.forEach((sale) => {
       const key = sale.paymentMethod || "未設定";
-      grouped[key] = (grouped[key] || 0) + Number(sale.totalAmount || 0);
+      grouped[key] = (grouped[key] || 0) + Number(sale.amount || 0);
     });
 
     return Object.entries(grouped).sort((a, b) => b[1] - a[1]);
@@ -297,12 +326,55 @@ export default function SalesPage() {
   const todayTotal = useMemo(() => {
     return sales
       .filter((sale) => sale.date === todayString())
-      .reduce((sum, sale) => sum + Number(sale.totalAmount || 0), 0);
+      .reduce((sum, sale) => sum + Number(sale.amount || 0), 0);
   }, [sales]);
 
   const allTotal = useMemo(() => {
-    return sales.reduce((sum, sale) => sum + Number(sale.totalAmount || 0), 0);
+    return sales.reduce((sum, sale) => sum + Number(sale.amount || 0), 0);
   }, [sales]);
+
+  const updatePayment = <K extends keyof PaymentRow>(
+    id: string,
+    key: K,
+    value: PaymentRow[K]
+  ) => {
+    setPayments((prev) =>
+      prev.map((row) => {
+        if (row.id !== id) return row;
+
+        const next = { ...row, [key]: value };
+
+        if (key === "saleType" && value === "前受金") {
+          next.paymentMethod = "その他";
+        }
+
+        return next;
+      })
+    );
+  };
+
+  const addPaymentRow = () => {
+    setPayments((prev) => [...prev, createPaymentRow()]);
+  };
+
+  const removePaymentRow = (id: string) => {
+    if (payments.length === 1) {
+      alert("支払いは1件以上必要です");
+      return;
+    }
+    setPayments((prev) => prev.filter((row) => row.id !== id));
+  };
+
+  const resetForm = () => {
+    setDate(todayString());
+    setCustomerId("");
+    setMenuName("");
+    setStaff(STAFF_OPTIONS[0]);
+    setStoreName(STORE_OPTIONS[0]);
+    setServiceType("トレーニング");
+    setNote("");
+    setPayments([createPaymentRow()]);
+  };
 
   const handleAddSale = async () => {
     if (!date) {
@@ -320,60 +392,34 @@ export default function SalesPage() {
       return;
     }
 
-    if (!baseAmount || Number(baseAmount) <= 0) {
-      alert("金額を入力してください");
-      return;
-    }
-
     const customer = customers.find((c) => String(c.id) === customerId);
     if (!customer) {
       alert("顧客情報が見つかりません");
       return;
     }
 
-    const nextNominationFee =
-      nominationType === "あり" ? Number(nominationFee || 0) : 0;
-
-    const total = Number(baseAmount) + nextNominationFee;
-
-    const sale: Sale = {
-      id:
-        typeof crypto !== "undefined" && crypto.randomUUID
-          ? crypto.randomUUID()
-          : String(Date.now()),
-      date,
-      customerId: String(customer.id),
-      customerName: customer.name,
-      menuName: menuName.trim(),
-      staff: staff.trim() || "未設定",
-      storeName: storeName.trim() || "未設定",
-      baseAmount: Number(baseAmount),
-      nominationType,
-      nominationFee: nextNominationFee,
-      totalAmount: total,
-      serviceType,
-      accountingType,
-      paymentMethod,
-      category: buildCategory(serviceType, accountingType, paymentMethod),
-      note: note.trim(),
-      createdAt: new Date().toISOString(),
-    };
+    for (const row of payments) {
+      if (!row.amount || Number(row.amount) <= 0) {
+        alert("支払い金額を入力してください");
+        return;
+      }
+    }
 
     setSaving(true);
 
-    const { error } = await supabase.from("sales").insert([
-      {
-        customer_name: sale.customerName,
-        sale_date: sale.date,
-        menu_type: sale.serviceType,
-        sale_type: sale.accountingType,
-        payment_method: sale.paymentMethod,
-        amount: sale.totalAmount,
-        staff_name: sale.staff,
-        store_name: sale.storeName,
-        memo: sale.note || null,
-      },
-    ]);
+    const payloads = payments.map((row) => ({
+      customer_name: customer.name,
+      sale_date: date,
+      menu_type: serviceType,
+      sale_type: row.saleType,
+      payment_method: row.paymentMethod,
+      amount: Number(row.amount),
+      staff_name: staff.trim() || "未設定",
+      store_name: storeName.trim() || "未設定",
+      memo: note.trim() || null,
+    }));
+
+    const { error } = await supabase.from("sales").insert(payloads);
 
     setSaving(false);
 
@@ -383,19 +429,7 @@ export default function SalesPage() {
     }
 
     await fetchSales();
-
-    setDate(todayString());
-    setCustomerId("");
-    setMenuName("");
-    setStaff(STAFF_OPTIONS[0]);
-    setStoreName(STORE_OPTIONS[0]);
-    setBaseAmount("");
-    setNominationType("なし");
-    setNominationFee("");
-    setServiceType("トレーニング");
-    setAccountingType("通常売上");
-    setPaymentMethod("現金");
-    setNote("");
+    resetForm();
   };
 
   const handleDeleteSale = async (id: string) => {
@@ -428,10 +462,7 @@ export default function SalesPage() {
       "会計区分",
       "支払方法",
       "カテゴリ",
-      "基本料金",
-      "指名有無",
-      "指名料",
-      "合計",
+      "金額",
       "メモ",
     ];
 
@@ -445,10 +476,7 @@ export default function SalesPage() {
       sale.accountingType,
       sale.paymentMethod,
       sale.category,
-      String(sale.baseAmount),
-      sale.nominationType,
-      String(sale.nominationFee),
-      String(sale.totalAmount),
+      String(sale.amount),
       sale.note.replace(/\n/g, " "),
     ]);
 
@@ -508,7 +536,7 @@ export default function SalesPage() {
                 fontSize: "14px",
               }}
             >
-              売上登録・履歴確認・CSV出力ができます
+              予約詳細からの連動・支払い追加・履歴確認・CSV出力ができます
             </p>
           </div>
 
@@ -613,71 +641,6 @@ export default function SalesPage() {
                   </select>
                 </div>
 
-                <div>
-                  <label style={labelStyle}>会計区分</label>
-                  <select
-                    value={accountingType}
-                    onChange={(e) => setAccountingType(e.target.value as AccountingType)}
-                    style={inputStyle}
-                  >
-                    <option value="通常売上">通常売上</option>
-                    <option value="前受金">前受金</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label style={labelStyle}>支払方法</label>
-                  <select
-                    value={paymentMethod}
-                    onChange={(e) =>
-                      setPaymentMethod(e.target.value as PaymentMethod)
-                    }
-                    style={inputStyle}
-                  >
-                    <option value="現金">現金</option>
-                    <option value="カード">カード</option>
-                    <option value="銀行振込">銀行振込</option>
-                    <option value="その他">その他</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label style={labelStyle}>基本料金</label>
-                  <input
-                    type="number"
-                    value={baseAmount}
-                    onChange={(e) => setBaseAmount(e.target.value)}
-                    placeholder="例：8000"
-                    style={inputStyle}
-                  />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>指名</label>
-                  <select
-                    value={nominationType}
-                    onChange={(e) =>
-                      setNominationType(e.target.value as NominationType)
-                    }
-                    style={inputStyle}
-                  >
-                    <option value="なし">なし</option>
-                    <option value="あり">あり</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label style={labelStyle}>指名料</label>
-                  <input
-                    type="number"
-                    value={nominationFee}
-                    onChange={(e) => setNominationFee(e.target.value)}
-                    placeholder="例：1000"
-                    style={inputStyle}
-                    disabled={nominationType === "なし"}
-                  />
-                </div>
-
                 <div style={{ gridColumn: "1 / -1" }}>
                   <label style={labelStyle}>メモ</label>
                   <textarea
@@ -689,14 +652,126 @@ export default function SalesPage() {
                 </div>
               </div>
 
+              <div style={{ marginTop: "22px" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "12px",
+                    flexWrap: "wrap",
+                    marginBottom: "14px",
+                  }}
+                >
+                  <h3
+                    style={{
+                      margin: 0,
+                      fontSize: "18px",
+                      fontWeight: 800,
+                      color: "#111827",
+                    }}
+                  >
+                    支払い情報
+                  </h3>
+
+                  <button onClick={addPaymentRow} style={subButtonPlainStyle}>
+                    ＋ 支払い追加
+                  </button>
+                </div>
+
+                <div style={{ display: "grid", gap: "14px" }}>
+                  {payments.map((row, index) => (
+                    <div key={row.id} style={innerCardStyle}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: "12px",
+                          marginBottom: "12px",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "15px",
+                            fontWeight: 800,
+                            color: "#111827",
+                          }}
+                        >
+                          支払い {index + 1}
+                        </div>
+
+                        <button
+                          onClick={() => removePaymentRow(row.id)}
+                          style={deleteButtonStyle}
+                        >
+                          削除
+                        </button>
+                      </div>
+
+                      <div style={paymentGridStyle}>
+                        <div>
+                          <label style={labelStyle}>会計区分</label>
+                          <select
+                            value={row.saleType}
+                            onChange={(e) =>
+                              updatePayment(row.id, "saleType", e.target.value as AccountingType)
+                            }
+                            style={inputStyle}
+                          >
+                            <option value="通常売上">通常売上</option>
+                            <option value="前受金">前受金</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label style={labelStyle}>支払方法</label>
+                          <select
+                            value={row.paymentMethod}
+                            onChange={(e) =>
+                              updatePayment(row.id, "paymentMethod", e.target.value as PaymentMethod)
+                            }
+                            style={inputStyle}
+                          >
+                            <option value="現金">現金</option>
+                            <option value="カード">カード</option>
+                            <option value="銀行振込">銀行振込</option>
+                            <option value="その他">その他</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label style={labelStyle}>金額</label>
+                          <input
+                            type="number"
+                            value={row.amount}
+                            onChange={(e) => updatePayment(row.id, "amount", e.target.value)}
+                            placeholder="例：8000"
+                            style={inputStyle}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={labelStyle}>カテゴリ</label>
+                          <div style={readonlyBoxStyle}>
+                            {buildCategory(serviceType, row.saleType, row.paymentMethod)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div style={summaryBoxStyle}>
                 <div style={summaryRowStyle}>
                   <span>選択顧客</span>
                   <strong>{selectedCustomer?.name || "未選択"}</strong>
                 </div>
                 <div style={summaryRowStyle}>
-                  <span>カテゴリ</span>
-                  <strong>{buildCategory(serviceType, accountingType, paymentMethod)}</strong>
+                  <span>支払い件数</span>
+                  <strong>{payments.length}件</strong>
                 </div>
                 <div style={summaryRowStyle}>
                   <span>合計金額</span>
@@ -712,6 +787,7 @@ export default function SalesPage() {
                 >
                   {saving ? "登録中..." : "売上を登録する"}
                 </button>
+
                 <button onClick={handleDownloadCsv} style={subButtonPlainStyle}>
                   CSV出力
                 </button>
@@ -776,12 +852,6 @@ export default function SalesPage() {
                           <div style={detailTextStyle}>カテゴリ：{sale.category}</div>
                           <div style={detailTextStyle}>会計区分：{sale.accountingType}</div>
                           <div style={detailTextStyle}>支払方法：{sale.paymentMethod}</div>
-                          <div style={detailTextStyle}>
-                            基本料金：{formatCurrency(sale.baseAmount)}
-                          </div>
-                          <div style={detailTextStyle}>
-                            指名料：{formatCurrency(sale.nominationFee)}
-                          </div>
                           <div
                             style={{
                               fontSize: "15px",
@@ -790,7 +860,7 @@ export default function SalesPage() {
                               marginTop: "8px",
                             }}
                           >
-                            合計：{formatCurrency(sale.totalAmount)}
+                            金額：{formatCurrency(sale.amount)}
                           </div>
                           {sale.note ? (
                             <div style={{ ...detailTextStyle, marginTop: "6px" }}>
@@ -918,6 +988,12 @@ const mainGridStyle: React.CSSProperties = {
   alignItems: "start",
 };
 
+const paymentGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: "16px",
+};
+
 const cardStyle: React.CSSProperties = {
   background: "rgba(255,255,255,0.55)",
   backdropFilter: "blur(14px)",
@@ -976,6 +1052,18 @@ const inputStyle: React.CSSProperties = {
   color: "#111827",
   outline: "none",
   boxSizing: "border-box",
+};
+
+const readonlyBoxStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "13px 14px",
+  borderRadius: "14px",
+  border: "1px solid rgba(203,213,225,0.9)",
+  background: "rgba(243,244,246,0.9)",
+  fontSize: "15px",
+  color: "#111827",
+  boxSizing: "border-box",
+  minHeight: "50px",
 };
 
 const summaryBoxStyle: React.CSSProperties = {

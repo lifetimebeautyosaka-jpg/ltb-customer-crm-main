@@ -12,13 +12,11 @@ type ReservationRow = {
   customer_name: string | null;
   date: string | null;
   start_time: string | null;
-  end_time: string | null;
   store_name: string | null;
   staff_name: string | null;
   menu: string | null;
   payment_method: string | null;
   memo: string | null;
-  price?: number | null;
 };
 
 const supabase = createClient(
@@ -35,9 +33,10 @@ function formatDateJP(dateStr?: string | null) {
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日（${week[d.getDay()]}）`;
 }
 
-function formatPrice(value?: number | null) {
-  if (value === null || value === undefined) return "未設定";
-  return `¥${Number(value).toLocaleString()}`;
+function detectServiceType(menu?: string | null) {
+  const text = String(menu || "");
+  if (text.includes("ストレッチ")) return "ストレッチ";
+  return "トレーニング";
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {
@@ -101,9 +100,7 @@ export default async function ReservationDetailPage({ params }: PageProps) {
 
   const { data, error } = await supabase
     .from("reservations")
-    .select(
-      "id, customer_name, date, start_time, end_time, store_name, staff_name, menu, payment_method, memo, price"
-    )
+    .select("id, customer_name, date, start_time, store_name, staff_name, menu, payment_method, memo")
     .eq("id", id)
     .single<ReservationRow>();
 
@@ -126,13 +123,17 @@ export default async function ReservationDetailPage({ params }: PageProps) {
     );
   }
 
-  const dayHref = data.date
-    ? `/reservation/day?date=${data.date}`
-    : "/reservation";
+  const dayHref = data.date ? `/reservation/day?date=${data.date}` : "/reservation";
+  const calendarHref = data.date ? `/reservation?month=${String(data.date).slice(0, 7)}` : "/reservation";
 
-  const calendarHref = data.date
-    ? `/reservation?month=${String(data.date).slice(0, 7)}`
-    : "/reservation";
+  const salesHref =
+    `/sales?` +
+    `date=${encodeURIComponent(data.date || "")}` +
+    `&customer=${encodeURIComponent(data.customer_name || "")}` +
+    `&store=${encodeURIComponent(data.store_name || "")}` +
+    `&staff=${encodeURIComponent(data.staff_name || "")}` +
+    `&service=${encodeURIComponent(detectServiceType(data.menu))}` +
+    `&menu=${encodeURIComponent(data.menu || "")}`;
 
   return (
     <main style={pageStyle}>
@@ -150,7 +151,11 @@ export default async function ReservationDetailPage({ params }: PageProps) {
           <h1 style={titleStyle}>予約詳細</h1>
 
           <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-            <Link href={calendarHref} style={mainButtonStyle}>
+            <Link href={salesHref} style={mainButtonStyle}>
+              売上登録へ
+            </Link>
+
+            <Link href={calendarHref} style={subButtonStyle}>
               カレンダーへ
             </Link>
 
@@ -180,12 +185,10 @@ export default async function ReservationDetailPage({ params }: PageProps) {
 
           <DetailRow label="日付" value={formatDateJP(data.date)} />
           <DetailRow label="開始時間" value={data.start_time || "未設定"} />
-          <DetailRow label="終了時間" value={data.end_time || "未設定"} />
           <DetailRow label="店舗" value={data.store_name || "未設定"} />
           <DetailRow label="担当者" value={data.staff_name || "未設定"} />
           <DetailRow label="メニュー" value={data.menu || "未設定"} />
           <DetailRow label="支払い方法" value={data.payment_method || "未設定"} />
-          <DetailRow label="料金" value={formatPrice(data.price)} />
           <DetailRow label="メモ" value={data.memo || "なし"} />
 
           <div
@@ -196,11 +199,15 @@ export default async function ReservationDetailPage({ params }: PageProps) {
               flexWrap: "wrap",
             }}
           >
+            <Link href={salesHref} style={mainButtonStyle}>
+              売上登録へ
+            </Link>
+
             <Link href={dayHref} style={subButtonStyle}>
               ← 日別一覧へ戻る
             </Link>
 
-            <Link href={calendarHref} style={mainButtonStyle}>
+            <Link href={calendarHref} style={subButtonStyle}>
               カレンダーへ
             </Link>
           </div>
