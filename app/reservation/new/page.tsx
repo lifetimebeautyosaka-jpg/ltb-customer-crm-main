@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
@@ -40,7 +40,7 @@ export default function Page() {
   const [saving, setSaving] = useState(false);
 
   const backHref = useMemo(() => {
-    return `/reservation/day?date=${date}&store=${storeName}&staff=${staffName}`;
+    return `/reservation/day?date=${date}&store=${encodeURIComponent(storeName)}&staff=${encodeURIComponent(staffName)}`;
   }, [date, storeName, staffName]);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -58,29 +58,36 @@ export default function Page() {
     try {
       const name = customerName.trim();
 
-      // 顧客チェック
-      const { data: existing } = await supabase
+      const { data: existing, error: customerFindError } = await supabase
         .from("customers")
         .select("id")
         .eq("name", name)
         .maybeSingle();
 
-      if (!existing) {
-        await supabase.from("customers").insert([{ name }]);
+      if (customerFindError) {
+        throw new Error(customerFindError.message);
       }
 
-      // 予約保存（customer_idなし）
+      if (!existing) {
+        const { error: customerInsertError } = await supabase
+          .from("customers")
+          .insert([{ name }]);
+
+        if (customerInsertError) {
+          throw new Error(customerInsertError.message);
+        }
+      }
+
       const { error } = await supabase.from("reservations").insert([
         {
           customer_name: name,
           date,
           start_time: startTime,
-          end_time: endTime,
           store_name: storeName,
           staff_name: staffName,
           menu,
           payment_method: paymentMethod,
-          memo,
+          memo: memo.trim() || null,
         },
       ]);
 
@@ -94,7 +101,7 @@ export default function Page() {
         router.push(backHref);
       }, 800);
     } catch (err: any) {
-      setErrorMessage(err.message);
+      setErrorMessage(err.message || "保存に失敗しました");
     } finally {
       setSaving(false);
     }
@@ -108,38 +115,60 @@ export default function Page() {
         <Link href="/">🏠トップ</Link> / <Link href={backHref}>←戻る</Link>
       </div>
 
-      <form onSubmit={handleSave} style={{ display: "grid", gap: "10px", maxWidth: "400px" }}>
-        <input placeholder="名前" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      <form onSubmit={handleSave} style={{ display: "grid", gap: "10px", maxWidth: "420px" }}>
+        <input
+          placeholder="名前"
+          value={customerName}
+          onChange={(e) => setCustomerName(e.target.value)}
+        />
+
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+        />
 
         <select value={storeName} onChange={(e) => setStoreName(e.target.value)}>
           {STORE_OPTIONS.map((v) => (
-            <option key={v}>{v}</option>
+            <option key={v} value={v}>{v}</option>
           ))}
         </select>
 
         <select value={staffName} onChange={(e) => setStaffName(e.target.value)}>
           {STAFF_OPTIONS.map((v) => (
-            <option key={v}>{v}</option>
+            <option key={v} value={v}>{v}</option>
           ))}
         </select>
 
-        <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
-        <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+        <input
+          type="time"
+          value={startTime}
+          onChange={(e) => setStartTime(e.target.value)}
+        />
+
+        <input
+          type="time"
+          value={endTime}
+          onChange={(e) => setEndTime(e.target.value)}
+        />
 
         <select value={menu} onChange={(e) => setMenu(e.target.value)}>
           {MENU_OPTIONS.map((v) => (
-            <option key={v}>{v}</option>
+            <option key={v} value={v}>{v}</option>
           ))}
         </select>
 
         <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
           {PAYMENT_OPTIONS.map((v) => (
-            <option key={v}>{v}</option>
+            <option key={v} value={v}>{v}</option>
           ))}
         </select>
 
-        <textarea placeholder="メモ" value={memo} onChange={(e) => setMemo(e.target.value)} />
+        <textarea
+          placeholder="メモ"
+          value={memo}
+          onChange={(e) => setMemo(e.target.value)}
+        />
 
         <button disabled={saving}>{saving ? "保存中..." : "保存"}</button>
       </form>
