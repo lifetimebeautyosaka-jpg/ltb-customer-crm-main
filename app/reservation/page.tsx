@@ -1,564 +1,465 @@
-"use client";
-
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
+
+type SearchParams = Promise<{
+  month?: string;
+  store?: string;
+  staff?: string;
+}>;
+
+type ReservationRow = {
+  id: number;
+  date: string;
+  customer_name: string | null;
+  store_name: string | null;
+  staff_name: string | null;
+  menu: string | null;
+};
+
+type CalendarItem = {
+  id: number;
+  date: string;
+  title: string;
+  color: string;
+  store: string;
+  staff: string;
+};
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-const STORE_OPTIONS = ["江戸堀", "箕面", "福島", "福島P", "天満橋", "中崎町"];
-const STAFF_OPTIONS = ["山口", "中西", "池田", "石川", "菱谷", "林", "井上", "その他"];
-const MENU_OPTIONS = [
-  "ストレッチ",
-  "トレーニング",
-  "ペアトレーニング",
-  "ヘッドスパ",
-  "アロマ",
-  "カウンセリング",
-  "その他",
-];
-const PAYMENT_OPTIONS = ["現金", "カード", "回数券", "月額", "その他"];
+const STORE_TABS = ["すべて", "江戸堀", "箕面", "福島", "福島P", "天満橋", "中崎町"];
+const STAFF_TABS = ["すべて", "山口", "中西", "池田", "石川", "菱谷", "林", "井上", "その他"];
 
-type CustomerRow = {
-  id: number;
-  name: string;
+const STAFF_COLORS: Record<string, string> = {
+  山口: "#16a34a",
+  中西: "#ec4899",
+  池田: "#8b5cf6",
+  石川: "#3b82f6",
+  菱谷: "#f59e0b",
+  林: "#111827",
+  井上: "#6b7280",
+  その他: "#9ca3af",
 };
 
 function pad(n: number) {
   return String(n).padStart(2, "0");
 }
 
+function toMonthString(date: Date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
+}
+
 function toDateString(date: Date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-function formatJapaneseDate(dateStr: string) {
-  const date = new Date(dateStr);
-  const week = ["日", "月", "火", "水", "木", "金", "土"];
-  return `${date.getMonth() + 1}月${date.getDate()}日（${week[date.getDay()]}）`;
+function getMonthDate(month: string) {
+  const [y, m] = month.split("-").map(Number);
+  return new Date(y, m - 1, 1);
 }
 
-function getQueryParam(name: string) {
-  if (typeof window === "undefined") return "";
-  const params = new URLSearchParams(window.location.search);
-  return params.get(name) || "";
+function shiftMonth(month: string, offset: number) {
+  const d = getMonthDate(month);
+  d.setMonth(d.getMonth() + offset);
+  return toMonthString(d);
 }
 
-export default function ReservationNewPage() {
-  const router = useRouter();
+function formatMonthLabel(month: string) {
+  const d = getMonthDate(month);
+  return `${d.getFullYear()}年${d.getMonth() + 1}月`;
+}
 
-  const [customerName, setCustomerName] = useState("");
-  const [date, setDate] = useState(toDateString(new Date()));
-  const [storeName, setStoreName] = useState("江戸堀");
-  const [staffName, setStaffName] = useState("山口");
-  const [startTime, setStartTime] = useState("10:00");
-  const [endTime, setEndTime] = useState("11:00");
-  const [menu, setMenu] = useState("ストレッチ");
-  const [price, setPrice] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("現金");
-  const [memo, setMemo] = useState("");
+function weekdayLabel(index: number) {
+  return ["月", "火", "水", "木", "金", "土", "日"][index];
+}
 
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
+function buildCalendarDays(month: string) {
+  const firstDay = getMonthDate(month);
+  const year = firstDay.getFullYear();
+  const monthIndex = firstDay.getMonth();
 
-  useEffect(() => {
-    const queryDate = getQueryParam("date");
-    const queryMonth = getQueryParam("month");
-    const queryStore = getQueryParam("store");
-    const queryStaff = getQueryParam("staff");
+  const firstWeekday = (firstDay.getDay() + 6) % 7;
+  const startDate = new Date(year, monthIndex, 1 - firstWeekday);
 
-    if (queryDate && /^\d{4}-\d{2}-\d{2}$/.test(queryDate)) {
-      setDate(queryDate);
-    } else if (queryMonth && /^\d{4}-\d{2}$/.test(queryMonth)) {
-      setDate(`${queryMonth}-01`);
-    }
+  return Array.from({ length: 35 }).map((_, i) => {
+    const d = new Date(startDate);
+    d.setDate(startDate.getDate() + i);
 
-    if (queryStore && queryStore !== "すべて") {
-      setStoreName(queryStore);
-    }
+    return {
+      date: toDateString(d),
+      day: d.getDate(),
+      isCurrentMonth: d.getMonth() === monthIndex,
+      isToday: toDateString(d) === toDateString(new Date()),
+    };
+  });
+}
 
-    if (queryStaff && queryStaff !== "すべて") {
-      setStaffName(queryStaff);
-    }
-  }, []);
+function buildTabHref(month: string, store: string, staff: string, nextType: "store" | "staff", nextValue: string) {
+  const nextStore = nextType === "store" ? nextValue : store;
+  const nextStaff = nextType === "staff" ? nextValue : staff;
+  return `/reservation?month=${month}&store=${encodeURIComponent(nextStore)}&staff=${encodeURIComponent(nextStaff)}`;
+}
 
-  const backHref = useMemo(() => {
-    return `/reservation/day?date=${date}&store=${encodeURIComponent(storeName)}&staff=${encodeURIComponent(staffName)}`;
-  }, [date, storeName, staffName]);
+function buildDayHref(date: string, store: string, staff: string) {
+  return `/reservation/day?date=${date}&store=${encodeURIComponent(store)}&staff=${encodeURIComponent(staff)}`;
+}
 
-  const topHref = "/";
+function buildNewHref(month: string, store: string, staff: string) {
+  return `/reservation/new?month=${month}&store=${encodeURIComponent(store)}&staff=${encodeURIComponent(staff)}`;
+}
 
-  const validate = () => {
-    if (!customerName.trim()) {
-      setErrorMessage("お客様名を入力してください。");
-      return false;
-    }
+function getDisplayTitle(row: ReservationRow) {
+  if (row.customer_name?.trim()) return row.customer_name.trim();
+  if (row.menu?.trim()) return row.menu.trim();
+  return "予約";
+}
 
-    if (!date) {
-      setErrorMessage("日付を入力してください。");
-      return false;
-    }
-
-    if (!startTime) {
-      setErrorMessage("開始時間を入力してください。");
-      return false;
-    }
-
-    if (!endTime) {
-      setErrorMessage("終了時間を入力してください。");
-      return false;
-    }
-
-    if (startTime >= endTime) {
-      setErrorMessage("終了時間は開始時間より後にしてください。");
-      return false;
-    }
-
-    return true;
+function mapReservationToCalendarItem(row: ReservationRow): CalendarItem {
+  const staff = row.staff_name || "その他";
+  return {
+    id: row.id,
+    date: row.date,
+    title: getDisplayTitle(row),
+    color: STAFF_COLORS[staff] || "#9ca3af",
+    store: row.store_name || "未設定",
+    staff,
   };
+}
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+function getDayItems(items: CalendarItem[], date: string, store: string, staff: string) {
+  return items
+    .filter((item) => {
+      const matchDate = item.date === date;
+      const matchStore = store === "すべて" || item.store === store;
+      const matchStaff = staff === "すべて" || item.staff === staff;
+      return matchDate && matchStore && matchStaff;
+    })
+    .slice(0, 4);
+}
 
-    setMessage("");
-    setErrorMessage("");
+export default async function ReservationPage(props: { searchParams?: SearchParams }) {
+  const resolved = (await props.searchParams) || {};
+  const todayMonth = toMonthString(new Date());
 
-    if (!validate()) return;
+  const month = resolved.month && /^\d{4}-\d{2}$/.test(resolved.month) ? resolved.month : todayMonth;
+  const store = resolved.store || "すべて";
+  const staff = resolved.staff || "すべて";
 
-    setSaving(true);
+  const monthDate = getMonthDate(month);
+  const startDate = toDateString(new Date(monthDate.getFullYear(), monthDate.getMonth(), 1));
+  const endDate = toDateString(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0));
 
-    try {
-      const trimmedName = customerName.trim();
+  let query = supabase
+    .from("reservations")
+    .select("id, date, customer_name, store_name, staff_name, menu")
+    .gte("date", startDate)
+    .lte("date", endDate)
+    .order("date", { ascending: true });
 
-      // 1. 顧客検索
-      const { data: existingCustomer, error: customerFindError } = await supabase
-        .from("customers")
-        .select("id, name")
-        .eq("name", trimmedName)
-        .limit(1)
-        .maybeSingle<CustomerRow>();
+  if (store !== "すべて") {
+    query = query.eq("store_name", store);
+  }
 
-      if (customerFindError) {
-        throw new Error("顧客検索に失敗しました。");
-      }
+  if (staff !== "すべて") {
+    query = query.eq("staff_name", staff);
+  }
 
-      let customerId: number | null = existingCustomer?.id ?? null;
+  const { data, error } = await query;
 
-      // 2. いなければ customers に追加
-      if (!customerId) {
-        const { data: newCustomer, error: customerInsertError } = await supabase
-          .from("customers")
-          .insert([
-            {
-              name: trimmedName,
-            },
-          ])
-          .select("id, name")
-          .single<CustomerRow>();
+  const reservations: CalendarItem[] = error
+    ? []
+    : ((data as ReservationRow[] | null) || []).map(mapReservationToCalendarItem);
 
-        if (customerInsertError) {
-          throw new Error("新規顧客の登録に失敗しました。");
-        }
-
-        customerId = newCustomer.id;
-      }
-
-      // 3. reservations に保存
-      const { error: reservationInsertError } = await supabase.from("reservations").insert([
-        {
-          customer_id: customerId,
-          customer_name: trimmedName,
-          date,
-          start_time: startTime,
-          end_time: endTime,
-          store_name: storeName,
-          staff_name: staffName,
-          menu,
-          payment_method: paymentMethod,
-          memo: memo.trim() || null,
-          price: price.trim() ? Number(price) : null,
-        },
-      ]);
-
-      if (reservationInsertError) {
-        throw new Error("予約の保存に失敗しました。");
-      }
-
-      setMessage("予約を保存しました。顧客リストにも自動連携しました。");
-
-      setTimeout(() => {
-        router.push(backHref);
-        router.refresh();
-      }, 700);
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : "保存中にエラーが発生しました。";
-      setErrorMessage(msg);
-    } finally {
-      setSaving(false);
-    }
-  };
+  const prevMonth = shiftMonth(month, -1);
+  const nextMonth = shiftMonth(month, 1);
+  const days = buildCalendarDays(month);
 
   return (
-    <main style={{ minHeight: "100vh", background: "#f5f5f5", paddingBottom: "40px" }}>
-      <div style={{ maxWidth: "860px", margin: "0 auto", padding: "16px 12px 40px" }}>
+    <main style={{ minHeight: "100vh", background: "#f5f5f5", paddingBottom: "100px" }}>
+      <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "20px 12px 40px" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            marginBottom: "18px",
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+            <Link
+              href={`/reservation?month=${prevMonth}&store=${encodeURIComponent(store)}&staff=${encodeURIComponent(staff)}`}
+              style={{
+                textDecoration: "none",
+                background: "#ffffff",
+                color: "#111827",
+                border: "1px solid #e5e7eb",
+                borderRadius: "12px",
+                padding: "10px 14px",
+                fontWeight: 700,
+              }}
+            >
+              ←
+            </Link>
+
+            <div style={{ fontSize: "36px", fontWeight: 800, color: "#111827", letterSpacing: "-0.03em" }}>
+              {formatMonthLabel(month)}
+            </div>
+
+            <Link
+              href={`/reservation?month=${nextMonth}&store=${encodeURIComponent(store)}&staff=${encodeURIComponent(staff)}`}
+              style={{
+                textDecoration: "none",
+                background: "#ffffff",
+                color: "#111827",
+                border: "1px solid #e5e7eb",
+                borderRadius: "12px",
+                padding: "10px 14px",
+                fontWeight: 700,
+              }}
+            >
+              →
+            </Link>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+            <Link
+              href="/"
+              style={{
+                textDecoration: "none",
+                background: "#ffffff",
+                color: "#111827",
+                border: "1px solid #d1d5db",
+                borderRadius: "12px",
+                padding: "10px 14px",
+                fontWeight: 700,
+                fontSize: "14px",
+              }}
+            >
+              🏠 トップ
+            </Link>
+
+            <Link
+              href={buildNewHref(month, store, staff)}
+              style={{
+                textDecoration: "none",
+                background: "#111827",
+                color: "#ffffff",
+                borderRadius: "999px",
+                width: "56px",
+                height: "56px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "34px",
+                lineHeight: 1,
+                boxShadow: "0 10px 20px rgba(0,0,0,0.12)",
+                flexShrink: 0,
+              }}
+            >
+              +
+            </Link>
+          </div>
+        </div>
+
         <div
           style={{
             background: "#ffffff",
-            borderRadius: "28px",
-            padding: "20px 16px 24px",
+            borderRadius: "18px",
+            padding: "14px",
             boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
+            marginBottom: "16px",
           }}
         >
-          <div
-            style={{
-              width: "72px",
-              height: "6px",
-              borderRadius: "999px",
-              background: "#d1d5db",
-              margin: "0 auto 18px",
-            }}
-          />
+          <div style={{ display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "6px", marginBottom: "12px" }}>
+            {STORE_TABS.map((tab) => {
+              const active = store === tab;
+              return (
+                <Link
+                  key={tab}
+                  href={buildTabHref(month, store, staff, "store", tab)}
+                  style={{
+                    whiteSpace: "nowrap",
+                    textDecoration: "none",
+                    padding: "12px 18px",
+                    borderRadius: "16px",
+                    border: active ? "2px solid #111827" : "1px solid #d1d5db",
+                    background: active ? "#111827" : "#ffffff",
+                    color: active ? "#ffffff" : "#111827",
+                    fontWeight: 700,
+                    fontSize: "15px",
+                  }}
+                >
+                  {tab}
+                </Link>
+              );
+            })}
+          </div>
 
+          <div style={{ display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "4px" }}>
+            {STAFF_TABS.map((tab) => {
+              const active = staff === tab;
+              return (
+                <Link
+                  key={tab}
+                  href={buildTabHref(month, store, staff, "staff", tab)}
+                  style={{
+                    whiteSpace: "nowrap",
+                    textDecoration: "none",
+                    padding: "10px 16px",
+                    borderRadius: "999px",
+                    border: active ? "2px solid #111827" : "1px solid #d1d5db",
+                    background: active ? "#f3f4f6" : "#ffffff",
+                    color: "#111827",
+                    fontWeight: 700,
+                    fontSize: "14px",
+                  }}
+                >
+                  {tab}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+
+        {error ? (
           <div
             style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: "12px",
-              marginBottom: "20px",
-              flexWrap: "wrap",
+              background: "#ffffff",
+              borderRadius: "18px",
+              padding: "20px",
+              color: "#991b1b",
+              fontWeight: 700,
+              boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
             }}
           >
-            <div>
-              <div
-                style={{
-                  fontSize: "30px",
-                  fontWeight: 800,
-                  color: "#111827",
-                  letterSpacing: "-0.03em",
-                  lineHeight: 1.2,
-                }}
-              >
-                新規予約
-              </div>
-              <div
-                style={{
-                  marginTop: "6px",
-                  color: "#6b7280",
-                  fontSize: "14px",
-                  fontWeight: 600,
-                }}
-              >
-                {formatJapaneseDate(date)}
-              </div>
+            予約データの取得に失敗しました。
+          </div>
+        ) : (
+          <div
+            style={{
+              background: "#ffffff",
+              borderRadius: "18px",
+              overflow: "hidden",
+              boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
+            }}
+          >
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
+                borderBottom: "1px solid #e5e7eb",
+                background: "#fafafa",
+              }}
+            >
+              {Array.from({ length: 7 }).map((_, i) => (
+                <div
+                  key={i}
+                  style={{
+                    textAlign: "center",
+                    padding: "14px 6px",
+                    fontWeight: 700,
+                    color: i === 5 ? "#2563eb" : i === 6 ? "#ef4444" : "#6b7280",
+                    fontSize: "15px",
+                  }}
+                >
+                  {weekdayLabel(i)}
+                </div>
+              ))}
             </div>
 
             <div
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
+                display: "grid",
+                gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
               }}
             >
-              <Link
-                href={topHref}
-                style={{
-                  textDecoration: "none",
-                  background: "#ffffff",
-                  color: "#111827",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "12px",
-                  padding: "10px 14px",
-                  fontWeight: 700,
-                  fontSize: "14px",
-                }}
-              >
-                🏠 トップ
-              </Link>
+              {days.map((day) => {
+                const items = getDayItems(reservations, day.date, store, staff);
 
-              <Link
-                href={backHref}
-                style={{
-                  textDecoration: "none",
-                  background: "#ffffff",
-                  color: "#111827",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "12px",
-                  padding: "10px 14px",
-                  fontWeight: 700,
-                  fontSize: "14px",
-                }}
-              >
-                ← 戻る
-              </Link>
+                return (
+                  <Link
+                    key={day.date}
+                    href={buildDayHref(day.date, store, staff)}
+                    style={{
+                      textDecoration: "none",
+                      color: "#111827",
+                      minHeight: "150px",
+                      borderRight: "1px solid #e5e7eb",
+                      borderBottom: "1px solid #e5e7eb",
+                      padding: "8px",
+                      background: day.isCurrentMonth ? "#ffffff" : "#fafafa",
+                      display: "block",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: "30px",
+                          height: "30px",
+                          borderRadius: "999px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontWeight: 800,
+                          fontSize: "15px",
+                          background: day.isToday ? "#111827" : "transparent",
+                          color: day.isToday ? "#ffffff" : day.isCurrentMonth ? "#111827" : "#9ca3af",
+                        }}
+                      >
+                        {day.day}
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+                      {items.map((item) => (
+                        <div
+                          key={item.id}
+                          style={{
+                            background: item.color,
+                            color: "#ffffff",
+                            borderRadius: "6px",
+                            padding: "4px 6px",
+                            fontSize: "12px",
+                            fontWeight: 700,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {item.title}
+                        </div>
+                      ))}
+
+                      {items.length === 0 ? (
+                        <div
+                          style={{
+                            fontSize: "12px",
+                            color: "#d1d5db",
+                            paddingTop: "2px",
+                          }}
+                        >
+                          予約なし
+                        </div>
+                      ) : null}
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           </div>
-
-          <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
-            <section>
-              <div
-                style={{
-                  fontSize: "18px",
-                  fontWeight: 800,
-                  color: "#111827",
-                  marginBottom: "14px",
-                }}
-              >
-                基本情報
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                  gap: "14px",
-                }}
-              >
-                <div style={{ gridColumn: "span 2" }}>
-                  <label style={labelStyle}>お客様名</label>
-                  <input
-                    type="text"
-                    placeholder="例：山田太郎"
-                    style={inputStyle}
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>日付</label>
-                  <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputStyle} />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>店舗</label>
-                  <select value={storeName} onChange={(e) => setStoreName(e.target.value)} style={inputStyle}>
-                    {STORE_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={labelStyle}>開始時間</label>
-                  <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} style={inputStyle} />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>終了時間</label>
-                  <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} style={inputStyle} />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>担当者</label>
-                  <select value={staffName} onChange={(e) => setStaffName(e.target.value)} style={inputStyle}>
-                    {STAFF_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={labelStyle}>メニュー</label>
-                  <select value={menu} onChange={(e) => setMenu(e.target.value)} style={inputStyle}>
-                    {MENU_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </section>
-
-            <section>
-              <div
-                style={{
-                  fontSize: "18px",
-                  fontWeight: 800,
-                  color: "#111827",
-                  marginBottom: "14px",
-                }}
-              >
-                金額・支払い
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                  gap: "14px",
-                }}
-              >
-                <div>
-                  <label style={labelStyle}>料金</label>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    placeholder="例：8000"
-                    style={inputStyle}
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>支払い方法</label>
-                  <select
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                    style={inputStyle}
-                  >
-                    {PAYMENT_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </section>
-
-            <section>
-              <div
-                style={{
-                  fontSize: "18px",
-                  fontWeight: 800,
-                  color: "#111827",
-                  marginBottom: "14px",
-                }}
-              >
-                補足
-              </div>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                <div>
-                  <label style={labelStyle}>メモ</label>
-                  <textarea
-                    placeholder="例：駐車場あり、指名料あり、回数券4-2 など"
-                    style={{
-                      ...inputStyle,
-                      minHeight: "120px",
-                      resize: "vertical",
-                      paddingTop: "14px",
-                    }}
-                    value={memo}
-                    onChange={(e) => setMemo(e.target.value)}
-                  />
-                </div>
-              </div>
-            </section>
-
-            {message ? (
-              <div
-                style={{
-                  background: "#ecfdf5",
-                  color: "#065f46",
-                  border: "1px solid #a7f3d0",
-                  borderRadius: "14px",
-                  padding: "12px 14px",
-                  fontSize: "14px",
-                  fontWeight: 700,
-                }}
-              >
-                {message}
-              </div>
-            ) : null}
-
-            {errorMessage ? (
-              <div
-                style={{
-                  background: "#fef2f2",
-                  color: "#991b1b",
-                  border: "1px solid #fecaca",
-                  borderRadius: "14px",
-                  padding: "12px 14px",
-                  fontSize: "14px",
-                  fontWeight: 700,
-                }}
-              >
-                {errorMessage}
-              </div>
-            ) : null}
-
-            <section>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "12px",
-                  marginTop: "4px",
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => router.push(backHref)}
-                  disabled={saving}
-                  style={{
-                    height: "54px",
-                    borderRadius: "16px",
-                    border: "1px solid #d1d5db",
-                    background: "#ffffff",
-                    color: "#111827",
-                    fontWeight: 800,
-                    fontSize: "16px",
-                    cursor: saving ? "not-allowed" : "pointer",
-                    opacity: saving ? 0.6 : 1,
-                  }}
-                >
-                  キャンセル
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={saving}
-                  style={{
-                    height: "54px",
-                    borderRadius: "16px",
-                    border: "none",
-                    background: "#111827",
-                    color: "#ffffff",
-                    fontWeight: 800,
-                    fontSize: "16px",
-                    cursor: saving ? "not-allowed" : "pointer",
-                    opacity: saving ? 0.7 : 1,
-                  }}
-                >
-                  {saving ? "保存中..." : "保存する"}
-                </button>
-              </div>
-            </section>
-          </form>
-        </div>
+        )}
       </div>
     </main>
   );
 }
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  marginBottom: "8px",
-  fontSize: "14px",
-  fontWeight: 700,
-  color: "#374151",
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  height: "52px",
-  borderRadius: "14px",
-  border: "1px solid #d1d5db",
-  background: "#ffffff",
-  padding: "0 14px",
-  fontSize: "16px",
-  color: "#111827",
-  boxSizing: "border-box",
-};
