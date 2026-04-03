@@ -55,7 +55,6 @@ export default function Page() {
       return;
     }
 
-    // 顧客登録
     const { data } = await supabase
       .from("customers")
       .select("id")
@@ -66,7 +65,6 @@ export default function Page() {
       await supabase.from("customers").insert([{ name }]);
     }
 
-    // 予約保存
     const { error } = await supabase.from("reservations").insert([
       {
         customer_name: name,
@@ -101,8 +99,13 @@ export default function Page() {
         <h2 style={{ fontSize: "26px", fontWeight: "800" }}>新規予約</h2>
 
         <div style={{ display: "flex", gap: "10px" }}>
-          <Link href="/">🏠</Link>
-          <Link href={backHref}>←</Link>
+          <Link href="/reservation" style={topBtn}>
+            カレンダーへ
+          </Link>
+
+          <Link href={backHref} style={backBtn}>
+            ← 戻る
+          </Link>
         </div>
       </div>
 
@@ -111,19 +114,12 @@ export default function Page() {
         
         <div style={grid}>
           <Input label="名前" value={customerName} set={setCustomerName} />
-
           <Input label="日付" type="date" value={date} set={setDate} />
-
           <Select label="店舗" value={storeName} set={setStoreName} list={STORE_OPTIONS} />
-
           <Select label="担当" value={staffName} set={setStaffName} list={STAFF_OPTIONS} />
-
           <Input label="開始時間" type="time" value={startTime} set={setStartTime} />
-
           <Input label="終了時間" type="time" value={endTime} set={setEndTime} />
-
           <Select label="メニュー" value={menu} set={setMenu} list={MENU_OPTIONS} />
-
           <Select label="支払い" value={paymentMethod} set={setPaymentMethod} list={PAYMENT_OPTIONS} />
         </div>
 
@@ -169,6 +165,21 @@ function Select({ label, value, set, list }: any) {
 }
 
 /* スタイル */
+
+const topBtn = {
+  background: "#111",
+  color: "#fff",
+  padding: "8px 12px",
+  borderRadius: "8px",
+  fontSize: "14px",
+};
+
+const backBtn = {
+  background: "#fff",
+  border: "1px solid #ddd",
+  padding: "8px 12px",
+  borderRadius: "8px",
+};
 
 const card = {
   background: "#fff",
