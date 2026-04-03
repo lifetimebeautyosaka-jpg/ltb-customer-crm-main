@@ -5,9 +5,10 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 const STORE_OPTIONS = ["江戸堀", "箕面", "福島", "福島P", "天満橋", "中崎町"];
 const STAFF_OPTIONS = ["山口", "中西", "池田", "石川", "菱谷", "林", "井上", "その他"];
@@ -35,146 +36,180 @@ export default function Page() {
   const [paymentMethod, setPaymentMethod] = useState("現金");
   const [memo, setMemo] = useState("");
 
-  const [message, setMessage] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
 
   const backHref = useMemo(() => {
-    return `/reservation/day?date=${date}&store=${encodeURIComponent(storeName)}&staff=${encodeURIComponent(staffName)}`;
-  }, [date, storeName, staffName]);
+    return `/reservation/day?date=${date}`;
+  }, [date]);
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSave = async (e: any) => {
     e.preventDefault();
-    setMessage("");
-    setErrorMessage("");
+    setSaving(true);
 
-    if (!customerName.trim()) {
-      setErrorMessage("名前を入力してください");
+    const name = customerName.trim();
+
+    if (!name) {
+      alert("名前を入力");
+      setSaving(false);
       return;
     }
 
-    setSaving(true);
+    // 顧客登録
+    const { data } = await supabase
+      .from("customers")
+      .select("id")
+      .eq("name", name)
+      .maybeSingle();
 
-    try {
-      const name = customerName.trim();
-
-      const { data: existing, error: customerFindError } = await supabase
-        .from("customers")
-        .select("id")
-        .eq("name", name)
-        .maybeSingle();
-
-      if (customerFindError) {
-        throw new Error(customerFindError.message);
-      }
-
-      if (!existing) {
-        const { error: customerInsertError } = await supabase
-          .from("customers")
-          .insert([{ name }]);
-
-        if (customerInsertError) {
-          throw new Error(customerInsertError.message);
-        }
-      }
-
-      const { error } = await supabase.from("reservations").insert([
-        {
-          customer_name: name,
-          date,
-          start_time: startTime,
-          store_name: storeName,
-          staff_name: staffName,
-          menu,
-          payment_method: paymentMethod,
-          memo: memo.trim() || null,
-        },
-      ]);
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      setMessage("保存成功");
-
-      setTimeout(() => {
-        router.push(backHref);
-      }, 800);
-    } catch (err: any) {
-      setErrorMessage(err.message || "保存に失敗しました");
-    } finally {
-      setSaving(false);
+    if (!data) {
+      await supabase.from("customers").insert([{ name }]);
     }
+
+    // 予約保存
+    const { error } = await supabase.from("reservations").insert([
+      {
+        customer_name: name,
+        date,
+        start_time: startTime,
+        store_name: storeName,
+        staff_name: staffName,
+        menu,
+        payment_method: paymentMethod,
+        memo,
+      },
+    ]);
+
+    if (error) {
+      alert(error.message);
+      setSaving(false);
+      return;
+    }
+
+    setMsg("保存完了");
+
+    setTimeout(() => {
+      router.push(backHref);
+    }, 800);
   };
 
   return (
-    <main style={{ padding: "20px" }}>
-      <h2>新規予約</h2>
+    <main style={{ background: "#f5f5f5", minHeight: "100vh", padding: "20px" }}>
+      
+      {/* ヘッダー */}
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "15px" }}>
+        <h2 style={{ fontSize: "26px", fontWeight: "800" }}>新規予約</h2>
 
-      <div style={{ marginBottom: "10px" }}>
-        <Link href="/">🏠トップ</Link> / <Link href={backHref}>←戻る</Link>
+        <div style={{ display: "flex", gap: "10px" }}>
+          <Link href="/">🏠</Link>
+          <Link href={backHref}>←</Link>
+        </div>
       </div>
 
-      <form onSubmit={handleSave} style={{ display: "grid", gap: "10px", maxWidth: "420px" }}>
-        <input
-          placeholder="名前"
-          value={customerName}
-          onChange={(e) => setCustomerName(e.target.value)}
-        />
+      {/* カード */}
+      <form onSubmit={handleSave} style={card}>
+        
+        <div style={grid}>
+          <Input label="名前" value={customerName} set={setCustomerName} />
 
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-        />
+          <Input label="日付" type="date" value={date} set={setDate} />
 
-        <select value={storeName} onChange={(e) => setStoreName(e.target.value)}>
-          {STORE_OPTIONS.map((v) => (
-            <option key={v} value={v}>{v}</option>
-          ))}
-        </select>
+          <Select label="店舗" value={storeName} set={setStoreName} list={STORE_OPTIONS} />
 
-        <select value={staffName} onChange={(e) => setStaffName(e.target.value)}>
-          {STAFF_OPTIONS.map((v) => (
-            <option key={v} value={v}>{v}</option>
-          ))}
-        </select>
+          <Select label="担当" value={staffName} set={setStaffName} list={STAFF_OPTIONS} />
 
-        <input
-          type="time"
-          value={startTime}
-          onChange={(e) => setStartTime(e.target.value)}
-        />
+          <Input label="開始時間" type="time" value={startTime} set={setStartTime} />
 
-        <input
-          type="time"
-          value={endTime}
-          onChange={(e) => setEndTime(e.target.value)}
-        />
+          <Input label="終了時間" type="time" value={endTime} set={setEndTime} />
 
-        <select value={menu} onChange={(e) => setMenu(e.target.value)}>
-          {MENU_OPTIONS.map((v) => (
-            <option key={v} value={v}>{v}</option>
-          ))}
-        </select>
+          <Select label="メニュー" value={menu} set={setMenu} list={MENU_OPTIONS} />
 
-        <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
-          {PAYMENT_OPTIONS.map((v) => (
-            <option key={v} value={v}>{v}</option>
-          ))}
-        </select>
+          <Select label="支払い" value={paymentMethod} set={setPaymentMethod} list={PAYMENT_OPTIONS} />
+        </div>
 
         <textarea
           placeholder="メモ"
+          style={textarea}
           value={memo}
           onChange={(e) => setMemo(e.target.value)}
         />
 
-        <button disabled={saving}>{saving ? "保存中..." : "保存"}</button>
-      </form>
+        <button style={saveBtn} disabled={saving}>
+          {saving ? "保存中..." : "保存"}
+        </button>
 
-      {message && <p style={{ color: "green" }}>{message}</p>}
-      {errorMessage && <p style={{ color: "red" }}>{errorMessage}</p>}
+        {msg && <p style={{ color: "green", textAlign: "center" }}>{msg}</p>}
+      </form>
     </main>
   );
 }
+
+/* パーツ */
+
+function Input({ label, value, set, type = "text" }: any) {
+  return (
+    <div>
+      <p style={labelStyle}>{label}</p>
+      <input type={type} value={value} onChange={(e) => set(e.target.value)} style={input} />
+    </div>
+  );
+}
+
+function Select({ label, value, set, list }: any) {
+  return (
+    <div>
+      <p style={labelStyle}>{label}</p>
+      <select value={value} onChange={(e) => set(e.target.value)} style={input}>
+        {list.map((v: string) => (
+          <option key={v}>{v}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+/* スタイル */
+
+const card = {
+  background: "#fff",
+  padding: "20px",
+  borderRadius: "15px",
+  display: "flex",
+  flexDirection: "column" as const,
+  gap: "15px",
+};
+
+const grid = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: "10px",
+};
+
+const labelStyle = {
+  fontSize: "12px",
+  marginBottom: "4px",
+  fontWeight: "600",
+};
+
+const input = {
+  width: "100%",
+  padding: "10px",
+  borderRadius: "8px",
+  border: "1px solid #ddd",
+};
+
+const textarea = {
+  width: "100%",
+  minHeight: "80px",
+  padding: "10px",
+  borderRadius: "8px",
+  border: "1px solid #ddd",
+};
+
+const saveBtn = {
+  background: "#111",
+  color: "#fff",
+  padding: "12px",
+  borderRadius: "10px",
+  fontSize: "16px",
+};
