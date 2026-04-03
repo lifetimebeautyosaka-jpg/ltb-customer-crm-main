@@ -1,11 +1,8 @@
-import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
+"use client";
 
-type SearchParams = Promise<{
-  month?: string;
-  store?: string;
-  staff?: string;
-}>;
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
 
 type ReservationRow = {
   id: number;
@@ -79,7 +76,6 @@ function buildCalendarDays(month: string) {
   const firstDay = getMonthDate(month);
   const year = firstDay.getFullYear();
   const monthIndex = firstDay.getMonth();
-
   const firstWeekday = (firstDay.getDay() + 6) % 7;
   const startDate = new Date(year, monthIndex, 1 - firstWeekday);
 
@@ -94,20 +90,6 @@ function buildCalendarDays(month: string) {
       isToday: toDateString(d) === toDateString(new Date()),
     };
   });
-}
-
-function buildTabHref(month: string, store: string, staff: string, nextType: "store" | "staff", nextValue: string) {
-  const nextStore = nextType === "store" ? nextValue : store;
-  const nextStaff = nextType === "staff" ? nextValue : staff;
-  return `/reservation?month=${month}&store=${encodeURIComponent(nextStore)}&staff=${encodeURIComponent(nextStaff)}`;
-}
-
-function buildDayHref(date: string, store: string, staff: string) {
-  return `/reservation/day?date=${date}&store=${encodeURIComponent(store)}&staff=${encodeURIComponent(staff)}`;
-}
-
-function buildNewHref(month: string, store: string, staff: string) {
-  return `/reservation/new?month=${month}&store=${encodeURIComponent(store)}&staff=${encodeURIComponent(staff)}`;
 }
 
 function getDisplayTitle(row: ReservationRow) {
@@ -139,42 +121,56 @@ function getDayItems(items: CalendarItem[], date: string, store: string, staff: 
     .slice(0, 4);
 }
 
-export default async function ReservationPage(props: { searchParams?: SearchParams }) {
-  const resolved = (await props.searchParams) || {};
-  const todayMonth = toMonthString(new Date());
+export default function ReservationPage() {
+  const [month, setMonth] = useState(toMonthString(new Date()));
+  const [store, setStore] = useState("すべて");
+  const [staff, setStaff] = useState("すべて");
+  const [reservations, setReservations] = useState<CalendarItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
 
-  const month = resolved.month && /^\d{4}-\d{2}$/.test(resolved.month) ? resolved.month : todayMonth;
-  const store = resolved.store || "すべて";
-  const staff = resolved.staff || "すべて";
+  const days = useMemo(() => buildCalendarDays(month), [month]);
 
-  const monthDate = getMonthDate(month);
-  const startDate = toDateString(new Date(monthDate.getFullYear(), monthDate.getMonth(), 1));
-  const endDate = toDateString(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0));
+  useEffect(() => {
+    const firstDay = getMonthDate(month);
+    const startDate = toDateString(new Date(firstDay.getFullYear(), firstDay.getMonth(), 1));
+    const endDate = toDateString(new Date(firstDay.getFullYear(), firstDay.getMonth() + 1, 0));
 
-  let query = supabase
-    .from("reservations")
-    .select("id, date, customer_name, store_name, staff_name, menu")
-    .gte("date", startDate)
-    .lte("date", endDate)
-    .order("date", { ascending: true });
+    const fetchReservations = async () => {
+      setLoading(true);
+      setErrorMessage("");
 
-  if (store !== "すべて") {
-    query = query.eq("store_name", store);
-  }
+      let query = supabase
+        .from("reservations")
+        .select("id, date, customer_name, store_name, staff_name, menu")
+        .gte("date", startDate)
+        .lte("date", endDate)
+        .order("date", { ascending: true });
 
-  if (staff !== "すべて") {
-    query = query.eq("staff_name", staff);
-  }
+      if (store !== "すべて") {
+        query = query.eq("store_name", store);
+      }
 
-  const { data, error } = await query;
+      if (staff !== "すべて") {
+        query = query.eq("staff_name", staff);
+      }
 
-  const reservations: CalendarItem[] = error
-    ? []
-    : ((data as ReservationRow[] | null) || []).map(mapReservationToCalendarItem);
+      const { data, error } = await query;
 
-  const prevMonth = shiftMonth(month, -1);
-  const nextMonth = shiftMonth(month, 1);
-  const days = buildCalendarDays(month);
+      if (error) {
+        setReservations([]);
+        setErrorMessage("予約データの取得に失敗しました。");
+        setLoading(false);
+        return;
+      }
+
+      const mapped = ((data as ReservationRow[] | null) || []).map(mapReservationToCalendarItem);
+      setReservations(mapped);
+      setLoading(false);
+    };
+
+    fetchReservations();
+  }, [month, store, staff]);
 
   return (
     <main style={{ minHeight: "100vh", background: "#f5f5f5", paddingBottom: "100px" }}>
@@ -190,39 +186,39 @@ export default async function ReservationPage(props: { searchParams?: SearchPara
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-            <Link
-              href={`/reservation?month=${prevMonth}&store=${encodeURIComponent(store)}&staff=${encodeURIComponent(staff)}`}
+            <button
+              onClick={() => setMonth(shiftMonth(month, -1))}
               style={{
-                textDecoration: "none",
                 background: "#ffffff",
                 color: "#111827",
                 border: "1px solid #e5e7eb",
                 borderRadius: "12px",
                 padding: "10px 14px",
                 fontWeight: 700,
+                cursor: "pointer",
               }}
             >
               ←
-            </Link>
+            </button>
 
             <div style={{ fontSize: "36px", fontWeight: 800, color: "#111827", letterSpacing: "-0.03em" }}>
               {formatMonthLabel(month)}
             </div>
 
-            <Link
-              href={`/reservation?month=${nextMonth}&store=${encodeURIComponent(store)}&staff=${encodeURIComponent(staff)}`}
+            <button
+              onClick={() => setMonth(shiftMonth(month, 1))}
               style={{
-                textDecoration: "none",
                 background: "#ffffff",
                 color: "#111827",
                 border: "1px solid #e5e7eb",
                 borderRadius: "12px",
                 padding: "10px 14px",
                 fontWeight: 700,
+                cursor: "pointer",
               }}
             >
               →
-            </Link>
+            </button>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
@@ -243,7 +239,7 @@ export default async function ReservationPage(props: { searchParams?: SearchPara
             </Link>
 
             <Link
-              href={buildNewHref(month, store, staff)}
+              href={`/reservation/new?month=${month}&store=${encodeURIComponent(store)}&staff=${encodeURIComponent(staff)}`}
               style={{
                 textDecoration: "none",
                 background: "#111827",
@@ -278,12 +274,11 @@ export default async function ReservationPage(props: { searchParams?: SearchPara
             {STORE_TABS.map((tab) => {
               const active = store === tab;
               return (
-                <Link
+                <button
                   key={tab}
-                  href={buildTabHref(month, store, staff, "store", tab)}
+                  onClick={() => setStore(tab)}
                   style={{
                     whiteSpace: "nowrap",
-                    textDecoration: "none",
                     padding: "12px 18px",
                     borderRadius: "16px",
                     border: active ? "2px solid #111827" : "1px solid #d1d5db",
@@ -291,10 +286,11 @@ export default async function ReservationPage(props: { searchParams?: SearchPara
                     color: active ? "#ffffff" : "#111827",
                     fontWeight: 700,
                     fontSize: "15px",
+                    cursor: "pointer",
                   }}
                 >
                   {tab}
-                </Link>
+                </button>
               );
             })}
           </div>
@@ -303,12 +299,11 @@ export default async function ReservationPage(props: { searchParams?: SearchPara
             {STAFF_TABS.map((tab) => {
               const active = staff === tab;
               return (
-                <Link
+                <button
                   key={tab}
-                  href={buildTabHref(month, store, staff, "staff", tab)}
+                  onClick={() => setStaff(tab)}
                   style={{
                     whiteSpace: "nowrap",
-                    textDecoration: "none",
                     padding: "10px 16px",
                     borderRadius: "999px",
                     border: active ? "2px solid #111827" : "1px solid #d1d5db",
@@ -316,16 +311,17 @@ export default async function ReservationPage(props: { searchParams?: SearchPara
                     color: "#111827",
                     fontWeight: 700,
                     fontSize: "14px",
+                    cursor: "pointer",
                   }}
                 >
                   {tab}
-                </Link>
+                </button>
               );
             })}
           </div>
         </div>
 
-        {error ? (
+        {errorMessage ? (
           <div
             style={{
               background: "#ffffff",
@@ -334,43 +330,50 @@ export default async function ReservationPage(props: { searchParams?: SearchPara
               color: "#991b1b",
               fontWeight: 700,
               boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
+              marginBottom: "16px",
             }}
           >
-            予約データの取得に失敗しました。
+            {errorMessage}
           </div>
-        ) : (
+        ) : null}
+
+        <div
+          style={{
+            background: "#ffffff",
+            borderRadius: "18px",
+            overflow: "hidden",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
+          }}
+        >
           <div
             style={{
-              background: "#ffffff",
-              borderRadius: "18px",
-              overflow: "hidden",
-              boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
+              display: "grid",
+              gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
+              borderBottom: "1px solid #e5e7eb",
+              background: "#fafafa",
             }}
           >
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
-                borderBottom: "1px solid #e5e7eb",
-                background: "#fafafa",
-              }}
-            >
-              {Array.from({ length: 7 }).map((_, i) => (
-                <div
-                  key={i}
-                  style={{
-                    textAlign: "center",
-                    padding: "14px 6px",
-                    fontWeight: 700,
-                    color: i === 5 ? "#2563eb" : i === 6 ? "#ef4444" : "#6b7280",
-                    fontSize: "15px",
-                  }}
-                >
-                  {weekdayLabel(i)}
-                </div>
-              ))}
-            </div>
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div
+                key={i}
+                style={{
+                  textAlign: "center",
+                  padding: "14px 6px",
+                  fontWeight: 700,
+                  color: i === 5 ? "#2563eb" : i === 6 ? "#ef4444" : "#6b7280",
+                  fontSize: "15px",
+                }}
+              >
+                {weekdayLabel(i)}
+              </div>
+            ))}
+          </div>
 
+          {loading ? (
+            <div style={{ padding: "24px", textAlign: "center", color: "#6b7280", fontWeight: 700 }}>
+              読み込み中...
+            </div>
+          ) : (
             <div
               style={{
                 display: "grid",
@@ -383,7 +386,7 @@ export default async function ReservationPage(props: { searchParams?: SearchPara
                 return (
                   <Link
                     key={day.date}
-                    href={buildDayHref(day.date, store, staff)}
+                    href={`/reservation/day?date=${day.date}&store=${encodeURIComponent(store)}&staff=${encodeURIComponent(staff)}`}
                     style={{
                       textDecoration: "none",
                       color: "#111827",
@@ -457,8 +460,8 @@ export default async function ReservationPage(props: { searchParams?: SearchPara
                 );
               })}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </main>
   );
