@@ -1,11 +1,14 @@
-import Link from "next/link";
+"use client";
 
-type SearchParams = Promise<{
-  date?: string;
-  month?: string;
-  store?: string;
-  staff?: string;
-}>;
+import Link from "next/link";
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const STORE_OPTIONS = ["江戸堀", "箕面", "福島", "福島P", "天満橋", "中崎町"];
 const STAFF_OPTIONS = ["山口", "中西", "池田", "石川", "菱谷", "林", "井上", "その他"];
@@ -20,6 +23,11 @@ const MENU_OPTIONS = [
 ];
 const PAYMENT_OPTIONS = ["現金", "カード", "回数券", "月額", "その他"];
 
+type CustomerRow = {
+  id: number;
+  name: string;
+};
+
 function pad(n: number) {
   return String(n).padStart(2, "0");
 }
@@ -32,18 +40,9 @@ function parseDate(dateStr?: string) {
   if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     return new Date();
   }
+
   const [y, m, d] = dateStr.split("-").map(Number);
   return new Date(y, m - 1, d);
-}
-
-function getDefaultDate(resolvedDate?: string, resolvedMonth?: string) {
-  if (resolvedDate && /^\d{4}-\d{2}-\d{2}$/.test(resolvedDate)) return resolvedDate;
-  if (resolvedMonth && /^\d{4}-\d{2}$/.test(resolvedMonth)) return `${resolvedMonth}-01`;
-  return toDateString(new Date());
-}
-
-function buildBackHref(date: string, store: string, staff: string) {
-  return `/reservation/day?date=${date}&store=${encodeURIComponent(store)}&staff=${encodeURIComponent(staff)}`;
 }
 
 function formatJapaneseDate(dateStr: string) {
@@ -52,12 +51,179 @@ function formatJapaneseDate(dateStr: string) {
   return `${date.getMonth() + 1}月${date.getDate()}日（${week[date.getDay()]}）`;
 }
 
-export default async function ReservationNewPage(props: { searchParams?: SearchParams }) {
-  const resolved = (await props.searchParams) || {};
+function getQueryParam(name: string) {
+  if (typeof window === "undefined") return "";
+  const params = new URLSearchParams(window.location.search);
+  return params.get(name) || "";
+}
 
-  const defaultDate = getDefaultDate(resolved.date, resolved.month);
-  const defaultStore = resolved.store && resolved.store !== "すべて" ? resolved.store : "江戸堀";
-  const defaultStaff = resolved.staff && resolved.staff !== "すべて" ? resolved.staff : "山口";
+export default function ReservationNewPage() {
+  const router = useRouter();
+
+  const [customerName, setCustomerName] = useState("");
+  const [date, setDate] = useState(toDateString(new Date()));
+  const [storeName, setStoreName] = useState("江戸堀");
+  const [staffName, setStaffName] = useState("山口");
+  const [startTime, setStartTime] = useState("10:00");
+  const [endTime, setEndTime] = useState("11:00");
+  const [menu, setMenu] = useState("ストレッチ");
+  const [price, setPrice] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("現金");
+  const [memo, setMemo] = useState("");
+
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    const queryDate = getQueryParam("date");
+    const queryMonth = getQueryParam("month");
+    const queryStore = getQueryParam("store");
+    const queryStaff = getQueryParam("staff");
+
+    if (queryDate && /^\d{4}-\d{2}-\d{2}$/.test(queryDate)) {
+      setDate(queryDate);
+    } else if (queryMonth && /^\d{4}-\d{2}$/.test(queryMonth)) {
+      setDate(`${queryMonth}-01`);
+    }
+
+    if (queryStore && queryStore !== "すべて") {
+      setStoreName(queryStore);
+    }
+
+    if (queryStaff && queryStaff !== "すべて") {
+      setStaffName(queryStaff);
+    }
+  }, []);
+
+  const backHref = useMemo(() => {
+    return `/reservation/day?date=${date}&store=${encodeURIComponent(storeName)}&staff=${encodeURIComponent(staffName)}`;
+  }, [date, storeName, staffName]);
+
+  const validate = () => {
+    if (!customerName.trim()) {
+      setErrorMessage("お客様名を入力してください。");
+      return false;
+    }
+
+    if (!date) {
+      setErrorMessage("日付を入力してください。");
+      return false;
+    }
+
+    if (!startTime) {
+      setErrorMessage("開始時間を入力してください。");
+      return false;
+    }
+
+    if (!endTime) {
+      setErrorMessage("終了時間を入力してください。");
+      return false;
+    }
+
+    if (startTime >= endTime) {
+      setErrorMessage("終了時間は開始時間より後にしてください。");
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleSave = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    setMessage("");
+    setErrorMessage("");
+
+    if (!validate()) return;
+
+    setSaving(true);
+
+    try {
+      const trimmedName = customerName.trim();
+
+      // 1. customers から同名検索
+      const { data: existingCustomer, error: customerFindError } = await supabase
+        .from("customers")
+        .select("id, name")
+        .eq("name", trimmedName)
+        .limit(1)
+        .maybeSingle<CustomerRow>();
+
+      if (customerFindError) {
+        throw new Error(`顧客検索エラー: ${customerFindError.message}`);
+      }
+
+      let customerId: number | null = existingCustomer?.id ?? null;
+
+      // 2. いなければ customers に追加
+      if (!customerId) {
+        const { data: newCustomer, error: customerInsertError } = await supabase
+          .from("customers")
+          .insert([
+            {
+              name: trimmedName,
+            },
+          ])
+          .select("id, name")
+          .single<CustomerRow>();
+
+        if (customerInsertError) {
+          throw new Error(`顧客登録エラー: ${customerInsertError.message}`);
+        }
+
+        customerId = newCustomer.id;
+      }
+
+      // 3. reservations に保存
+      const reservationPayload: {
+        customer_id?: number | null;
+        customer_name: string;
+        date: string;
+        start_time: string;
+        end_time: string;
+        store_name: string;
+        staff_name: string;
+        menu: string;
+        payment_method: string;
+        memo: string | null;
+        price: number | null;
+      } = {
+        customer_id: customerId,
+        customer_name: trimmedName,
+        date,
+        start_time: startTime,
+        end_time: endTime,
+        store_name: storeName,
+        staff_name: staffName,
+        menu,
+        payment_method: paymentMethod,
+        memo: memo.trim() || null,
+        price: price.trim() ? Number(price) : null,
+      };
+
+      const { error: reservationError } = await supabase
+        .from("reservations")
+        .insert([reservationPayload]);
+
+      if (reservationError) {
+        throw new Error(`予約保存エラー: ${reservationError.message}`);
+      }
+
+      setMessage("予約を保存しました。顧客リストにも登録しました。");
+
+      setTimeout(() => {
+        router.push(backHref);
+        router.refresh();
+      }, 700);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "保存に失敗しました。";
+      setErrorMessage(msg);
+      console.error(error);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <main style={{ minHeight: "100vh", background: "#f5f5f5", paddingBottom: "40px" }}>
@@ -102,6 +268,7 @@ export default async function ReservationNewPage(props: { searchParams?: SearchP
               >
                 新規予約
               </div>
+
               <div
                 style={{
                   marginTop: "6px",
@@ -110,39 +277,31 @@ export default async function ReservationNewPage(props: { searchParams?: SearchP
                   fontWeight: 600,
                 }}
               >
-                {formatJapaneseDate(defaultDate)}
+                {formatJapaneseDate(date)}
               </div>
             </div>
 
-            <Link
-              href={buildBackHref(defaultDate, defaultStore, defaultStaff)}
+            <div
               style={{
-                textDecoration: "none",
-                background: "#ffffff",
-                color: "#111827",
-                border: "1px solid #d1d5db",
-                borderRadius: "12px",
-                padding: "10px 14px",
-                fontWeight: 700,
-                fontSize: "14px",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                flexWrap: "wrap",
               }}
             >
-              ← 日別一覧へ戻る
-            </Link>
+              <Link href="/" style={linkBtnStyle}>
+                🏠 トップ
+              </Link>
+
+              <Link href={backHref} style={linkBtnStyle}>
+                ← 戻る
+              </Link>
+            </div>
           </div>
 
-          <form style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
+          <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
             <section>
-              <div
-                style={{
-                  fontSize: "18px",
-                  fontWeight: 800,
-                  color: "#111827",
-                  marginBottom: "14px",
-                }}
-              >
-                基本情報
-              </div>
+              <div style={sectionTitleStyle}>基本情報</div>
 
               <div
                 style={{
@@ -157,18 +316,28 @@ export default async function ReservationNewPage(props: { searchParams?: SearchP
                     type="text"
                     placeholder="例：山田太郎"
                     style={inputStyle}
-                    defaultValue=""
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
                   />
                 </div>
 
                 <div>
                   <label style={labelStyle}>日付</label>
-                  <input type="date" defaultValue={defaultDate} style={inputStyle} />
+                  <input
+                    type="date"
+                    style={inputStyle}
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                  />
                 </div>
 
                 <div>
                   <label style={labelStyle}>店舗</label>
-                  <select defaultValue={defaultStore} style={inputStyle}>
+                  <select
+                    style={inputStyle}
+                    value={storeName}
+                    onChange={(e) => setStoreName(e.target.value)}
+                  >
                     {STORE_OPTIONS.map((option) => (
                       <option key={option} value={option}>
                         {option}
@@ -179,17 +348,31 @@ export default async function ReservationNewPage(props: { searchParams?: SearchP
 
                 <div>
                   <label style={labelStyle}>開始時間</label>
-                  <input type="time" defaultValue="10:00" style={inputStyle} />
+                  <input
+                    type="time"
+                    style={inputStyle}
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                  />
                 </div>
 
                 <div>
                   <label style={labelStyle}>終了時間</label>
-                  <input type="time" defaultValue="11:00" style={inputStyle} />
+                  <input
+                    type="time"
+                    style={inputStyle}
+                    value={endTime}
+                    onChange={(e) => setEndTime(e.target.value)}
+                  />
                 </div>
 
                 <div>
                   <label style={labelStyle}>担当者</label>
-                  <select defaultValue={defaultStaff} style={inputStyle}>
+                  <select
+                    style={inputStyle}
+                    value={staffName}
+                    onChange={(e) => setStaffName(e.target.value)}
+                  >
                     {STAFF_OPTIONS.map((option) => (
                       <option key={option} value={option}>
                         {option}
@@ -200,7 +383,11 @@ export default async function ReservationNewPage(props: { searchParams?: SearchP
 
                 <div>
                   <label style={labelStyle}>メニュー</label>
-                  <select defaultValue="ストレッチ" style={inputStyle}>
+                  <select
+                    style={inputStyle}
+                    value={menu}
+                    onChange={(e) => setMenu(e.target.value)}
+                  >
                     {MENU_OPTIONS.map((option) => (
                       <option key={option} value={option}>
                         {option}
@@ -212,16 +399,7 @@ export default async function ReservationNewPage(props: { searchParams?: SearchP
             </section>
 
             <section>
-              <div
-                style={{
-                  fontSize: "18px",
-                  fontWeight: 800,
-                  color: "#111827",
-                  marginBottom: "14px",
-                }}
-              >
-                金額・支払い
-              </div>
+              <div style={sectionTitleStyle}>金額・支払い</div>
 
               <div
                 style={{
@@ -233,16 +411,22 @@ export default async function ReservationNewPage(props: { searchParams?: SearchP
                 <div>
                   <label style={labelStyle}>料金</label>
                   <input
-                    type="text"
+                    type="number"
+                    inputMode="numeric"
                     placeholder="例：8000"
                     style={inputStyle}
-                    defaultValue=""
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
                   />
                 </div>
 
                 <div>
                   <label style={labelStyle}>支払い方法</label>
-                  <select defaultValue="現金" style={inputStyle}>
+                  <select
+                    style={inputStyle}
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                  >
                     {PAYMENT_OPTIONS.map((option) => (
                       <option key={option} value={option}>
                         {option}
@@ -254,76 +438,57 @@ export default async function ReservationNewPage(props: { searchParams?: SearchP
             </section>
 
             <section>
-              <div
-                style={{
-                  fontSize: "18px",
-                  fontWeight: 800,
-                  color: "#111827",
-                  marginBottom: "14px",
-                }}
-              >
-                補足
-              </div>
+              <div style={sectionTitleStyle}>補足</div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                <div>
-                  <label style={labelStyle}>メモ</label>
-                  <textarea
-                    placeholder="例：駐車場あり、指名料あり、回数券4-2 など"
-                    style={{
-                      ...inputStyle,
-                      minHeight: "120px",
-                      resize: "vertical",
-                      paddingTop: "14px",
-                    }}
-                    defaultValue=""
-                  />
-                </div>
+              <div>
+                <label style={labelStyle}>メモ</label>
+                <textarea
+                  placeholder="例：駐車場あり、指名料あり、回数券4-2 など"
+                  style={{
+                    ...textareaStyle,
+                  }}
+                  value={memo}
+                  onChange={(e) => setMemo(e.target.value)}
+                />
               </div>
             </section>
 
-            <section>
-              <div
+            {message ? <div style={successStyle}>{message}</div> : null}
+            {errorMessage ? <div style={errorStyle}>{errorMessage}</div> : null}
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "12px",
+                marginTop: "4px",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => router.push(backHref)}
+                disabled={saving}
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "12px",
-                  marginTop: "4px",
+                  ...subBtnStyle,
+                  opacity: saving ? 0.6 : 1,
+                  cursor: saving ? "not-allowed" : "pointer",
                 }}
               >
-                <button
-                  type="button"
-                  style={{
-                    height: "54px",
-                    borderRadius: "16px",
-                    border: "1px solid #d1d5db",
-                    background: "#ffffff",
-                    color: "#111827",
-                    fontWeight: 800,
-                    fontSize: "16px",
-                    cursor: "pointer",
-                  }}
-                >
-                  下書き
-                </button>
+                キャンセル
+              </button>
 
-                <button
-                  type="submit"
-                  style={{
-                    height: "54px",
-                    borderRadius: "16px",
-                    border: "none",
-                    background: "#111827",
-                    color: "#ffffff",
-                    fontWeight: 800,
-                    fontSize: "16px",
-                    cursor: "pointer",
-                  }}
-                >
-                  保存する
-                </button>
-              </div>
-            </section>
+              <button
+                type="submit"
+                disabled={saving}
+                style={{
+                  ...mainBtnStyle,
+                  opacity: saving ? 0.7 : 1,
+                  cursor: saving ? "not-allowed" : "pointer",
+                }}
+              >
+                {saving ? "保存中..." : "保存する"}
+              </button>
+            </div>
           </form>
         </div>
       </div>
@@ -331,7 +496,14 @@ export default async function ReservationNewPage(props: { searchParams?: SearchP
   );
 }
 
-const labelStyle: React.CSSProperties = {
+const sectionTitleStyle: CSSProperties = {
+  fontSize: "18px",
+  fontWeight: 800,
+  color: "#111827",
+  marginBottom: "14px",
+};
+
+const labelStyle: CSSProperties = {
   display: "block",
   marginBottom: "8px",
   fontSize: "14px",
@@ -339,7 +511,7 @@ const labelStyle: React.CSSProperties = {
   color: "#374151",
 };
 
-const inputStyle: React.CSSProperties = {
+const inputStyle: CSSProperties = {
   width: "100%",
   height: "52px",
   borderRadius: "14px",
@@ -349,4 +521,68 @@ const inputStyle: React.CSSProperties = {
   fontSize: "16px",
   color: "#111827",
   boxSizing: "border-box",
+};
+
+const textareaStyle: CSSProperties = {
+  width: "100%",
+  minHeight: "120px",
+  borderRadius: "14px",
+  border: "1px solid #d1d5db",
+  background: "#ffffff",
+  padding: "14px",
+  fontSize: "16px",
+  color: "#111827",
+  boxSizing: "border-box",
+  resize: "vertical",
+};
+
+const linkBtnStyle: CSSProperties = {
+  textDecoration: "none",
+  background: "#ffffff",
+  color: "#111827",
+  border: "1px solid #d1d5db",
+  borderRadius: "12px",
+  padding: "10px 14px",
+  fontWeight: 700,
+  fontSize: "14px",
+};
+
+const successStyle: CSSProperties = {
+  background: "#ecfdf5",
+  color: "#065f46",
+  border: "1px solid #a7f3d0",
+  borderRadius: "14px",
+  padding: "12px 14px",
+  fontSize: "14px",
+  fontWeight: 700,
+};
+
+const errorStyle: CSSProperties = {
+  background: "#fef2f2",
+  color: "#991b1b",
+  border: "1px solid #fecaca",
+  borderRadius: "14px",
+  padding: "12px 14px",
+  fontSize: "14px",
+  fontWeight: 700,
+};
+
+const subBtnStyle: CSSProperties = {
+  height: "54px",
+  borderRadius: "16px",
+  border: "1px solid #d1d5db",
+  background: "#ffffff",
+  color: "#111827",
+  fontWeight: 800,
+  fontSize: "16px",
+};
+
+const mainBtnStyle: CSSProperties = {
+  height: "54px",
+  borderRadius: "16px",
+  border: "none",
+  background: "#111827",
+  color: "#ffffff",
+  fontWeight: 800,
+  fontSize: "16px",
 };
