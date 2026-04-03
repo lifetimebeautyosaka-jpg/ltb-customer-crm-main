@@ -12,13 +12,11 @@ type ReservationRow = {
   customer_name: string | null;
   date: string | null;
   start_time: string | null;
-  end_time: string | null;
   store_name: string | null;
   staff_name: string | null;
   menu: string | null;
   payment_method: string | null;
   memo: string | null;
-  price?: number | null;
 };
 
 const supabase = createClient(
@@ -65,11 +63,6 @@ function currentMonthFromDate(dateStr: string) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
 }
 
-function formatPrice(value?: number | null) {
-  if (value === null || value === undefined) return "";
-  return `¥${Number(value).toLocaleString()}`;
-}
-
 function getInitial(name?: string | null) {
   if (!name) return "他";
   return name.slice(0, 1);
@@ -98,7 +91,7 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
 
   let query = supabase
     .from("reservations")
-    .select("id, customer_name, date, start_time, end_time, store_name, staff_name, menu, payment_method, memo, price")
+    .select("id, customer_name, date, start_time, store_name, staff_name, menu, payment_method, memo")
     .eq("date", date)
     .order("start_time", { ascending: true });
 
@@ -223,11 +216,6 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
                       <div style={{ fontSize: "16px", fontWeight: 800, color: "#111827" }}>
                         {item.start_time || "未定"}
                       </div>
-                      {item.end_time ? (
-                        <div style={{ fontSize: "13px", color: "#9ca3af", marginTop: "4px", fontWeight: 700 }}>
-                          {item.end_time}
-                        </div>
-                      ) : null}
                     </div>
 
                     <div
@@ -270,12 +258,6 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
                         {item.payment_method ? <span style={chipStyle}>{item.payment_method}</span> : null}
                         {item.menu ? <span style={chipStyle}>{item.menu}</span> : null}
                       </div>
-
-                      {item.price ? (
-                        <div style={{ marginTop: "10px", fontSize: "15px", fontWeight: 700, color: "#111827" }}>
-                          {formatPrice(item.price)}
-                        </div>
-                      ) : null}
 
                       {item.memo ? (
                         <div
