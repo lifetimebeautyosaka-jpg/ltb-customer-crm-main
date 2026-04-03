@@ -1,119 +1,208 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { supabase } from "../../../lib/supabase";
+import { useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
 
 type Customer = {
-  id: string;
-  created_at: string;
+  id: number;
   name: string;
-  phone: string | null;
+  phone?: string | null;
+  plan?: string | null;
+  created_at?: string | null;
 };
+
+type Ticket = {
+  id: number;
+  customer_id: number | null;
+  customer_name: string | null;
+  ticket_name: string | null;
+  service_type: "ストレッチ" | "トレーニング";
+  total_count: number | null;
+  remaining_count: number | null;
+  purchase_date: string | null;
+  expiry_date: string | null;
+  status: "利用中" | "消化済み" | string;
+  note: string | null;
+  created_at: string | null;
+};
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+function todayString() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = `${d.getMonth() + 1}`.padStart(2, "0");
+  const day = `${d.getDate()}`.padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function addMonths(dateStr: string, months: number) {
+  const d = new Date(dateStr);
+  d.setMonth(d.getMonth() + months);
+  const y = d.getFullYear();
+  const m = `${d.getMonth() + 1}`.padStart(2, "0");
+  const day = `${d.getDate()}`.padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 export default function CustomerDetailPage() {
   const params = useParams();
-  const router = useRouter();
-  const id = String(params?.id ?? "");
+  const id = Number(params?.id || 0);
+
+  const [mounted, setMounted] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const [customer, setCustomer] = useState<Customer | null>(null);
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+
+  const [ticketName, setTicketName] = useState("4回券");
+  const [serviceType, setServiceType] = useState<"ストレッチ" | "トレーニング">("ストレッチ");
+  const [totalCount, setTotalCount] = useState("4");
+  const [purchaseDate, setPurchaseDate] = useState(todayString());
+  const [expiryDate, setExpiryDate] = useState(addMonths(todayString(), 3));
+  const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
 
-  const fetchCustomer = async () => {
-    if (!id) {
-      setLoading(false);
-      setCustomer(null);
+  useEffect(() => {
+    setMounted(true);
+
+    const isLoggedIn = localStorage.getItem("gymup_logged_in");
+    if (isLoggedIn !== "true") {
+      window.location.href = "/login";
       return;
     }
+  }, []);
 
+  const fetchCustomerAndTickets = async () => {
     setLoading(true);
-    setMessage("");
 
-    const { data, error } = await supabase
+    const { data: customerData, error: customerError } = await supabase
       .from("customers")
-      .select("*")
+      .select("id, name, phone, plan, created_at")
       .eq("id", id)
-      .single();
+      .single<Customer>();
 
-    if (error) {
-      console.error("顧客取得エラー:", error);
+    if (customerError || !customerData) {
       setCustomer(null);
-      setMessage("顧客情報の取得に失敗しました");
+      setTickets([]);
       setLoading(false);
       return;
     }
 
-    setCustomer(data);
-    setName(data?.name ?? "");
-    setPhone(data?.phone ?? "");
+    setCustomer(customerData);
+
+    const { data: ticketData, error: ticketError } = await supabase
+      .from("customer_tickets")
+      .select(
+        "id, customer_id, customer_name, ticket_name, service_type, total_count, remaining_count, purchase_date, expiry_date, status, note, created_at"
+      )
+      .eq("customer_id", id)
+      .order("created_at", { ascending: false });
+
+    if (ticketError) {
+      setTickets([]);
+      setLoading(false);
+      return;
+    }
+
+    setTickets((ticketData as Ticket[] | null) || []);
     setLoading(false);
   };
 
   useEffect(() => {
-    fetchCustomer();
-  }, [id]);
+    if (!mounted || !id) return;
+    fetchCustomerAndTickets();
+  }, [mounted, id]);
 
-  const handleSave = async () => {
-    if (!id) return;
+  const stretchSummary = useMemo(() => {
+    const list = tickets.filter((t) => t.service_type === "ストレッチ");
+    return {
+      total: list.reduce((sum, t) => sum + Number(t.total_count || 0), 0),
+      remain: list.reduce((sum, t) => sum + Number(t.remaining_count || 0), 0),
+    };
+  }, [tickets]);
 
-    if (!name.trim()) {
-      setMessage("名前を入力してください");
+  const trainingSummary = useMemo(() => {
+    const list = tickets.filter((t) => t.service_type === "トレーニング");
+    return {
+      total: list.reduce((sum, t) => sum + Number(t.total_count || 0), 0),
+      remain: list.reduce((sum, t) => sum + Number(t.remaining_count || 0), 0),
+    };
+  }, [tickets]);
+
+  const handleAddTicket = async () => {
+    if (!customer) {
+      alert("顧客情報が見つかりません");
+      return;
+    }
+
+    const total = Number(totalCount || 0);
+    if (total <= 0) {
+      alert("総回数を入力してください");
       return;
     }
 
     setSaving(true);
-    setMessage("");
 
-    const { error } = await supabase
-      .from("customers")
-      .update({
-        name: name.trim(),
-        phone: phone.trim() || null,
-      })
-      .eq("id", id);
+    const { error } = await supabase.from("customer_tickets").insert([
+      {
+        customer_id: customer.id,
+        customer_name: customer.name,
+        ticket_name: ticketName.trim() || "回数券",
+        service_type: serviceType,
+        total_count: total,
+        remaining_count: total,
+        purchase_date: purchaseDate || null,
+        expiry_date: expiryDate || null,
+        status: "利用中",
+        note: note.trim() || null,
+      },
+    ]);
+
+    setSaving(false);
 
     if (error) {
-      console.error("顧客更新エラー:", error);
-      setMessage("保存に失敗しました");
-      setSaving(false);
+      alert(`回数券追加エラー: ${error.message}`);
       return;
     }
 
-    setMessage("保存しました");
-    await fetchCustomer();
-    setSaving(false);
+    setTicketName("4回券");
+    setServiceType("ストレッチ");
+    setTotalCount("4");
+    setPurchaseDate(todayString());
+    setExpiryDate(addMonths(todayString(), 3));
+    setNote("");
+
+    await fetchCustomerAndTickets();
   };
 
-  const handleDelete = async () => {
-    if (!id) return;
-
-    const ok = window.confirm("この顧客を削除しますか？");
+  const handleDeleteTicket = async (ticketId: number) => {
+    const ok = window.confirm("この回数券を削除しますか？");
     if (!ok) return;
 
-    const { error } = await supabase.from("customers").delete().eq("id", id);
+    const { error } = await supabase
+      .from("customer_tickets")
+      .delete()
+      .eq("id", ticketId);
 
     if (error) {
-      console.error("顧客削除エラー:", error);
-      setMessage("削除に失敗しました");
+      alert(`削除エラー: ${error.message}`);
       return;
     }
 
-    alert("顧客を削除しました");
-    router.push("/customer");
+    await fetchCustomerAndTickets();
   };
 
-  if (loading) {
+  if (!mounted || loading) {
     return (
-      <main style={styles.page}>
-        <div style={styles.wrapper}>
-          <div style={styles.card}>
-            <p style={styles.text}>読み込み中...</p>
-          </div>
+      <main style={pageStyle}>
+        <div style={containerStyle}>
+          <div style={cardStyle}>読み込み中...</div>
         </div>
       </main>
     );
@@ -121,15 +210,14 @@ export default function CustomerDetailPage() {
 
   if (!customer) {
     return (
-      <main style={styles.page}>
-        <div style={styles.wrapper}>
-          <div style={styles.card}>
-            <h1 style={styles.title}>顧客が見つかりません</h1>
-            <p style={styles.subText}>ID: {id}</p>
-            <Link href="/customer" style={styles.backButton}>
-              顧客一覧へ戻る
+      <main style={pageStyle}>
+        <div style={containerStyle}>
+          <div style={cardStyle}>
+            <h1 style={titleStyle}>顧客詳細</h1>
+            <p style={{ color: "#b91c1c", fontWeight: 700 }}>顧客情報が見つかりません。</p>
+            <Link href="/customer" style={mainButtonStyle}>
+              顧客一覧へ
             </Link>
-            {message ? <p style={styles.message}>{message}</p> : null}
           </div>
         </div>
       </main>
@@ -137,242 +225,334 @@ export default function CustomerDetailPage() {
   }
 
   return (
-    <main style={styles.page}>
-      <div style={styles.wrapper}>
-        <div style={styles.heroCard}>
-          <div style={styles.badge}>CUSTOMER DETAIL</div>
-          <div style={styles.heroRow}>
-            <div>
-              <h1 style={styles.title}>{customer.name}</h1>
-              <p style={styles.subText}>
-                登録日: {customer.created_at ? customer.created_at.slice(0, 10) : "-"}
-              </p>
-            </div>
+    <main style={pageStyle}>
+      <div style={containerStyle}>
+        <div style={headerRowStyle}>
+          <div>
+            <h1 style={titleStyle}>{customer.name}</h1>
+            <p style={subTitleStyle}>回数券管理・残数確認</p>
+          </div>
 
-            <div style={styles.headerButtons}>
-              <Link href="/customer" style={styles.backButton}>
-                顧客一覧へ戻る
-              </Link>
-              <button onClick={handleDelete} style={styles.deleteButton}>
-                顧客削除
-              </button>
-            </div>
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+            <Link href="/customer" style={subButtonStyle}>
+              ← 顧客一覧へ
+            </Link>
           </div>
         </div>
 
-        <div style={styles.card}>
-          <h2 style={styles.cardTitle}>基本情報</h2>
+        <div style={metricGridStyle}>
+          <MetricCard title="ストレッチ残数" value={`${stretchSummary.remain}回`} />
+          <MetricCard title="トレーニング残数" value={`${trainingSummary.remain}回`} />
+          <MetricCard title="保有回数券" value={`${tickets.length}件`} />
+        </div>
 
-          <div style={styles.formGrid}>
-            <div>
-              <label style={styles.label}>名前</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                style={styles.input}
-                placeholder="山田 太郎"
-              />
-            </div>
+        <div style={mainGridStyle}>
+          <section style={cardStyle}>
+            <h2 style={sectionTitleStyle}>回数券追加</h2>
 
-            <div>
-              <label style={styles.label}>電話番号</label>
-              <input
-                type="text"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                style={styles.input}
-                placeholder="090-1234-5678"
-              />
-            </div>
-          </div>
+            <div style={formGridStyle}>
+              <div>
+                <label style={labelStyle}>回数券名</label>
+                <input
+                  value={ticketName}
+                  onChange={(e) => setTicketName(e.target.value)}
+                  style={inputStyle}
+                  placeholder="例：4回券"
+                />
+              </div>
 
-          <div style={styles.infoGrid}>
-            <div style={styles.infoBox}>
-              <div style={styles.infoLabel}>顧客ID</div>
-              <div style={styles.infoValue}>{customer.id}</div>
-            </div>
+              <div>
+                <label style={labelStyle}>サービス区分</label>
+                <select
+                  value={serviceType}
+                  onChange={(e) => setServiceType(e.target.value as "ストレッチ" | "トレーニング")}
+                  style={inputStyle}
+                >
+                  <option value="ストレッチ">ストレッチ</option>
+                  <option value="トレーニング">トレーニング</option>
+                </select>
+              </div>
 
-            <div style={styles.infoBox}>
-              <div style={styles.infoLabel}>登録日</div>
-              <div style={styles.infoValue}>
-                {customer.created_at ? customer.created_at.slice(0, 10) : "-"}
+              <div>
+                <label style={labelStyle}>総回数</label>
+                <input
+                  type="number"
+                  value={totalCount}
+                  onChange={(e) => setTotalCount(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>購入日</label>
+                <input
+                  type="date"
+                  value={purchaseDate}
+                  onChange={(e) => setPurchaseDate(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+
+              <div>
+                <label style={labelStyle}>有効期限</label>
+                <input
+                  type="date"
+                  value={expiryDate}
+                  onChange={(e) => setExpiryDate(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={labelStyle}>メモ</label>
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  style={{ ...inputStyle, minHeight: "90px", resize: "vertical" }}
+                  placeholder="備考があれば入力"
+                />
               </div>
             </div>
-          </div>
 
-          <div style={styles.actionRow}>
-            <button onClick={handleSave} disabled={saving} style={styles.saveButton}>
-              {saving ? "保存中..." : "保存する"}
-            </button>
-          </div>
+            <div style={{ marginTop: "18px" }}>
+              <button onClick={handleAddTicket} style={mainButtonStyle} disabled={saving}>
+                {saving ? "追加中..." : "回数券を追加する"}
+              </button>
+            </div>
+          </section>
 
-          {message ? <p style={styles.message}>{message}</p> : null}
+          <section style={cardStyle}>
+            <h2 style={sectionTitleStyle}>回数券一覧</h2>
+
+            {tickets.length === 0 ? (
+              <div style={emptyStyle}>回数券はまだありません</div>
+            ) : (
+              <div style={{ display: "grid", gap: "14px" }}>
+                {tickets.map((ticket) => (
+                  <div key={ticket.id} style={ticketCardStyle}>
+                    <div style={ticketTopRowStyle}>
+                      <div>
+                        <div style={ticketTitleStyle}>{ticket.ticket_name || "回数券"}</div>
+                        <div style={ticketMetaStyle}>
+                          {ticket.service_type} / {ticket.status}
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => handleDeleteTicket(ticket.id)}
+                        style={deleteButtonStyle}
+                      >
+                        削除
+                      </button>
+                    </div>
+
+                    <div style={ticketInfoGridStyle}>
+                      <TicketInfo
+                        label="残数"
+                        value={`${Number(ticket.remaining_count || 0)} / ${Number(ticket.total_count || 0)}`}
+                      />
+                      <TicketInfo label="購入日" value={ticket.purchase_date || "未設定"} />
+                      <TicketInfo label="有効期限" value={ticket.expiry_date || "未設定"} />
+                      <TicketInfo label="メモ" value={ticket.note || "なし"} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
       </div>
     </main>
   );
 }
 
-const styles: { [key: string]: React.CSSProperties } = {
-  page: {
-    minHeight: "100vh",
-    background: "linear-gradient(180deg,#eef2f7 0%,#e5ebf3 100%)",
-    color: "#0f172a",
-    padding: "24px",
-  },
-  wrapper: {
-    maxWidth: "1100px",
-    margin: "0 auto",
-    display: "grid",
-    gap: "24px",
-  },
-  heroCard: {
-    background: "rgba(255,255,255,0.72)",
-    border: "1px solid rgba(255,255,255,0.75)",
-    borderRadius: "24px",
-    padding: "24px",
-    boxShadow: "0 10px 30px rgba(15,23,42,0.08)",
-    backdropFilter: "blur(10px)",
-  },
-  badge: {
-    display: "inline-block",
-    marginBottom: "14px",
-    padding: "6px 12px",
-    fontSize: "12px",
-    letterSpacing: "0.12em",
-    borderRadius: "999px",
-    background: "#f1f5f9",
-    border: "1px solid #e2e8f0",
-    color: "#64748b",
-    fontWeight: 700,
-  },
-  heroRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    gap: "16px",
-    flexWrap: "wrap",
-  },
-  headerButtons: {
-    display: "flex",
-    gap: "12px",
-    flexWrap: "wrap",
-  },
-  title: {
-    margin: 0,
-    fontSize: "32px",
-    fontWeight: 700,
-    color: "#0f172a",
-  },
-  subText: {
-    marginTop: "8px",
-    color: "#64748b",
-    fontSize: "14px",
-  },
-  card: {
-    background: "rgba(255,255,255,0.72)",
-    border: "1px solid rgba(255,255,255,0.75)",
-    borderRadius: "24px",
-    padding: "24px",
-    boxShadow: "0 10px 30px rgba(15,23,42,0.08)",
-    backdropFilter: "blur(10px)",
-  },
-  cardTitle: {
-    fontSize: "22px",
-    fontWeight: 700,
-    color: "#0f172a",
-    marginTop: 0,
-    marginBottom: "16px",
-  },
-  formGrid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "16px",
-  },
-  label: {
-    display: "block",
-    color: "#475569",
-    fontSize: "14px",
-    marginBottom: "8px",
-    fontWeight: 600,
-  },
-  input: {
-    width: "100%",
-    padding: "12px 14px",
-    borderRadius: "12px",
-    border: "1px solid #cbd5e1",
-    background: "#fff",
-    color: "#0f172a",
-    outline: "none",
-    boxSizing: "border-box",
-  },
-  infoGrid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "16px",
-    marginTop: "20px",
-  },
-  infoBox: {
-    padding: "16px",
-    borderRadius: "16px",
-    background: "#f8fafc",
-    border: "1px solid #e2e8f0",
-  },
-  infoLabel: {
-    fontSize: "13px",
-    color: "#64748b",
-    marginBottom: "8px",
-  },
-  infoValue: {
-    fontSize: "16px",
-    fontWeight: 700,
-    color: "#0f172a",
-    wordBreak: "break-all",
-  },
-  actionRow: {
-    marginTop: "20px",
-    display: "flex",
-    gap: "12px",
-    flexWrap: "wrap",
-  },
-  saveButton: {
-    background: "linear-gradient(135deg, #c89b6d, #9f6b3f)",
-    color: "#fff",
-    border: "none",
-    borderRadius: "12px",
-    padding: "12px 18px",
-    fontWeight: 700,
-    cursor: "pointer",
-  },
-  backButton: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "#fff",
-    color: "#0f172a",
-    border: "1px solid #cbd5e1",
-    borderRadius: "12px",
-    padding: "12px 18px",
-    fontWeight: 700,
-    textDecoration: "none",
-  },
-  deleteButton: {
-    background: "#ef4444",
-    color: "#fff",
-    border: "none",
-    borderRadius: "12px",
-    padding: "12px 18px",
-    fontWeight: 700,
-    cursor: "pointer",
-  },
-  message: {
-    marginTop: "14px",
-    color: "#92400e",
-    fontSize: "14px",
-  },
-  text: {
-    margin: 0,
-    color: "#475569",
-  },
+function MetricCard({ title, value }: { title: string; value: string }) {
+  return (
+    <div style={metricCardStyle}>
+      <div style={{ fontSize: "13px", color: "#6b7280", marginBottom: "8px" }}>{title}</div>
+      <div style={{ fontSize: "28px", fontWeight: 800, color: "#111827" }}>{value}</div>
+    </div>
+  );
+}
+
+function TicketInfo({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "6px" }}>{label}</div>
+      <div style={{ fontSize: "14px", fontWeight: 700, color: "#111827", whiteSpace: "pre-wrap" }}>{value}</div>
+    </div>
+  );
+}
+
+const pageStyle: React.CSSProperties = {
+  minHeight: "100vh",
+  background: "linear-gradient(135deg, #f7f7f8 0%, #ececef 45%, #dfe3e8 100%)",
+  padding: "24px",
+};
+
+const containerStyle: React.CSSProperties = {
+  maxWidth: "1200px",
+  margin: "0 auto",
+};
+
+const headerRowStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "16px",
+  flexWrap: "wrap",
+  marginBottom: "24px",
+};
+
+const titleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: "32px",
+  fontWeight: 800,
+  color: "#111827",
+};
+
+const subTitleStyle: React.CSSProperties = {
+  marginTop: "8px",
+  color: "#6b7280",
+  fontSize: "14px",
+};
+
+const metricGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: "16px",
+  marginBottom: "24px",
+};
+
+const mainGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: "24px",
+};
+
+const cardStyle: React.CSSProperties = {
+  background: "rgba(255,255,255,0.55)",
+  backdropFilter: "blur(14px)",
+  WebkitBackdropFilter: "blur(14px)",
+  border: "1px solid rgba(255,255,255,0.65)",
+  borderRadius: "24px",
+  padding: "24px",
+  boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
+};
+
+const metricCardStyle: React.CSSProperties = {
+  background: "rgba(255,255,255,0.55)",
+  backdropFilter: "blur(14px)",
+  WebkitBackdropFilter: "blur(14px)",
+  border: "1px solid rgba(255,255,255,0.65)",
+  borderRadius: "22px",
+  padding: "22px",
+  boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
+};
+
+const sectionTitleStyle: React.CSSProperties = {
+  margin: "0 0 18px 0",
+  fontSize: "24px",
+  fontWeight: 800,
+  color: "#111827",
+};
+
+const formGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: "16px",
+};
+
+const labelStyle: React.CSSProperties = {
+  display: "block",
+  fontSize: "14px",
+  fontWeight: 600,
+  color: "#374151",
+  marginBottom: "8px",
+};
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "13px 14px",
+  borderRadius: "14px",
+  border: "1px solid rgba(203,213,225,0.9)",
+  background: "rgba(255,255,255,0.88)",
+  fontSize: "15px",
+  color: "#111827",
+  outline: "none",
+  boxSizing: "border-box",
+};
+
+const mainButtonStyle: React.CSSProperties = {
+  border: "none",
+  borderRadius: "14px",
+  padding: "13px 20px",
+  background: "#111827",
+  color: "#ffffff",
+  fontWeight: 700,
+  fontSize: "15px",
+  cursor: "pointer",
+  textDecoration: "none",
+};
+
+const subButtonStyle: React.CSSProperties = {
+  textDecoration: "none",
+  borderRadius: "14px",
+  padding: "13px 18px",
+  background: "rgba(255,255,255,0.85)",
+  border: "1px solid rgba(203,213,225,0.95)",
+  color: "#111827",
+  fontWeight: 700,
+};
+
+const emptyStyle: React.CSSProperties = {
+  borderRadius: "16px",
+  padding: "20px",
+  background: "rgba(255,255,255,0.55)",
+  border: "1px solid rgba(203,213,225,0.7)",
+  color: "#6b7280",
+  textAlign: "center",
+};
+
+const ticketCardStyle: React.CSSProperties = {
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  borderRadius: "18px",
+  padding: "16px",
+};
+
+const ticketTopRowStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "12px",
+  marginBottom: "14px",
+};
+
+const ticketTitleStyle: React.CSSProperties = {
+  fontSize: "18px",
+  fontWeight: 800,
+  color: "#111827",
+};
+
+const ticketMetaStyle: React.CSSProperties = {
+  marginTop: "6px",
+  fontSize: "13px",
+  color: "#6b7280",
+};
+
+const ticketInfoGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: "14px",
+};
+
+const deleteButtonStyle: React.CSSProperties = {
+  border: "none",
+  borderRadius: "12px",
+  padding: "10px 14px",
+  background: "#111827",
+  color: "#ffffff",
+  fontWeight: 700,
+  cursor: "pointer",
 };
