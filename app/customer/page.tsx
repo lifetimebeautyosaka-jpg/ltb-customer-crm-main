@@ -78,11 +78,7 @@ export default function CustomerPage() {
       <header style={styles.header}>
         <div style={styles.headerInner}>
           <div style={styles.brandWrap}>
-            <img
-              src="/gymup-logo.png"
-              alt="GYMUP"
-              style={styles.logo}
-            />
+            <img src="/gymup-logo.png" alt="GYMUP" style={styles.logo} />
             <div>
               <div style={styles.brandTitle}>GYMUP CRM</div>
               <div style={styles.brandSub}>顧客管理</div>
@@ -100,6 +96,7 @@ export default function CustomerPage() {
       <div style={styles.container}>
         <div style={styles.heroCard}>
           <div style={styles.badge}>CUSTOMER MANAGEMENT</div>
+
           <div style={styles.heroRow}>
             <div>
               <h1 style={styles.title}>顧客管理</h1>
@@ -189,16 +186,17 @@ export default function CustomerPage() {
 const styles: { [key: string]: React.CSSProperties } = {
   page: {
     minHeight: "100vh",
-    background: "linear-gradient(135deg, #0f0f0f, #1a1a1a, #242424)",
-    color: "#fff",
+    background: "#f6f3ef",
+    color: "#111827",
   },
   header: {
     position: "sticky",
     top: 0,
     zIndex: 10,
-    borderBottom: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(18,18,18,0.78)",
-    backdropFilter: "blur(10px)",
+    borderBottom: "1px solid rgba(224, 216, 205, 0.9)",
+    background: "rgba(255,255,255,0.72)",
+    backdropFilter: "blur(14px)",
+    WebkitBackdropFilter: "blur(14px)",
   },
   headerInner: {
     maxWidth: "1100px",
@@ -224,11 +222,13 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: "18px",
     fontWeight: 700,
     letterSpacing: "0.06em",
+    color: "#111827",
   },
   brandSub: {
     fontSize: "12px",
-    color: "#bdbdbd",
+    color: "#8b5e3c",
     marginTop: "2px",
+    fontWeight: 600,
   },
   headerButtons: {
     display: "flex",
@@ -240,12 +240,13 @@ const styles: { [key: string]: React.CSSProperties } = {
     alignItems: "center",
     justifyContent: "center",
     textDecoration: "none",
-    background: "#2a2a2a",
-    color: "#fff",
-    border: "1px solid #444",
-    borderRadius: "10px",
+    background: "rgba(255,255,255,0.78)",
+    color: "#374151",
+    border: "1px solid rgba(229,231,235,0.95)",
+    borderRadius: "12px",
     padding: "10px 16px",
     fontWeight: 700,
+    boxShadow: "0 6px 18px rgba(0,0,0,0.04)",
   },
   container: {
     maxWidth: "1100px",
@@ -255,11 +256,13 @@ const styles: { [key: string]: React.CSSProperties } = {
     gap: "24px",
   },
   heroCard: {
-    background: "rgba(255,255,255,0.06)",
-    border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: "18px",
+    background: "rgba(255,255,255,0.62)",
+    border: "1px solid rgba(236,231,223,0.95)",
+    borderRadius: "24px",
     padding: "24px",
-    backdropFilter: "blur(8px)",
+    backdropFilter: "blur(10px)",
+    WebkitBackdropFilter: "blur(10px)",
+    boxShadow: "0 12px 32px rgba(0,0,0,0.05)",
   },
   badge: {
     display: "inline-block",
@@ -268,9 +271,10 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: "12px",
     letterSpacing: "0.12em",
     borderRadius: "999px",
-    background: "rgba(255,255,255,0.08)",
-    border: "1px solid rgba(255,255,255,0.12)",
-    color: "#d6d6d6",
+    background: "#faf7f3",
+    border: "1px solid #eee4d8",
+    color: "#8b5e3c",
+    fontWeight: 700,
   },
   heroRow: {
     display: "flex",
@@ -282,57 +286,63 @@ const styles: { [key: string]: React.CSSProperties } = {
   title: {
     fontSize: "32px",
     fontWeight: 700,
-    color: "#ffffff",
+    color: "#111827",
     margin: 0,
   },
   subText: {
     marginTop: "8px",
-    color: "#bdbdbd",
+    color: "#6b7280",
     fontSize: "14px",
+    lineHeight: 1.7,
   },
   reloadButton: {
-    background: "#2a2a2a",
-    color: "#fff",
-    border: "1px solid #444",
-    borderRadius: "10px",
+    background: "rgba(255,255,255,0.9)",
+    color: "#374151",
+    border: "1px solid #e5e7eb",
+    borderRadius: "12px",
     padding: "10px 16px",
     cursor: "pointer",
     fontWeight: 700,
+    boxShadow: "0 6px 18px rgba(0,0,0,0.04)",
   },
   card: {
-    background: "rgba(255,255,255,0.06)",
-    border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: "16px",
+    background: "rgba(255,255,255,0.68)",
+    border: "1px solid rgba(236,231,223,0.95)",
+    borderRadius: "24px",
     padding: "20px",
-    backdropFilter: "blur(8px)",
+    backdropFilter: "blur(10px)",
+    WebkitBackdropFilter: "blur(10px)",
+    boxShadow: "0 12px 30px rgba(0,0,0,0.05)",
   },
   cardTitle: {
     fontSize: "20px",
     fontWeight: 700,
-    color: "#fff",
+    color: "#111827",
     marginTop: 0,
     marginBottom: "16px",
   },
   formGrid: {
     display: "grid",
-    gridTemplateColumns: "1fr 1fr",
+    gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
     gap: "16px",
   },
   label: {
     display: "block",
-    color: "#ddd",
+    color: "#6f4e37",
     fontSize: "14px",
     marginBottom: "8px",
+    fontWeight: 700,
   },
   input: {
     width: "100%",
     padding: "12px 14px",
-    borderRadius: "10px",
-    border: "1px solid #555",
-    background: "#111",
-    color: "#fff",
+    borderRadius: "12px",
+    border: "1px solid #e5e7eb",
+    background: "rgba(255,255,255,0.95)",
+    color: "#111827",
     outline: "none",
     boxSizing: "border-box",
+    boxShadow: "inset 0 1px 2px rgba(0,0,0,0.02)",
   },
   actionRow: {
     marginTop: "16px",
@@ -341,21 +351,23 @@ const styles: { [key: string]: React.CSSProperties } = {
     flexWrap: "wrap",
   },
   addButton: {
-    background: "linear-gradient(135deg, #c89b6d, #9f6b3f)",
+    background: "linear-gradient(135deg, #8b5e3c 0%, #c49a6c 100%)",
     color: "#fff",
     border: "none",
-    borderRadius: "10px",
+    borderRadius: "12px",
     padding: "12px 18px",
     fontWeight: 700,
     cursor: "pointer",
+    boxShadow: "0 10px 20px rgba(139,94,60,0.22)",
   },
   message: {
     marginTop: "12px",
-    color: "#f3d7b6",
+    color: "#8b5e3c",
     fontSize: "14px",
+    fontWeight: 700,
   },
   empty: {
-    color: "#ccc",
+    color: "#6b7280",
     margin: 0,
   },
   list: {
@@ -367,24 +379,28 @@ const styles: { [key: string]: React.CSSProperties } = {
     justifyContent: "space-between",
     alignItems: "center",
     padding: "16px",
-    borderRadius: "12px",
-    background: "#161616",
-    border: "1px solid #2d2d2d",
+    borderRadius: "16px",
+    background: "rgba(255,255,255,0.82)",
+    border: "1px solid #e5e7eb",
     textDecoration: "none",
+    boxShadow: "0 6px 18px rgba(0,0,0,0.035)",
+    backdropFilter: "blur(8px)",
+    WebkitBackdropFilter: "blur(8px)",
   },
   customerName: {
-    color: "#fff",
+    color: "#111827",
     fontSize: "18px",
     fontWeight: 700,
     marginBottom: "6px",
   },
   customerPhone: {
-    color: "#bbb",
+    color: "#6b7280",
     fontSize: "14px",
   },
   arrow: {
-    color: "#c89b6d",
+    color: "#c49a6c",
     fontSize: "28px",
     fontWeight: 700,
+    lineHeight: 1,
   },
-};// test
+};
