@@ -91,7 +91,7 @@ function buildCalendarDays(month: string) {
   const firstWeekday = (firstDay.getDay() + 6) % 7;
   const startDate = new Date(year, monthIndex, 1 - firstWeekday);
 
-  return Array.from({ length: 35 }).map((_, i) => {
+  return Array.from({ length: 42 }).map((_, i) => {
     const d = new Date(startDate);
     d.setDate(startDate.getDate() + i);
 
@@ -137,7 +137,7 @@ function getDayItems(items: CalendarItem[], date: string, store: string, staff: 
       const matchStaff = staff === "すべて" || item.staff === staff;
       return matchDate && matchStore && matchStaff;
     })
-    .slice(0, 4);
+    .slice(0, 3);
 }
 
 export default function ReservationPage() {
@@ -473,10 +473,10 @@ export default function ReservationPage() {
                 key={i}
                 style={{
                   textAlign: "center",
-                  padding: "14px 6px",
+                  padding: "12px 4px",
                   fontWeight: 700,
                   color: i === 5 ? "#2563eb" : i === 6 ? "#ef4444" : "#6b7280",
-                  fontSize: "15px",
+                  fontSize: "14px",
                 }}
               >
                 {weekdayLabel(i)}
@@ -505,10 +505,10 @@ export default function ReservationPage() {
                     style={{
                       textDecoration: "none",
                       color: "#111827",
-                      minHeight: "150px",
+                      minHeight: "96px",
                       borderRight: "1px solid #e5e7eb",
                       borderBottom: "1px solid #e5e7eb",
-                      padding: "8px",
+                      padding: "6px",
                       background: day.isCurrentMonth ? "#ffffff" : "#fafafa",
                       display: "block",
                     }}
@@ -518,19 +518,19 @@ export default function ReservationPage() {
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
-                        marginBottom: "8px",
+                        marginBottom: "6px",
                       }}
                     >
                       <div
                         style={{
-                          width: "30px",
-                          height: "30px",
+                          width: "24px",
+                          height: "24px",
                           borderRadius: "999px",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
                           fontWeight: 800,
-                          fontSize: "15px",
+                          fontSize: "13px",
                           background: day.isToday ? "#111827" : "transparent",
                           color: day.isToday ? "#ffffff" : day.isCurrentMonth ? "#111827" : "#9ca3af",
                         }}
@@ -539,37 +539,37 @@ export default function ReservationPage() {
                       </div>
                     </div>
 
-                    <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                       {items.map((item) => (
                         <div
                           key={item.id}
                           style={{
                             background: item.color,
                             color: "#ffffff",
-                            borderRadius: "6px",
-                            padding: "4px 6px",
-                            fontSize: "12px",
+                            borderRadius: "5px",
+                            padding: "2px 5px",
+                            fontSize: "10px",
                             fontWeight: 700,
                             overflow: "hidden",
                             textOverflow: "ellipsis",
                             whiteSpace: "nowrap",
                             display: "flex",
                             alignItems: "center",
-                            gap: "6px",
+                            gap: "4px",
                           }}
                         >
                           <span
                             style={{
                               display: "flex",
                               alignItems: "center",
-                              gap: "4px",
+                              gap: "3px",
                               flexShrink: 0,
                             }}
                           >
                             <span
                               style={{
-                                width: "8px",
-                                height: "8px",
+                                width: "6px",
+                                height: "6px",
                                 borderRadius: "999px",
                                 background: item.isTicketUsed ? "#16a34a" : "#fb923c",
                                 boxShadow: "0 0 0 1px rgba(255,255,255,0.65)",
@@ -578,8 +578,8 @@ export default function ReservationPage() {
                             {item.isSalesRegistered ? (
                               <span
                                 style={{
-                                  width: "8px",
-                                  height: "8px",
+                                  width: "6px",
+                                  height: "6px",
                                   borderRadius: "999px",
                                   background: "#2563eb",
                                   boxShadow: "0 0 0 1px rgba(255,255,255,0.65)",
@@ -603,7 +603,7 @@ export default function ReservationPage() {
                       {items.length === 0 ? (
                         <div
                           style={{
-                            fontSize: "12px",
+                            fontSize: "10px",
                             color: "#d1d5db",
                             paddingTop: "2px",
                           }}
