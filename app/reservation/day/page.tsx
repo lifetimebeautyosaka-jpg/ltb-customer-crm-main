@@ -19,6 +19,15 @@ type ReservationRow = {
   memo: string | null;
 };
 
+type TicketUsageRow = {
+  id: number;
+  reservation_id: number | null;
+  ticket_id: number | null;
+  ticket_name: string | null;
+  before_count: number | null;
+  after_count: number | null;
+};
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -79,6 +88,12 @@ const STAFF_COLORS: Record<string, string> = {
   その他: "#9ca3af",
 };
 
+function detectServiceType(menu?: string | null): "ストレッチ" | "トレーニング" {
+  const text = String(menu || "");
+  if (text.includes("ストレッチ")) return "ストレッチ";
+  return "トレーニング";
+}
+
 export default async function ReservationDayPage(props: { searchParams?: SearchParams }) {
   const resolved = (await props.searchParams) || {};
   const date =
@@ -104,14 +119,41 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
   }
 
   const { data, error } = await query;
+
   const items = ((data as ReservationRow[] | null) || []).sort((a, b) =>
     String(a.start_time || "").localeCompare(String(b.start_time || ""))
   );
 
-  const backHref = `/reservation?month=${currentMonthFromDate(date)}&store=${encodeURIComponent(store)}&staff=${encodeURIComponent(staff)}`;
-  const prevHref = `/reservation/day?date=${prevDate(date)}&store=${encodeURIComponent(store)}&staff=${encodeURIComponent(staff)}`;
-  const nextHref = `/reservation/day?date=${nextDate(date)}&store=${encodeURIComponent(store)}&staff=${encodeURIComponent(staff)}`;
-  const newHref = `/reservation/new?date=${date}&store=${encodeURIComponent(store)}&staff=${encodeURIComponent(staff)}`;
+  const reservationIds = items.map((item) => item.id).filter(Boolean);
+
+  let usageMap = new Map<number, TicketUsageRow>();
+
+  if (reservationIds.length > 0) {
+    const { data: usageData } = await supabase
+      .from("ticket_usages")
+      .select("id, reservation_id, ticket_id, ticket_name, before_count, after_count")
+      .in("reservation_id", reservationIds);
+
+    const usageList = (usageData as TicketUsageRow[] | null) || [];
+    usageMap = new Map(
+      usageList
+        .filter((row) => row.reservation_id !== null)
+        .map((row) => [Number(row.reservation_id), row])
+    );
+  }
+
+  const backHref = `/reservation?month=${currentMonthFromDate(date)}&store=${encodeURIComponent(
+    store
+  )}&staff=${encodeURIComponent(staff)}`;
+  const prevHref = `/reservation/day?date=${prevDate(date)}&store=${encodeURIComponent(
+    store
+  )}&staff=${encodeURIComponent(staff)}`;
+  const nextHref = `/reservation/day?date=${nextDate(date)}&store=${encodeURIComponent(
+    store
+  )}&staff=${encodeURIComponent(staff)}`;
+  const newHref = `/reservation/new?date=${date}&store=${encodeURIComponent(
+    store
+  )}&staff=${encodeURIComponent(staff)}`;
 
   return (
     <main style={{ minHeight: "100vh", background: "#f5f5f5", paddingBottom: "90px" }}>
@@ -144,7 +186,14 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
               flexWrap: "wrap",
             }}
           >
-            <div style={{ fontSize: "28px", fontWeight: 800, color: "#111827", letterSpacing: "-0.03em" }}>
+            <div
+              style={{
+                fontSize: "28px",
+                fontWeight: 800,
+                color: "#111827",
+                letterSpacing: "-0.03em",
+              }}
+            >
               {formatJapaneseDate(date)}
             </div>
 
@@ -198,18 +247,25 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
             <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
               {items.map((item) => {
                 const color = STAFF_COLORS[item.staff_name || "その他"] || "#9ca3af";
+                const usage = usageMap.get(item.id);
+                const serviceType = detectServiceType(item.menu);
+
+                const salesHref = `/sales?date=${encodeURIComponent(item.date || "")}&customer_name=${encodeURIComponent(
+                  item.customer_name || ""
+                )}&store_name=${encodeURIComponent(item.store_name || "")}&staff_name=${encodeURIComponent(
+                  item.staff_name || ""
+                )}&service_type=${encodeURIComponent(serviceType)}&menu=${encodeURIComponent(
+                  item.menu || ""
+                )}&reservation_id=${encodeURIComponent(String(item.id))}`;
 
                 return (
-                  <Link
+                  <div
                     key={item.id}
-                    href={`/reservation/detail/${item.id}`}
                     style={{
                       display: "grid",
                       gridTemplateColumns: "78px 6px 1fr 52px",
                       gap: "12px",
                       alignItems: "start",
-                      textDecoration: "none",
-                      color: "#111827",
                     }}
                   >
                     <div style={{ textAlign: "right", paddingTop: "2px" }}>
@@ -229,49 +285,120 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
                     />
 
                     <div>
-                      <div
+                      <Link
+                        href={`/reservation/detail/${item.id}`}
                         style={{
-                          fontSize: "24px",
-                          fontWeight: 800,
+                          display: "block",
+                          textDecoration: "none",
                           color: "#111827",
-                          letterSpacing: "-0.03em",
-                          lineHeight: 1.2,
                         }}
                       >
-                        {item.customer_name || item.menu || "予約"}
-                      </div>
+                        <div
+                          style={{
+                            fontSize: "24px",
+                            fontWeight: 800,
+                            color: "#111827",
+                            letterSpacing: "-0.03em",
+                            lineHeight: 1.2,
+                          }}
+                        >
+                          {item.customer_name || item.menu || "予約"}
+                        </div>
 
-                      <div
-                        style={{
-                          marginTop: "8px",
-                          display: "flex",
-                          gap: "8px",
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        {item.store_name ? <span style={chipStyle}>{item.store_name}</span> : null}
-                        {item.staff_name ? (
-                          <span style={{ ...chipStyle, background: color, color: "#fff", border: "none" }}>
-                            {item.staff_name}
-                          </span>
-                        ) : null}
-                        {item.payment_method ? <span style={chipStyle}>{item.payment_method}</span> : null}
-                        {item.menu ? <span style={chipStyle}>{item.menu}</span> : null}
-                      </div>
-
-                      {item.memo ? (
                         <div
                           style={{
                             marginTop: "8px",
-                            fontSize: "14px",
-                            color: "#6b7280",
-                            lineHeight: 1.5,
-                            whiteSpace: "pre-wrap",
+                            display: "flex",
+                            gap: "8px",
+                            flexWrap: "wrap",
                           }}
                         >
-                          {item.memo}
+                          {item.store_name ? <span style={chipStyle}>{item.store_name}</span> : null}
+                          {item.staff_name ? (
+                            <span
+                              style={{
+                                ...chipStyle,
+                                background: color,
+                                color: "#fff",
+                                border: "none",
+                              }}
+                            >
+                              {item.staff_name}
+                            </span>
+                          ) : null}
+                          {item.payment_method ? <span style={chipStyle}>{item.payment_method}</span> : null}
+                          {item.menu ? <span style={chipStyle}>{item.menu}</span> : null}
+
+                          {usage ? (
+                            <span
+                              style={{
+                                ...chipStyle,
+                                background: "#ecfdf5",
+                                color: "#065f46",
+                                border: "1px solid #a7f3d0",
+                              }}
+                            >
+                              回数券消化済み
+                            </span>
+                          ) : (
+                            <span
+                              style={{
+                                ...chipStyle,
+                                background: "#fff7ed",
+                                color: "#9a3412",
+                                border: "1px solid #fdba74",
+                              }}
+                            >
+                              未消化
+                            </span>
+                          )}
                         </div>
-                      ) : null}
+
+                        {usage ? (
+                          <div
+                            style={{
+                              marginTop: "8px",
+                              fontSize: "13px",
+                              color: "#065f46",
+                              lineHeight: 1.5,
+                              fontWeight: 700,
+                            }}
+                          >
+                            {usage.ticket_name || "回数券"} / 消化前 {usage.before_count ?? "-"} → 消化後{" "}
+                            {usage.after_count ?? "-"}
+                          </div>
+                        ) : null}
+
+                        {item.memo ? (
+                          <div
+                            style={{
+                              marginTop: "8px",
+                              fontSize: "14px",
+                              color: "#6b7280",
+                              lineHeight: 1.5,
+                              whiteSpace: "pre-wrap",
+                            }}
+                          >
+                            {item.memo}
+                          </div>
+                        ) : null}
+                      </Link>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "8px",
+                          flexWrap: "wrap",
+                          marginTop: "12px",
+                        }}
+                      >
+                        <Link href={`/reservation/detail/${item.id}`} style={actionButtonStyle}>
+                          詳細を見る
+                        </Link>
+                        <Link href={salesHref} style={actionDarkButtonStyle}>
+                          売上登録へ
+                        </Link>
+                      </div>
                     </div>
 
                     <div
@@ -291,7 +418,7 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
                     >
                       {getInitial(item.staff_name)}
                     </div>
-                  </Link>
+                  </div>
                 );
               })}
             </div>
@@ -321,6 +448,28 @@ const chipStyle: React.CSSProperties = {
   fontWeight: 700,
   background: "#fff",
   color: "#111827",
+};
+
+const actionButtonStyle: React.CSSProperties = {
+  textDecoration: "none",
+  background: "#ffffff",
+  color: "#111827",
+  border: "1px solid #d1d5db",
+  borderRadius: "12px",
+  padding: "10px 14px",
+  fontWeight: 700,
+  fontSize: "13px",
+};
+
+const actionDarkButtonStyle: React.CSSProperties = {
+  textDecoration: "none",
+  background: "#111827",
+  color: "#ffffff",
+  border: "1px solid #111827",
+  borderRadius: "12px",
+  padding: "10px 14px",
+  fontWeight: 700,
+  fontSize: "13px",
 };
 
 const emptyStyle: React.CSSProperties = {
