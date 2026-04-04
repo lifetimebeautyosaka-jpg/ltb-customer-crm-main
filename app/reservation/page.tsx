@@ -13,6 +13,11 @@ type ReservationRow = {
   menu: string | null;
 };
 
+type TicketUsageRow = {
+  id: number;
+  reservation_id: number | null;
+};
+
 type CalendarItem = {
   id: number;
   date: string;
@@ -20,6 +25,7 @@ type CalendarItem = {
   color: string;
   store: string;
   staff: string;
+  isTicketUsed: boolean;
 };
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -98,7 +104,10 @@ function getDisplayTitle(row: ReservationRow) {
   return "予約";
 }
 
-function mapReservationToCalendarItem(row: ReservationRow): CalendarItem {
+function mapReservationToCalendarItem(
+  row: ReservationRow,
+  usedReservationIds: Set<number>
+): CalendarItem {
   const staff = row.staff_name || "その他";
   return {
     id: row.id,
@@ -107,6 +116,7 @@ function mapReservationToCalendarItem(row: ReservationRow): CalendarItem {
     color: STAFF_COLORS[staff] || "#9ca3af",
     store: row.store_name || "未設定",
     staff,
+    isTicketUsed: usedReservationIds.has(row.id),
   };
 }
 
@@ -137,36 +147,65 @@ export default function ReservationPage() {
     const endDate = toDateString(new Date(firstDay.getFullYear(), firstDay.getMonth() + 1, 0));
 
     const fetchReservations = async () => {
-      setLoading(true);
-      setErrorMessage("");
+      try {
+        setLoading(true);
+        setErrorMessage("");
 
-      let query = supabase
-        .from("reservations")
-        .select("id, date, customer_name, store_name, staff_name, menu")
-        .gte("date", startDate)
-        .lte("date", endDate)
-        .order("date", { ascending: true });
+        let query = supabase
+          .from("reservations")
+          .select("id, date, customer_name, store_name, staff_name, menu")
+          .gte("date", startDate)
+          .lte("date", endDate)
+          .order("date", { ascending: true });
 
-      if (store !== "すべて") {
-        query = query.eq("store_name", store);
-      }
+        if (store !== "すべて") {
+          query = query.eq("store_name", store);
+        }
 
-      if (staff !== "すべて") {
-        query = query.eq("staff_name", staff);
-      }
+        if (staff !== "すべて") {
+          query = query.eq("staff_name", staff);
+        }
 
-      const { data, error } = await query;
+        const { data, error } = await query;
 
-      if (error) {
+        if (error) {
+          setReservations([]);
+          setErrorMessage("予約データの取得に失敗しました。");
+          return;
+        }
+
+        const reservationRows = (data as ReservationRow[] | null) || [];
+        const reservationIds = reservationRows.map((row) => row.id).filter(Boolean);
+
+        let usedReservationIds = new Set<number>();
+
+        if (reservationIds.length > 0) {
+          const { data: usageData, error: usageError } = await supabase
+            .from("ticket_usages")
+            .select("id, reservation_id")
+            .in("reservation_id", reservationIds);
+
+          if (!usageError) {
+            usedReservationIds = new Set(
+              ((usageData as TicketUsageRow[] | null) || [])
+                .map((row) => Number(row.reservation_id))
+                .filter((id) => !Number.isNaN(id) && id > 0)
+            );
+          }
+        }
+
+        const mapped = reservationRows.map((row) =>
+          mapReservationToCalendarItem(row, usedReservationIds)
+        );
+
+        setReservations(mapped);
+      } catch (error) {
+        console.error("fetchReservations error:", error);
         setReservations([]);
-        setErrorMessage("予約データの取得に失敗しました。");
+        setErrorMessage("予約データの取得中にエラーが発生しました。");
+      } finally {
         setLoading(false);
-        return;
       }
-
-      const mapped = ((data as ReservationRow[] | null) || []).map(mapReservationToCalendarItem);
-      setReservations(mapped);
-      setLoading(false);
     };
 
     fetchReservations();
@@ -201,7 +240,14 @@ export default function ReservationPage() {
               ←
             </button>
 
-            <div style={{ fontSize: "36px", fontWeight: 800, color: "#111827", letterSpacing: "-0.03em" }}>
+            <div
+              style={{
+                fontSize: "36px",
+                fontWeight: 800,
+                color: "#111827",
+                letterSpacing: "-0.03em",
+              }}
+            >
               {formatMonthLabel(month)}
             </div>
 
@@ -235,7 +281,7 @@ export default function ReservationPage() {
                 fontSize: "14px",
               }}
             >
-               トップへ
+              トップへ
             </Link>
 
             <Link
@@ -270,7 +316,15 @@ export default function ReservationPage() {
             marginBottom: "16px",
           }}
         >
-          <div style={{ display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "6px", marginBottom: "12px" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: "10px",
+              overflowX: "auto",
+              paddingBottom: "6px",
+              marginBottom: "12px",
+            }}
+          >
             {STORE_TABS.map((tab) => {
               const active = store === tab;
               return (
@@ -318,6 +372,46 @@ export default function ReservationPage() {
                 </button>
               );
             })}
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: "14px",
+              flexWrap: "wrap",
+              marginTop: "14px",
+              paddingTop: "12px",
+              borderTop: "1px solid #e5e7eb",
+              fontSize: "13px",
+              fontWeight: 700,
+              color: "#4b5563",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <span
+                style={{
+                  width: "10px",
+                  height: "10px",
+                  borderRadius: "999px",
+                  background: "#16a34a",
+                  display: "inline-block",
+                }}
+              />
+              回数券消化済み
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <span
+                style={{
+                  width: "10px",
+                  height: "10px",
+                  borderRadius: "999px",
+                  background: "#fb923c",
+                  display: "inline-block",
+                }}
+              />
+              未消化
+            </div>
           </div>
         </div>
 
@@ -438,9 +532,30 @@ export default function ReservationPage() {
                             overflow: "hidden",
                             textOverflow: "ellipsis",
                             whiteSpace: "nowrap",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
                           }}
                         >
-                          {item.title}
+                          <span
+                            style={{
+                              width: "8px",
+                              height: "8px",
+                              borderRadius: "999px",
+                              background: item.isTicketUsed ? "#16a34a" : "#fb923c",
+                              flexShrink: 0,
+                              boxShadow: "0 0 0 1px rgba(255,255,255,0.65)",
+                            }}
+                          />
+                          <span
+                            style={{
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {item.title}
+                          </span>
                         </div>
                       ))}
 
