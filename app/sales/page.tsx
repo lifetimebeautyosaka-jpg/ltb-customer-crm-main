@@ -7,8 +7,8 @@ import { createClient } from "@supabase/supabase-js";
 type Customer = {
   id: string | number;
   name: string;
-  phone?: string;
-  plan?: string;
+  phone?: string | null;
+  plan?: string | null;
 };
 
 type ServiceType = "ストレッチ" | "トレーニング";
@@ -162,6 +162,12 @@ function getQueryParam(name: string) {
   return params.get(name) || "";
 }
 
+function detectServiceTypeFromMenu(menu?: string | null): ServiceType {
+  const text = String(menu || "");
+  if (text.includes("ストレッチ")) return "ストレッチ";
+  return "トレーニング";
+}
+
 export default function SalesPage() {
   const [mounted, setMounted] = useState(false);
 
@@ -176,11 +182,51 @@ export default function SalesPage() {
   const [serviceType, setServiceType] = useState<ServiceType>("トレーニング");
   const [note, setNote] = useState("");
   const [search, setSearch] = useState("");
+  const [reservationId, setReservationId] = useState("");
 
   const [payments, setPayments] = useState<PaymentRow[]>([createPaymentRow()]);
 
   const [loading, setLoading] = useState(true);
+  const [customerLoading, setCustomerLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const applyQueryParams = (customerList: Customer[]) => {
+    const queryDate = getQueryParam("date");
+
+    const queryCustomerName =
+      getQueryParam("customer_name") || getQueryParam("customer");
+
+    const queryStore =
+      getQueryParam("store_name") || getQueryParam("store");
+
+    const queryStaff =
+      getQueryParam("staff_name") || getQueryParam("staff");
+
+    const queryService =
+      getQueryParam("service_type") || getQueryParam("service");
+
+    const queryMenu = getQueryParam("menu");
+    const queryReservationId = getQueryParam("reservation_id");
+
+    if (queryDate) setDate(queryDate);
+    if (queryStore) setStoreName(queryStore);
+    if (queryStaff) setStaff(queryStaff);
+    if (queryMenu) setMenuName(queryMenu);
+    if (queryReservationId) setReservationId(queryReservationId);
+
+    if (queryService === "ストレッチ" || queryService === "トレーニング") {
+      setServiceType(queryService);
+    } else if (queryMenu) {
+      setServiceType(detectServiceTypeFromMenu(queryMenu));
+    }
+
+    if (queryCustomerName) {
+      const found = customerList.find((c) => c.name === queryCustomerName);
+      if (found) {
+        setCustomerId(String(found.id));
+      }
+    }
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -190,70 +236,70 @@ export default function SalesPage() {
       window.location.href = "/login";
       return;
     }
-
-    try {
-      const savedCustomers =
-        localStorage.getItem("gymup_customers") ||
-        localStorage.getItem("customers");
-
-      if (savedCustomers) {
-        const parsed = JSON.parse(savedCustomers);
-        const list = Array.isArray(parsed) ? parsed : [];
-        setCustomers(list);
-
-        const queryCustomer = getQueryParam("customer");
-        if (queryCustomer) {
-          const found = list.find((c) => c.name === queryCustomer);
-          if (found) {
-            setCustomerId(String(found.id));
-          }
-        }
-      } else {
-        setCustomers([]);
-      }
-    } catch {
-      setCustomers([]);
-    }
-
-    const queryDate = getQueryParam("date");
-    const queryStore = getQueryParam("store");
-    const queryStaff = getQueryParam("staff");
-    const queryService = getQueryParam("service");
-    const queryMenu = getQueryParam("menu");
-
-    if (queryDate) setDate(queryDate);
-    if (queryStore) setStoreName(queryStore);
-    if (queryStaff) setStaff(queryStaff);
-    if (queryService === "ストレッチ" || queryService === "トレーニング") {
-      setServiceType(queryService);
-    }
-    if (queryMenu) setMenuName(queryMenu);
   }, []);
 
-  const fetchSales = async () => {
-    setLoading(true);
+  const fetchCustomers = async () => {
+    try {
+      setCustomerLoading(true);
 
-    const { data, error } = await supabase
-      .from("sales")
-      .select(
-        "id, customer_name, sale_date, menu_type, sale_type, payment_method, amount, staff_name, store_name, memo, created_at"
-      )
-      .order("created_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("customers")
+        .select("id, name, phone, plan")
+        .order("name", { ascending: true });
 
-    if (error) {
-      alert(`売上取得エラー: ${error.message}`);
-      setSales([]);
-      setLoading(false);
-      return;
+      if (error) {
+        alert(`顧客取得エラー: ${error.message}`);
+        setCustomers([]);
+        return;
+      }
+
+      const list = ((data as Customer[] | null) || []).map((row) => ({
+        id: row.id,
+        name: row.name,
+        phone: row.phone || null,
+        plan: row.plan || null,
+      }));
+
+      setCustomers(list);
+      applyQueryParams(list);
+    } catch (error) {
+      console.error("fetchCustomers error:", error);
+      setCustomers([]);
+    } finally {
+      setCustomerLoading(false);
     }
+  };
 
-    const mapped = ((data as SupabaseSaleRow[] | null) || []).map(rowToSale);
-    setSales(mapped);
-    setLoading(false);
+  const fetchSales = async () => {
+    try {
+      setLoading(true);
+
+      const { data, error } = await supabase
+        .from("sales")
+        .select(
+          "id, customer_name, sale_date, menu_type, sale_type, payment_method, amount, staff_name, store_name, memo, created_at"
+        )
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        alert(`売上取得エラー: ${error.message}`);
+        setSales([]);
+        return;
+      }
+
+      const mapped = ((data as SupabaseSaleRow[] | null) || []).map(rowToSale);
+      setSales(mapped);
+    } catch (error) {
+      console.error("fetchSales error:", error);
+      setSales([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     if (!mounted) return;
+    fetchCustomers();
     fetchSales();
   }, [mounted]);
 
@@ -373,6 +419,7 @@ export default function SalesPage() {
     setStoreName(STORE_OPTIONS[0]);
     setServiceType("トレーニング");
     setNote("");
+    setReservationId("");
     setPayments([createPaymentRow()]);
   };
 
@@ -405,31 +452,45 @@ export default function SalesPage() {
       }
     }
 
-    setSaving(true);
+    try {
+      setSaving(true);
 
-    const payloads = payments.map((row) => ({
-      customer_name: customer.name,
-      sale_date: date,
-      menu_type: serviceType,
-      sale_type: row.saleType,
-      payment_method: row.paymentMethod,
-      amount: Number(row.amount),
-      staff_name: staff.trim() || "未設定",
-      store_name: storeName.trim() || "未設定",
-      memo: note.trim() || null,
-    }));
+      const mergedNote = [
+        menuName.trim() ? `メニュー名: ${menuName.trim()}` : "",
+        reservationId ? `予約ID: ${reservationId}` : "",
+        note.trim(),
+      ]
+        .filter(Boolean)
+        .join("\n");
 
-    const { error } = await supabase.from("sales").insert(payloads);
+      const payloads = payments.map((row) => ({
+        customer_name: customer.name,
+        sale_date: date,
+        menu_type: serviceType,
+        sale_type: row.saleType,
+        payment_method: row.paymentMethod,
+        amount: Number(row.amount),
+        staff_name: staff.trim() || "未設定",
+        store_name: storeName.trim() || "未設定",
+        memo: mergedNote || null,
+      }));
 
-    setSaving(false);
+      const { error } = await supabase.from("sales").insert(payloads);
 
-    if (error) {
-      alert(`売上登録エラー: ${error.message}`);
-      return;
+      if (error) {
+        alert(`売上登録エラー: ${error.message}`);
+        return;
+      }
+
+      await fetchSales();
+      resetForm();
+      alert("売上を登録しました");
+    } catch (error) {
+      console.error("handleAddSale error:", error);
+      alert("売上登録中にエラーが発生しました");
+    } finally {
+      setSaving(false);
     }
-
-    await fetchSales();
-    resetForm();
   };
 
   const handleDeleteSale = async (id: string) => {
@@ -578,8 +639,11 @@ export default function SalesPage() {
                     value={customerId}
                     onChange={(e) => setCustomerId(e.target.value)}
                     style={inputStyle}
+                    disabled={customerLoading}
                   >
-                    <option value="">顧客を選択してください</option>
+                    <option value="">
+                      {customerLoading ? "顧客を読み込み中..." : "顧客を選択してください"}
+                    </option>
                     {customers.map((customer) => (
                       <option key={String(customer.id)} value={String(customer.id)}>
                         {customer.name}
@@ -639,6 +703,17 @@ export default function SalesPage() {
                     <option value="トレーニング">トレーニング</option>
                     <option value="ストレッチ">ストレッチ</option>
                   </select>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>予約ID</label>
+                  <input
+                    type="text"
+                    value={reservationId}
+                    onChange={(e) => setReservationId(e.target.value)}
+                    placeholder="予約詳細から来た場合に自動入力"
+                    style={inputStyle}
+                  />
                 </div>
 
                 <div style={{ gridColumn: "1 / -1" }}>
@@ -783,7 +858,7 @@ export default function SalesPage() {
                 <button
                   onClick={handleAddSale}
                   style={mainButtonStyle}
-                  disabled={saving}
+                  disabled={saving || customerLoading}
                 >
                   {saving ? "登録中..." : "売上を登録する"}
                 </button>
