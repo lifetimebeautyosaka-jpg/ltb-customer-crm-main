@@ -10,21 +10,44 @@ export default function HomePage() {
         <p style={styles.text}>管理メニュー</p>
 
         <div style={styles.grid}>
-          <Link href="/customer" style={styles.linkCard}>
-            顧客管理
-          </Link>
-          <Link href="/reservation" style={styles.linkCard}>
-            予約管理
-          </Link>
-          <Link href="/sales" style={styles.linkCard}>
-            売上管理
-          </Link>
-          <Link href="/accounting" style={styles.linkCard}>
-            会計管理
-          </Link>
+          <MenuCard href="/customer" label="顧客管理" icon="👤" />
+          <MenuCard href="/reservation" label="予約管理" icon="📅" />
+          <MenuCard href="/sales" label="売上管理" icon="💰" />
+          <MenuCard href="/accounting" label="会計管理" icon="📊" />
+
+          {/* 🔥 追加 */}
+          <MenuCard
+            href="/customer"
+            label="トレーニング履歴"
+            icon="🏋️"
+            sub="顧客から入力・確認"
+          />
         </div>
       </div>
     </main>
+  );
+}
+
+function MenuCard({
+  href,
+  label,
+  icon,
+  sub,
+}: {
+  href: string;
+  label: string;
+  icon: string;
+  sub?: string;
+}) {
+  return (
+    <Link href={href} style={styles.linkCard}>
+      <div style={styles.icon}>{icon}</div>
+
+      <div style={{ textAlign: "center" }}>
+        <div style={styles.label}>{label}</div>
+        {sub && <div style={styles.sub}>{sub}</div>}
+      </div>
+    </Link>
   );
 }
 
@@ -62,14 +85,27 @@ const styles: { [key: string]: React.CSSProperties } = {
   },
   linkCard: {
     display: "flex",
+    flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    minHeight: "80px",
+    minHeight: "110px",
     borderRadius: "16px",
     background: "#ffffff",
     border: "1px solid #cbd5e1",
     textDecoration: "none",
     color: "#0f172a",
     fontWeight: 700,
+    gap: "6px",
+  },
+  icon: {
+    fontSize: "26px",
+  },
+  label: {
+    fontSize: "16px",
+    fontWeight: 800,
+  },
+  sub: {
+    fontSize: "12px",
+    color: "#64748b",
   },
 };
