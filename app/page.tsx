@@ -3,77 +3,45 @@
 import Link from "next/link";
 
 const menuItems = [
-  {
-    href: "/customer",
-    title: "顧客管理",
-    desc: "顧客情報・詳細確認",
-  },
-  {
-    href: "/reservation",
-    title: "予約管理",
-    desc: "カレンダー・日別確認",
-  },
-  {
-    href: "/sales",
-    title: "売上管理",
-    desc: "売上登録・履歴確認",
-  },
-  {
-    href: "/accounting",
-    title: "会計管理",
-    desc: "集計・会計チェック",
-  },
-  {
-    href: "/customer",
-    title: "トレーニング履歴",
-    desc: "顧客ごとの記録管理",
-  },
+  { href: "/customer", title: "顧客管理", desc: "顧客情報・詳細確認" },
+  { href: "/reservation", title: "予約管理", desc: "カレンダー・日別確認" },
+  { href: "/sales", title: "売上管理", desc: "売上登録・履歴確認" },
+  { href: "/accounting", title: "会計管理", desc: "集計・会計チェック" },
+  { href: "/customer", title: "トレーニング履歴", desc: "顧客ごとの記録管理" },
 ];
 
 export default function HomePage() {
   return (
     <main style={styles.page}>
+      {/* キラキラ背景 */}
       <div style={styles.bgGlow1} />
       <div style={styles.bgGlow2} />
 
       <div style={styles.container}>
-        <section style={styles.heroCard}>
-          <div style={styles.heroTop}>
-            <div>
-              <div style={styles.badge}>GYM MANAGEMENT SYSTEM</div>
-              <h1 style={styles.title}>GYMUP CRM</h1>
-              <p style={styles.text}>
-                パーソナルジム運営を、もっと速く、もっと見やすく。
-              </p>
-            </div>
+        {/* ロゴセクション */}
+        <section style={styles.hero}>
+          <img
+            src="/gymup-logo.png"
+            alt="GYMUP"
+            style={styles.logo}
+          />
 
-            <div style={styles.logoWrap}>
-              <img
-                src="/gymup-logo.png"
-                alt="GYMUP ロゴ"
-                style={styles.logo}
-              />
-            </div>
+          <div style={styles.subtitle}>
+            Premium Gym Management System
           </div>
         </section>
 
-        <section style={styles.menuSection}>
-          <div style={styles.sectionHead}>
-            <h2 style={styles.sectionTitle}>MENU</h2>
-            <p style={styles.sectionText}>よく使う機能にすぐアクセス</p>
-          </div>
-
-          <div style={styles.menuStack}>
-            {menuItems.map((item) => (
-              <Link key={item.title} href={item.href} style={styles.menuCard}>
-                <div>
-                  <div style={styles.menuTitle}>{item.title}</div>
-                  <div style={styles.menuDesc}>{item.desc}</div>
-                </div>
-                <div style={styles.arrow}>→</div>
-              </Link>
-            ))}
-          </div>
+        {/* メニュー */}
+        <section style={styles.menu}>
+          {menuItems.map((item) => (
+            <Link key={item.title} href={item.href} style={styles.card}>
+              <div>
+                <div style={styles.title}>{item.title}</div>
+                <div style={styles.desc}>{item.desc}</div>
+              </div>
+              <div style={styles.arrow}>→</div>
+            </Link>
+          ))}
         </section>
       </div>
     </main>
@@ -83,23 +51,23 @@ export default function HomePage() {
 const styles: { [key: string]: React.CSSProperties } = {
   page: {
     minHeight: "100vh",
+    padding: "40px 20px",
+    background:
+      "linear-gradient(135deg,#ffffff 0%,#f1f5f9 40%,#e2e8f0 100%)",
     position: "relative",
     overflow: "hidden",
-    background:
-      "radial-gradient(circle at top, #1f2937 0%, #0f172a 45%, #020617 100%)",
-    padding: "32px 20px 60px",
   },
 
+  /* ✨ キラキラ */
   bgGlow1: {
     position: "absolute",
-    top: "-120px",
+    top: "-100px",
     right: "-80px",
-    width: "320px",
-    height: "320px",
+    width: "280px",
+    height: "280px",
     borderRadius: "999px",
-    background: "rgba(251, 146, 60, 0.16)",
-    filter: "blur(70px)",
-    pointerEvents: "none",
+    background: "rgba(255,255,255,0.9)",
+    filter: "blur(60px)",
   },
 
   bgGlow2: {
@@ -109,149 +77,78 @@ const styles: { [key: string]: React.CSSProperties } = {
     width: "300px",
     height: "300px",
     borderRadius: "999px",
-    background: "rgba(148, 163, 184, 0.14)",
+    background: "rgba(148,163,184,0.25)",
     filter: "blur(70px)",
-    pointerEvents: "none",
   },
 
   container: {
-    maxWidth: "1100px",
+    maxWidth: "1000px",
     margin: "0 auto",
     position: "relative",
     zIndex: 1,
   },
 
-  heroCard: {
-    background: "rgba(255,255,255,0.06)",
-    border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: "28px",
-    padding: "32px",
-    backdropFilter: "blur(16px)",
-    WebkitBackdropFilter: "blur(16px)",
-    boxShadow: "0 24px 80px rgba(0,0,0,0.35)",
-    marginBottom: "24px",
-  },
-
-  heroTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: "24px",
-    flexWrap: "wrap",
-  },
-
-  badge: {
-    display: "inline-block",
-    padding: "8px 12px",
-    borderRadius: "999px",
-    fontSize: "11px",
-    letterSpacing: "0.18em",
-    fontWeight: 700,
-    color: "#cbd5e1",
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(255,255,255,0.04)",
-    marginBottom: "14px",
-  },
-
-  title: {
-    margin: 0,
-    fontSize: "40px",
-    lineHeight: 1.05,
-    fontWeight: 900,
-    letterSpacing: "-0.03em",
-    color: "#f8fafc",
-  },
-
-  text: {
-    marginTop: "12px",
-    marginBottom: 0,
-    fontSize: "15px",
-    color: "#cbd5e1",
-    lineHeight: 1.8,
-  },
-
-  logoWrap: {
-    flexShrink: 0,
-    padding: "14px 18px",
-    borderRadius: "24px",
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(255,255,255,0.1)",
+  /* 💎 ロゴエリア */
+  hero: {
+    textAlign: "center",
+    marginBottom: "40px",
   },
 
   logo: {
-    display: "block",
-    width: "280px",
-    maxWidth: "100%",
-    height: "auto",
-    objectFit: "contain",
+    width: "320px",
+    maxWidth: "90%",
+    marginBottom: "16px",
+    filter: "drop-shadow(0 8px 20px rgba(0,0,0,0.15))",
   },
 
-  menuSection: {
-    background: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(255,255,255,0.1)",
-    borderRadius: "28px",
-    padding: "28px",
-    backdropFilter: "blur(14px)",
-    WebkitBackdropFilter: "blur(14px)",
-    boxShadow: "0 24px 80px rgba(0,0,0,0.25)",
-  },
-
-  sectionHead: {
-    marginBottom: "18px",
-  },
-
-  sectionTitle: {
-    margin: 0,
-    fontSize: "22px",
-    fontWeight: 800,
-    color: "#f8fafc",
-    letterSpacing: "0.04em",
-  },
-
-  sectionText: {
-    marginTop: "8px",
-    marginBottom: 0,
+  subtitle: {
     fontSize: "13px",
-    color: "#94a3b8",
+    letterSpacing: "0.2em",
+    color: "#64748b",
+    fontWeight: 600,
   },
 
-  menuStack: {
+  /* 💎 メニュー */
+  menu: {
     display: "grid",
-    gap: "14px",
-  },
-
-  menuCard: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
     gap: "16px",
-    textDecoration: "none",
-    padding: "20px 22px",
-    borderRadius: "20px",
-    background:
-      "linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04))",
-    border: "1px solid rgba(255,255,255,0.1)",
-    color: "#f8fafc",
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
   },
 
-  menuTitle: {
+  card: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+
+    padding: "22px",
+    borderRadius: "20px",
+
+    background:
+      "linear-gradient(135deg, rgba(255,255,255,0.95), rgba(241,245,249,0.85))",
+
+    border: "1px solid rgba(203,213,225,0.5)",
+    backdropFilter: "blur(12px)",
+
+    textDecoration: "none",
+    color: "#0f172a",
+
+    boxShadow:
+      "0 10px 30px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.8)",
+  },
+
+  title: {
     fontSize: "18px",
     fontWeight: 800,
-    letterSpacing: "-0.01em",
-    color: "#f8fafc",
   },
 
-  menuDesc: {
+  desc: {
     marginTop: "6px",
     fontSize: "13px",
-    color: "#94a3b8",
+    color: "#64748b",
   },
 
   arrow: {
     fontSize: "22px",
-    fontWeight: 700,
     color: "#fb923c",
-    flexShrink: 0,
+    fontWeight: 700,
   },
 };
