@@ -6,796 +6,722 @@ import { useParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
 type Customer = {
-  id: number;
-  name: string;
-};
-
-type Ticket = {
-  id: number;
-  customer_id: number | null;
-  customer_name: string | null;
-  ticket_name: string | null;
-  service_type: "ストレッチ" | "トレーニング";
-  total_count: number | null;
-  remaining_count: number | null;
-  purchase_date: string | null;
-  expiry_date: string | null;
-  status: "利用中" | "消化済み" | string;
-  note: string | null;
-  created_at: string | null;
-};
-
-type SaleRow = {
   id: number | string;
-  customer_name: string | null;
-  sale_date: string | null;
-  menu_type: string | null;
-  sale_type: string | null;
-  payment_method: string | null;
-  amount: number | null;
-  staff_name: string | null;
-  store_name: string | null;
-  reservation_id?: number | null;
-  memo: string | null;
-  created_at: string | null;
+  name?: string;
+  kana?: string;
+  gender?: string;
+  age?: number | string;
+  phone?: string;
+  email?: string;
+  height?: number | string;
+  weight?: number | string;
+  bodyFat?: number | string;
+  muscleMass?: number | string;
+  visceralFat?: number | string;
+  goal?: string;
+  memo?: string;
+  notes?: string;
+  planType?: string;
+  planStyle?: string;
+  price?: number | string;
+  monthlyCount?: number | string;
+  usedCount?: number | string;
+  carryOver?: number | string;
+  remaining?: number | string;
+  status?: string;
+  nextPayment?: string;
+  lastVisitDate?: string;
+  ltv?: number | string;
+  [key: string]: any;
 };
 
-type ReservationRow = {
-  id: number;
+type TrainingHistoryItem = {
+  id: string;
   date: string | null;
-  start_time: string | null;
-  menu: string | null;
-  store_name: string | null;
-  staff_name: string | null;
+  weight: number | null;
+  summary: string | null;
+  next_task: string | null;
+  template_name: string | null;
+  created_at: string;
 };
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
-function todayString() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = `${d.getMonth() + 1}`.padStart(2, "0");
-  const day = `${d.getDate()}`.padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function addMonths(dateStr: string, months: number) {
-  const d = new Date(dateStr);
-  d.setMonth(d.getMonth() + months);
-  const y = d.getFullYear();
-  const m = `${d.getMonth() + 1}`.padStart(2, "0");
-  const day = `${d.getDate()}`.padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function formatCurrency(value: number) {
-  return `¥${Number(value || 0).toLocaleString()}`;
-}
-
-function formatDateJP(dateStr?: string | null) {
-  if (!dateStr) return "未設定";
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return dateStr;
-  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(
-    d.getDate()
-  ).padStart(2, "0")}`;
-}
-
-type TabType = "tickets" | "sales";
+const supabase =
+  supabaseUrl && supabaseAnonKey
+    ? createClient(supabaseUrl, supabaseAnonKey)
+    : null;
 
 export default function CustomerDetailPage() {
   const params = useParams();
-  const rawId = Array.isArray(params?.id) ? params.id[0] : params?.id;
-  const id = Number(rawId ?? 0);
+  const rawId = params?.id;
+
+  const id = useMemo(() => {
+    if (Array.isArray(rawId)) return String(rawId[0]);
+    return String(rawId || "");
+  }, [rawId]);
+
+  const numericId = useMemo(() => {
+    const n = Number(id);
+    return Number.isNaN(n) ? null : n;
+  }, [id]);
 
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
-
   const [customer, setCustomer] = useState<Customer | null>(null);
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [sales, setSales] = useState<SaleRow[]>([]);
-  const [lastReservation, setLastReservation] = useState<ReservationRow | null>(null);
-  const [pageError, setPageError] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
-  const [ticketName, setTicketName] = useState("4回券");
-  const [serviceType, setServiceType] =
-    useState<"ストレッチ" | "トレーニング">("ストレッチ");
-  const [totalCount, setTotalCount] = useState("4");
-  const [purchaseDate, setPurchaseDate] = useState(todayString());
-  const [expiryDate, setExpiryDate] = useState(addMonths(todayString(), 3));
-  const [note, setNote] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabType>("tickets");
+  const [latestTrainingDate, setLatestTrainingDate] = useState("");
+  const [latestTrainingWeight, setLatestTrainingWeight] = useState("");
+  const [latestTrainingId, setLatestTrainingId] = useState("");
+  const [loadingTrainingSummary, setLoadingTrainingSummary] = useState(false);
+  const [recentTrainingHistory, setRecentTrainingHistory] = useState<
+    TrainingHistoryItem[]
+  >([]);
 
   useEffect(() => {
     setMounted(true);
 
-    const isLoggedIn = localStorage.getItem("gymup_logged_in");
-    if (isLoggedIn !== "true") {
+    const loggedIn =
+      localStorage.getItem("gymup_logged_in") ||
+      localStorage.getItem("isLoggedIn");
+
+    if (loggedIn !== "true") {
       window.location.href = "/login";
       return;
     }
   }, []);
 
-  const fetchCustomerAndTickets = async () => {
-    try {
-      setLoading(true);
-      setPageError("");
-
-      if (!id || Number.isNaN(id)) {
-        setCustomer(null);
-        setTickets([]);
-        setSales([]);
-        setLastReservation(null);
-        setPageError("顧客IDが不正です。");
-        return;
-      }
-
-      const { data: customerData, error: customerError } = await supabase
-        .from("customers")
-        .select("id, name")
-        .eq("id", id)
-        .single();
-
-      console.log("customer detail id:", id);
-      console.log("customerData:", customerData);
-      console.log("customerError:", customerError);
-
-      if (customerError || !customerData) {
-        setCustomer(null);
-        setTickets([]);
-        setSales([]);
-        setLastReservation(null);
-        setPageError("顧客情報が見つかりません。");
-        return;
-      }
-
-      const currentCustomer = customerData as Customer;
-      setCustomer(currentCustomer);
-
-      const { data: ticketData, error: ticketError } = await supabase
-        .from("customer_tickets")
-        .select(
-          "id, customer_id, customer_name, ticket_name, service_type, total_count, remaining_count, purchase_date, expiry_date, status, note, created_at"
-        )
-        .eq("customer_id", id)
-        .order("created_at", { ascending: false });
-
-      if (ticketError) {
-        console.error("ticket fetch error:", ticketError);
-        setTickets([]);
-      } else {
-        setTickets((ticketData as Ticket[] | null) || []);
-      }
-
-      const { data: salesData, error: salesError } = await supabase
-        .from("sales")
-        .select(
-          "id, customer_name, sale_date, menu_type, sale_type, payment_method, amount, staff_name, store_name, reservation_id, memo, created_at"
-        )
-        .eq("customer_name", currentCustomer.name)
-        .order("sale_date", { ascending: false })
-        .order("created_at", { ascending: false });
-
-      if (salesError) {
-        console.error("sales fetch error:", salesError);
-        setSales([]);
-      } else {
-        setSales((salesData as SaleRow[] | null) || []);
-      }
-
-      const { data: reservationData, error: reservationError } = await supabase
-        .from("reservations")
-        .select("id, date, start_time, menu, store_name, staff_name")
-        .eq("customer_name", currentCustomer.name)
-        .order("date", { ascending: false })
-        .order("start_time", { ascending: false })
-        .limit(1);
-
-      if (reservationError) {
-        console.error("reservation fetch error:", reservationError);
-        setLastReservation(null);
-      } else {
-        const latest = ((reservationData as ReservationRow[] | null) || [])[0] || null;
-        setLastReservation(latest);
-      }
-    } catch (error) {
-      console.error("fetchCustomerAndTickets error:", error);
-      setCustomer(null);
-      setTickets([]);
-      setSales([]);
-      setLastReservation(null);
-      setPageError("データ取得中にエラーが発生しました。");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    if (!mounted) return;
-
-    if (!id || Number.isNaN(id)) {
-      setLoading(false);
-      setCustomer(null);
-      setTickets([]);
-      setSales([]);
-      setLastReservation(null);
-      setPageError("顧客IDが不正です。");
-      return;
-    }
-
-    fetchCustomerAndTickets();
+    if (!mounted || !id) return;
+    fetchCustomer();
   }, [mounted, id]);
 
-  const stretchSummary = useMemo(() => {
-    const list = tickets.filter((t) => t.service_type === "ストレッチ");
-    return {
-      remain: list.reduce((sum, t) => sum + Number(t.remaining_count || 0), 0),
-    };
-  }, [tickets]);
+  useEffect(() => {
+    if (!mounted || !numericId) return;
+    fetchTrainingSummaryAndHistory(numericId);
+  }, [mounted, numericId]);
 
-  const trainingSummary = useMemo(() => {
-    const list = tickets.filter((t) => t.service_type === "トレーニング");
-    return {
-      remain: list.reduce((sum, t) => sum + Number(t.remaining_count || 0), 0),
-    };
-  }, [tickets]);
-
-  const ltv = useMemo(() => {
-    return sales.reduce((sum, row) => sum + Number(row.amount || 0), 0);
-  }, [sales]);
-
-  const handleAddTicket = async () => {
-    if (!customer) {
-      alert("顧客情報が見つかりません");
-      return;
-    }
-
-    const total = Number(totalCount || 0);
-    if (total <= 0) {
-      alert("総回数を入力してください");
-      return;
-    }
-
+  const fetchCustomer = async () => {
     try {
-      setSaving(true);
+      setLoading(true);
+      setErrorMessage("");
 
-      const { error } = await supabase.from("customer_tickets").insert([
-        {
-          customer_id: customer.id,
-          customer_name: customer.name,
-          ticket_name: ticketName.trim() || "回数券",
-          service_type: serviceType,
-          total_count: total,
-          remaining_count: total,
-          purchase_date: purchaseDate || null,
-          expiry_date: expiryDate || null,
-          status: "利用中",
-          note: note.trim() || null,
-        },
-      ]);
+      let foundCustomer: Customer | null = null;
 
-      if (error) {
-        alert(`回数券追加エラー: ${error.message}`);
+      // 1) Supabase customers テーブルを優先
+      if (supabase && numericId != null) {
+        const { data, error } = await supabase
+          .from("customers")
+          .select("*")
+          .eq("id", numericId)
+          .maybeSingle();
+
+        if (!error && data) {
+          foundCustomer = data as Customer;
+        }
+      }
+
+      // 2) localStorage fallback
+      if (!foundCustomer) {
+        const detailRaw = localStorage.getItem(`customer-${id}`);
+        if (detailRaw) {
+          try {
+            const parsed = JSON.parse(detailRaw);
+            foundCustomer = {
+              id,
+              ...parsed,
+            };
+          } catch {}
+        }
+      }
+
+      // 3) customers 配列 fallback
+      if (!foundCustomer) {
+        const customersRaw = localStorage.getItem("customers");
+        if (customersRaw) {
+          try {
+            const parsed = JSON.parse(customersRaw);
+            if (Array.isArray(parsed)) {
+              const matched = parsed.find(
+                (item: any) =>
+                  String(item?.id) === String(id) ||
+                  String(item?.customerId) === String(id)
+              );
+              if (matched) {
+                foundCustomer = matched;
+              }
+            }
+          } catch {}
+        }
+      }
+
+      if (!foundCustomer) {
+        setErrorMessage("顧客情報が見つかりませんでした。");
+        setCustomer(null);
         return;
       }
 
-      setTicketName("4回券");
-      setServiceType("ストレッチ");
-      setTotalCount("4");
-      setPurchaseDate(todayString());
-      setExpiryDate(addMonths(todayString(), 3));
-      setNote("");
-
-      await fetchCustomerAndTickets();
-    } catch (error) {
-      console.error("handleAddTicket error:", error);
-      alert("回数券追加中にエラーが発生しました");
+      setCustomer(foundCustomer);
+    } catch (error: any) {
+      setErrorMessage(error?.message || "顧客情報の取得に失敗しました。");
+      setCustomer(null);
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   };
 
-  const handleDeleteTicket = async (ticketId: number) => {
-    const ok = window.confirm("この回数券を削除しますか？");
-    if (!ok) return;
+  const fetchTrainingSummaryAndHistory = async (customerId: number) => {
+    if (!supabase) return;
 
     try {
-      const { error } = await supabase
-        .from("customer_tickets")
-        .delete()
-        .eq("id", ticketId);
+      setLoadingTrainingSummary(true);
 
-      if (error) {
-        alert(`削除エラー: ${error.message}`);
-        return;
-      }
+      const { data, error } = await supabase
+        .from("training_sessions")
+        .select("id, date, weight, summary, next_task, template_name, created_at")
+        .eq("customer_id", customerId)
+        .order("date", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(6);
 
-      await fetchCustomerAndTickets();
-    } catch (error) {
-      console.error("handleDeleteTicket error:", error);
-      alert("削除中にエラーが発生しました");
+      if (error) throw error;
+
+      const rows = (data || []) as TrainingHistoryItem[];
+
+      const latest = rows[0];
+      setLatestTrainingId(latest?.id ? String(latest.id) : "");
+      setLatestTrainingDate(latest?.date ? String(latest.date) : "");
+      setLatestTrainingWeight(
+        latest?.weight != null ? `${latest.weight}kg` : ""
+      );
+      setRecentTrainingHistory(rows);
+    } catch (e) {
+      console.error("トレーニング情報取得失敗:", e);
+      setRecentTrainingHistory([]);
+    } finally {
+      setLoadingTrainingSummary(false);
     }
   };
 
-  if (!mounted || loading) {
-    return (
-      <main style={pageStyle}>
-        <div style={containerStyle}>
-          <div style={cardStyle}>読み込み中...</div>
-        </div>
-      </main>
-    );
-  }
+  const displayName =
+    customer?.name ||
+    customer?.customer_name ||
+    customer?.full_name ||
+    customer?.nickname ||
+    "顧客名未設定";
 
-  if (!customer) {
-    return (
-      <main style={pageStyle}>
-        <div style={containerStyle}>
-          <div style={cardStyle}>
-            <h1 style={titleStyle}>顧客詳細</h1>
-            <p style={{ color: "#b91c1c", fontWeight: 700 }}>
-              {pageError || "顧客情報が見つかりません。"}
-            </p>
-            <Link href="/customer" style={mainButtonStyle}>
-              顧客一覧へ
-            </Link>
-          </div>
-        </div>
-      </main>
-    );
-  }
+  const displayGoal = customer?.goal || customer?.purpose || customer?.target || "";
+  const displayMemo = customer?.memo || customer?.notes || customer?.note || "";
+
+  if (!mounted) return null;
 
   return (
-    <main style={pageStyle}>
-      <div style={containerStyle}>
-        <div style={headerRowStyle}>
-          <div>
-            <h1 style={titleStyle}>{customer.name}</h1>
-            <p style={subTitleStyle}>回数券管理・売上履歴・顧客状況</p>
+    <main
+      style={{
+        minHeight: "100vh",
+        background:
+          "linear-gradient(180deg, #f8f8f7 0%, #f3efe9 45%, #f8f8f7 100%)",
+        padding: "24px 16px 80px",
+      }}
+    >
+      <div style={{ maxWidth: 1180, margin: "0 auto" }}>
+        <Link
+          href="/customer"
+          style={{
+            display: "inline-block",
+            textDecoration: "none",
+            color: "#6b7280",
+            fontSize: 14,
+            marginBottom: 12,
+          }}
+        >
+          ← 顧客一覧へ戻る
+        </Link>
+
+        <div
+          style={{
+            background: "#ffffffcc",
+            backdropFilter: "blur(8px)",
+            border: "1px solid #ece7df",
+            borderRadius: 24,
+            padding: "24px 20px",
+            boxShadow: "0 10px 30px rgba(0,0,0,0.06)",
+            marginBottom: 20,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              letterSpacing: "0.16em",
+              color: "#8b5e3c",
+              fontWeight: 700,
+              marginBottom: 8,
+            }}
+          >
+            CUSTOMER DETAIL
           </div>
 
-          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-            <Link href="/customer" style={subButtonStyle}>
-              ← 顧客一覧へ
-            </Link>
+          <h1
+            style={{
+              margin: 0,
+              fontSize: 30,
+              lineHeight: 1.3,
+              color: "#111827",
+            }}
+          >
+            {displayName}
+          </h1>
+
+          <p
+            style={{
+              marginTop: 10,
+              marginBottom: 0,
+              color: "#6b7280",
+              fontSize: 14,
+            }}
+          >
+            顧客ID: {id || "-"}
+          </p>
+        </div>
+
+        {errorMessage ? (
+          <div
+            style={{
+              marginBottom: 16,
+              background: "#fef2f2",
+              color: "#b91c1c",
+              border: "1px solid #fecaca",
+              borderRadius: 14,
+              padding: "12px 14px",
+              fontSize: 14,
+            }}
+          >
+            {errorMessage}
           </div>
-        </div>
+        ) : null}
 
-        <div style={metricGridStyle}>
-          <MetricCard title="ストレッチ残数" value={`${stretchSummary.remain}回`} />
-          <MetricCard title="トレーニング残数" value={`${trainingSummary.remain}回`} />
-          <MetricCard title="保有回数券" value={`${tickets.length}件`} />
-          <MetricCard title="LTV" value={formatCurrency(ltv)} />
-          <MetricCard
-            title="最終来店日"
-            value={lastReservation ? formatDateJP(lastReservation.date) : "未登録"}
-          />
-        </div>
+        {loading ? (
+          <div
+            style={{
+              background: "#fff",
+              border: "1px solid #ece7df",
+              borderRadius: 20,
+              padding: 24,
+              color: "#6b7280",
+            }}
+          >
+            読み込み中...
+          </div>
+        ) : customer ? (
+          <>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1.1fr 0.9fr",
+                gap: 20,
+              }}
+            >
+              <section
+                style={{
+                  background: "#fff",
+                  border: "1px solid #ece7df",
+                  borderRadius: 24,
+                  padding: 20,
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.05)",
+                }}
+              >
+                <SectionTitle>顧客情報</SectionTitle>
 
-        <div style={mainGridStyle}>
-          <section style={cardStyle}>
-            <h2 style={sectionTitleStyle}>回数券追加</h2>
+                <div style={infoGridStyle}>
+                  <InfoCard label="氏名" value={displayName} />
+                  <InfoCard label="フリガナ" value={customer.kana} />
+                  <InfoCard label="性別" value={customer.gender} />
+                  <InfoCard label="年齢" value={customer.age} />
+                  <InfoCard label="電話番号" value={customer.phone} />
+                  <InfoCard label="メール" value={customer.email} />
+                  <InfoCard label="身長" value={withUnit(customer.height, "cm")} />
+                  <InfoCard
+                    label="現在体重"
+                    value={withUnit(customer.weight, "kg")}
+                  />
+                  <InfoCard
+                    label="体脂肪率"
+                    value={withUnit(customer.bodyFat, "%")}
+                  />
+                  <InfoCard
+                    label="筋肉量"
+                    value={withUnit(customer.muscleMass, "kg")}
+                  />
+                  <InfoCard
+                    label="内臓脂肪"
+                    value={customer.visceralFat}
+                  />
+                  <InfoCard label="最終来店日" value={customer.lastVisitDate} />
+                  <InfoCard label="LTV" value={yen(customer.ltv)} />
+                </div>
 
-            <div style={formGridStyle}>
-              <div>
-                <label style={labelStyle}>回数券名</label>
-                <input
-                  value={ticketName}
-                  onChange={(e) => setTicketName(e.target.value)}
-                  style={inputStyle}
-                  placeholder="例：4回券"
-                />
-              </div>
+                <div style={{ marginTop: 18 }}>
+                  <MiniLabel>目標・目的</MiniLabel>
+                  <MemoBox>{displayGoal || "未設定"}</MemoBox>
+                </div>
 
-              <div>
-                <label style={labelStyle}>サービス区分</label>
-                <select
-                  value={serviceType}
-                  onChange={(e) =>
-                    setServiceType(
-                      e.target.value as "ストレッチ" | "トレーニング"
-                    )
+                <div style={{ marginTop: 14 }}>
+                  <MiniLabel>メモ</MiniLabel>
+                  <MemoBox>{displayMemo || "未設定"}</MemoBox>
+                </div>
+              </section>
+
+              <section
+                style={{
+                  background: "#fff",
+                  border: "1px solid #ece7df",
+                  borderRadius: 24,
+                  padding: 20,
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.05)",
+                }}
+              >
+                <SectionTitle>契約・利用状況</SectionTitle>
+
+                <div style={infoGridStyle}>
+                  <InfoCard label="プラン種別" value={customer.planType} />
+                  <InfoCard label="利用形態" value={customer.planStyle} />
+                  <InfoCard label="月額料金" value={yen(customer.price)} />
+                  <InfoCard label="月回数" value={customer.monthlyCount} />
+                  <InfoCard label="使用回数" value={customer.usedCount} />
+                  <InfoCard label="繰越" value={customer.carryOver} />
+                  <InfoCard label="残回数" value={customer.remaining} />
+                  <InfoCard label="契約状態" value={customer.status} />
+                  <InfoCard label="次回支払日" value={customer.nextPayment} />
+                </div>
+              </section>
+            </div>
+
+            <section
+              style={{
+                marginTop: 20,
+                background: "#fff",
+                border: "1px solid #ece7df",
+                borderRadius: 24,
+                padding: 20,
+                boxShadow: "0 8px 24px rgba(0,0,0,0.05)",
+              }}
+            >
+              <SectionTitle>トレーニングサマリー</SectionTitle>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  gap: 12,
+                  marginBottom: 16,
+                }}
+              >
+                <InfoCard
+                  label="前回トレーニング日"
+                  value={
+                    loadingTrainingSummary
+                      ? "読込中..."
+                      : latestTrainingDate || "未登録"
                   }
-                  style={inputStyle}
+                />
+                <InfoCard
+                  label="最終体重"
+                  value={
+                    loadingTrainingSummary
+                      ? "読込中..."
+                      : latestTrainingWeight || "未登録"
+                  }
+                />
+                <InfoCard
+                  label="履歴件数"
+                  value={
+                    loadingTrainingSummary
+                      ? "読込中..."
+                      : recentTrainingHistory.length || 0
+                  }
+                />
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                  gap: 12,
+                }}
+              >
+                <Link
+                  href={`/customer/${id}/training`}
+                  style={{ textDecoration: "none" }}
                 >
-                  <option value="ストレッチ">ストレッチ</option>
-                  <option value="トレーニング">トレーニング</option>
-                </select>
+                  <ActionButton primary>トレーニング開始</ActionButton>
+                </Link>
+
+                <Link
+                  href={`/customer/${id}/training`}
+                  style={{ textDecoration: "none" }}
+                >
+                  <ActionButton>履歴を見る</ActionButton>
+                </Link>
+
+                <Link
+                  href={
+                    latestTrainingId
+                      ? `/customer/${id}/training?copy=${latestTrainingId}`
+                      : `/customer/${id}/training`
+                  }
+                  style={{ textDecoration: "none" }}
+                >
+                  <ActionButton soft>履歴からコピーして開始</ActionButton>
+                </Link>
               </div>
+            </section>
 
-              <div>
-                <label style={labelStyle}>総回数</label>
-                <input
-                  type="number"
-                  value={totalCount}
-                  onChange={(e) => setTotalCount(e.target.value)}
-                  style={inputStyle}
-                />
-              </div>
+            <section
+              style={{
+                marginTop: 20,
+                background: "#fff",
+                border: "1px solid #ece7df",
+                borderRadius: 24,
+                padding: 20,
+                boxShadow: "0 8px 24px rgba(0,0,0,0.05)",
+              }}
+            >
+              <SectionTitle>最近のトレーニング履歴からコピー</SectionTitle>
 
-              <div>
-                <label style={labelStyle}>購入日</label>
-                <input
-                  type="date"
-                  value={purchaseDate}
-                  onChange={(e) => setPurchaseDate(e.target.value)}
-                  style={inputStyle}
-                />
-              </div>
-
-              <div>
-                <label style={labelStyle}>有効期限</label>
-                <input
-                  type="date"
-                  value={expiryDate}
-                  onChange={(e) => setExpiryDate(e.target.value)}
-                  style={inputStyle}
-                />
-              </div>
-
-              <div style={{ gridColumn: "1 / -1" }}>
-                <label style={labelStyle}>メモ</label>
-                <textarea
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  style={{ ...inputStyle, minHeight: "90px", resize: "vertical" }}
-                  placeholder="備考があれば入力"
-                />
-              </div>
-            </div>
-
-            <div style={{ marginTop: "18px" }}>
-              <button
-                onClick={handleAddTicket}
-                style={mainButtonStyle}
-                disabled={saving}
-              >
-                {saving ? "追加中..." : "回数券を追加する"}
-              </button>
-            </div>
-          </section>
-
-          <section style={cardStyle}>
-            <div style={tabHeaderStyle}>
-              <button
-                onClick={() => setActiveTab("tickets")}
-                style={activeTab === "tickets" ? activeTabStyle : tabStyle}
-              >
-                回数券一覧
-              </button>
-              <button
-                onClick={() => setActiveTab("sales")}
-                style={activeTab === "sales" ? activeTabStyle : tabStyle}
-              >
-                売上履歴
-              </button>
-            </div>
-
-            {activeTab === "tickets" ? (
-              <>
-                <h2 style={sectionTitleStyle}>回数券一覧</h2>
-
-                {tickets.length === 0 ? (
-                  <div style={emptyStyle}>回数券はまだありません</div>
-                ) : (
-                  <div style={{ display: "grid", gap: "14px" }}>
-                    {tickets.map((ticket) => (
-                      <div key={ticket.id} style={ticketCardStyle}>
-                        <div style={ticketTopRowStyle}>
-                          <div>
-                            <div style={ticketTitleStyle}>
-                              {ticket.ticket_name || "回数券"}
-                            </div>
-                            <div style={ticketMetaStyle}>
-                              {ticket.service_type} / {ticket.status}
-                            </div>
-                          </div>
-
-                          <button
-                            onClick={() => handleDeleteTicket(ticket.id)}
-                            style={deleteButtonStyle}
+              {loadingTrainingSummary ? (
+                <div style={{ color: "#6b7280", fontSize: 14 }}>
+                  読み込み中...
+                </div>
+              ) : recentTrainingHistory.length === 0 ? (
+                <div style={{ color: "#6b7280", fontSize: 14 }}>
+                  まだトレーニング履歴はありません。
+                </div>
+              ) : (
+                <div style={{ display: "grid", gap: 12 }}>
+                  {recentTrainingHistory.map((item) => (
+                    <div
+                      key={item.id}
+                      style={{
+                        border: "1px solid #e5e7eb",
+                        borderRadius: 16,
+                        padding: 16,
+                        background: "#fafaf9",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 12,
+                          flexWrap: "wrap",
+                          alignItems: "center",
+                        }}
+                      >
+                        <div>
+                          <div
+                            style={{
+                              fontSize: 17,
+                              fontWeight: 700,
+                              color: "#111827",
+                              marginBottom: 6,
+                            }}
                           >
-                            削除
-                          </button>
-                        </div>
-
-                        <div style={ticketInfoGridStyle}>
-                          <TicketInfo
-                            label="残数"
-                            value={`${Number(ticket.remaining_count || 0)} / ${Number(
-                              ticket.total_count || 0
-                            )}`}
-                          />
-                          <TicketInfo
-                            label="購入日"
-                            value={ticket.purchase_date || "未設定"}
-                          />
-                          <TicketInfo
-                            label="有効期限"
-                            value={ticket.expiry_date || "未設定"}
-                          />
-                          <TicketInfo label="メモ" value={ticket.note || "なし"} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                <h2 style={sectionTitleStyle}>売上履歴</h2>
-
-                {sales.length === 0 ? (
-                  <div style={emptyStyle}>売上履歴はまだありません</div>
-                ) : (
-                  <div style={{ display: "grid", gap: "14px" }}>
-                    {sales.map((sale) => (
-                      <div key={String(sale.id)} style={ticketCardStyle}>
-                        <div style={ticketTopRowStyle}>
-                          <div>
-                            <div style={ticketTitleStyle}>
-                              {formatCurrency(Number(sale.amount || 0))}
-                            </div>
-                            <div style={ticketMetaStyle}>
-                              {formatDateJP(sale.sale_date)} / {sale.menu_type || "未設定"}
-                            </div>
+                            {item.date || "日付未設定"}
+                          </div>
+                          <div style={{ fontSize: 13, color: "#6b7280" }}>
+                            体重:{" "}
+                            {item.weight != null ? `${item.weight}kg` : "-"}
+                            {item.template_name
+                              ? ` / テンプレ: ${item.template_name}`
+                              : ""}
                           </div>
                         </div>
 
-                        <div style={ticketInfoGridStyle}>
-                          <TicketInfo label="会計区分" value={sale.sale_type || "未設定"} />
-                          <TicketInfo label="支払方法" value={sale.payment_method || "未設定"} />
-                          <TicketInfo label="担当者" value={sale.staff_name || "未設定"} />
-                          <TicketInfo label="店舗" value={sale.store_name || "未設定"} />
-                        </div>
+                        <Link
+                          href={`/customer/${id}/training?copy=${item.id}`}
+                          style={{ textDecoration: "none" }}
+                        >
+                          <ActionButton primary small>
+                            この履歴をコピー
+                          </ActionButton>
+                        </Link>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-          </section>
-        </div>
+
+                      <div style={{ marginTop: 12 }}>
+                        <MiniLabel>総評</MiniLabel>
+                        <MemoBox compact>{item.summary || "未設定"}</MemoBox>
+                      </div>
+
+                      <div style={{ marginTop: 10 }}>
+                        <MiniLabel>次回課題</MiniLabel>
+                        <MemoBox compact>{item.next_task || "未設定"}</MemoBox>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
+        ) : null}
       </div>
     </main>
   );
 }
 
-function MetricCard({ title, value }: { title: string; value: string }) {
+function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <div style={metricCardStyle}>
-      <div style={{ fontSize: "13px", color: "#6b7280", marginBottom: "8px" }}>
-        {title}
-      </div>
-      <div style={{ fontSize: "28px", fontWeight: 800, color: "#111827" }}>
-        {value}
-      </div>
+    <h2
+      style={{
+        margin: 0,
+        fontSize: 20,
+        color: "#111827",
+        marginBottom: 12,
+      }}
+    >
+      {children}
+    </h2>
+  );
+}
+
+function MiniLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: 12,
+        color: "#8b5e3c",
+        fontWeight: 700,
+        marginBottom: 6,
+        letterSpacing: "0.08em",
+      }}
+    >
+      {children}
     </div>
   );
 }
 
-function TicketInfo({ label, value }: { label: string; value: string }) {
+function MemoBox({
+  children,
+  compact = false,
+}: {
+  children: React.ReactNode;
+  compact?: boolean;
+}) {
   return (
-    <div>
-      <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "6px" }}>
+    <div
+      style={{
+        background: "#f9fafb",
+        border: "1px solid #e5e7eb",
+        borderRadius: 12,
+        padding: compact ? 10 : 12,
+        color: "#374151",
+        fontSize: 14,
+        whiteSpace: "pre-wrap",
+        minHeight: compact ? 40 : 52,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function InfoCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        background: "#faf7f3",
+        border: "1px solid #eee4d8",
+        borderRadius: 14,
+        padding: 14,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 12,
+          color: "#8b5e3c",
+          fontWeight: 700,
+          marginBottom: 6,
+        }}
+      >
         {label}
       </div>
       <div
         style={{
-          fontSize: "14px",
-          fontWeight: 700,
+          fontSize: 15,
           color: "#111827",
-          whiteSpace: "pre-wrap",
+          fontWeight: 700,
+          lineHeight: 1.5,
+          wordBreak: "break-word",
         }}
       >
-        {value}
+        {value || "未設定"}
       </div>
     </div>
   );
 }
 
-const pageStyle: React.CSSProperties = {
-  minHeight: "100vh",
-  background: "linear-gradient(135deg, #f7f7f8 0%, #ececef 45%, #dfe3e8 100%)",
-  padding: "24px",
-};
+function ActionButton({
+  children,
+  primary = false,
+  soft = false,
+  small = false,
+}: {
+  children: React.ReactNode;
+  primary?: boolean;
+  soft?: boolean;
+  small?: boolean;
+}) {
+  const background = primary
+    ? "linear-gradient(135deg, #8b5e3c 0%, #c49a6c 100%)"
+    : soft
+    ? "#faf6f2"
+    : "#fff";
 
-const containerStyle: React.CSSProperties = {
-  maxWidth: "1200px",
-  margin: "0 auto",
-};
+  const color = primary ? "#fff" : soft ? "#6f4e37" : "#374151";
+  const border = primary ? "none" : soft ? "1px solid #d6c3b3" : "1px solid #e5e7eb";
+  const boxShadow = primary ? "0 8px 18px rgba(139,94,60,0.22)" : "none";
 
-const headerRowStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "16px",
-  flexWrap: "wrap",
-  marginBottom: "24px",
-};
+  return (
+    <button
+      style={{
+        width: "100%",
+        padding: small ? "10px 14px" : "14px 16px",
+        borderRadius: 14,
+        border,
+        background,
+        color,
+        fontWeight: 700,
+        fontSize: small ? 14 : 15,
+        cursor: "pointer",
+        boxShadow,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
 
-const titleStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: "32px",
-  fontWeight: 800,
-  color: "#111827",
-};
+function withUnit(value: any, unit: string) {
+  if (value === null || value === undefined || value === "") return "";
+  return `${value}${unit}`;
+}
 
-const subTitleStyle: React.CSSProperties = {
-  marginTop: "8px",
-  color: "#6b7280",
-  fontSize: "14px",
-};
+function yen(value: any) {
+  if (value === null || value === undefined || value === "") return "";
+  const num = Number(value);
+  if (Number.isNaN(num)) return String(value);
+  return `¥${num.toLocaleString()}`;
+}
 
-const metricGridStyle: React.CSSProperties = {
+const infoGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gap: "16px",
-  marginBottom: "24px",
-};
-
-const mainGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "1fr 1fr",
-  gap: "24px",
-};
-
-const cardStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.55)",
-  backdropFilter: "blur(14px)",
-  WebkitBackdropFilter: "blur(14px)",
-  border: "1px solid rgba(255,255,255,0.65)",
-  borderRadius: "24px",
-  padding: "24px",
-  boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
-};
-
-const metricCardStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.55)",
-  backdropFilter: "blur(14px)",
-  WebkitBackdropFilter: "blur(14px)",
-  border: "1px solid rgba(255,255,255,0.65)",
-  borderRadius: "22px",
-  padding: "22px",
-  boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
-};
-
-const sectionTitleStyle: React.CSSProperties = {
-  margin: "0 0 18px 0",
-  fontSize: "24px",
-  fontWeight: 800,
-  color: "#111827",
-};
-
-const formGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-  gap: "16px",
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: "14px",
-  fontWeight: 600,
-  color: "#374151",
-  marginBottom: "8px",
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "13px 14px",
-  borderRadius: "14px",
-  border: "1px solid rgba(203,213,225,0.9)",
-  background: "rgba(255,255,255,0.88)",
-  fontSize: "15px",
-  color: "#111827",
-  outline: "none",
-  boxSizing: "border-box",
-};
-
-const mainButtonStyle: React.CSSProperties = {
-  border: "none",
-  borderRadius: "14px",
-  padding: "13px 20px",
-  background: "#111827",
-  color: "#ffffff",
-  fontWeight: 700,
-  fontSize: "15px",
-  cursor: "pointer",
-  textDecoration: "none",
-};
-
-const subButtonStyle: React.CSSProperties = {
-  textDecoration: "none",
-  borderRadius: "14px",
-  padding: "13px 18px",
-  background: "rgba(255,255,255,0.85)",
-  border: "1px solid rgba(203,213,225,0.95)",
-  color: "#111827",
-  fontWeight: 700,
-};
-
-const emptyStyle: React.CSSProperties = {
-  borderRadius: "16px",
-  padding: "20px",
-  background: "rgba(255,255,255,0.55)",
-  border: "1px solid rgba(203,213,225,0.7)",
-  color: "#6b7280",
-  textAlign: "center",
-};
-
-const ticketCardStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(226,232,240,0.95)",
-  borderRadius: "18px",
-  padding: "16px",
-};
-
-const ticketTopRowStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: "12px",
-  marginBottom: "14px",
-};
-
-const ticketTitleStyle: React.CSSProperties = {
-  fontSize: "18px",
-  fontWeight: 800,
-  color: "#111827",
-};
-
-const ticketMetaStyle: React.CSSProperties = {
-  marginTop: "6px",
-  fontSize: "13px",
-  color: "#6b7280",
-};
-
-const ticketInfoGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-  gap: "14px",
-};
-
-const deleteButtonStyle: React.CSSProperties = {
-  border: "none",
-  borderRadius: "12px",
-  padding: "10px 14px",
-  background: "#111827",
-  color: "#ffffff",
-  fontWeight: 700,
-  cursor: "pointer",
-};
-
-const tabHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  gap: "10px",
-  flexWrap: "wrap",
-  marginBottom: "18px",
-};
-
-const tabStyle: React.CSSProperties = {
-  border: "1px solid rgba(203,213,225,0.95)",
-  borderRadius: "999px",
-  padding: "10px 16px",
-  background: "rgba(255,255,255,0.85)",
-  color: "#111827",
-  fontWeight: 700,
-  fontSize: "14px",
-  cursor: "pointer",
-};
-
-const activeTabStyle: React.CSSProperties = {
-  border: "1px solid #111827",
-  borderRadius: "999px",
-  padding: "10px 16px",
-  background: "#111827",
-  color: "#ffffff",
-  fontWeight: 700,
-  fontSize: "14px",
-  cursor: "pointer",
+  gap: 12,
 };
