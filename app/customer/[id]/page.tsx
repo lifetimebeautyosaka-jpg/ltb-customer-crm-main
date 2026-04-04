@@ -8,9 +8,6 @@ import { createClient } from "@supabase/supabase-js";
 type Customer = {
   id: number;
   name: string;
-  phone?: string | null;
-  plan?: string | null;
-  created_at?: string | null;
 };
 
 type Ticket = {
@@ -87,12 +84,6 @@ function formatDateJP(dateStr?: string | null) {
   ).padStart(2, "0")}`;
 }
 
-function formatDateTimeJP(dateStr?: string | null, timeStr?: string | null) {
-  const date = formatDateJP(dateStr);
-  if (!timeStr) return date;
-  return `${date} ${timeStr}`;
-}
-
 type TabType = "tickets" | "sales";
 
 export default function CustomerDetailPage() {
@@ -140,15 +131,18 @@ export default function CustomerDetailPage() {
         setSales([]);
         setLastReservation(null);
         setPageError("顧客IDが不正です。");
-        setLoading(false);
         return;
       }
 
       const { data: customerData, error: customerError } = await supabase
         .from("customers")
-        .select("id, name, phone, plan, created_at")
+        .select("id, name")
         .eq("id", id)
         .single();
+
+      console.log("customer detail id:", id);
+      console.log("customerData:", customerData);
+      console.log("customerError:", customerError);
 
       if (customerError || !customerData) {
         setCustomer(null);
@@ -156,7 +150,6 @@ export default function CustomerDetailPage() {
         setSales([]);
         setLastReservation(null);
         setPageError("顧客情報が見つかりません。");
-        setLoading(false);
         return;
       }
 
@@ -209,10 +202,6 @@ export default function CustomerDetailPage() {
         const latest = ((reservationData as ReservationRow[] | null) || [])[0] || null;
         setLastReservation(latest);
       }
-
-      if (ticketError) {
-        setPageError("回数券データの取得に失敗しました。");
-      }
     } catch (error) {
       console.error("fetchCustomerAndTickets error:", error);
       setCustomer(null);
@@ -244,7 +233,6 @@ export default function CustomerDetailPage() {
   const stretchSummary = useMemo(() => {
     const list = tickets.filter((t) => t.service_type === "ストレッチ");
     return {
-      total: list.reduce((sum, t) => sum + Number(t.total_count || 0), 0),
       remain: list.reduce((sum, t) => sum + Number(t.remaining_count || 0), 0),
     };
   }, [tickets]);
@@ -252,7 +240,6 @@ export default function CustomerDetailPage() {
   const trainingSummary = useMemo(() => {
     const list = tickets.filter((t) => t.service_type === "トレーニング");
     return {
-      total: list.reduce((sum, t) => sum + Number(t.total_count || 0), 0),
       remain: list.reduce((sum, t) => sum + Number(t.remaining_count || 0), 0),
     };
   }, [tickets]);
@@ -304,7 +291,6 @@ export default function CustomerDetailPage() {
       setNote("");
 
       await fetchCustomerAndTickets();
-      setActiveTab("tickets");
     } catch (error) {
       console.error("handleAddTicket error:", error);
       alert("回数券追加中にエラーが発生しました");
@@ -387,25 +373,6 @@ export default function CustomerDetailPage() {
           <MetricCard
             title="最終来店日"
             value={lastReservation ? formatDateJP(lastReservation.date) : "未登録"}
-          />
-        </div>
-
-        <div style={infoGridStyle}>
-          <InfoCard
-            label="電話番号"
-            value={customer.phone || "未設定"}
-          />
-          <InfoCard
-            label="プラン"
-            value={customer.plan || "未設定"}
-          />
-          <InfoCard
-            label="最終来店時間"
-            value={lastReservation?.start_time || "未設定"}
-          />
-          <InfoCard
-            label="最終来店メニュー"
-            value={lastReservation?.menu || "未設定"}
           />
         </div>
 
@@ -568,7 +535,7 @@ export default function CustomerDetailPage() {
                   <div style={{ display: "grid", gap: "14px" }}>
                     {sales.map((sale) => (
                       <div key={String(sale.id)} style={ticketCardStyle}>
-                        <div style={saleTopRowStyle}>
+                        <div style={ticketTopRowStyle}>
                           <div>
                             <div style={ticketTitleStyle}>
                               {formatCurrency(Number(sale.amount || 0))}
@@ -577,17 +544,13 @@ export default function CustomerDetailPage() {
                               {formatDateJP(sale.sale_date)} / {sale.menu_type || "未設定"}
                             </div>
                           </div>
-
-                          <div style={saleBadgeStyle}>
-                            {sale.sale_type || "通常売上"}
-                          </div>
                         </div>
 
                         <div style={ticketInfoGridStyle}>
+                          <TicketInfo label="会計区分" value={sale.sale_type || "未設定"} />
                           <TicketInfo label="支払方法" value={sale.payment_method || "未設定"} />
                           <TicketInfo label="担当者" value={sale.staff_name || "未設定"} />
                           <TicketInfo label="店舗" value={sale.store_name || "未設定"} />
-                          <TicketInfo label="メモ" value={sale.memo || "なし"} />
                         </div>
                       </div>
                     ))}
@@ -635,19 +598,6 @@ function TicketInfo({ label, value }: { label: string; value: string }) {
   );
 }
 
-function InfoCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={infoCardStyle}>
-      <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "6px" }}>
-        {label}
-      </div>
-      <div style={{ fontSize: "15px", fontWeight: 800, color: "#111827" }}>
-        {value}
-      </div>
-    </div>
-  );
-}
-
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
   background: "linear-gradient(135deg, #f7f7f8 0%, #ececef 45%, #dfe3e8 100%)",
@@ -685,13 +635,6 @@ const metricGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
   gap: "16px",
-  marginBottom: "20px",
-};
-
-const infoGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: "16px",
   marginBottom: "24px",
 };
 
@@ -719,13 +662,6 @@ const metricCardStyle: React.CSSProperties = {
   borderRadius: "22px",
   padding: "22px",
   boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
-};
-
-const infoCardStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(226,232,240,0.95)",
-  borderRadius: "18px",
-  padding: "16px",
 };
 
 const sectionTitleStyle: React.CSSProperties = {
@@ -807,14 +743,6 @@ const ticketTopRowStyle: React.CSSProperties = {
   marginBottom: "14px",
 };
 
-const saleTopRowStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: "12px",
-  marginBottom: "14px",
-};
-
 const ticketTitleStyle: React.CSSProperties = {
   fontSize: "18px",
   fontWeight: 800,
@@ -841,16 +769,6 @@ const deleteButtonStyle: React.CSSProperties = {
   color: "#ffffff",
   fontWeight: 700,
   cursor: "pointer",
-};
-
-const saleBadgeStyle: React.CSSProperties = {
-  borderRadius: "999px",
-  padding: "8px 12px",
-  background: "#eff6ff",
-  border: "1px solid #bfdbfe",
-  color: "#1d4ed8",
-  fontWeight: 700,
-  fontSize: "12px",
 };
 
 const tabHeaderStyle: React.CSSProperties = {
