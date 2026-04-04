@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
 type TrainingSet = {
@@ -48,6 +48,37 @@ const supabase =
     ? createClient(supabaseUrl, supabaseAnonKey)
     : null;
 
+const exerciseOptions = [
+  "スクワット",
+  "ベンチプレス",
+  "デッドリフト",
+  "ラットプルダウン",
+  "シーテッドロー",
+  "ワンハンドロー",
+  "チェストプレス",
+  "インクラインベンチプレス",
+  "ダンベルフライ",
+  "ショルダープレス",
+  "サイドレイズ",
+  "リアレイズ",
+  "レッグプレス",
+  "ブルガリアンスクワット",
+  "ヒップスラスト",
+  "ルーマニアンデッドリフト",
+  "レッグエクステンション",
+  "レッグカール",
+  "アームカール",
+  "ハンマーカール",
+  "トライセプスプレスダウン",
+  "フレンチプレス",
+  "プランク",
+  "クランチ",
+  "ストレッチ",
+  "開脚ストレッチ",
+  "肩可動域改善",
+  "体幹トレーニング",
+];
+
 const emptySetRow = (): TrainingSet => ({
   exercise_name: "",
   weight: "",
@@ -59,7 +90,10 @@ const emptySetRow = (): TrainingSet => ({
 
 export default function CustomerTrainingPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const rawId = params?.id;
+  const copySessionId = searchParams.get("copy");
+
   const customerId = useMemo(() => {
     if (Array.isArray(rawId)) return Number(rawId[0]);
     return Number(rawId);
@@ -70,6 +104,7 @@ export default function CustomerTrainingPage() {
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [copyMessage, setCopyMessage] = useState("");
 
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [bodyWeight, setBodyWeight] = useState("");
@@ -117,6 +152,17 @@ export default function CustomerTrainingPage() {
     if (!customerId || Number.isNaN(customerId)) return;
     fetchHistory();
   }, [mounted, customerId]);
+
+  useEffect(() => {
+    if (!mounted) return;
+    if (!copySessionId) return;
+    if (history.length === 0) return;
+
+    const target = history.find((item) => item.id === copySessionId);
+    if (!target) return;
+
+    applyCopyFromHistory(target);
+  }, [mounted, copySessionId, history]);
 
   const fetchHistory = async () => {
     if (!supabase) {
@@ -202,6 +248,7 @@ export default function CustomerTrainingPage() {
     setTemplateName("");
     setSetRows([emptySetRow(), emptySetRow(), emptySetRow()]);
     setSelectedHistoryId(null);
+    setCopyMessage("");
   };
 
   const addSetRow = () => {
@@ -229,6 +276,31 @@ export default function CustomerTrainingPage() {
     if (value === "" || value == null) return null;
     const num = Number(value);
     return Number.isNaN(num) ? null : num;
+  };
+
+  const applyCopyFromHistory = (item: TrainingSession) => {
+    setSummary(item.summary || "");
+    setNextTask(item.next_task || "");
+    setTemplateName(item.template_name || "");
+    setNote(item.note || "");
+    setPostureNote(item.posture_note || "");
+
+    const copiedRows =
+      item.training_sets && item.training_sets.length > 0
+        ? item.training_sets.map((set) => ({
+            exercise_name: set.exercise_name || "",
+            weight: set.weight || "",
+            reps: set.reps || "",
+            sets: set.sets || "",
+            rpe: set.rpe || "",
+            memo: set.memo || "",
+          }))
+        : [emptySetRow(), emptySetRow(), emptySetRow()];
+
+    setSetRows(copiedRows);
+    setSelectedHistoryId(item.id);
+    setCopyMessage(`履歴 ${item.date || ""} の内容をコピー中`);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleSave = async () => {
@@ -383,6 +455,31 @@ export default function CustomerTrainingPage() {
           </div>
         </button>
 
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            flexWrap: "wrap",
+            marginTop: 14,
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => applyCopyFromHistory(item)}
+            style={{
+              border: "none",
+              background: "linear-gradient(135deg, #8b5e3c 0%, #c49a6c 100%)",
+              color: "#fff",
+              borderRadius: 12,
+              padding: "10px 14px",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            この履歴をコピー
+          </button>
+        </div>
+
         {isOpen && (
           <div style={{ marginTop: 16 }}>
             <div
@@ -487,7 +584,7 @@ export default function CustomerTrainingPage() {
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         <div style={{ marginBottom: 20 }}>
           <Link
-            href="/training"
+            href={`/customer/${customerId}`}
             style={{
               display: "inline-block",
               textDecoration: "none",
@@ -496,7 +593,7 @@ export default function CustomerTrainingPage() {
               marginBottom: 12,
             }}
           >
-            ← トレーニング履歴検索へ戻る
+            ← 顧客詳細へ戻る
           </Link>
 
           <div
@@ -542,6 +639,22 @@ export default function CustomerTrainingPage() {
             </p>
           </div>
         </div>
+
+        {copyMessage ? (
+          <div
+            style={{
+              marginBottom: 16,
+              background: "#fff7ed",
+              color: "#9a3412",
+              border: "1px solid #fed7aa",
+              borderRadius: 14,
+              padding: "12px 14px",
+              fontSize: 14,
+            }}
+          >
+            {copyMessage}
+          </div>
+        ) : null}
 
         {errorMessage ? (
           <div
@@ -637,7 +750,7 @@ export default function CustomerTrainingPage() {
               <input
                 value={condition}
                 onChange={(e) => setCondition(e.target.value)}
-                placeholder="例 少し疲れあり / 良好"
+                placeholder="例 良好 / 少し疲れあり"
                 style={inputStyle}
               />
             </div>
@@ -710,7 +823,7 @@ export default function CustomerTrainingPage() {
               <table
                 style={{
                   width: "100%",
-                  minWidth: 760,
+                  minWidth: 820,
                   borderCollapse: "collapse",
                   fontSize: 14,
                 }}
@@ -731,13 +844,19 @@ export default function CustomerTrainingPage() {
                     <tr key={index}>
                       <td style={tdStyle}>
                         <input
+                          list={`exercise-options-${index}`}
                           value={row.exercise_name}
                           onChange={(e) =>
                             updateSetRow(index, "exercise_name", e.target.value)
                           }
                           style={tableInputStyle}
-                          placeholder="例 スクワット"
+                          placeholder="種目を選択 or 入力"
                         />
+                        <datalist id={`exercise-options-${index}`}>
+                          {exerciseOptions.map((name) => (
+                            <option key={name} value={name} />
+                          ))}
+                        </datalist>
                       </td>
                       <td style={tdStyle}>
                         <input
@@ -1104,7 +1223,7 @@ const tdStyle: React.CSSProperties = {
 
 const tableInputStyle: React.CSSProperties = {
   width: "100%",
-  minWidth: 90,
+  minWidth: 100,
   height: 38,
   borderRadius: 10,
   border: "1px solid #d1d5db",
