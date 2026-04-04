@@ -52,16 +52,19 @@ function addMonths(dateStr: string, months: number) {
 
 export default function CustomerDetailPage() {
   const params = useParams();
-  const id = Number(params?.id || 0);
+  const rawId = Array.isArray(params?.id) ? params.id[0] : params?.id;
+  const id = Number(rawId ?? 0);
 
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [pageError, setPageError] = useState("");
 
   const [ticketName, setTicketName] = useState("4回券");
-  const [serviceType, setServiceType] = useState<"ストレッチ" | "トレーニング">("ストレッチ");
+  const [serviceType, setServiceType] =
+    useState<"ストレッチ" | "トレーニング">("ストレッチ");
   const [totalCount, setTotalCount] = useState("4");
   const [purchaseDate, setPurchaseDate] = useState(todayString());
   const [expiryDate, setExpiryDate] = useState(addMonths(todayString(), 3));
@@ -79,43 +82,69 @@ export default function CustomerDetailPage() {
   }, []);
 
   const fetchCustomerAndTickets = async () => {
-    setLoading(true);
+    try {
+      setLoading(true);
+      setPageError("");
 
-    const { data: customerData, error: customerError } = await supabase
-      .from("customers")
-      .select("id, name, phone, plan, created_at")
-      .eq("id", id)
-      .single<Customer>();
+      if (!id || Number.isNaN(id)) {
+        setCustomer(null);
+        setTickets([]);
+        setPageError("顧客IDが不正です。");
+        return;
+      }
 
-    if (customerError || !customerData) {
+      const { data: customerData, error: customerError } = await supabase
+        .from("customers")
+        .select("id, name, phone, plan, created_at")
+        .eq("id", id)
+        .single();
+
+      if (customerError || !customerData) {
+        setCustomer(null);
+        setTickets([]);
+        setPageError("顧客情報が見つかりません。");
+        return;
+      }
+
+      setCustomer(customerData as Customer);
+
+      const { data: ticketData, error: ticketError } = await supabase
+        .from("customer_tickets")
+        .select(
+          "id, customer_id, customer_name, ticket_name, service_type, total_count, remaining_count, purchase_date, expiry_date, status, note, created_at"
+        )
+        .eq("customer_id", id)
+        .order("created_at", { ascending: false });
+
+      if (ticketError) {
+        console.error("ticket fetch error:", ticketError);
+        setTickets([]);
+        setPageError("回数券データの取得に失敗しました。");
+        return;
+      }
+
+      setTickets((ticketData as Ticket[] | null) || []);
+    } catch (error) {
+      console.error("fetchCustomerAndTickets error:", error);
       setCustomer(null);
       setTickets([]);
+      setPageError("データ取得中にエラーが発生しました。");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setCustomer(customerData);
-
-    const { data: ticketData, error: ticketError } = await supabase
-      .from("customer_tickets")
-      .select(
-        "id, customer_id, customer_name, ticket_name, service_type, total_count, remaining_count, purchase_date, expiry_date, status, note, created_at"
-      )
-      .eq("customer_id", id)
-      .order("created_at", { ascending: false });
-
-    if (ticketError) {
-      setTickets([]);
-      setLoading(false);
-      return;
-    }
-
-    setTickets((ticketData as Ticket[] | null) || []);
-    setLoading(false);
   };
 
   useEffect(() => {
-    if (!mounted || !id) return;
+    if (!mounted) return;
+
+    if (!id || Number.isNaN(id)) {
+      setLoading(false);
+      setCustomer(null);
+      setTickets([]);
+      setPageError("顧客IDが不正です。");
+      return;
+    }
+
     fetchCustomerAndTickets();
   }, [mounted, id]);
 
@@ -147,55 +176,65 @@ export default function CustomerDetailPage() {
       return;
     }
 
-    setSaving(true);
+    try {
+      setSaving(true);
 
-    const { error } = await supabase.from("customer_tickets").insert([
-      {
-        customer_id: customer.id,
-        customer_name: customer.name,
-        ticket_name: ticketName.trim() || "回数券",
-        service_type: serviceType,
-        total_count: total,
-        remaining_count: total,
-        purchase_date: purchaseDate || null,
-        expiry_date: expiryDate || null,
-        status: "利用中",
-        note: note.trim() || null,
-      },
-    ]);
+      const { error } = await supabase.from("customer_tickets").insert([
+        {
+          customer_id: customer.id,
+          customer_name: customer.name,
+          ticket_name: ticketName.trim() || "回数券",
+          service_type: serviceType,
+          total_count: total,
+          remaining_count: total,
+          purchase_date: purchaseDate || null,
+          expiry_date: expiryDate || null,
+          status: "利用中",
+          note: note.trim() || null,
+        },
+      ]);
 
-    setSaving(false);
+      if (error) {
+        alert(`回数券追加エラー: ${error.message}`);
+        return;
+      }
 
-    if (error) {
-      alert(`回数券追加エラー: ${error.message}`);
-      return;
+      setTicketName("4回券");
+      setServiceType("ストレッチ");
+      setTotalCount("4");
+      setPurchaseDate(todayString());
+      setExpiryDate(addMonths(todayString(), 3));
+      setNote("");
+
+      await fetchCustomerAndTickets();
+    } catch (error) {
+      console.error("handleAddTicket error:", error);
+      alert("回数券追加中にエラーが発生しました");
+    } finally {
+      setSaving(false);
     }
-
-    setTicketName("4回券");
-    setServiceType("ストレッチ");
-    setTotalCount("4");
-    setPurchaseDate(todayString());
-    setExpiryDate(addMonths(todayString(), 3));
-    setNote("");
-
-    await fetchCustomerAndTickets();
   };
 
   const handleDeleteTicket = async (ticketId: number) => {
     const ok = window.confirm("この回数券を削除しますか？");
     if (!ok) return;
 
-    const { error } = await supabase
-      .from("customer_tickets")
-      .delete()
-      .eq("id", ticketId);
+    try {
+      const { error } = await supabase
+        .from("customer_tickets")
+        .delete()
+        .eq("id", ticketId);
 
-    if (error) {
-      alert(`削除エラー: ${error.message}`);
-      return;
+      if (error) {
+        alert(`削除エラー: ${error.message}`);
+        return;
+      }
+
+      await fetchCustomerAndTickets();
+    } catch (error) {
+      console.error("handleDeleteTicket error:", error);
+      alert("削除中にエラーが発生しました");
     }
-
-    await fetchCustomerAndTickets();
   };
 
   if (!mounted || loading) {
@@ -214,7 +253,9 @@ export default function CustomerDetailPage() {
         <div style={containerStyle}>
           <div style={cardStyle}>
             <h1 style={titleStyle}>顧客詳細</h1>
-            <p style={{ color: "#b91c1c", fontWeight: 700 }}>顧客情報が見つかりません。</p>
+            <p style={{ color: "#b91c1c", fontWeight: 700 }}>
+              {pageError || "顧客情報が見つかりません。"}
+            </p>
             <Link href="/customer" style={mainButtonStyle}>
               顧客一覧へ
             </Link>
@@ -265,7 +306,11 @@ export default function CustomerDetailPage() {
                 <label style={labelStyle}>サービス区分</label>
                 <select
                   value={serviceType}
-                  onChange={(e) => setServiceType(e.target.value as "ストレッチ" | "トレーニング")}
+                  onChange={(e) =>
+                    setServiceType(
+                      e.target.value as "ストレッチ" | "トレーニング"
+                    )
+                  }
                   style={inputStyle}
                 >
                   <option value="ストレッチ">ストレッチ</option>
@@ -315,7 +360,11 @@ export default function CustomerDetailPage() {
             </div>
 
             <div style={{ marginTop: "18px" }}>
-              <button onClick={handleAddTicket} style={mainButtonStyle} disabled={saving}>
+              <button
+                onClick={handleAddTicket}
+                style={mainButtonStyle}
+                disabled={saving}
+              >
                 {saving ? "追加中..." : "回数券を追加する"}
               </button>
             </div>
@@ -332,7 +381,9 @@ export default function CustomerDetailPage() {
                   <div key={ticket.id} style={ticketCardStyle}>
                     <div style={ticketTopRowStyle}>
                       <div>
-                        <div style={ticketTitleStyle}>{ticket.ticket_name || "回数券"}</div>
+                        <div style={ticketTitleStyle}>
+                          {ticket.ticket_name || "回数券"}
+                        </div>
                         <div style={ticketMetaStyle}>
                           {ticket.service_type} / {ticket.status}
                         </div>
@@ -349,10 +400,18 @@ export default function CustomerDetailPage() {
                     <div style={ticketInfoGridStyle}>
                       <TicketInfo
                         label="残数"
-                        value={`${Number(ticket.remaining_count || 0)} / ${Number(ticket.total_count || 0)}`}
+                        value={`${Number(ticket.remaining_count || 0)} / ${Number(
+                          ticket.total_count || 0
+                        )}`}
                       />
-                      <TicketInfo label="購入日" value={ticket.purchase_date || "未設定"} />
-                      <TicketInfo label="有効期限" value={ticket.expiry_date || "未設定"} />
+                      <TicketInfo
+                        label="購入日"
+                        value={ticket.purchase_date || "未設定"}
+                      />
+                      <TicketInfo
+                        label="有効期限"
+                        value={ticket.expiry_date || "未設定"}
+                      />
                       <TicketInfo label="メモ" value={ticket.note || "なし"} />
                     </div>
                   </div>
@@ -369,8 +428,12 @@ export default function CustomerDetailPage() {
 function MetricCard({ title, value }: { title: string; value: string }) {
   return (
     <div style={metricCardStyle}>
-      <div style={{ fontSize: "13px", color: "#6b7280", marginBottom: "8px" }}>{title}</div>
-      <div style={{ fontSize: "28px", fontWeight: 800, color: "#111827" }}>{value}</div>
+      <div style={{ fontSize: "13px", color: "#6b7280", marginBottom: "8px" }}>
+        {title}
+      </div>
+      <div style={{ fontSize: "28px", fontWeight: 800, color: "#111827" }}>
+        {value}
+      </div>
     </div>
   );
 }
@@ -378,8 +441,19 @@ function MetricCard({ title, value }: { title: string; value: string }) {
 function TicketInfo({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "6px" }}>{label}</div>
-      <div style={{ fontSize: "14px", fontWeight: 700, color: "#111827", whiteSpace: "pre-wrap" }}>{value}</div>
+      <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "6px" }}>
+        {label}
+      </div>
+      <div
+        style={{
+          fontSize: "14px",
+          fontWeight: 700,
+          color: "#111827",
+          whiteSpace: "pre-wrap",
+        }}
+      >
+        {value}
+      </div>
     </div>
   );
 }
