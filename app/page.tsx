@@ -2,59 +2,69 @@
 
 import Link from "next/link";
 
-const menuItems = [
-  { href: "/customer", title: "顧客管理", desc: "顧客情報・詳細確認" },
-  { href: "/reservation", title: "予約管理", desc: "カレンダー・日別確認" },
-  { href: "/sales", title: "売上管理", desc: "売上登録・履歴確認" },
-  { href: "/accounting", title: "会計管理", desc: "集計・会計チェック" },
-  { href: "/customer", title: "トレーニング履歴", desc: "顧客ごとの記録管理" },
-];
-
 export default function HomePage() {
   return (
     <main style={styles.page}>
-      <div style={styles.sparkle1} />
-      <div style={styles.sparkle2} />
-      <div style={styles.sparkle3} />
-      <div style={styles.sparkle4} />
+      <div style={styles.glowA} />
+      <div style={styles.glowB} />
+      <div style={styles.glowC} />
+      <div style={styles.spark1} />
+      <div style={styles.spark2} />
+      <div style={styles.spark3} />
 
       <div style={styles.container}>
         <section style={styles.heroCard}>
-          <div style={styles.heroInner}>
-            <div style={styles.logoFrame}>
-              <img src="/gymup-logo.png" alt="GYMUP" style={styles.logo} />
-            </div>
-
-            <div style={styles.subtitle}>Premium Gym Management System</div>
-
-            <div style={styles.heroLine} />
-
-            <p style={styles.lead}>
-              顧客管理・予約・売上・会計・トレーニング履歴を
-              <br />
-              ひとつにまとめたプレミアムCRM
-            </p>
+          <div style={styles.shineLine} />
+          <div style={styles.logoWrap}>
+            <img src="/gymup-logo.png" alt="GYMUP" style={styles.logo} />
           </div>
+          <div style={styles.eyebrow}>PREMIUM GYM MANAGEMENT SYSTEM</div>
+          <h1 style={styles.heroTitle}>GYMUP CRM</h1>
+          <p style={styles.heroText}>
+            顧客管理、予約、売上、会計、トレーニング履歴まで。
+            <br />
+            ジム運営を美しく、一元管理するためのCRM。
+          </p>
         </section>
 
-        <section style={styles.menuSection}>
-          <div style={styles.sectionHeader}>
-            <div>
-              <div style={styles.sectionLabel}>MAIN MENU</div>
-              <h2 style={styles.sectionTitle}>管理メニュー</h2>
+        <section style={styles.dashboard}>
+          <Link href="/customer" style={{ ...styles.panel, ...styles.panelLarge }}>
+            <div style={styles.panelShine} />
+            <div style={styles.panelLabel}>CUSTOMER</div>
+            <div style={styles.panelTitle}>顧客管理</div>
+            <div style={styles.panelDesc}>
+              顧客情報、詳細ページ、回数券、LTV、来店履歴を管理
             </div>
-          </div>
+          </Link>
 
-          <div style={styles.menuGrid}>
-            {menuItems.map((item) => (
-              <Link key={item.title} href={item.href} style={styles.card}>
-                <div>
-                  <div style={styles.title}>{item.title}</div>
-                  <div style={styles.desc}>{item.desc}</div>
-                </div>
-                <div style={styles.arrow}>→</div>
-              </Link>
-            ))}
+          <div style={styles.rightGrid}>
+            <Link href="/reservation" style={styles.panel}>
+              <div style={styles.panelShine} />
+              <div style={styles.panelLabel}>RESERVATION</div>
+              <div style={styles.panelTitle}>予約管理</div>
+              <div style={styles.panelDesc}>月カレンダー・日別確認・予約詳細</div>
+            </Link>
+
+            <Link href="/sales" style={styles.panel}>
+              <div style={styles.panelShine} />
+              <div style={styles.panelLabel}>SALES</div>
+              <div style={styles.panelTitle}>売上管理</div>
+              <div style={styles.panelDesc}>売上登録・履歴確認・顧客別売上</div>
+            </Link>
+
+            <Link href="/accounting" style={styles.panel}>
+              <div style={styles.panelShine} />
+              <div style={styles.panelLabel}>ACCOUNTING</div>
+              <div style={styles.panelTitle}>会計管理</div>
+              <div style={styles.panelDesc}>集計・チェック・数値管理</div>
+            </Link>
+
+            <Link href="/customer" style={styles.panel}>
+              <div style={styles.panelShine} />
+              <div style={styles.panelLabel}>TRAINING</div>
+              <div style={styles.panelTitle}>トレーニング履歴</div>
+              <div style={styles.panelDesc}>顧客ごとのセッション記録・比較・管理</div>
+            </Link>
           </div>
         </section>
       </div>
@@ -62,21 +72,27 @@ export default function HomePage() {
   );
 }
 
+const glass =
+  "linear-gradient(135deg, rgba(255,255,255,0.92), rgba(248,250,252,0.72))";
+
 const styles: { [key: string]: React.CSSProperties } = {
   page: {
     minHeight: "100vh",
-    padding: "40px 20px 60px",
     position: "relative",
     overflow: "hidden",
+    padding: "36px 20px 60px",
     background: `
-      linear-gradient(135deg, #ffffff 0%, #f8fafc 28%, #eef2f7 58%, #e2e8f0 100%)
+      radial-gradient(circle at 15% 15%, rgba(255,255,255,0.98) 0%, rgba(255,255,255,0.72) 18%, transparent 38%),
+      radial-gradient(circle at 85% 12%, rgba(255,255,255,0.95) 0%, rgba(241,245,249,0.65) 18%, transparent 42%),
+      radial-gradient(circle at 80% 78%, rgba(226,232,240,0.55) 0%, transparent 30%),
+      linear-gradient(135deg, #ffffff 0%, #f8fafc 32%, #eef2f7 62%, #e2e8f0 100%)
     `,
   },
 
-  sparkle1: {
+  glowA: {
     position: "absolute",
-    top: "-80px",
-    right: "-40px",
+    top: "-90px",
+    left: "-70px",
     width: "280px",
     height: "280px",
     borderRadius: "999px",
@@ -85,186 +101,217 @@ const styles: { [key: string]: React.CSSProperties } = {
     pointerEvents: "none",
   },
 
-  sparkle2: {
+  glowB: {
     position: "absolute",
-    top: "18%",
-    left: "-60px",
-    width: "220px",
-    height: "220px",
+    top: "120px",
+    right: "-60px",
+    width: "320px",
+    height: "320px",
     borderRadius: "999px",
-    background: "rgba(226,232,240,0.8)",
-    filter: "blur(60px)",
-    pointerEvents: "none",
-  },
-
-  sparkle3: {
-    position: "absolute",
-    bottom: "-100px",
-    left: "8%",
-    width: "280px",
-    height: "280px",
-    borderRadius: "999px",
-    background: "rgba(255,255,255,0.9)",
+    background: "rgba(255,255,255,0.85)",
     filter: "blur(70px)",
     pointerEvents: "none",
   },
 
-  sparkle4: {
+  glowC: {
     position: "absolute",
-    bottom: "-60px",
-    right: "5%",
-    width: "240px",
-    height: "240px",
+    bottom: "-120px",
+    left: "18%",
+    width: "340px",
+    height: "340px",
     borderRadius: "999px",
-    background: "rgba(148,163,184,0.22)",
-    filter: "blur(65px)",
+    background: "rgba(203,213,225,0.35)",
+    filter: "blur(75px)",
+    pointerEvents: "none",
+  },
+
+  spark1: {
+    position: "absolute",
+    top: "90px",
+    left: "14%",
+    width: "10px",
+    height: "10px",
+    borderRadius: "999px",
+    background: "#ffffff",
+    boxShadow: "0 0 24px rgba(255,255,255,0.95)",
+    pointerEvents: "none",
+  },
+
+  spark2: {
+    position: "absolute",
+    top: "220px",
+    right: "16%",
+    width: "12px",
+    height: "12px",
+    borderRadius: "999px",
+    background: "#ffffff",
+    boxShadow: "0 0 26px rgba(255,255,255,0.95)",
+    pointerEvents: "none",
+  },
+
+  spark3: {
+    position: "absolute",
+    bottom: "120px",
+    right: "28%",
+    width: "8px",
+    height: "8px",
+    borderRadius: "999px",
+    background: "#ffffff",
+    boxShadow: "0 0 18px rgba(255,255,255,0.95)",
     pointerEvents: "none",
   },
 
   container: {
-    maxWidth: "1040px",
-    margin: "0 auto",
     position: "relative",
     zIndex: 1,
+    maxWidth: "1120px",
+    margin: "0 auto",
   },
 
   heroCard: {
     position: "relative",
-    marginBottom: "28px",
-    borderRadius: "32px",
-    padding: "34px 28px",
-    background:
-      "linear-gradient(135deg, rgba(255,255,255,0.82), rgba(255,255,255,0.54))",
-    border: "1px solid rgba(255,255,255,0.92)",
+    overflow: "hidden",
+    borderRadius: "34px",
+    padding: "42px 28px 36px",
+    marginBottom: "24px",
+    textAlign: "center",
+    background: glass,
+    border: "1px solid rgba(255,255,255,0.95)",
     backdropFilter: "blur(18px)",
     WebkitBackdropFilter: "blur(18px)",
     boxShadow:
-      "0 25px 80px rgba(15,23,42,0.08), inset 0 1px 0 rgba(255,255,255,0.95)",
+      "0 24px 80px rgba(15,23,42,0.08), inset 0 1px 0 rgba(255,255,255,0.98)",
   },
 
-  heroInner: {
-    textAlign: "center",
+  shineLine: {
+    position: "absolute",
+    top: 0,
+    left: "-20%",
+    width: "60%",
+    height: "2px",
+    background:
+      "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.95) 35%, rgba(245,158,11,0.45) 52%, rgba(255,255,255,0.9) 70%, transparent 100%)",
+    transform: "skewX(-28deg)",
   },
 
-  logoFrame: {
+  logoWrap: {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    padding: "18px 22px",
-    borderRadius: "26px",
+    padding: "18px 24px",
+    borderRadius: "28px",
     background:
-      "linear-gradient(135deg, rgba(255,255,255,0.92), rgba(241,245,249,0.72))",
+      "linear-gradient(135deg, rgba(255,255,255,0.96), rgba(241,245,249,0.76))",
     border: "1px solid rgba(255,255,255,0.95)",
     boxShadow:
-      "0 12px 40px rgba(15,23,42,0.08), inset 0 1px 0 rgba(255,255,255,0.95)",
+      "0 16px 40px rgba(15,23,42,0.08), inset 0 1px 0 rgba(255,255,255,1)",
   },
 
   logo: {
-    width: "320px",
-    maxWidth: "90%",
+    width: "340px",
+    maxWidth: "92%",
     height: "auto",
     display: "block",
     objectFit: "contain",
   },
 
-  subtitle: {
+  eyebrow: {
     marginTop: "18px",
-    fontSize: "12px",
-    letterSpacing: "0.22em",
-    color: "#64748b",
+    fontSize: "11px",
+    letterSpacing: "0.24em",
+    color: "#94a3b8",
     fontWeight: 700,
-    textTransform: "uppercase",
   },
 
-  heroLine: {
-    width: "110px",
-    height: "2px",
-    margin: "18px auto 0",
-    borderRadius: "999px",
-    background: "linear-gradient(90deg, #cbd5e1 0%, #f59e0b 50%, #cbd5e1 100%)",
+  heroTitle: {
+    margin: "10px 0 0",
+    fontSize: "42px",
+    fontWeight: 900,
+    color: "#0f172a",
+    letterSpacing: "-0.04em",
   },
 
-  lead: {
-    margin: "18px 0 0",
+  heroText: {
+    margin: "14px 0 0",
     fontSize: "15px",
-    lineHeight: 1.85,
+    lineHeight: 1.9,
     color: "#475569",
     fontWeight: 500,
   },
 
-  menuSection: {
-    borderRadius: "32px",
-    padding: "26px",
-    background:
-      "linear-gradient(135deg, rgba(255,255,255,0.74), rgba(248,250,252,0.56))",
-    border: "1px solid rgba(255,255,255,0.88)",
-    backdropFilter: "blur(16px)",
-    WebkitBackdropFilter: "blur(16px)",
+  dashboard: {
+    display: "grid",
+    gridTemplateColumns: "1.1fr 1fr",
+    gap: "18px",
+  },
+
+  rightGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "18px",
+  },
+
+  panel: {
+    position: "relative",
+    overflow: "hidden",
+    display: "block",
+    textDecoration: "none",
+    padding: "24px 22px",
+    borderRadius: "28px",
+    background: glass,
+    border: "1px solid rgba(255,255,255,0.95)",
+    color: "#0f172a",
+    backdropFilter: "blur(14px)",
+    WebkitBackdropFilter: "blur(14px)",
     boxShadow:
-      "0 25px 80px rgba(15,23,42,0.08), inset 0 1px 0 rgba(255,255,255,0.95)",
+      "0 18px 40px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.98)",
+    minHeight: "185px",
   },
 
-  sectionHeader: {
-    marginBottom: "18px",
+  panelLarge: {
+    minHeight: "388px",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "flex-end",
   },
 
-  sectionLabel: {
+  panelShine: {
+    position: "absolute",
+    top: "-25%",
+    right: "-10%",
+    width: "180px",
+    height: "180px",
+    borderRadius: "999px",
+    background:
+      "radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.18) 38%, transparent 72%)",
+    pointerEvents: "none",
+  },
+
+  panelLabel: {
+    position: "relative",
+    zIndex: 1,
     fontSize: "11px",
-    letterSpacing: "0.22em",
+    letterSpacing: "0.18em",
     color: "#94a3b8",
     fontWeight: 700,
-    marginBottom: "6px",
+    marginBottom: "10px",
   },
 
-  sectionTitle: {
-    margin: 0,
+  panelTitle: {
+    position: "relative",
+    zIndex: 1,
     fontSize: "24px",
     fontWeight: 900,
-    letterSpacing: "-0.02em",
+    letterSpacing: "-0.03em",
     color: "#0f172a",
   },
 
-  menuGrid: {
-    display: "grid",
-    gap: "14px",
-  },
-
-  card: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: "16px",
-    padding: "22px 22px",
-    borderRadius: "22px",
-    background:
-      "linear-gradient(135deg, rgba(255,255,255,0.96), rgba(241,245,249,0.78))",
-    border: "1px solid rgba(203,213,225,0.48)",
-    backdropFilter: "blur(12px)",
-    WebkitBackdropFilter: "blur(12px)",
-    textDecoration: "none",
-    color: "#0f172a",
-    boxShadow:
-      "0 10px 30px rgba(15,23,42,0.05), inset 0 1px 0 rgba(255,255,255,0.95)",
-  },
-
-  title: {
-    fontSize: "18px",
-    fontWeight: 800,
-    letterSpacing: "-0.01em",
-    color: "#0f172a",
-  },
-
-  desc: {
-    marginTop: "6px",
+  panelDesc: {
+    position: "relative",
+    zIndex: 1,
+    marginTop: "10px",
     fontSize: "13px",
+    lineHeight: 1.8,
     color: "#64748b",
-    lineHeight: 1.6,
-  },
-
-  arrow: {
-    fontSize: "22px",
-    color: "#f59e0b",
-    fontWeight: 800,
-    flexShrink: 0,
   },
 };
