@@ -51,6 +51,11 @@ type TicketUsage = {
   created_at: string | null;
 };
 
+type SaleRow = {
+  id: number;
+  reservation_id: number | null;
+};
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -114,6 +119,7 @@ export default function ReservationDetailPage() {
   const [usedTicket, setUsedTicket] = useState<TicketUsage | null>(null);
   const [selectedTicketId, setSelectedTicketId] = useState("");
   const [consuming, setConsuming] = useState(false);
+  const [isSalesRegistered, setIsSalesRegistered] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -135,6 +141,7 @@ export default function ReservationDetailPage() {
         setCustomer(null);
         setTickets([]);
         setUsedTicket(null);
+        setIsSalesRegistered(false);
         setPageError("予約IDが不正です。");
         return;
       }
@@ -151,6 +158,7 @@ export default function ReservationDetailPage() {
         setCustomer(null);
         setTickets([]);
         setUsedTicket(null);
+        setIsSalesRegistered(false);
         setPageError("予約データが見つかりませんでした。");
         return;
       }
@@ -169,6 +177,19 @@ export default function ReservationDetailPage() {
         console.error("usage fetch error:", usageError);
       }
       setUsedTicket((usageData as TicketUsage | null) || null);
+
+      const { data: salesData, error: salesError } = await supabase
+        .from("sales")
+        .select("id, reservation_id")
+        .eq("reservation_id", id)
+        .limit(1);
+
+      if (salesError) {
+        console.error("sales fetch error:", salesError);
+        setIsSalesRegistered(false);
+      } else {
+        setIsSalesRegistered((((salesData as SaleRow[] | null) || []).length > 0));
+      }
 
       if (!reservationData.customer_name) {
         setCustomer(null);
@@ -221,6 +242,7 @@ export default function ReservationDetailPage() {
       setCustomer(null);
       setTickets([]);
       setUsedTicket(null);
+      setIsSalesRegistered(false);
       setPageError("データ取得中にエラーが発生しました。");
     } finally {
       setLoading(false);
@@ -236,6 +258,7 @@ export default function ReservationDetailPage() {
       setCustomer(null);
       setTickets([]);
       setUsedTicket(null);
+      setIsSalesRegistered(false);
       setPageError("予約IDが不正です。");
       return;
     }
@@ -286,8 +309,6 @@ export default function ReservationDetailPage() {
       alert("残数がありません");
       return;
     }
-
-    const after = before - 1;
 
     try {
       setConsuming(true);
@@ -430,9 +451,13 @@ export default function ReservationDetailPage() {
           <h1 style={titleStyle}>予約詳細</h1>
 
           <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-            <button onClick={handleGoToSales} style={mainButtonStyle}>
-              売上登録へ
-            </button>
+            {isSalesRegistered ? (
+              <span style={doneButtonStyle}>売上登録済み</span>
+            ) : (
+              <button onClick={handleGoToSales} style={mainButtonStyle}>
+                売上登録へ
+              </button>
+            )}
             <Link href={calendarHref} style={subButtonStyle}>
               カレンダーへ
             </Link>
@@ -456,6 +481,27 @@ export default function ReservationDetailPage() {
             <div style={{ fontSize: "28px", fontWeight: 800 }}>
               {reservation.customer_name || "未設定"}
             </div>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: "10px",
+              flexWrap: "wrap",
+              marginBottom: "18px",
+            }}
+          >
+            {usedTicket ? (
+              <span style={successChipStyle}>回数券消化済み</span>
+            ) : (
+              <span style={warningChipStyle}>回数券未消化</span>
+            )}
+
+            {isSalesRegistered ? (
+              <span style={salesChipStyle}>売上登録済み</span>
+            ) : (
+              <span style={neutralChipStyle}>売上未登録</span>
+            )}
           </div>
 
           <DetailRow label="日付" value={formatDateJP(reservation.date)} />
@@ -583,6 +629,17 @@ const subButtonStyle: React.CSSProperties = {
   fontSize: "14px",
 };
 
+const doneButtonStyle: React.CSSProperties = {
+  background: "#eff6ff",
+  color: "#1d4ed8",
+  border: "1px solid #93c5fd",
+  borderRadius: "14px",
+  padding: "13px 20px",
+  fontWeight: 700,
+  fontSize: "15px",
+  display: "inline-block",
+};
+
 const ticketBoxStyle: React.CSSProperties = {
   marginTop: "8px",
   borderRadius: "18px",
@@ -637,4 +694,44 @@ const successBoxStyle: React.CSSProperties = {
   border: "1px solid #a7f3d0",
   color: "#065f46",
   fontWeight: 700,
+};
+
+const successChipStyle: React.CSSProperties = {
+  borderRadius: "999px",
+  padding: "8px 12px",
+  background: "#ecfdf5",
+  border: "1px solid #a7f3d0",
+  color: "#065f46",
+  fontWeight: 700,
+  fontSize: "13px",
+};
+
+const warningChipStyle: React.CSSProperties = {
+  borderRadius: "999px",
+  padding: "8px 12px",
+  background: "#fff7ed",
+  border: "1px solid #fdba74",
+  color: "#9a3412",
+  fontWeight: 700,
+  fontSize: "13px",
+};
+
+const salesChipStyle: React.CSSProperties = {
+  borderRadius: "999px",
+  padding: "8px 12px",
+  background: "#eff6ff",
+  border: "1px solid #93c5fd",
+  color: "#1d4ed8",
+  fontWeight: 700,
+  fontSize: "13px",
+};
+
+const neutralChipStyle: React.CSSProperties = {
+  borderRadius: "999px",
+  padding: "8px 12px",
+  background: "#f3f4f6",
+  border: "1px solid #d1d5db",
+  color: "#374151",
+  fontWeight: 700,
+  fontSize: "13px",
 };
