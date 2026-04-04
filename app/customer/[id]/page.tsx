@@ -28,6 +28,30 @@ type Ticket = {
   created_at: string | null;
 };
 
+type SaleRow = {
+  id: number | string;
+  customer_name: string | null;
+  sale_date: string | null;
+  menu_type: string | null;
+  sale_type: string | null;
+  payment_method: string | null;
+  amount: number | null;
+  staff_name: string | null;
+  store_name: string | null;
+  reservation_id?: number | null;
+  memo: string | null;
+  created_at: string | null;
+};
+
+type ReservationRow = {
+  id: number;
+  date: string | null;
+  start_time: string | null;
+  menu: string | null;
+  store_name: string | null;
+  staff_name: string | null;
+};
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -50,6 +74,27 @@ function addMonths(dateStr: string, months: number) {
   return `${y}-${m}-${day}`;
 }
 
+function formatCurrency(value: number) {
+  return `¥${Number(value || 0).toLocaleString()}`;
+}
+
+function formatDateJP(dateStr?: string | null) {
+  if (!dateStr) return "未設定";
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
+}
+
+function formatDateTimeJP(dateStr?: string | null, timeStr?: string | null) {
+  const date = formatDateJP(dateStr);
+  if (!timeStr) return date;
+  return `${date} ${timeStr}`;
+}
+
+type TabType = "tickets" | "sales";
+
 export default function CustomerDetailPage() {
   const params = useParams();
   const rawId = Array.isArray(params?.id) ? params.id[0] : params?.id;
@@ -60,6 +105,8 @@ export default function CustomerDetailPage() {
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [sales, setSales] = useState<SaleRow[]>([]);
+  const [lastReservation, setLastReservation] = useState<ReservationRow | null>(null);
   const [pageError, setPageError] = useState("");
 
   const [ticketName, setTicketName] = useState("4回券");
@@ -70,6 +117,7 @@ export default function CustomerDetailPage() {
   const [expiryDate, setExpiryDate] = useState(addMonths(todayString(), 3));
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>("tickets");
 
   useEffect(() => {
     setMounted(true);
@@ -89,7 +137,10 @@ export default function CustomerDetailPage() {
       if (!id || Number.isNaN(id)) {
         setCustomer(null);
         setTickets([]);
+        setSales([]);
+        setLastReservation(null);
         setPageError("顧客IDが不正です。");
+        setLoading(false);
         return;
       }
 
@@ -102,11 +153,15 @@ export default function CustomerDetailPage() {
       if (customerError || !customerData) {
         setCustomer(null);
         setTickets([]);
+        setSales([]);
+        setLastReservation(null);
         setPageError("顧客情報が見つかりません。");
+        setLoading(false);
         return;
       }
 
-      setCustomer(customerData as Customer);
+      const currentCustomer = customerData as Customer;
+      setCustomer(currentCustomer);
 
       const { data: ticketData, error: ticketError } = await supabase
         .from("customer_tickets")
@@ -119,15 +174,51 @@ export default function CustomerDetailPage() {
       if (ticketError) {
         console.error("ticket fetch error:", ticketError);
         setTickets([]);
-        setPageError("回数券データの取得に失敗しました。");
-        return;
+      } else {
+        setTickets((ticketData as Ticket[] | null) || []);
       }
 
-      setTickets((ticketData as Ticket[] | null) || []);
+      const { data: salesData, error: salesError } = await supabase
+        .from("sales")
+        .select(
+          "id, customer_name, sale_date, menu_type, sale_type, payment_method, amount, staff_name, store_name, reservation_id, memo, created_at"
+        )
+        .eq("customer_name", currentCustomer.name)
+        .order("sale_date", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      if (salesError) {
+        console.error("sales fetch error:", salesError);
+        setSales([]);
+      } else {
+        setSales((salesData as SaleRow[] | null) || []);
+      }
+
+      const { data: reservationData, error: reservationError } = await supabase
+        .from("reservations")
+        .select("id, date, start_time, menu, store_name, staff_name")
+        .eq("customer_name", currentCustomer.name)
+        .order("date", { ascending: false })
+        .order("start_time", { ascending: false })
+        .limit(1);
+
+      if (reservationError) {
+        console.error("reservation fetch error:", reservationError);
+        setLastReservation(null);
+      } else {
+        const latest = ((reservationData as ReservationRow[] | null) || [])[0] || null;
+        setLastReservation(latest);
+      }
+
+      if (ticketError) {
+        setPageError("回数券データの取得に失敗しました。");
+      }
     } catch (error) {
       console.error("fetchCustomerAndTickets error:", error);
       setCustomer(null);
       setTickets([]);
+      setSales([]);
+      setLastReservation(null);
       setPageError("データ取得中にエラーが発生しました。");
     } finally {
       setLoading(false);
@@ -141,6 +232,8 @@ export default function CustomerDetailPage() {
       setLoading(false);
       setCustomer(null);
       setTickets([]);
+      setSales([]);
+      setLastReservation(null);
       setPageError("顧客IDが不正です。");
       return;
     }
@@ -163,6 +256,10 @@ export default function CustomerDetailPage() {
       remain: list.reduce((sum, t) => sum + Number(t.remaining_count || 0), 0),
     };
   }, [tickets]);
+
+  const ltv = useMemo(() => {
+    return sales.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  }, [sales]);
 
   const handleAddTicket = async () => {
     if (!customer) {
@@ -207,6 +304,7 @@ export default function CustomerDetailPage() {
       setNote("");
 
       await fetchCustomerAndTickets();
+      setActiveTab("tickets");
     } catch (error) {
       console.error("handleAddTicket error:", error);
       alert("回数券追加中にエラーが発生しました");
@@ -271,7 +369,7 @@ export default function CustomerDetailPage() {
         <div style={headerRowStyle}>
           <div>
             <h1 style={titleStyle}>{customer.name}</h1>
-            <p style={subTitleStyle}>回数券管理・残数確認</p>
+            <p style={subTitleStyle}>回数券管理・売上履歴・顧客状況</p>
           </div>
 
           <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
@@ -285,6 +383,30 @@ export default function CustomerDetailPage() {
           <MetricCard title="ストレッチ残数" value={`${stretchSummary.remain}回`} />
           <MetricCard title="トレーニング残数" value={`${trainingSummary.remain}回`} />
           <MetricCard title="保有回数券" value={`${tickets.length}件`} />
+          <MetricCard title="LTV" value={formatCurrency(ltv)} />
+          <MetricCard
+            title="最終来店日"
+            value={lastReservation ? formatDateJP(lastReservation.date) : "未登録"}
+          />
+        </div>
+
+        <div style={infoGridStyle}>
+          <InfoCard
+            label="電話番号"
+            value={customer.phone || "未設定"}
+          />
+          <InfoCard
+            label="プラン"
+            value={customer.plan || "未設定"}
+          />
+          <InfoCard
+            label="最終来店時間"
+            value={lastReservation?.start_time || "未設定"}
+          />
+          <InfoCard
+            label="最終来店メニュー"
+            value={lastReservation?.menu || "未設定"}
+          />
         </div>
 
         <div style={mainGridStyle}>
@@ -371,52 +493,107 @@ export default function CustomerDetailPage() {
           </section>
 
           <section style={cardStyle}>
-            <h2 style={sectionTitleStyle}>回数券一覧</h2>
+            <div style={tabHeaderStyle}>
+              <button
+                onClick={() => setActiveTab("tickets")}
+                style={activeTab === "tickets" ? activeTabStyle : tabStyle}
+              >
+                回数券一覧
+              </button>
+              <button
+                onClick={() => setActiveTab("sales")}
+                style={activeTab === "sales" ? activeTabStyle : tabStyle}
+              >
+                売上履歴
+              </button>
+            </div>
 
-            {tickets.length === 0 ? (
-              <div style={emptyStyle}>回数券はまだありません</div>
-            ) : (
-              <div style={{ display: "grid", gap: "14px" }}>
-                {tickets.map((ticket) => (
-                  <div key={ticket.id} style={ticketCardStyle}>
-                    <div style={ticketTopRowStyle}>
-                      <div>
-                        <div style={ticketTitleStyle}>
-                          {ticket.ticket_name || "回数券"}
+            {activeTab === "tickets" ? (
+              <>
+                <h2 style={sectionTitleStyle}>回数券一覧</h2>
+
+                {tickets.length === 0 ? (
+                  <div style={emptyStyle}>回数券はまだありません</div>
+                ) : (
+                  <div style={{ display: "grid", gap: "14px" }}>
+                    {tickets.map((ticket) => (
+                      <div key={ticket.id} style={ticketCardStyle}>
+                        <div style={ticketTopRowStyle}>
+                          <div>
+                            <div style={ticketTitleStyle}>
+                              {ticket.ticket_name || "回数券"}
+                            </div>
+                            <div style={ticketMetaStyle}>
+                              {ticket.service_type} / {ticket.status}
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() => handleDeleteTicket(ticket.id)}
+                            style={deleteButtonStyle}
+                          >
+                            削除
+                          </button>
                         </div>
-                        <div style={ticketMetaStyle}>
-                          {ticket.service_type} / {ticket.status}
+
+                        <div style={ticketInfoGridStyle}>
+                          <TicketInfo
+                            label="残数"
+                            value={`${Number(ticket.remaining_count || 0)} / ${Number(
+                              ticket.total_count || 0
+                            )}`}
+                          />
+                          <TicketInfo
+                            label="購入日"
+                            value={ticket.purchase_date || "未設定"}
+                          />
+                          <TicketInfo
+                            label="有効期限"
+                            value={ticket.expiry_date || "未設定"}
+                          />
+                          <TicketInfo label="メモ" value={ticket.note || "なし"} />
                         </div>
                       </div>
-
-                      <button
-                        onClick={() => handleDeleteTicket(ticket.id)}
-                        style={deleteButtonStyle}
-                      >
-                        削除
-                      </button>
-                    </div>
-
-                    <div style={ticketInfoGridStyle}>
-                      <TicketInfo
-                        label="残数"
-                        value={`${Number(ticket.remaining_count || 0)} / ${Number(
-                          ticket.total_count || 0
-                        )}`}
-                      />
-                      <TicketInfo
-                        label="購入日"
-                        value={ticket.purchase_date || "未設定"}
-                      />
-                      <TicketInfo
-                        label="有効期限"
-                        value={ticket.expiry_date || "未設定"}
-                      />
-                      <TicketInfo label="メモ" value={ticket.note || "なし"} />
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )}
+              </>
+            ) : (
+              <>
+                <h2 style={sectionTitleStyle}>売上履歴</h2>
+
+                {sales.length === 0 ? (
+                  <div style={emptyStyle}>売上履歴はまだありません</div>
+                ) : (
+                  <div style={{ display: "grid", gap: "14px" }}>
+                    {sales.map((sale) => (
+                      <div key={String(sale.id)} style={ticketCardStyle}>
+                        <div style={saleTopRowStyle}>
+                          <div>
+                            <div style={ticketTitleStyle}>
+                              {formatCurrency(Number(sale.amount || 0))}
+                            </div>
+                            <div style={ticketMetaStyle}>
+                              {formatDateJP(sale.sale_date)} / {sale.menu_type || "未設定"}
+                            </div>
+                          </div>
+
+                          <div style={saleBadgeStyle}>
+                            {sale.sale_type || "通常売上"}
+                          </div>
+                        </div>
+
+                        <div style={ticketInfoGridStyle}>
+                          <TicketInfo label="支払方法" value={sale.payment_method || "未設定"} />
+                          <TicketInfo label="担当者" value={sale.staff_name || "未設定"} />
+                          <TicketInfo label="店舗" value={sale.store_name || "未設定"} />
+                          <TicketInfo label="メモ" value={sale.memo || "なし"} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </section>
         </div>
@@ -458,6 +635,19 @@ function TicketInfo({ label, value }: { label: string; value: string }) {
   );
 }
 
+function InfoCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={infoCardStyle}>
+      <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "6px" }}>
+        {label}
+      </div>
+      <div style={{ fontSize: "15px", fontWeight: 800, color: "#111827" }}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
   background: "linear-gradient(135deg, #f7f7f8 0%, #ececef 45%, #dfe3e8 100%)",
@@ -493,6 +683,13 @@ const subTitleStyle: React.CSSProperties = {
 
 const metricGridStyle: React.CSSProperties = {
   display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: "16px",
+  marginBottom: "20px",
+};
+
+const infoGridStyle: React.CSSProperties = {
+  display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
   gap: "16px",
   marginBottom: "24px",
@@ -522,6 +719,13 @@ const metricCardStyle: React.CSSProperties = {
   borderRadius: "22px",
   padding: "22px",
   boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
+};
+
+const infoCardStyle: React.CSSProperties = {
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  borderRadius: "18px",
+  padding: "16px",
 };
 
 const sectionTitleStyle: React.CSSProperties = {
@@ -603,6 +807,14 @@ const ticketTopRowStyle: React.CSSProperties = {
   marginBottom: "14px",
 };
 
+const saleTopRowStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "12px",
+  marginBottom: "14px",
+};
+
 const ticketTitleStyle: React.CSSProperties = {
   fontSize: "18px",
   fontWeight: 800,
@@ -628,5 +840,44 @@ const deleteButtonStyle: React.CSSProperties = {
   background: "#111827",
   color: "#ffffff",
   fontWeight: 700,
+  cursor: "pointer",
+};
+
+const saleBadgeStyle: React.CSSProperties = {
+  borderRadius: "999px",
+  padding: "8px 12px",
+  background: "#eff6ff",
+  border: "1px solid #bfdbfe",
+  color: "#1d4ed8",
+  fontWeight: 700,
+  fontSize: "12px",
+};
+
+const tabHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  gap: "10px",
+  flexWrap: "wrap",
+  marginBottom: "18px",
+};
+
+const tabStyle: React.CSSProperties = {
+  border: "1px solid rgba(203,213,225,0.95)",
+  borderRadius: "999px",
+  padding: "10px 16px",
+  background: "rgba(255,255,255,0.85)",
+  color: "#111827",
+  fontWeight: 700,
+  fontSize: "14px",
+  cursor: "pointer",
+};
+
+const activeTabStyle: React.CSSProperties = {
+  border: "1px solid #111827",
+  borderRadius: "999px",
+  padding: "10px 16px",
+  background: "#111827",
+  color: "#ffffff",
+  fontWeight: 700,
+  fontSize: "14px",
   cursor: "pointer",
 };
