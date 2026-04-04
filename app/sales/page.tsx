@@ -48,6 +48,7 @@ type Sale = {
   category: SaleCategory;
   note: string;
   createdAt: string;
+  reservationId?: number | null;
 };
 
 type SupabaseSaleRow = {
@@ -60,6 +61,7 @@ type SupabaseSaleRow = {
   amount: number | null;
   staff_name: string | null;
   store_name: string | null;
+  reservation_id: number | null;
   memo: string | null;
   created_at: string | null;
 };
@@ -141,6 +143,7 @@ function rowToSale(row: SupabaseSaleRow): Sale {
     category: buildCategory(serviceType, accountingType, paymentMethod),
     note: row.memo || "",
     createdAt: row.created_at || new Date().toISOString(),
+    reservationId: row.reservation_id ?? null,
   };
 }
 
@@ -277,7 +280,7 @@ export default function SalesPage() {
       const { data, error } = await supabase
         .from("sales")
         .select(
-          "id, customer_name, sale_date, menu_type, sale_type, payment_method, amount, staff_name, store_name, memo, created_at"
+          "id, customer_name, sale_date, menu_type, sale_type, payment_method, amount, staff_name, store_name, reservation_id, memo, created_at"
         )
         .order("created_at", { ascending: false });
 
@@ -330,7 +333,8 @@ export default function SalesPage() {
         sale.category.toLowerCase().includes(keyword) ||
         sale.date.toLowerCase().includes(keyword) ||
         sale.storeName.toLowerCase().includes(keyword) ||
-        sale.paymentMethod.toLowerCase().includes(keyword)
+        sale.paymentMethod.toLowerCase().includes(keyword) ||
+        String(sale.reservationId || "").includes(keyword)
       );
     });
   }, [sales, search]);
@@ -457,7 +461,6 @@ export default function SalesPage() {
 
       const mergedNote = [
         menuName.trim() ? `メニュー名: ${menuName.trim()}` : "",
-        reservationId ? `予約ID: ${reservationId}` : "",
         note.trim(),
       ]
         .filter(Boolean)
@@ -472,6 +475,7 @@ export default function SalesPage() {
         amount: Number(row.amount),
         staff_name: staff.trim() || "未設定",
         store_name: storeName.trim() || "未設定",
+        reservation_id: reservationId ? Number(reservationId) : null,
         memo: mergedNote || null,
       }));
 
@@ -524,6 +528,7 @@ export default function SalesPage() {
       "支払方法",
       "カテゴリ",
       "金額",
+      "予約ID",
       "メモ",
     ];
 
@@ -538,6 +543,7 @@ export default function SalesPage() {
       sale.paymentMethod,
       sale.category,
       String(sale.amount),
+      String(sale.reservationId ?? ""),
       sale.note.replace(/\n/g, " "),
     ]);
 
@@ -927,6 +933,9 @@ export default function SalesPage() {
                           <div style={detailTextStyle}>カテゴリ：{sale.category}</div>
                           <div style={detailTextStyle}>会計区分：{sale.accountingType}</div>
                           <div style={detailTextStyle}>支払方法：{sale.paymentMethod}</div>
+                          <div style={detailTextStyle}>
+                            予約ID：{sale.reservationId ?? "なし"}
+                          </div>
                           <div
                             style={{
                               fontSize: "15px",

@@ -28,6 +28,11 @@ type TicketUsageRow = {
   after_count: number | null;
 };
 
+type SaleRow = {
+  id: number;
+  reservation_id: number | null;
+};
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -119,7 +124,6 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
   }
 
   const { data, error } = await query;
-
   const items = ((data as ReservationRow[] | null) || []).sort((a, b) =>
     String(a.start_time || "").localeCompare(String(b.start_time || ""))
   );
@@ -127,6 +131,7 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
   const reservationIds = items.map((item) => item.id).filter(Boolean);
 
   let usageMap = new Map<number, TicketUsageRow>();
+  let salesReservationSet = new Set<number>();
 
   if (reservationIds.length > 0) {
     const { data: usageData } = await supabase
@@ -140,20 +145,23 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
         .filter((row) => row.reservation_id !== null)
         .map((row) => [Number(row.reservation_id), row])
     );
+
+    const { data: salesData } = await supabase
+      .from("sales")
+      .select("id, reservation_id")
+      .in("reservation_id", reservationIds);
+
+    salesReservationSet = new Set(
+      ((salesData as SaleRow[] | null) || [])
+        .map((row) => Number(row.reservation_id))
+        .filter((id) => !Number.isNaN(id) && id > 0)
+    );
   }
 
-  const backHref = `/reservation?month=${currentMonthFromDate(date)}&store=${encodeURIComponent(
-    store
-  )}&staff=${encodeURIComponent(staff)}`;
-  const prevHref = `/reservation/day?date=${prevDate(date)}&store=${encodeURIComponent(
-    store
-  )}&staff=${encodeURIComponent(staff)}`;
-  const nextHref = `/reservation/day?date=${nextDate(date)}&store=${encodeURIComponent(
-    store
-  )}&staff=${encodeURIComponent(staff)}`;
-  const newHref = `/reservation/new?date=${date}&store=${encodeURIComponent(
-    store
-  )}&staff=${encodeURIComponent(staff)}`;
+  const backHref = `/reservation?month=${currentMonthFromDate(date)}&store=${encodeURIComponent(store)}&staff=${encodeURIComponent(staff)}`;
+  const prevHref = `/reservation/day?date=${prevDate(date)}&store=${encodeURIComponent(store)}&staff=${encodeURIComponent(staff)}`;
+  const nextHref = `/reservation/day?date=${nextDate(date)}&store=${encodeURIComponent(store)}&staff=${encodeURIComponent(staff)}`;
+  const newHref = `/reservation/new?date=${date}&store=${encodeURIComponent(store)}&staff=${encodeURIComponent(staff)}`;
 
   return (
     <main style={{ minHeight: "100vh", background: "#f5f5f5", paddingBottom: "90px" }}>
@@ -186,14 +194,7 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
               flexWrap: "wrap",
             }}
           >
-            <div
-              style={{
-                fontSize: "28px",
-                fontWeight: 800,
-                color: "#111827",
-                letterSpacing: "-0.03em",
-              }}
-            >
+            <div style={{ fontSize: "28px", fontWeight: 800, color: "#111827", letterSpacing: "-0.03em" }}>
               {formatJapaneseDate(date)}
             </div>
 
@@ -239,6 +240,57 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
             </Link>
           </div>
 
+          <div
+            style={{
+              display: "flex",
+              gap: "10px",
+              flexWrap: "wrap",
+              marginBottom: "18px",
+              fontSize: "12px",
+              fontWeight: 700,
+              color: "#4b5563",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <span
+                style={{
+                  width: "10px",
+                  height: "10px",
+                  borderRadius: "999px",
+                  background: "#16a34a",
+                  display: "inline-block",
+                }}
+              />
+              回数券消化済み
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <span
+                style={{
+                  width: "10px",
+                  height: "10px",
+                  borderRadius: "999px",
+                  background: "#2563eb",
+                  display: "inline-block",
+                }}
+              />
+              売上登録済み
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <span
+                style={{
+                  width: "10px",
+                  height: "10px",
+                  borderRadius: "999px",
+                  background: "#fb923c",
+                  display: "inline-block",
+                }}
+              />
+              未消化
+            </div>
+          </div>
+
           {error ? (
             <div style={emptyStyle}>予約データの取得に失敗しました。</div>
           ) : items.length === 0 ? (
@@ -248,6 +300,7 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
               {items.map((item) => {
                 const color = STAFF_COLORS[item.staff_name || "その他"] || "#9ca3af";
                 const usage = usageMap.get(item.id);
+                const isSalesRegistered = salesReservationSet.has(item.id);
                 const serviceType = detectServiceType(item.menu);
 
                 const salesHref = `/sales?date=${encodeURIComponent(item.date || "")}&customer_name=${encodeURIComponent(
@@ -315,14 +368,7 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
                         >
                           {item.store_name ? <span style={chipStyle}>{item.store_name}</span> : null}
                           {item.staff_name ? (
-                            <span
-                              style={{
-                                ...chipStyle,
-                                background: color,
-                                color: "#fff",
-                                border: "none",
-                              }}
-                            >
+                            <span style={{ ...chipStyle, background: color, color: "#fff", border: "none" }}>
                               {item.staff_name}
                             </span>
                           ) : null}
@@ -352,6 +398,19 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
                               未消化
                             </span>
                           )}
+
+                          {isSalesRegistered ? (
+                            <span
+                              style={{
+                                ...chipStyle,
+                                background: "#eff6ff",
+                                color: "#1d4ed8",
+                                border: "1px solid #93c5fd",
+                              }}
+                            >
+                              売上登録済み
+                            </span>
+                          ) : null}
                         </div>
 
                         {usage ? (
@@ -364,8 +423,7 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
                               fontWeight: 700,
                             }}
                           >
-                            {usage.ticket_name || "回数券"} / 消化前 {usage.before_count ?? "-"} → 消化後{" "}
-                            {usage.after_count ?? "-"}
+                            {usage.ticket_name || "回数券"} / 消化前 {usage.before_count ?? "-"} → 消化後 {usage.after_count ?? "-"}
                           </div>
                         ) : null}
 
@@ -395,9 +453,14 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
                         <Link href={`/reservation/detail/${item.id}`} style={actionButtonStyle}>
                           詳細を見る
                         </Link>
-                        <Link href={salesHref} style={actionDarkButtonStyle}>
-                          売上登録へ
-                        </Link>
+
+                        {isSalesRegistered ? (
+                          <span style={doneButtonStyle}>売上登録済み</span>
+                        ) : (
+                          <Link href={salesHref} style={actionDarkButtonStyle}>
+                            売上登録へ
+                          </Link>
+                        )}
                       </div>
                     </div>
 
@@ -470,6 +533,17 @@ const actionDarkButtonStyle: React.CSSProperties = {
   padding: "10px 14px",
   fontWeight: 700,
   fontSize: "13px",
+};
+
+const doneButtonStyle: React.CSSProperties = {
+  background: "#eff6ff",
+  color: "#1d4ed8",
+  border: "1px solid #93c5fd",
+  borderRadius: "12px",
+  padding: "10px 14px",
+  fontWeight: 700,
+  fontSize: "13px",
+  display: "inline-block",
 };
 
 const emptyStyle: React.CSSProperties = {

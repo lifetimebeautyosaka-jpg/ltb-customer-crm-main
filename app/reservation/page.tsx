@@ -18,6 +18,11 @@ type TicketUsageRow = {
   reservation_id: number | null;
 };
 
+type SaleRow = {
+  id: number;
+  reservation_id: number | null;
+};
+
 type CalendarItem = {
   id: number;
   date: string;
@@ -26,6 +31,7 @@ type CalendarItem = {
   store: string;
   staff: string;
   isTicketUsed: boolean;
+  isSalesRegistered: boolean;
 };
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -106,9 +112,11 @@ function getDisplayTitle(row: ReservationRow) {
 
 function mapReservationToCalendarItem(
   row: ReservationRow,
-  usedReservationIds: Set<number>
+  usedReservationIds: Set<number>,
+  salesReservationIds: Set<number>
 ): CalendarItem {
   const staff = row.staff_name || "その他";
+
   return {
     id: row.id,
     date: row.date,
@@ -117,6 +125,7 @@ function mapReservationToCalendarItem(
     store: row.store_name || "未設定",
     staff,
     isTicketUsed: usedReservationIds.has(row.id),
+    isSalesRegistered: salesReservationIds.has(row.id),
   };
 }
 
@@ -178,6 +187,7 @@ export default function ReservationPage() {
         const reservationIds = reservationRows.map((row) => row.id).filter(Boolean);
 
         let usedReservationIds = new Set<number>();
+        let salesReservationIds = new Set<number>();
 
         if (reservationIds.length > 0) {
           const { data: usageData, error: usageError } = await supabase
@@ -192,10 +202,23 @@ export default function ReservationPage() {
                 .filter((id) => !Number.isNaN(id) && id > 0)
             );
           }
+
+          const { data: salesData, error: salesError } = await supabase
+            .from("sales")
+            .select("id, reservation_id")
+            .in("reservation_id", reservationIds);
+
+          if (!salesError) {
+            salesReservationIds = new Set(
+              ((salesData as SaleRow[] | null) || [])
+                .map((row) => Number(row.reservation_id))
+                .filter((id) => !Number.isNaN(id) && id > 0)
+            );
+          }
         }
 
         const mapped = reservationRows.map((row) =>
-          mapReservationToCalendarItem(row, usedReservationIds)
+          mapReservationToCalendarItem(row, usedReservationIds, salesReservationIds)
         );
 
         setReservations(mapped);
@@ -240,14 +263,7 @@ export default function ReservationPage() {
               ←
             </button>
 
-            <div
-              style={{
-                fontSize: "36px",
-                fontWeight: 800,
-                color: "#111827",
-                letterSpacing: "-0.03em",
-              }}
-            >
+            <div style={{ fontSize: "36px", fontWeight: 800, color: "#111827", letterSpacing: "-0.03em" }}>
               {formatMonthLabel(month)}
             </div>
 
@@ -316,15 +332,7 @@ export default function ReservationPage() {
             marginBottom: "16px",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              gap: "10px",
-              overflowX: "auto",
-              paddingBottom: "6px",
-              marginBottom: "12px",
-            }}
-          >
+          <div style={{ display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "6px", marginBottom: "12px" }}>
             {STORE_TABS.map((tab) => {
               const active = store === tab;
               return (
@@ -398,6 +406,19 @@ export default function ReservationPage() {
                 }}
               />
               回数券消化済み
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <span
+                style={{
+                  width: "10px",
+                  height: "10px",
+                  borderRadius: "999px",
+                  background: "#2563eb",
+                  display: "inline-block",
+                }}
+              />
+              売上登録済み
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
@@ -539,14 +560,34 @@ export default function ReservationPage() {
                         >
                           <span
                             style={{
-                              width: "8px",
-                              height: "8px",
-                              borderRadius: "999px",
-                              background: item.isTicketUsed ? "#16a34a" : "#fb923c",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "4px",
                               flexShrink: 0,
-                              boxShadow: "0 0 0 1px rgba(255,255,255,0.65)",
                             }}
-                          />
+                          >
+                            <span
+                              style={{
+                                width: "8px",
+                                height: "8px",
+                                borderRadius: "999px",
+                                background: item.isTicketUsed ? "#16a34a" : "#fb923c",
+                                boxShadow: "0 0 0 1px rgba(255,255,255,0.65)",
+                              }}
+                            />
+                            {item.isSalesRegistered ? (
+                              <span
+                                style={{
+                                  width: "8px",
+                                  height: "8px",
+                                  borderRadius: "999px",
+                                  background: "#2563eb",
+                                  boxShadow: "0 0 0 1px rgba(255,255,255,0.65)",
+                                }}
+                              />
+                            ) : null}
+                          </span>
+
                           <span
                             style={{
                               overflow: "hidden",
