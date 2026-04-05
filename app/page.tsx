@@ -4,137 +4,143 @@ import Link from "next/link";
 
 export default function HomePage() {
   return (
-    <main style={styles.page} className="gymup-page">
+    <main style={styles.page}>
       <style>{`
-        /* ===== アニメーション ===== */
-
-        @keyframes heroShineMove {
-          0% { transform: translateX(-140%) skewX(-28deg); opacity: 0; }
-          12% { opacity: 1; }
-          28% { transform: translateX(240%) skewX(-28deg); opacity: 0; }
-          100% { opacity: 0; }
+        /* ===== 上昇ラメ（ダイヤ粒） ===== */
+        @keyframes sparkleRise {
+          0% {
+            transform: translateY(20px) scale(0.6);
+            opacity: 0;
+          }
+          20% { opacity: 0.9; }
+          50% {
+            transform: translateY(-40px) scale(1);
+            opacity: 1;
+          }
+          100% {
+            transform: translateY(-120px) scale(0.6);
+            opacity: 0;
+          }
         }
 
-        @keyframes verticalShine {
-          0% { transform: translateY(-120%) skewY(-12deg); opacity: 0; }
-          15% { opacity: 1; }
-          35% { transform: translateY(140%) skewY(-12deg); opacity: 0; }
-          100% { opacity: 0; }
-        }
-
-        @keyframes sparkle {
-          0%,100% { opacity: 0.5; transform: scale(0.9); }
-          50% { opacity: 1; transform: scale(1.2); }
-        }
-
-        /* ===== 共通 ===== */
-
-        .gymup-panel {
-          position: relative;
-          overflow: hidden;
-          transition: all 0.25s ease;
-        }
-
-        .gymup-panel:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 30px 60px rgba(0,0,0,0.08);
+        .sparkle {
+          position: absolute;
+          bottom: 0;
+          width: 5px;
+          height: 5px;
+          border-radius: 50%;
+          background: linear-gradient(135deg,#fff,#f1f5f9);
+          box-shadow: 0 0 10px rgba(255,255,255,0.9),
+                      0 0 20px rgba(255,255,255,0.6);
+          animation: sparkleRise 4s ease-in-out infinite;
         }
 
         /* ===== 横キラ ===== */
-
-        .gymup-panel::before {
-          content: "";
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(
-            120deg,
-            transparent 0%,
-            transparent 40%,
-            rgba(255,255,255,0.7) 50%,
-            transparent 60%,
-            transparent 100%
-          );
-          transform: translateX(-150%);
-          opacity: 0;
-        }
-
-        .gymup-panel:hover::before {
-          animation: heroShineMove 1.2s ease;
+        @keyframes shineX {
+          0% { transform: translateX(-150%); opacity:0; }
+          20% { opacity:1; }
+          60% { transform: translateX(250%); opacity:0; }
+          100% { opacity:0; }
         }
 
         /* ===== 縦キラ ===== */
+        @keyframes shineY {
+          0% { transform: translateY(-120%); opacity:0; }
+          20% { opacity:1; }
+          60% { transform: translateY(150%); opacity:0; }
+          100% { opacity:0; }
+        }
 
-        .gymup-panel::after {
-          content: "";
-          position: absolute;
-          top: -20%;
-          left: 50%;
-          width: 1px;
-          height: 140%;
+        .panel {
+          position: relative;
+          overflow: hidden;
+          transition: all .3s ease;
+        }
+
+        .panel:hover {
+          transform: translateY(-6px);
+          box-shadow: 0 30px 60px rgba(0,0,0,0.08);
+        }
+
+        .panel::before {
+          content:"";
+          position:absolute;
+          inset:0;
+          background: linear-gradient(
+            120deg,
+            transparent 40%,
+            rgba(255,255,255,0.8) 50%,
+            transparent 60%
+          );
+          transform: translateX(-150%);
+        }
+
+        .panel:hover::before {
+          animation: shineX 1.2s ease;
+        }
+
+        .panel::after {
+          content:"";
+          position:absolute;
+          left:50%;
+          top:-20%;
+          width:1px;
+          height:140%;
           transform: translateX(-50%);
           background: linear-gradient(
             180deg,
-            transparent 0%,
-            rgba(255,255,255,0.9) 30%,
-            rgba(245,158,11,0.4) 50%,
-            rgba(255,255,255,0.9) 70%,
-            transparent 100%
+            transparent,
+            rgba(255,255,255,0.9),
+            rgba(245,158,11,0.4),
+            transparent
           );
-          opacity: 0;
         }
 
-        .gymup-panel:hover::after {
-          animation: verticalShine 1.4s ease;
+        .panel:hover::after {
+          animation: shineY 1.4s ease;
         }
-
-        /* ===== キラ粒 ===== */
-
-        .spark {
-          animation: sparkle 3s ease-in-out infinite;
-        }
-
-        /* ===== ロゴ浮遊 ===== */
-
-        .logo-float {
-          animation: sparkle 5s ease-in-out infinite;
-        }
-
       `}</style>
 
+      {/* 粒 */}
+      <div className="sparkle" style={{ left:"20%", animationDelay:"0s" }} />
+      <div className="sparkle" style={{ left:"40%", animationDelay:"1s" }} />
+      <div className="sparkle" style={{ left:"60%", animationDelay:"2s" }} />
+      <div className="sparkle" style={{ left:"80%", animationDelay:"1.5s" }} />
+
       <div style={styles.container}>
-        {/* ヘッダー */}
-        <section style={styles.heroCard}>
-          <div style={styles.logoWrap} className="logo-float">
-            <img src="/gymup-logo.png" style={styles.logo} />
-          </div>
-
+        {/* HERO */}
+        <section style={styles.hero}>
+          <img src="/gymup-logo.png" style={styles.logo} />
           <h1 style={styles.title}>GYMUP CRM</h1>
-
           <p style={styles.desc}>
-            顧客管理・売上・予約・トレーニングを
-            <br />
-            一元管理する次世代CRM
+            顧客・売上・予約・トレーニングを一元管理する
+            <br />高級CRMシステム
           </p>
         </section>
 
-        {/* メニュー */}
+        {/* MENU */}
         <section style={styles.grid}>
-          <Link href="/customer" className="gymup-panel" style={styles.panel}>
+          <Link href="/customer" className="panel" style={styles.panel}>
             <div style={styles.label}>CUSTOMER</div>
             <div style={styles.panelTitle}>顧客管理</div>
           </Link>
 
-          <Link href="/sales" className="gymup-panel" style={styles.panel}>
+          <Link href="/training" className="panel" style={styles.panel}>
+            <div style={styles.label}>TRAINING</div>
+            <div style={styles.panelTitle}>トレーニング履歴</div>
+          </Link>
+
+          <Link href="/sales" className="panel" style={styles.panel}>
             <div style={styles.label}>SALES</div>
             <div style={styles.panelTitle}>売上管理</div>
           </Link>
 
-          <Link href="/reservation" className="gymup-panel" style={styles.panel}>
+          <Link href="/reservation" className="panel" style={styles.panel}>
             <div style={styles.label}>RESERVATION</div>
             <div style={styles.panelTitle}>予約管理</div>
           </Link>
 
-          <Link href="/accounting" className="gymup-panel" style={styles.panel}>
+          <Link href="/accounting" className="panel" style={styles.panel}>
             <div style={styles.label}>ACCOUNTING</div>
             <div style={styles.panelTitle}>会計管理</div>
           </Link>
@@ -146,60 +152,46 @@ export default function HomePage() {
 
 const styles = {
   page: {
-    minHeight: "100vh",
-    background: "linear-gradient(135deg,#ffffff,#f1f5f9)",
-    padding: "40px",
+    minHeight:"100vh",
+    background:"linear-gradient(135deg,#ffffff,#eef2f7)",
+    padding:"40px"
   },
-
-  container: {
-    maxWidth: "1000px",
-    margin: "0 auto",
+  container:{
+    maxWidth:"1000px",
+    margin:"0 auto"
   },
-
-  heroCard: {
-    textAlign: "center" as const,
-    marginBottom: "40px",
+  hero:{
+    textAlign:"center",
+    marginBottom:"40px"
   },
-
-  logoWrap: {
-    marginBottom: "20px",
+  logo:{
+    width:"260px"
   },
-
-  logo: {
-    width: "260px",
+  title:{
+    fontSize:"42px",
+    fontWeight:900
   },
-
-  title: {
-    fontSize: "40px",
-    fontWeight: 900,
+  desc:{
+    color:"#64748b"
   },
-
-  desc: {
-    marginTop: "10px",
-    color: "#64748b",
+  grid:{
+    display:"grid",
+    gridTemplateColumns:"1fr 1fr",
+    gap:"20px"
   },
-
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "20px",
+  panel:{
+    padding:"30px",
+    borderRadius:"20px",
+    background:"#fff",
+    textDecoration:"none",
+    color:"#111"
   },
-
-  panel: {
-    padding: "30px",
-    borderRadius: "20px",
-    background: "white",
-    textDecoration: "none",
-    color: "#111",
+  label:{
+    fontSize:"12px",
+    color:"#94a3b8"
   },
-
-  label: {
-    fontSize: "12px",
-    color: "#94a3b8",
-  },
-
-  panelTitle: {
-    fontSize: "22px",
-    fontWeight: 800,
-  },
+  panelTitle:{
+    fontSize:"22px",
+    fontWeight:800
+  }
 };
