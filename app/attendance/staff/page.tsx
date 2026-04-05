@@ -17,6 +17,8 @@ type AttendanceRow = {
   late_night_minutes: number | null;
   total_work_minutes: number | null;
   note: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 type StaffMasterRow = {
@@ -72,7 +74,11 @@ function minutesToText(minutes: number) {
   return `${h}時間${m}分`;
 }
 
-function calcTotalMinutes(clockIn?: string | null, clockOut?: string | null, breakMinutes = 0) {
+function calcTotalMinutes(
+  clockIn?: string | null,
+  clockOut?: string | null,
+  breakMinutes = 0
+) {
   if (!clockIn || !clockOut) return 0;
   const start = new Date(clockIn).getTime();
   const end = new Date(clockOut).getTime();
@@ -105,7 +111,9 @@ function calcLateNightMinutes(clockIn?: string | null, clockOut?: string | null)
   const start = new Date(clockIn);
   const end = new Date(clockOut);
 
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return 0;
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+    return 0;
+  }
 
   let total = 0;
   const cursor = new Date(start);
@@ -124,7 +132,12 @@ function calcLateNightMinutes(clockIn?: string | null, clockOut?: string | null)
     const lateNightStart = new Date(y, m, d, 22, 0, 0, 0).getTime();
     const lateNightEnd = new Date(y, m, d + 1, 5, 0, 0, 0).getTime();
 
-    total += overlapMinutes(start.getTime(), end.getTime(), lateNightStart, lateNightEnd);
+    total += overlapMinutes(
+      start.getTime(),
+      end.getTime(),
+      lateNightStart,
+      lateNightEnd
+    );
 
     cursor.setDate(cursor.getDate() + 1);
   }
@@ -192,7 +205,7 @@ export default function AttendanceStaffPage() {
       .from("staff_master")
       .select("staff_id, staff_name")
       .eq("staff_id", clientStaffId)
-      .maybeSingle();
+      .maybeSingle<StaffMasterRow>();
 
     if (checkError) {
       throw new Error(`スタッフ確認エラー: ${checkError.message}`);
@@ -218,13 +231,13 @@ export default function AttendanceStaffPage() {
       .select("*")
       .eq("staff_id", clientStaffId)
       .eq("work_date", todayJst)
-      .maybeSingle();
+      .maybeSingle<AttendanceRow>();
 
     if (error) {
       throw new Error(`勤怠取得エラー: ${error.message}`);
     }
 
-    const row = (data as AttendanceRow | null) || null;
+    const row = data || null;
     setTodayRow(row);
     setBreakMinutes(row?.break_minutes ?? 60);
     setNote(row?.note ?? "");
@@ -249,7 +262,8 @@ export default function AttendanceStaffPage() {
         await ensureStaffMaster(staffId, staffName || inputStaffName || "スタッフ");
         await loadTodayAttendance(staffId);
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "初期化に失敗しました。";
+        const msg =
+          error instanceof Error ? error.message : "初期化に失敗しました。";
         alert(msg);
       } finally {
         setLoading(false);
@@ -274,10 +288,16 @@ export default function AttendanceStaffPage() {
   function getLiveWorkedMinutes() {
     if (!todayRow?.clock_in) return 0;
 
-    const endSource = todayRow.clock_out ? new Date(todayRow.clock_out).getTime() : liveNow;
+    const endSource = todayRow.clock_out
+      ? new Date(todayRow.clock_out).getTime()
+      : liveNow;
     const startSource = new Date(todayRow.clock_in).getTime();
 
-    if (!Number.isFinite(startSource) || !Number.isFinite(endSource) || endSource <= startSource) {
+    if (
+      !Number.isFinite(startSource) ||
+      !Number.isFinite(endSource) ||
+      endSource <= startSource
+    ) {
       return 0;
     }
 
@@ -316,7 +336,8 @@ export default function AttendanceStaffPage() {
       await ensureStaffMaster(generatedId, name);
       await loadTodayAttendance(generatedId);
     } catch (error) {
-      const msg = error instanceof Error ? error.message : "スタッフ保存に失敗しました。";
+      const msg =
+        error instanceof Error ? error.message : "スタッフ保存に失敗しました。";
       alert(msg);
     } finally {
       setSaving(false);
@@ -344,7 +365,7 @@ export default function AttendanceStaffPage() {
         .select("*")
         .eq("staff_id", staffId)
         .eq("work_date", todayJst)
-        .maybeSingle();
+        .maybeSingle<AttendanceRow>();
 
       if (existingError) {
         throw new Error(`出勤前チェックエラー: ${existingError.message}`);
@@ -388,7 +409,8 @@ export default function AttendanceStaffPage() {
       await loadTodayAttendance(staffId);
       alert("出勤を記録しました。");
     } catch (error) {
-      const msg = error instanceof Error ? error.message : "出勤登録に失敗しました。";
+      const msg =
+        error instanceof Error ? error.message : "出勤登録に失敗しました。";
       alert(msg);
     } finally {
       setSaving(false);
@@ -414,7 +436,7 @@ export default function AttendanceStaffPage() {
         .select("*")
         .eq("staff_id", staffId)
         .eq("work_date", todayJst)
-        .maybeSingle();
+        .maybeSingle<AttendanceRow>();
 
       if (fetchError) {
         throw new Error(`退勤前取得エラー: ${fetchError.message}`);
@@ -457,7 +479,8 @@ export default function AttendanceStaffPage() {
       await loadTodayAttendance(staffId);
       alert("退勤を記録しました。");
     } catch (error) {
-      const msg = error instanceof Error ? error.message : "退勤登録に失敗しました。";
+      const msg =
+        error instanceof Error ? error.message : "退勤登録に失敗しました。";
       alert(msg);
     } finally {
       setSaving(false);
@@ -615,11 +638,17 @@ export default function AttendanceStaffPage() {
               <button
                 onClick={handleClockOut}
                 disabled={
-                  saving || !staffName || !Boolean(todayRow?.clock_in) || Boolean(todayRow?.clock_out)
+                  saving ||
+                  !staffName ||
+                  !Boolean(todayRow?.clock_in) ||
+                  Boolean(todayRow?.clock_out)
                 }
                 style={{
                   ...actionButtonStyle,
-                  ...(saving || !staffName || !Boolean(todayRow?.clock_in) || Boolean(todayRow?.clock_out)
+                  ...(saving ||
+                  !staffName ||
+                  !Boolean(todayRow?.clock_in) ||
+                  Boolean(todayRow?.clock_out)
                     ? disabledButtonStyle
                     : clockOutButtonStyle),
                 }}
@@ -650,7 +679,11 @@ export default function AttendanceStaffPage() {
               />
             </div>
 
-            <button onClick={handleSaveMemo} disabled={saving || !todayRow?.id} style={secondaryButtonStyle}>
+            <button
+              onClick={handleSaveMemo}
+              disabled={saving || !todayRow?.id}
+              style={secondaryButtonStyle}
+            >
               休憩・備考を保存
             </button>
           </div>
@@ -676,13 +709,17 @@ export default function AttendanceStaffPage() {
             <div style={metricCardStyle}>
               <div style={metricLabelStyle}>深夜時間</div>
               <div style={metricValueStyle}>
-                {minutesToText(todayRow?.clock_out ? (todayRow.late_night_minutes ?? 0) : lateNightMinutes)}
+                {minutesToText(
+                  todayRow?.clock_out
+                    ? (todayRow.late_night_minutes ?? 0)
+                    : lateNightMinutes
+                )}
               </div>
             </div>
             <div style={metricCardStyle}>
               <div style={metricLabelStyle}>最終更新</div>
               <div style={metricValueSmallStyle}>
-                {todayRow ? formatDateTime(todayRow.updated_at as unknown as string) : "-"}
+                {todayRow?.updated_at ? formatDateTime(todayRow.updated_at) : "-"}
               </div>
             </div>
           </div>
@@ -691,18 +728,28 @@ export default function AttendanceStaffPage() {
             <div style={detailRowStyle}>
               <span style={detailLabelStyle}>通常勤務</span>
               <span style={detailValueStyle}>
-                {minutesToText(todayRow?.clock_out ? (todayRow.regular_minutes ?? 0) : Math.max(0, workedMinutes - overtimeMinutes))}
+                {minutesToText(
+                  todayRow?.clock_out
+                    ? (todayRow.regular_minutes ?? 0)
+                    : Math.max(0, workedMinutes - overtimeMinutes)
+                )}
               </span>
             </div>
             <div style={detailRowStyle}>
               <span style={detailLabelStyle}>総勤務時間</span>
               <span style={detailValueStyle}>
-                {minutesToText(todayRow?.clock_out ? (todayRow.total_work_minutes ?? 0) : workedMinutes)}
+                {minutesToText(
+                  todayRow?.clock_out
+                    ? (todayRow.total_work_minutes ?? 0)
+                    : workedMinutes
+                )}
               </span>
             </div>
             <div style={detailRowStyle}>
               <span style={detailLabelStyle}>状態</span>
-              <span style={{ ...detailValueStyle, color: getStatusColor() }}>{getStatusLabel()}</span>
+              <span style={{ ...detailValueStyle, color: getStatusColor() }}>
+                {getStatusLabel()}
+              </span>
             </div>
           </div>
         </div>
@@ -728,7 +775,8 @@ const bgGlowA: CSSProperties = {
   width: 380,
   height: 380,
   borderRadius: "50%",
-  background: "radial-gradient(circle, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0) 70%)",
+  background:
+    "radial-gradient(circle, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0) 70%)",
   pointerEvents: "none",
 };
 
@@ -739,7 +787,8 @@ const bgGlowB: CSSProperties = {
   width: 300,
   height: 300,
   borderRadius: "50%",
-  background: "radial-gradient(circle, rgba(147,197,253,0.10) 0%, rgba(147,197,253,0) 70%)",
+  background:
+    "radial-gradient(circle, rgba(147,197,253,0.10) 0%, rgba(147,197,253,0) 70%)",
   pointerEvents: "none",
 };
 
