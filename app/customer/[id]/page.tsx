@@ -1,929 +1,1175 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
-import { BG, CARD, BUTTON_PRIMARY } from "../../../styles/theme";
+import { BG, GLASS, CARD, BUTTON_PRIMARY } from "../../../styles/theme";
 
 type Customer = {
-  id: number | string;
+  id: string;
   name?: string;
   kana?: string;
   gender?: string;
   age?: number | string;
-  birthday?: string;
   phone?: string;
   email?: string;
+  birthday?: string;
+  goal?: string;
+  memo?: string;
+  planType?: string;
+  planStyle?: string;
+  monthlyCount?: number;
+  usedCount?: number;
+  carryOver?: number;
+  remaining?: number;
+  price?: number;
+  status?: string;
+  nextPayment?: string;
+  lastVisitAt?: string;
+  created_at?: string;
+  updated_at?: string;
   height?: number | string;
   weight?: number | string;
   bodyFat?: number | string;
   muscleMass?: number | string;
   visceralFat?: number | string;
-  goal?: string;
-  memo?: string;
-  notes?: string;
-  note?: string;
-  purpose?: string;
-  target?: string;
-  planType?: string;
-  planStyle?: string;
-  price?: number | string;
-  monthlyCount?: number | string;
-  usedCount?: number | string;
-  carryOver?: number | string;
-  remaining?: number | string;
-  status?: string;
-  nextPayment?: string;
-  lastVisitDate?: string;
-  ltv?: number | string;
-  [key: string]: any;
 };
 
-type TrainingHistoryItem = {
+type TrainingSet = {
+  id?: string;
+  row_id?: string | null;
+  row_order?: number | null;
+  category?: string | null;
+  exercise_name?: string | null;
+  set_count?: number | null;
+  reps?: string | null;
+  weight?: string | null;
+  seconds?: string | null;
+  memo?: string | null;
+};
+
+type TrainingSession = {
   id: string;
-  date: string | null;
-  weight: number | null;
+  customer_id: string;
+  session_date: string | null;
+  body_weight: number | null;
   summary: string | null;
   next_task: string | null;
-  template_name: string | null;
-  created_at: string;
+  posture_note: string | null;
+  stretch_menu: string[] | null;
+  posture_image_urls: string[] | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  training_sets?: TrainingSet[];
 };
 
 type SaleItem = {
-  id: string;
-  sale_date: string | null;
-  customer_id: number | null;
-  customer_name: string | null;
-  amount: number | null;
-  payment_method: string | null;
-  category: string | null;
-  memo: string | null;
-  reservation_id: number | null;
-  created_at: string | null;
+  id: string | number;
+  customer_id?: string | number | null;
+  customer_name?: string | null;
+  sale_date?: string | null;
+  menu_type?: string | null;
+  sale_type?: string | null;
+  payment_method?: string | null;
+  amount?: number | null;
+  staff_name?: string | null;
+  store_name?: string | null;
+  reservation_id?: number | null;
+  memo?: string | null;
+  created_at?: string | null;
 };
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-
 const supabase =
-  supabaseUrl && supabaseAnonKey
-    ? createClient(supabaseUrl, supabaseAnonKey)
+  process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    ? createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      )
     : null;
 
-export default function CustomerDetailPage() {
-  const params = useParams();
-  const rawId = params?.id;
-
-  const id = useMemo(() => {
-    if (Array.isArray(rawId)) return String(rawId[0]);
-    return String(rawId || "");
-  }, [rawId]);
-
-  const numericId = useMemo(() => {
-    const n = Number(id);
-    return Number.isNaN(n) ? null : n;
-  }, [id]);
-
-  const [mounted, setMounted] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [customer, setCustomer] = useState<Customer | null>(null);
-  const [errorMessage, setErrorMessage] = useState("");
-
-  const [latestTrainingDate, setLatestTrainingDate] = useState("");
-  const [latestTrainingWeight, setLatestTrainingWeight] = useState("");
-  const [latestTrainingId, setLatestTrainingId] = useState("");
-  const [loadingTrainingSummary, setLoadingTrainingSummary] = useState(false);
-  const [recentTrainingHistory, setRecentTrainingHistory] = useState<
-    TrainingHistoryItem[]
-  >([]);
-
-  const [loadingSales, setLoadingSales] = useState(false);
-  const [salesHistory, setSalesHistory] = useState<SaleItem[]>([]);
-  const [salesTotal, setSalesTotal] = useState(0);
-  const [latestSaleDate, setLatestSaleDate] = useState("");
-
-  useEffect(() => {
-    setMounted(true);
-
-    const loggedIn =
-      localStorage.getItem("gymup_logged_in") ||
-      localStorage.getItem("isLoggedIn");
-
-    if (loggedIn !== "true") {
-      window.location.href = "/login";
-      return;
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!mounted || !id) return;
-    fetchCustomer();
-  }, [mounted, id]);
-
-  useEffect(() => {
-    if (!mounted || !numericId) return;
-    fetchTrainingSummaryAndHistory(numericId);
-    fetchSalesHistory(numericId);
-  }, [mounted, numericId]);
-
-  const fetchCustomer = async () => {
-    try {
-      setLoading(true);
-      setErrorMessage("");
-
-      let foundCustomer: Customer | null = null;
-
-      if (supabase && numericId != null) {
-        const { data, error } = await supabase
-          .from("customers")
-          .select("*")
-          .eq("id", numericId)
-          .maybeSingle();
-
-        if (!error && data) {
-          foundCustomer = data as Customer;
-        }
-      }
-
-      if (!foundCustomer) {
-        const detailRaw = localStorage.getItem(`customer-${id}`);
-        if (detailRaw) {
-          try {
-            const parsed = JSON.parse(detailRaw);
-            foundCustomer = {
-              id,
-              ...parsed,
-            };
-          } catch {}
-        }
-      }
-
-      if (!foundCustomer) {
-        const customersRaw = localStorage.getItem("customers");
-        if (customersRaw) {
-          try {
-            const parsed = JSON.parse(customersRaw);
-            if (Array.isArray(parsed)) {
-              const matched = parsed.find(
-                (item: any) =>
-                  String(item?.id) === String(id) ||
-                  String(item?.customerId) === String(id)
-              );
-              if (matched) {
-                foundCustomer = matched;
-              }
-            }
-          } catch {}
-        }
-      }
-
-      if (!foundCustomer) {
-        setErrorMessage("顧客情報が見つかりませんでした。");
-        setCustomer(null);
-        return;
-      }
-
-      setCustomer(foundCustomer);
-    } catch (error: any) {
-      setErrorMessage(error?.message || "顧客情報の取得に失敗しました。");
-      setCustomer(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchTrainingSummaryAndHistory = async (customerId: number) => {
-    if (!supabase) return;
-
-    try {
-      setLoadingTrainingSummary(true);
-
-      const { data, error } = await supabase
-        .from("training_sessions")
-        .select("id, date, weight, summary, next_task, template_name, created_at")
-        .eq("customer_id", customerId)
-        .order("date", { ascending: false })
-        .order("created_at", { ascending: false })
-        .limit(6);
-
-      if (error) throw error;
-
-      const rows = (data || []) as TrainingHistoryItem[];
-
-      const latest = rows[0];
-      setLatestTrainingId(latest?.id ? String(latest.id) : "");
-      setLatestTrainingDate(latest?.date ? String(latest.date) : "");
-      setLatestTrainingWeight(
-        latest?.weight != null ? `${latest.weight}kg` : ""
-      );
-      setRecentTrainingHistory(rows);
-    } catch (e) {
-      console.error("トレーニング情報取得失敗:", e);
-      setRecentTrainingHistory([]);
-    } finally {
-      setLoadingTrainingSummary(false);
-    }
-  };
-
-  const fetchSalesHistory = async (customerId: number) => {
-    if (!supabase) return;
-
-    try {
-      setLoadingSales(true);
-
-      const { data, error } = await supabase
-        .from("sales")
-        .select(
-          "id, sale_date, customer_id, customer_name, amount, payment_method, category, memo, reservation_id, created_at"
-        )
-        .eq("customer_id", customerId)
-        .order("sale_date", { ascending: false })
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      const rows = (data || []) as SaleItem[];
-
-      setSalesHistory(rows);
-      setSalesTotal(
-        rows.reduce((sum, item) => sum + Number(item.amount || 0), 0)
-      );
-      setLatestSaleDate(rows[0]?.sale_date || "");
-    } catch (e) {
-      console.error("売上情報取得失敗:", e);
-      setSalesHistory([]);
-      setSalesTotal(0);
-      setLatestSaleDate("");
-    } finally {
-      setLoadingSales(false);
-    }
-  };
-
-  const displayName =
-    customer?.name ||
-    customer?.customer_name ||
-    customer?.full_name ||
-    customer?.nickname ||
-    "顧客名未設定";
-
-  const displayGoal = customer?.goal || customer?.purpose || customer?.target || "";
-  const displayMemo = customer?.memo || customer?.notes || customer?.note || "";
-
-  if (!mounted) return null;
-
-  return (
-    <main style={styles.page}>
-      <div style={styles.glowA} />
-      <div style={styles.glowB} />
-      <div style={styles.glowC} />
-
-      <div style={styles.container}>
-        <div style={styles.headerBar}>
-          <Link href="/customer" style={styles.backLink}>
-            ← 顧客一覧へ戻る
-          </Link>
-        </div>
-
-        <section
-          style={{
-            ...CARD,
-            ...styles.heroCard,
-          }}
-        >
-          <div style={styles.heroShine} />
-          <div style={styles.eyebrow}>CUSTOMER DETAIL</div>
-          <h1 style={styles.name}>{displayName}様</h1>
-          <p style={styles.sub}>顧客ID: {id || "-"}</p>
-        </section>
-
-        {errorMessage ? <div style={styles.errorBox}>{errorMessage}</div> : null}
-
-        {loading ? (
-          <div
-            style={{
-              ...CARD,
-              padding: "24px",
-              color: "#64748b",
-            }}
-          >
-            読み込み中...
-          </div>
-        ) : customer ? (
-          <>
-            <div style={styles.mainGrid}>
-              <section
-                style={{
-                  ...CARD,
-                  padding: "24px",
-                }}
-              >
-                <h2 style={styles.sectionTitle}>顧客情報</h2>
-
-                <div style={styles.infoGrid}>
-                  <InfoCard label="氏名" value={displayName} />
-                  <InfoCard label="かな" value={customer.kana} />
-                  <InfoCard label="電話" value={customer.phone} />
-                  <InfoCard label="メール" value={customer.email} />
-                  <InfoCard label="性別" value={customer.gender} />
-                  <InfoCard label="年齢" value={customer.age} />
-                  <InfoCard label="誕生日" value={customer.birthday} />
-                  <InfoCard label="身長" value={withUnit(customer.height, "cm")} />
-                  <InfoCard label="現在体重" value={withUnit(customer.weight, "kg")} />
-                  <InfoCard label="体脂肪率" value={withUnit(customer.bodyFat, "%")} />
-                  <InfoCard label="筋肉量" value={withUnit(customer.muscleMass, "kg")} />
-                  <InfoCard label="内臓脂肪" value={customer.visceralFat} />
-                  <InfoCard label="最終来店日" value={customer.lastVisitDate} />
-                  <InfoCard label="LTV" value={yen(customer.ltv)} />
-                </div>
-
-                <div style={{ marginTop: 18 }}>
-                  <MiniLabel>目標</MiniLabel>
-                  <MemoBox>{displayGoal || "未設定"}</MemoBox>
-                </div>
-
-                <div style={{ marginTop: 14 }}>
-                  <MiniLabel>メモ</MiniLabel>
-                  <MemoBox>{displayMemo || "未設定"}</MemoBox>
-                </div>
-              </section>
-
-              <section
-                style={{
-                  ...CARD,
-                  padding: "24px",
-                }}
-              >
-                <h2 style={styles.sectionTitle}>契約・利用状況</h2>
-
-                <div style={styles.infoGrid}>
-                  <InfoCard label="プラン種別" value={customer.planType} />
-                  <InfoCard label="利用形態" value={customer.planStyle} />
-                  <InfoCard label="月回数" value={customer.monthlyCount} />
-                  <InfoCard label="使用回数" value={customer.usedCount ?? 0} />
-                  <InfoCard label="繰越" value={customer.carryOver ?? 0} />
-                  <InfoCard label="残回数" value={customer.remaining ?? 0} />
-                  <InfoCard label="料金" value={yen(customer.price)} />
-                  <InfoCard label="状態" value={customer.status} />
-                  <InfoCard label="次回支払日" value={customer.nextPayment} />
-                </div>
-              </section>
-            </div>
-
-            <section
-              style={{
-                ...CARD,
-                padding: "24px",
-                marginTop: "20px",
-              }}
-            >
-              <h2 style={styles.sectionTitle}>トレーニングサマリー</h2>
-
-              <div style={styles.infoGrid}>
-                <InfoCard
-                  label="前回トレーニング日"
-                  value={
-                    loadingTrainingSummary
-                      ? "読込中..."
-                      : latestTrainingDate || "未登録"
-                  }
-                />
-                <InfoCard
-                  label="最終体重"
-                  value={
-                    loadingTrainingSummary
-                      ? "読込中..."
-                      : latestTrainingWeight || "未登録"
-                  }
-                />
-                <InfoCard
-                  label="履歴件数"
-                  value={
-                    loadingTrainingSummary
-                      ? "読込中..."
-                      : recentTrainingHistory.length || 0
-                  }
-                />
-              </div>
-
-              <div style={styles.actionGrid}>
-                <Link href={`/customer/${id}/training`} style={styles.linkReset}>
-                  <button
-                    style={{
-                      ...BUTTON_PRIMARY,
-                      padding: "14px 18px",
-                      width: "100%",
-                      boxShadow: "0 10px 20px rgba(139,94,60,0.22)",
-                    }}
-                  >
-                    トレーニング開始
-                  </button>
-                </Link>
-
-                <Link href={`/customer/${id}/training`} style={styles.linkReset}>
-                  <button style={styles.whiteButton}>履歴を見る</button>
-                </Link>
-
-                <Link
-                  href={
-                    latestTrainingId
-                      ? `/customer/${id}/training?copy=${latestTrainingId}`
-                      : `/customer/${id}/training`
-                  }
-                  style={styles.linkReset}
-                >
-                  <button style={styles.softButton}>履歴からコピーして開始</button>
-                </Link>
-              </div>
-            </section>
-
-            <section
-              style={{
-                ...CARD,
-                padding: "24px",
-                marginTop: "20px",
-              }}
-            >
-              <h2 style={styles.sectionTitle}>売上サマリー</h2>
-
-              <div style={styles.infoGrid}>
-                <InfoCard
-                  label="売上履歴件数"
-                  value={loadingSales ? "読込中..." : salesHistory.length}
-                />
-                <InfoCard
-                  label="累計売上"
-                  value={loadingSales ? "読込中..." : yen(salesTotal)}
-                />
-                <InfoCard
-                  label="最終支払日"
-                  value={loadingSales ? "読込中..." : latestSaleDate || "未登録"}
-                />
-              </div>
-
-              <div style={styles.actionGrid}>
-                <Link href="/sales" style={styles.linkReset}>
-                  <button style={styles.whiteButton}>売上管理へ</button>
-                </Link>
-              </div>
-            </section>
-
-            <section
-              style={{
-                ...CARD,
-                padding: "24px",
-                marginTop: "20px",
-              }}
-            >
-              <h2 style={styles.sectionTitle}>売上履歴</h2>
-
-              {loadingSales ? (
-                <div style={{ color: "#64748b", fontSize: 14 }}>読み込み中...</div>
-              ) : salesHistory.length === 0 ? (
-                <div style={{ color: "#64748b", fontSize: 14 }}>
-                  まだ売上履歴はありません。
-                </div>
-              ) : (
-                <div style={{ display: "grid", gap: 12 }}>
-                  {salesHistory.map((sale) => (
-                    <div key={sale.id} style={styles.saleCard}>
-                      <div style={styles.saleTop}>
-                        <div>
-                          <div style={styles.saleDate}>
-                            {sale.sale_date || "日付未設定"}
-                          </div>
-                          <div style={styles.saleMeta}>
-                            金額: {yen(sale.amount)} / 支払方法:{" "}
-                            {sale.payment_method || "-"}
-                          </div>
-                        </div>
-
-                        <div style={styles.saleBadge}>
-                          {sale.category || "区分未設定"}
-                        </div>
-                      </div>
-
-                      <div style={{ marginTop: 12 }}>
-                        <MiniLabel>メモ</MiniLabel>
-                        <MemoBox compact>{sale.memo || "未設定"}</MemoBox>
-                      </div>
-
-                      <div style={{ marginTop: 10 }}>
-                        <MiniLabel>予約ID</MiniLabel>
-                        <MemoBox compact>
-                          {sale.reservation_id != null ? String(sale.reservation_id) : "未設定"}
-                        </MemoBox>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section
-              style={{
-                ...CARD,
-                padding: "24px",
-                marginTop: "20px",
-              }}
-            >
-              <h2 style={styles.sectionTitle}>最近のトレーニング履歴からコピー</h2>
-
-              {loadingTrainingSummary ? (
-                <div style={{ color: "#64748b", fontSize: 14 }}>読み込み中...</div>
-              ) : recentTrainingHistory.length === 0 ? (
-                <div style={{ color: "#64748b", fontSize: 14 }}>
-                  まだトレーニング履歴はありません。
-                </div>
-              ) : (
-                <div style={{ display: "grid", gap: 12 }}>
-                  {recentTrainingHistory.map((item) => (
-                    <div key={item.id} style={styles.historyCard}>
-                      <div style={styles.historyTop}>
-                        <div>
-                          <div style={styles.historyDate}>
-                            {item.date || "日付未設定"}
-                          </div>
-                          <div style={styles.historyMeta}>
-                            体重: {item.weight != null ? `${item.weight}kg` : "-"}
-                            {item.template_name
-                              ? ` / テンプレ: ${item.template_name}`
-                              : ""}
-                          </div>
-                        </div>
-
-                        <Link
-                          href={`/customer/${id}/training?copy=${item.id}`}
-                          style={styles.linkReset}
-                        >
-                          <button
-                            style={{
-                              ...BUTTON_PRIMARY,
-                              padding: "10px 14px",
-                              boxShadow: "0 10px 20px rgba(139,94,60,0.18)",
-                            }}
-                          >
-                            この履歴をコピー
-                          </button>
-                        </Link>
-                      </div>
-
-                      <div style={{ marginTop: 12 }}>
-                        <MiniLabel>総評</MiniLabel>
-                        <MemoBox compact>{item.summary || "未設定"}</MemoBox>
-                      </div>
-
-                      <div style={{ marginTop: 10 }}>
-                        <MiniLabel>次回課題</MiniLabel>
-                        <MemoBox compact>{item.next_task || "未設定"}</MemoBox>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          </>
-        ) : null}
-      </div>
-    </main>
-  );
+function toStyle(value: unknown): CSSProperties {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as CSSProperties;
+  }
+  if (typeof value === "string" && value.trim()) {
+    return { background: value };
+  }
+  return {};
 }
 
-function MiniLabel({ children }: { children: React.ReactNode }) {
-  return <div style={styles.miniLabel}>{children}</div>;
+const BG_STYLE = toStyle(BG);
+const GLASS_STYLE = toStyle(GLASS);
+const CARD_STYLE = toStyle(CARD);
+const BUTTON_PRIMARY_STYLE = toStyle(BUTTON_PRIMARY);
+
+function formatDate(date?: string | null) {
+  if (!date) return "—";
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return date;
+  return d.toLocaleDateString("ja-JP");
 }
 
-function MemoBox({
-  children,
-  compact = false,
-}: {
-  children: React.ReactNode;
-  compact?: boolean;
-}) {
-  return (
-    <div
-      style={{
-        ...styles.memoBox,
-        minHeight: compact ? 40 : 52,
-        padding: compact ? 10 : 12,
-      }}
-    >
-      {children}
-    </div>
-  );
+function formatDateTime(date?: string | null) {
+  if (!date) return "—";
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return date;
+  return d.toLocaleString("ja-JP");
 }
 
-function InfoCard({
-  label,
-  value,
-}: {
-  label: string;
-  value: React.ReactNode;
-}) {
-  return (
-    <div style={styles.infoCard}>
-      <div style={styles.infoLabel}>{label}</div>
-      <div style={styles.infoValue}>{value || "—"}</div>
-    </div>
-  );
-}
-
-function withUnit(value: any, unit: string) {
-  if (value === null || value === undefined || value === "") return "";
-  return `${value}${unit}`;
-}
-
-function yen(value: any) {
+function formatCurrency(value?: number | string | null) {
   const num = Number(value || 0);
   if (Number.isNaN(num)) return "—";
   return `¥${num.toLocaleString()}`;
 }
 
-const styles: { [key: string]: React.CSSProperties } = {
-  page: {
-    minHeight: "100vh",
-    position: "relative",
-    overflow: "hidden",
-    padding: "24px 20px 60px",
-    background: BG,
-  },
+function safeArray<T>(value: T[] | null | undefined): T[] {
+  return Array.isArray(value) ? value : [];
+}
 
-  glowA: {
-    position: "absolute",
-    top: "-90px",
-    left: "-70px",
-    width: "280px",
-    height: "280px",
-    borderRadius: "999px",
-    background: "rgba(255,255,255,0.95)",
-    filter: "blur(55px)",
-    pointerEvents: "none",
-  },
+function parseLocalStorageJson<T>(key: string): T | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
 
-  glowB: {
-    position: "absolute",
-    top: "120px",
-    right: "-60px",
-    width: "320px",
-    height: "320px",
-    borderRadius: "999px",
-    background: "rgba(255,255,255,0.85)",
-    filter: "blur(70px)",
-    pointerEvents: "none",
-  },
+function getCustomerFromLocalStorage(customerId: string): Customer | null {
+  if (typeof window === "undefined") return null;
 
-  glowC: {
-    position: "absolute",
-    bottom: "-120px",
-    left: "18%",
-    width: "340px",
-    height: "340px",
-    borderRadius: "999px",
-    background: "rgba(203,213,225,0.35)",
-    filter: "blur(75px)",
-    pointerEvents: "none",
-  },
+  const keys = [
+    "gymup_customers",
+    "customers",
+    "gymup_customer_list",
+    "customer_list",
+  ];
 
-  container: {
-    position: "relative",
-    zIndex: 1,
-    maxWidth: "1180px",
-    margin: "0 auto",
-  },
+  for (const key of keys) {
+    const list = parseLocalStorageJson<Customer[]>(key);
+    if (Array.isArray(list)) {
+      const found = list.find((item) => String(item.id) === String(customerId));
+      if (found) return found;
+    }
+  }
 
-  headerBar: {
-    marginBottom: "16px",
-  },
+  const detailKeys = [
+    `customer-${customerId}`,
+    `gymup_customer_${customerId}`,
+    `customer_detail_${customerId}`,
+  ];
 
-  backLink: {
-    display: "inline-flex",
-    alignItems: "center",
-    textDecoration: "none",
-    color: "#64748b",
-    fontSize: 14,
-    fontWeight: 700,
-  },
+  for (const key of detailKeys) {
+    const detail = parseLocalStorageJson<Customer>(key);
+    if (detail) {
+      return {
+        ...detail,
+        id: customerId,
+      };
+    }
+  }
 
-  heroCard: {
-    position: "relative",
-    overflow: "hidden",
-    padding: "28px 24px",
-    borderRadius: "28px",
-    marginBottom: "20px",
-  },
+  return null;
+}
 
-  heroShine: {
-    position: "absolute",
-    top: 0,
-    left: "-20%",
-    width: "60%",
-    height: "2px",
-    background:
-      "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.95) 35%, rgba(245,158,11,0.45) 52%, rgba(255,255,255,0.9) 70%, transparent 100%)",
-    transform: "skewX(-28deg)",
-  },
+function getSummaryExercises(session: TrainingSession) {
+  return safeArray(session.training_sets)
+    .map((set) => set.exercise_name?.trim())
+    .filter(Boolean) as string[];
+}
 
-  eyebrow: {
-    marginBottom: "10px",
-    fontSize: "11px",
-    letterSpacing: "0.22em",
-    color: "#94a3b8",
-    fontWeight: 700,
-  },
+export default function CustomerDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const customerId = String(params?.id ?? "");
 
-  name: {
-    margin: 0,
-    fontSize: "30px",
-    fontWeight: 900,
-    color: "#0f172a",
-    letterSpacing: "-0.03em",
-  },
+  const [mounted, setMounted] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [sessions, setSessions] = useState<TrainingSession[]>([]);
+  const [sales, setSales] = useState<SaleItem[]>([]);
+  const [error, setError] = useState("");
+  const [copiedNotice, setCopiedNotice] = useState(false);
 
-  sub: {
-    marginTop: "8px",
-    marginBottom: 0,
-    color: "#64748b",
-    fontSize: 14,
-  },
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
-  errorBox: {
-    marginBottom: 16,
-    background: "#fef2f2",
-    color: "#b91c1c",
-    border: "1px solid #fecaca",
-    borderRadius: 14,
-    padding: "12px 14px",
-    fontSize: 14,
-  },
+  useEffect(() => {
+    if (!mounted) return;
 
-  mainGrid: {
-    display: "grid",
-    gridTemplateColumns: "1.1fr 0.9fr",
-    gap: 20,
-  },
+    const loggedIn = localStorage.getItem("gymup_logged_in");
+    if (loggedIn !== "true") {
+      router.push("/login");
+      return;
+    }
 
-  sectionTitle: {
-    margin: 0,
-    marginBottom: 14,
-    fontSize: 20,
-    color: "#0f172a",
-    fontWeight: 800,
-    letterSpacing: "-0.02em",
-  },
+    void loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, customerId]);
 
-  infoGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-    gap: 12,
-  },
+  useEffect(() => {
+    const copied = searchParams.get("copied");
+    if (copied) {
+      setCopiedNotice(true);
+      const timer = setTimeout(() => setCopiedNotice(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [searchParams]);
 
-  infoCard: {
-    background: "rgba(255,255,255,0.72)",
-    border: "1px solid rgba(255,255,255,0.95)",
-    borderRadius: 16,
-    padding: 14,
-    boxShadow:
-      "0 10px 24px rgba(15,23,42,0.04), inset 0 1px 0 rgba(255,255,255,0.98)",
-  },
+  async function loadAll() {
+    setLoading(true);
+    setError("");
 
-  infoLabel: {
-    fontSize: 12,
-    color: "#94a3b8",
-    fontWeight: 700,
-    marginBottom: 6,
-  },
+    try {
+      const localCustomer = getCustomerFromLocalStorage(customerId);
+      if (localCustomer) {
+        setCustomer(localCustomer);
+      }
 
-  infoValue: {
-    fontSize: 15,
-    color: "#0f172a",
-    fontWeight: 700,
-    lineHeight: 1.5,
-    wordBreak: "break-word",
-  },
+      if (!supabase) {
+        setSessions([]);
+        setSales([]);
+        return;
+      }
 
-  miniLabel: {
-    fontSize: 12,
-    color: "#94a3b8",
-    fontWeight: 700,
-    marginBottom: 6,
-    letterSpacing: "0.08em",
-  },
+      const [customerRes, sessionRes, salesRes] = await Promise.all([
+        supabase.from("customers").select("*").eq("id", customerId).maybeSingle(),
+        supabase
+          .from("training_sessions")
+          .select(
+            `
+            *,
+            training_sets (
+              id,
+              row_id,
+              row_order,
+              category,
+              exercise_name,
+              set_count,
+              reps,
+              weight,
+              seconds,
+              memo
+            )
+          `
+          )
+          .eq("customer_id", customerId)
+          .order("session_date", { ascending: false })
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("sales")
+          .select(
+            "id, customer_id, customer_name, sale_date, menu_type, sale_type, payment_method, amount, staff_name, store_name, reservation_id, memo, created_at"
+          )
+          .eq("customer_id", customerId)
+          .order("sale_date", { ascending: false })
+          .order("created_at", { ascending: false }),
+      ]);
 
-  memoBox: {
-    background: "rgba(255,255,255,0.72)",
-    border: "1px solid rgba(255,255,255,0.95)",
-    borderRadius: 14,
-    color: "#475569",
-    fontSize: 14,
-    whiteSpace: "pre-wrap",
-    boxShadow:
-      "0 10px 24px rgba(15,23,42,0.04), inset 0 1px 0 rgba(255,255,255,0.98)",
-  },
+      if (customerRes.error) {
+        console.error(customerRes.error);
+      } else if (customerRes.data) {
+        setCustomer((prev) => ({
+          ...(prev ?? { id: customerId }),
+          ...customerRes.data,
+        }));
+      }
 
-  actionGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: 12,
-    marginTop: 16,
-  },
+      if (sessionRes.error) {
+        throw sessionRes.error;
+      }
 
-  linkReset: {
-    textDecoration: "none",
-  },
+      if (salesRes.error) {
+        throw salesRes.error;
+      }
 
-  whiteButton: {
-    width: "100%",
-    padding: "14px 18px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.95)",
-    background: "rgba(255,255,255,0.82)",
-    color: "#334155",
-    fontWeight: 700,
-    cursor: "pointer",
-    boxShadow:
-      "0 10px 24px rgba(15,23,42,0.05), inset 0 1px 0 rgba(255,255,255,0.98)",
-  },
+      setSessions((sessionRes.data as TrainingSession[]) ?? []);
+      setSales((salesRes.data as SaleItem[]) ?? []);
+    } catch (e) {
+      console.error(e);
+      setError("顧客情報・トレーニング履歴・売上履歴の取得に失敗しました。");
+    } finally {
+      setLoading(false);
+    }
+  }
 
-  softButton: {
-    width: "100%",
-    padding: "14px 18px",
-    borderRadius: 12,
-    border: "1px solid rgba(214,195,179,0.8)",
-    background: "rgba(255,255,255,0.6)",
-    color: "#8b5e3c",
-    fontWeight: 700,
-    cursor: "pointer",
-    boxShadow:
-      "0 10px 24px rgba(15,23,42,0.04), inset 0 1px 0 rgba(255,255,255,0.96)",
-  },
+  const latestSession = useMemo(() => {
+    return sessions.length > 0 ? sessions[0] : null;
+  }, [sessions]);
 
-  historyCard: {
-    border: "1px solid rgba(255,255,255,0.95)",
-    borderRadius: 18,
-    padding: 16,
-    background: "rgba(255,255,255,0.68)",
-    boxShadow:
-      "0 14px 30px rgba(15,23,42,0.04), inset 0 1px 0 rgba(255,255,255,0.98)",
-    backdropFilter: "blur(10px)",
-    WebkitBackdropFilter: "blur(10px)",
-  },
+  const latestWeight = useMemo(() => {
+    const found = sessions.find(
+      (item) => item.body_weight !== null && item.body_weight !== undefined
+    );
+    return found?.body_weight ?? customer?.weight ?? "—";
+  }, [sessions, customer]);
 
-  historyTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 12,
-    flexWrap: "wrap",
-    alignItems: "center",
-  },
+  const usageSummary = useMemo(() => {
+    const monthlyCount = Number(customer?.monthlyCount ?? 0);
+    const usedCount = Number(customer?.usedCount ?? 0);
+    const carryOver = Number(customer?.carryOver ?? 0);
+    const remaining =
+      customer?.remaining !== undefined && customer?.remaining !== null
+        ? Number(customer.remaining)
+        : Math.max(monthlyCount + carryOver - usedCount, 0);
 
-  historyDate: {
-    fontSize: 17,
-    fontWeight: 800,
-    color: "#0f172a",
-    marginBottom: 6,
-  },
+    return {
+      monthlyCount,
+      usedCount,
+      carryOver,
+      remaining,
+    };
+  }, [customer]);
 
-  historyMeta: {
-    fontSize: 13,
-    color: "#64748b",
-  },
+  const salesSummary = useMemo(() => {
+    const total = sales.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const latest = sales[0];
+    return {
+      count: sales.length,
+      total,
+      latestDate: latest?.sale_date || null,
+    };
+  }, [sales]);
 
-  saleCard: {
-    border: "1px solid rgba(255,255,255,0.95)",
-    borderRadius: 18,
-    padding: 16,
-    background: "rgba(255,255,255,0.68)",
-    boxShadow:
-      "0 14px 30px rgba(15,23,42,0.04), inset 0 1px 0 rgba(255,255,255,0.98)",
-  },
+  if (!mounted) return null;
 
-  saleTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 12,
-    flexWrap: "wrap",
-    alignItems: "center",
-  },
+  return (
+    <main
+      style={{
+        ...BG_STYLE,
+        minHeight: "100vh",
+        padding: "24px 16px 80px",
+      }}
+    >
+      <div style={{ maxWidth: 1180, margin: "0 auto" }}>
+        <div
+          style={{
+            ...GLASS_STYLE,
+            padding: 20,
+            borderRadius: 24,
+            marginBottom: 18,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              justifyContent: "space-between",
+              gap: 16,
+              alignItems: "center",
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: 12,
+                  letterSpacing: "0.12em",
+                  color: "#64748b",
+                  marginBottom: 6,
+                  fontWeight: 700,
+                }}
+              >
+                CUSTOMER DETAIL
+              </div>
+              <h1
+                style={{
+                  margin: 0,
+                  fontSize: 28,
+                  lineHeight: 1.3,
+                  color: "#0f172a",
+                }}
+              >
+                顧客詳細
+              </h1>
+              <p
+                style={{
+                  margin: "8px 0 0",
+                  color: "#475569",
+                  fontSize: 14,
+                }}
+              >
+                顧客情報・契約状況・トレーニング履歴・売上履歴を確認できます
+              </p>
+            </div>
 
-  saleDate: {
-    fontSize: 17,
-    fontWeight: 800,
-    color: "#0f172a",
-    marginBottom: 6,
-  },
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+              <Link href="/customer" style={{ textDecoration: "none" }}>
+                <button
+                  style={{
+                    padding: "12px 16px",
+                    borderRadius: 14,
+                    border: "1px solid rgba(148,163,184,0.3)",
+                    background: "rgba(255,255,255,0.78)",
+                    color: "#0f172a",
+                    cursor: "pointer",
+                    fontWeight: 700,
+                  }}
+                >
+                  顧客一覧へ戻る
+                </button>
+              </Link>
 
-  saleMeta: {
-    fontSize: 13,
-    color: "#64748b",
-  },
+              <Link
+                href={`/customer/${customerId}/training`}
+                style={{ textDecoration: "none" }}
+              >
+                <button style={BUTTON_PRIMARY_STYLE}>トレーニング開始</button>
+              </Link>
+            </div>
+          </div>
+        </div>
 
-  saleBadge: {
-    fontSize: 12,
-    color: "#8b5e3c",
-    fontWeight: 700,
-    background: "rgba(255,255,255,0.72)",
-    borderRadius: 9999,
-    padding: "6px 10px",
-    border: "1px solid rgba(255,255,255,0.95)",
-  },
+        {copiedNotice && (
+          <div
+            style={{
+              ...CARD_STYLE,
+              marginBottom: 16,
+              borderRadius: 20,
+              padding: 16,
+              color: "#065f46",
+              background:
+                "linear-gradient(135deg, rgba(236,253,245,0.95), rgba(220,252,231,0.88))",
+              border: "1px solid rgba(16,185,129,0.22)",
+            }}
+          >
+            履歴をコピーしてトレーニングページを開きました。
+          </div>
+        )}
+
+        {error && (
+          <div
+            style={{
+              ...CARD_STYLE,
+              marginBottom: 16,
+              borderRadius: 20,
+              padding: 16,
+              color: "#991b1b",
+              background:
+                "linear-gradient(135deg, rgba(254,242,242,0.95), rgba(254,226,226,0.9))",
+              border: "1px solid rgba(239,68,68,0.18)",
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        <section
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+            gap: 16,
+            marginBottom: 18,
+          }}
+        >
+          <div style={{ ...CARD_STYLE, padding: 18, borderRadius: 24 }}>
+            <div
+              style={{
+                fontSize: 12,
+                color: "#64748b",
+                fontWeight: 700,
+                marginBottom: 8,
+              }}
+            >
+              顧客情報
+            </div>
+            <h2 style={{ margin: "0 0 12px", fontSize: 24, color: "#0f172a" }}>
+              {customer?.name ? `${customer.name}様` : "名前未登録"}
+            </h2>
+            <div style={{ display: "grid", gap: 8, color: "#334155", fontSize: 14 }}>
+              <div>かな：{customer?.kana || "—"}</div>
+              <div>電話：{customer?.phone || "—"}</div>
+              <div>メール：{customer?.email || "—"}</div>
+              <div>性別：{customer?.gender || "—"}</div>
+              <div>年齢：{customer?.age || "—"}</div>
+              <div>誕生日：{formatDate(customer?.birthday)}</div>
+              <div>身長：{customer?.height || "—"}</div>
+              <div>現在の体重：{customer?.weight || "—"}</div>
+              <div>体脂肪率：{customer?.bodyFat || "—"}</div>
+              <div>筋肉量：{customer?.muscleMass || "—"}</div>
+              <div>内臓脂肪：{customer?.visceralFat || "—"}</div>
+              <div>最終来店日：{formatDate(customer?.lastVisitAt)}</div>
+              <div>LTV：{formatCurrency(customer?.ltv || 0)}</div>
+              <div>目標：{customer?.goal || "未設定"}</div>
+              <div>メモ：{customer?.memo || "未設定"}</div>
+            </div>
+          </div>
+
+          <div style={{ ...CARD_STYLE, padding: 18, borderRadius: 24 }}>
+            <div
+              style={{
+                fontSize: 12,
+                color: "#64748b",
+                fontWeight: 700,
+                marginBottom: 8,
+              }}
+            >
+              契約・利用状況
+            </div>
+            <div style={{ display: "grid", gap: 8, color: "#334155", fontSize: 14 }}>
+              <div>プラン種類：{customer?.planType || "—"}</div>
+              <div>利用形態：{customer?.planStyle || "—"}</div>
+              <div>月回数：{usageSummary.monthlyCount || "—"}</div>
+              <div>使用回数：{usageSummary.usedCount || "—"}</div>
+              <div>繰越：{usageSummary.carryOver || "—"}</div>
+              <div>残回数：{usageSummary.remaining || "—"}</div>
+              <div>料金：{customer?.price ? formatCurrency(customer.price) : "0円"}</div>
+              <div>状態：{customer?.status || "—"}</div>
+              <div>次回支払い日：{formatDate(customer?.nextPayment)}</div>
+            </div>
+          </div>
+
+          <div style={{ ...CARD_STYLE, padding: 18, borderRadius: 24 }}>
+            <div
+              style={{
+                fontSize: 12,
+                color: "#64748b",
+                fontWeight: 700,
+                marginBottom: 8,
+              }}
+            >
+              トレーニングサマリー
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                gap: 12,
+              }}
+            >
+              {[
+                {
+                  label: "前回トレーニング日",
+                  value: formatDate(latestSession?.session_date),
+                },
+                {
+                  label: "最終体重",
+                  value: latestWeight === "—" ? "—" : `${latestWeight} kg`,
+                },
+                {
+                  label: "履歴件数",
+                  value: `${sessions.length}件`,
+                },
+                {
+                  label: "最終更新",
+                  value: formatDateTime(
+                    latestSession?.updated_at || latestSession?.created_at
+                  ),
+                },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  style={{
+                    background: "rgba(255,255,255,0.66)",
+                    border: "1px solid rgba(148,163,184,0.18)",
+                    borderRadius: 18,
+                    padding: 14,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "#64748b",
+                      marginBottom: 6,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {item.label}
+                  </div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: "#0f172a" }}>
+                    {item.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 16 }}>
+              <Link
+                href={`/customer/${customerId}/training`}
+                style={{ textDecoration: "none" }}
+              >
+                <button style={BUTTON_PRIMARY_STYLE}>トレーニング開始</button>
+              </Link>
+
+              <Link
+                href={`/customer/${customerId}/training#history`}
+                style={{ textDecoration: "none" }}
+              >
+                <button
+                  style={{
+                    padding: "12px 16px",
+                    borderRadius: 14,
+                    border: "1px solid rgba(148,163,184,0.3)",
+                    background: "rgba(255,255,255,0.78)",
+                    color: "#0f172a",
+                    cursor: "pointer",
+                    fontWeight: 700,
+                  }}
+                >
+                  履歴を見る
+                </button>
+              </Link>
+            </div>
+          </div>
+
+          <div style={{ ...CARD_STYLE, padding: 18, borderRadius: 24 }}>
+            <div
+              style={{
+                fontSize: 12,
+                color: "#64748b",
+                fontWeight: 700,
+                marginBottom: 8,
+              }}
+            >
+              売上サマリー
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                gap: 12,
+              }}
+            >
+              {[
+                {
+                  label: "売上件数",
+                  value: `${salesSummary.count}件`,
+                },
+                {
+                  label: "累計売上",
+                  value: formatCurrency(salesSummary.total),
+                },
+                {
+                  label: "最終支払日",
+                  value: formatDate(salesSummary.latestDate),
+                },
+                {
+                  label: "表示状態",
+                  value: salesSummary.count > 0 ? "反映中" : "未登録",
+                },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  style={{
+                    background: "rgba(255,255,255,0.66)",
+                    border: "1px solid rgba(148,163,184,0.18)",
+                    borderRadius: 18,
+                    padding: 14,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "#64748b",
+                      marginBottom: 6,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {item.label}
+                  </div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: "#0f172a" }}>
+                    {item.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 16 }}>
+              <Link href="/sales" style={{ textDecoration: "none" }}>
+                <button
+                  style={{
+                    padding: "12px 16px",
+                    borderRadius: 14,
+                    border: "1px solid rgba(148,163,184,0.3)",
+                    background: "rgba(255,255,255,0.78)",
+                    color: "#0f172a",
+                    cursor: "pointer",
+                    fontWeight: 700,
+                  }}
+                >
+                  売上管理へ
+                </button>
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        <section style={{ ...CARD_STYLE, borderRadius: 28, padding: 22, marginBottom: 18 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 12,
+              flexWrap: "wrap",
+              marginBottom: 16,
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "#64748b",
+                  fontWeight: 700,
+                  marginBottom: 6,
+                }}
+              >
+                SALES HISTORY
+              </div>
+              <h2 style={{ margin: 0, fontSize: 22, color: "#0f172a" }}>
+                売上履歴
+              </h2>
+            </div>
+
+            <Link href="/sales" style={{ textDecoration: "none" }}>
+              <button
+                style={{
+                  padding: "12px 16px",
+                  borderRadius: 14,
+                  border: "1px solid rgba(148,163,184,0.3)",
+                  background: "rgba(255,255,255,0.78)",
+                  color: "#0f172a",
+                  cursor: "pointer",
+                  fontWeight: 700,
+                }}
+              >
+                売上管理へ
+              </button>
+            </Link>
+          </div>
+
+          {loading ? (
+            <div style={{ color: "#475569", padding: "12px 0" }}>読み込み中です...</div>
+          ) : sales.length === 0 ? (
+            <div
+              style={{
+                borderRadius: 20,
+                padding: 18,
+                background: "rgba(255,255,255,0.62)",
+                border: "1px solid rgba(148,163,184,0.16)",
+                color: "#475569",
+              }}
+            >
+              まだ売上履歴はありません。
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 14 }}>
+              {sales.map((sale) => (
+                <article
+                  key={String(sale.id)}
+                  style={{
+                    background: "rgba(255,255,255,0.7)",
+                    border: "1px solid rgba(148,163,184,0.18)",
+                    borderRadius: 24,
+                    padding: 18,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      gap: 14,
+                      flexWrap: "wrap",
+                      marginBottom: 12,
+                    }}
+                  >
+                    <div>
+                      <div
+                        style={{
+                          fontSize: 18,
+                          fontWeight: 800,
+                          color: "#0f172a",
+                          marginBottom: 6,
+                        }}
+                      >
+                        {formatDate(sale.sale_date)}
+                      </div>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <span
+                          style={{
+                            fontSize: 12,
+                            padding: "6px 10px",
+                            borderRadius: 999,
+                            background: "rgba(59,130,246,0.08)",
+                            color: "#1d4ed8",
+                            fontWeight: 700,
+                          }}
+                        >
+                          金額：{formatCurrency(sale.amount)}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: 12,
+                            padding: "6px 10px",
+                            borderRadius: 999,
+                            background: "rgba(16,185,129,0.08)",
+                            color: "#047857",
+                            fontWeight: 700,
+                          }}
+                        >
+                          支払方法：{sale.payment_method || "—"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: 12,
+                        padding: "6px 10px",
+                        borderRadius: 999,
+                        background: "rgba(15,23,42,0.06)",
+                        color: "#334155",
+                        fontWeight: 700,
+                      }}
+                    >
+                      {sale.sale_type || "通常売上"}
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                      gap: 12,
+                    }}
+                  >
+                    <div
+                      style={{
+                        background: "rgba(248,250,252,0.92)",
+                        border: "1px solid rgba(148,163,184,0.14)",
+                        borderRadius: 18,
+                        padding: 14,
+                      }}
+                    >
+                      <div style={miniLabelStyle}>サービス区分</div>
+                      <div style={valueTextStyle}>{sale.menu_type || "—"}</div>
+
+                      <div style={{ ...miniLabelStyle, marginTop: 12 }}>担当者</div>
+                      <div style={valueTextStyle}>{sale.staff_name || "—"}</div>
+
+                      <div style={{ ...miniLabelStyle, marginTop: 12 }}>店舗</div>
+                      <div style={valueTextStyle}>{sale.store_name || "—"}</div>
+                    </div>
+
+                    <div
+                      style={{
+                        background: "rgba(248,250,252,0.92)",
+                        border: "1px solid rgba(148,163,184,0.14)",
+                        borderRadius: 18,
+                        padding: 14,
+                      }}
+                    >
+                      <div style={miniLabelStyle}>予約ID</div>
+                      <div style={valueTextStyle}>
+                        {sale.reservation_id != null ? String(sale.reservation_id) : "—"}
+                      </div>
+
+                      <div style={{ ...miniLabelStyle, marginTop: 12 }}>メモ</div>
+                      <div style={{ ...valueTextStyle, whiteSpace: "pre-wrap" }}>
+                        {sale.memo || "未入力"}
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section style={{ ...CARD_STYLE, borderRadius: 28, padding: 22 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 12,
+              flexWrap: "wrap",
+              marginBottom: 16,
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "#64748b",
+                  fontWeight: 700,
+                  marginBottom: 6,
+                }}
+              >
+                RECENT TRAINING COPY
+              </div>
+              <h2 style={{ margin: 0, fontSize: 22, color: "#0f172a" }}>
+                最近のトレーニング履歴からコピー
+              </h2>
+            </div>
+
+            <Link
+              href={`/customer/${customerId}/training#history`}
+              style={{ textDecoration: "none" }}
+            >
+              <button
+                style={{
+                  padding: "12px 16px",
+                  borderRadius: 14,
+                  border: "1px solid rgba(148,163,184,0.3)",
+                  background: "rgba(255,255,255,0.78)",
+                  color: "#0f172a",
+                  cursor: "pointer",
+                  fontWeight: 700,
+                }}
+              >
+                履歴一覧へ
+              </button>
+            </Link>
+          </div>
+
+          {loading ? (
+            <div style={{ color: "#475569", padding: "12px 0" }}>読み込み中です...</div>
+          ) : sessions.length === 0 ? (
+            <div
+              style={{
+                borderRadius: 20,
+                padding: 18,
+                background: "rgba(255,255,255,0.62)",
+                border: "1px solid rgba(148,163,184,0.16)",
+                color: "#475569",
+              }}
+            >
+              まだトレーニング履歴はありません。
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 16 }}>
+              {sessions.slice(0, 5).map((session) => {
+                const exerciseNames = getSummaryExercises(session);
+                const stretchMenu = safeArray(session.stretch_menu);
+                const postureImages = safeArray(session.posture_image_urls);
+
+                return (
+                  <article
+                    key={session.id}
+                    style={{
+                      background: "rgba(255,255,255,0.7)",
+                      border: "1px solid rgba(148,163,184,0.18)",
+                      borderRadius: 24,
+                      padding: 18,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                        gap: 14,
+                        flexWrap: "wrap",
+                        marginBottom: 14,
+                      }}
+                    >
+                      <div>
+                        <div
+                          style={{
+                            fontSize: 18,
+                            fontWeight: 800,
+                            color: "#0f172a",
+                            marginBottom: 6,
+                          }}
+                        >
+                          {formatDate(session.session_date)}
+                        </div>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          <span
+                            style={{
+                              fontSize: 12,
+                              background: "rgba(15,23,42,0.06)",
+                              color: "#334155",
+                              padding: "6px 10px",
+                              borderRadius: 999,
+                              fontWeight: 700,
+                            }}
+                          >
+                            体重：{session.body_weight ? `${session.body_weight} kg` : "—"}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 12,
+                              background: "rgba(15,23,42,0.06)",
+                              color: "#334155",
+                              padding: "6px 10px",
+                              borderRadius: 999,
+                              fontWeight: 700,
+                            }}
+                          >
+                            種目数：{exerciseNames.length}件
+                          </span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <Link
+                          href={`/customer/${customerId}/training?copyFrom=${session.id}`}
+                          style={{ textDecoration: "none" }}
+                        >
+                          <button style={BUTTON_PRIMARY_STYLE}>この履歴をコピー</button>
+                        </Link>
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+                        gap: 14,
+                      }}
+                    >
+                      <div
+                        style={{
+                          background: "rgba(248,250,252,0.92)",
+                          border: "1px solid rgba(148,163,184,0.14)",
+                          borderRadius: 18,
+                          padding: 14,
+                        }}
+                      >
+                        <div style={miniLabelStyle}>種目一覧</div>
+
+                        {exerciseNames.length > 0 ? (
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                            {exerciseNames.map((name, idx) => (
+                              <span
+                                key={`${session.id}-${name}-${idx}`}
+                                style={{
+                                  fontSize: 12,
+                                  padding: "7px 10px",
+                                  borderRadius: 999,
+                                  background: "rgba(59,130,246,0.08)",
+                                  color: "#1d4ed8",
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {name}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <div style={{ color: "#64748b", fontSize: 14 }}>未登録</div>
+                        )}
+
+                        {stretchMenu.length > 0 && (
+                          <>
+                            <div style={{ ...miniLabelStyle, marginTop: 12 }}>
+                              ストレッチ項目
+                            </div>
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                              {stretchMenu.map((item, idx) => (
+                                <span
+                                  key={`${session.id}-stretch-${idx}`}
+                                  style={{
+                                    fontSize: 12,
+                                    padding: "7px 10px",
+                                    borderRadius: 999,
+                                    background: "rgba(16,185,129,0.08)",
+                                    color: "#047857",
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  {item}
+                                </span>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      <div
+                        style={{
+                          background: "rgba(248,250,252,0.92)",
+                          border: "1px solid rgba(148,163,184,0.14)",
+                          borderRadius: 18,
+                          padding: 14,
+                        }}
+                      >
+                        <div style={miniLabelStyle}>総評</div>
+                        <div style={{ whiteSpace: "pre-wrap", color: "#334155", fontSize: 14 }}>
+                          {session.summary || "未入力"}
+                        </div>
+
+                        <div style={{ ...miniLabelStyle, marginTop: 14 }}>
+                          次回課題
+                        </div>
+                        <div style={{ whiteSpace: "pre-wrap", color: "#334155", fontSize: 14 }}>
+                          {session.next_task || "未入力"}
+                        </div>
+
+                        <div style={{ ...miniLabelStyle, marginTop: 14 }}>
+                          姿勢メモ
+                        </div>
+                        <div style={{ whiteSpace: "pre-wrap", color: "#334155", fontSize: 14 }}>
+                          {session.posture_note || "未入力"}
+                        </div>
+                      </div>
+                    </div>
+
+                    {postureImages.length > 0 && (
+                      <div style={{ marginTop: 16 }}>
+                        <div style={miniLabelStyle}>姿勢画像</div>
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                            gap: 12,
+                          }}
+                        >
+                          {postureImages.map((url, idx) => (
+                            <div
+                              key={`${session.id}-img-${idx}`}
+                              style={{
+                                borderRadius: 18,
+                                overflow: "hidden",
+                                border: "1px solid rgba(148,163,184,0.16)",
+                                background: "#fff",
+                              }}
+                            >
+                              <img
+                                src={url}
+                                alt={`posture-${idx + 1}`}
+                                style={{
+                                  width: "100%",
+                                  aspectRatio: "3 / 4",
+                                  objectFit: "cover",
+                                  display: "block",
+                                }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </div>
+    </main>
+  );
+}
+
+const miniLabelStyle: CSSProperties = {
+  fontSize: 12,
+  color: "#64748b",
+  fontWeight: 700,
+  marginBottom: 8,
+};
+
+const valueTextStyle: CSSProperties = {
+  color: "#334155",
+  fontSize: 14,
+  whiteSpace: "pre-wrap",
 };
