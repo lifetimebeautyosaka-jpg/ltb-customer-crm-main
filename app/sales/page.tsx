@@ -8,7 +8,6 @@ type Customer = {
   id: string | number;
   name: string;
   phone?: string | null;
-  plan?: string | null;
 };
 
 type ServiceType = "ストレッチ" | "トレーニング";
@@ -37,6 +36,7 @@ type PaymentRow = {
 type Sale = {
   id: string;
   date: string;
+  customerId?: string | null;
   customerName: string;
   menuName: string;
   staff: string;
@@ -53,6 +53,7 @@ type Sale = {
 
 type SupabaseSaleRow = {
   id: number | string;
+  customer_id?: number | string | null;
   customer_name: string | null;
   sale_date: string | null;
   menu_type: string | null;
@@ -132,6 +133,10 @@ function rowToSale(row: SupabaseSaleRow): Sale {
   return {
     id: String(row.id),
     date: row.sale_date || todayString(),
+    customerId:
+      row.customer_id === null || row.customer_id === undefined
+        ? null
+        : String(row.customer_id),
     customerName: row.customer_name || "未設定",
     menuName: serviceType === "ストレッチ" ? "ストレッチ" : "トレーニング",
     staff: row.staff_name || "未設定",
@@ -195,19 +200,14 @@ export default function SalesPage() {
 
   const applyQueryParams = (customerList: Customer[]) => {
     const queryDate = getQueryParam("date");
-
     const queryCustomerName =
       getQueryParam("customer_name") || getQueryParam("customer");
-
     const queryStore =
       getQueryParam("store_name") || getQueryParam("store");
-
     const queryStaff =
       getQueryParam("staff_name") || getQueryParam("staff");
-
     const queryService =
       getQueryParam("service_type") || getQueryParam("service");
-
     const queryMenu = getQueryParam("menu");
     const queryReservationId = getQueryParam("reservation_id");
 
@@ -247,7 +247,7 @@ export default function SalesPage() {
 
       const { data, error } = await supabase
         .from("customers")
-        .select("id, name, phone, plan")
+        .select("id, name, phone")
         .order("name", { ascending: true });
 
       if (error) {
@@ -260,7 +260,6 @@ export default function SalesPage() {
         id: row.id,
         name: row.name,
         phone: row.phone || null,
-        plan: row.plan || null,
       }));
 
       setCustomers(list);
@@ -280,7 +279,7 @@ export default function SalesPage() {
       const { data, error } = await supabase
         .from("sales")
         .select(
-          "id, customer_name, sale_date, menu_type, sale_type, payment_method, amount, staff_name, store_name, reservation_id, memo, created_at"
+          "id, customer_id, customer_name, sale_date, menu_type, sale_type, payment_method, amount, staff_name, store_name, reservation_id, memo, created_at"
         )
         .order("created_at", { ascending: false });
 
@@ -467,6 +466,7 @@ export default function SalesPage() {
         .join("\n");
 
       const payloads = payments.map((row) => ({
+        customer_id: Number(customer.id),
         customer_name: customer.name,
         sale_date: date,
         menu_type: serviceType,
@@ -519,6 +519,7 @@ export default function SalesPage() {
 
     const header = [
       "日付",
+      "顧客ID",
       "顧客名",
       "店舗",
       "メニュー名",
@@ -534,6 +535,7 @@ export default function SalesPage() {
 
     const rows = sales.map((sale) => [
       sale.date,
+      String(sale.customerId ?? ""),
       sale.customerName,
       sale.storeName,
       sale.menuName,
@@ -926,6 +928,7 @@ export default function SalesPage() {
                             {sale.customerName}
                           </div>
 
+                          <div style={detailTextStyle}>顧客ID：{sale.customerId ?? "なし"}</div>
                           <div style={detailTextStyle}>日付：{sale.date}</div>
                           <div style={detailTextStyle}>店舗：{sale.storeName}</div>
                           <div style={detailTextStyle}>メニュー：{sale.menuName}</div>
@@ -947,18 +950,26 @@ export default function SalesPage() {
                             金額：{formatCurrency(sale.amount)}
                           </div>
                           {sale.note ? (
-                            <div style={{ ...detailTextStyle, marginTop: "6px" }}>
+                            <div style={{ ...detailTextStyle, marginTop: "6px", whiteSpace: "pre-wrap" }}>
                               メモ：{sale.note}
                             </div>
                           ) : null}
                         </div>
 
-                        <button
-                          onClick={() => handleDeleteSale(sale.id)}
-                          style={deleteButtonStyle}
-                        >
-                          削除
-                        </button>
+                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                          {sale.customerId ? (
+                            <Link href={`/customer/${sale.customerId}`} style={subButtonStyle}>
+                              顧客詳細
+                            </Link>
+                          ) : null}
+
+                          <button
+                            onClick={() => handleDeleteSale(sale.id)}
+                            style={deleteButtonStyle}
+                          >
+                            削除
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1120,50 +1131,96 @@ const formGridStyle: React.CSSProperties = {
 
 const labelStyle: React.CSSProperties = {
   display: "block",
-  fontSize: "14px",
-  fontWeight: 600,
-  color: "#374151",
+  fontSize: "13px",
+  fontWeight: 700,
+  color: "#6b7280",
   marginBottom: "8px",
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "13px 14px",
+  padding: "12px 14px",
   borderRadius: "14px",
-  border: "1px solid rgba(203,213,225,0.9)",
+  border: "1px solid #dbe3ec",
   background: "rgba(255,255,255,0.88)",
-  fontSize: "15px",
   color: "#111827",
   outline: "none",
   boxSizing: "border-box",
+  fontSize: "14px",
 };
 
 const readonlyBoxStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "13px 14px",
-  borderRadius: "14px",
-  border: "1px solid rgba(203,213,225,0.9)",
-  background: "rgba(243,244,246,0.9)",
-  fontSize: "15px",
-  color: "#111827",
-  boxSizing: "border-box",
-  minHeight: "50px",
+  ...inputStyle,
+  minHeight: "46px",
+  display: "flex",
+  alignItems: "center",
+  fontWeight: 700,
+  color: "#374151",
 };
 
 const summaryBoxStyle: React.CSSProperties = {
-  marginTop: "18px",
+  marginTop: "20px",
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(226,232,240,0.95)",
   borderRadius: "18px",
-  background: "rgba(17,24,39,0.92)",
   padding: "16px",
-  color: "#ffffff",
+  display: "grid",
+  gap: "10px",
 };
 
 const summaryRowStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   gap: "12px",
-  marginBottom: "8px",
-  fontSize: "14px",
+  alignItems: "center",
+  color: "#111827",
+};
+
+const mainButtonStyle: React.CSSProperties = {
+  background: "linear-gradient(135deg, #8b5e3c, #c49a6c)",
+  color: "#fff",
+  border: "none",
+  borderRadius: "14px",
+  padding: "14px 20px",
+  fontWeight: 800,
+  cursor: "pointer",
+  boxShadow: "0 12px 24px rgba(139,94,60,0.24)",
+};
+
+const subButtonPlainStyle: React.CSSProperties = {
+  background: "rgba(255,255,255,0.8)",
+  color: "#374151",
+  border: "1px solid #dbe3ec",
+  borderRadius: "14px",
+  padding: "12px 16px",
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+const subButtonStyle: React.CSSProperties = {
+  ...subButtonPlainStyle,
+  textDecoration: "none",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const mainLinkStyle: React.CSSProperties = {
+  ...mainButtonStyle,
+  textDecoration: "none",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const deleteButtonStyle: React.CSSProperties = {
+  background: "#fee2e2",
+  color: "#b91c1c",
+  border: "none",
+  borderRadius: "12px",
+  padding: "10px 14px",
+  fontWeight: 700,
+  cursor: "pointer",
 };
 
 const detailTextStyle: React.CSSProperties = {
@@ -1173,62 +1230,7 @@ const detailTextStyle: React.CSSProperties = {
 };
 
 const emptyBoxStyle: React.CSSProperties = {
-  borderRadius: "16px",
-  padding: "20px",
-  background: "rgba(255,255,255,0.55)",
-  border: "1px solid rgba(203,213,225,0.7)",
+  ...innerCardStyle,
   color: "#6b7280",
   textAlign: "center",
-};
-
-const mainButtonStyle: React.CSSProperties = {
-  border: "none",
-  borderRadius: "14px",
-  padding: "13px 20px",
-  background: "#111827",
-  color: "#ffffff",
-  fontWeight: 700,
-  fontSize: "15px",
-  cursor: "pointer",
-};
-
-const subButtonPlainStyle: React.CSSProperties = {
-  border: "1px solid rgba(203,213,225,0.95)",
-  borderRadius: "14px",
-  padding: "13px 20px",
-  background: "rgba(255,255,255,0.85)",
-  color: "#111827",
-  fontWeight: 700,
-  fontSize: "15px",
-  cursor: "pointer",
-};
-
-const subButtonStyle: React.CSSProperties = {
-  textDecoration: "none",
-  borderRadius: "14px",
-  padding: "13px 18px",
-  background: "rgba(255,255,255,0.85)",
-  border: "1px solid rgba(203,213,225,0.95)",
-  color: "#111827",
-  fontWeight: 700,
-};
-
-const mainLinkStyle: React.CSSProperties = {
-  textDecoration: "none",
-  borderRadius: "14px",
-  padding: "13px 18px",
-  background: "#111827",
-  color: "#ffffff",
-  fontWeight: 700,
-};
-
-const deleteButtonStyle: React.CSSProperties = {
-  border: "none",
-  borderRadius: "12px",
-  padding: "10px 14px",
-  background: "#111827",
-  color: "#ffffff",
-  fontWeight: 700,
-  cursor: "pointer",
-  height: "fit-content",
 };
