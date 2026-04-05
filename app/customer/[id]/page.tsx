@@ -128,17 +128,21 @@ function getCustomerFromLocalStorage(customerId: string): Customer | null {
 
   for (const key of detailKeys) {
     const detail = parseLocalStorageJson<Customer>(key);
-    if (detail) return { id: customerId, ...detail };
+    if (detail) {
+      return {
+        ...detail,
+        id: customerId,
+      };
+    }
   }
 
   return null;
 }
 
 function getSummaryExercises(session: TrainingSession) {
-  const names = safeArray(session.training_sets)
+  return safeArray(session.training_sets)
     .map((set) => set.exercise_name?.trim())
     .filter(Boolean) as string[];
-  return names;
 }
 
 export default function CustomerDetailPage() {
@@ -152,7 +156,7 @@ export default function CustomerDetailPage() {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [sessions, setSessions] = useState<TrainingSession[]>([]);
   const [error, setError] = useState("");
-  const [copiedSessionId, setCopiedSessionId] = useState<string | null>(null);
+  const [copiedNotice, setCopiedNotice] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -174,8 +178,8 @@ export default function CustomerDetailPage() {
   useEffect(() => {
     const copied = searchParams.get("copied");
     if (copied) {
-      setCopiedSessionId(copied);
-      const timer = setTimeout(() => setCopiedSessionId(null), 3000);
+      setCopiedNotice(true);
+      const timer = setTimeout(() => setCopiedNotice(false), 3000);
       return () => clearTimeout(timer);
     }
   }, [searchParams]);
@@ -190,50 +194,52 @@ export default function CustomerDetailPage() {
         setCustomer(localCustomer);
       }
 
-      if (supabase) {
-        const [{ data: customerData, error: customerError }, { data: sessionData, error: sessionError }] =
-          await Promise.all([
-            supabase.from("customers").select("*").eq("id", customerId).single(),
-            supabase
-              .from("training_sessions")
-              .select(
-                `
-                *,
-                training_sets (
-                  id,
-                  row_id,
-                  row_order,
-                  category,
-                  exercise_name,
-                  set_count,
-                  reps,
-                  weight,
-                  seconds,
-                  memo
-                )
-              `
-              )
-              .eq("customer_id", customerId)
-              .order("session_date", { ascending: false })
-              .order("created_at", { ascending: false }),
-          ]);
-
-        if (!customerError && customerData) {
-          setCustomer((prev) => ({
-            ...(prev ?? { id: customerId }),
-            ...customerData,
-          }));
-        }
-
-        if (sessionError) {
-          throw sessionError;
-        }
-
-        setSessions((sessionData as TrainingSession[]) ?? []);
-      } else {
+      if (!supabase) {
         setSessions([]);
+        return;
       }
-    } catch (e: unknown) {
+
+      const [customerRes, sessionRes] = await Promise.all([
+        supabase.from("customers").select("*").eq("id", customerId).maybeSingle(),
+        supabase
+          .from("training_sessions")
+          .select(
+            `
+            *,
+            training_sets (
+              id,
+              row_id,
+              row_order,
+              category,
+              exercise_name,
+              set_count,
+              reps,
+              weight,
+              seconds,
+              memo
+            )
+          `
+          )
+          .eq("customer_id", customerId)
+          .order("session_date", { ascending: false })
+          .order("created_at", { ascending: false }),
+      ]);
+
+      if (customerRes.error) {
+        console.error(customerRes.error);
+      } else if (customerRes.data) {
+        setCustomer((prev) => ({
+          ...(prev ?? { id: customerId }),
+          ...customerRes.data,
+        }));
+      }
+
+      if (sessionRes.error) {
+        throw sessionRes.error;
+      }
+
+      setSessions((sessionRes.data as TrainingSession[]) ?? []);
+    } catch (e) {
       console.error(e);
       setError("顧客情報またはトレーニング履歴の取得に失敗しました。");
     } finally {
@@ -245,10 +251,10 @@ export default function CustomerDetailPage() {
     return sessions.length > 0 ? sessions[0] : null;
   }, [sessions]);
 
-  const totalSessions = sessions.length;
-
   const latestWeight = useMemo(() => {
-    const found = sessions.find((s) => s.body_weight !== null && s.body_weight !== undefined);
+    const found = sessions.find(
+      (item) => item.body_weight !== null && item.body_weight !== undefined
+    );
     return found?.body_weight ?? customer?.weight ?? "—";
   }, [sessions, customer]);
 
@@ -357,7 +363,7 @@ export default function CustomerDetailPage() {
           </div>
         </div>
 
-        {copiedSessionId && (
+        {copiedNotice && (
           <div
             style={{
               ...CARD,
@@ -400,7 +406,14 @@ export default function CustomerDetailPage() {
           }}
         >
           <div style={{ ...CARD, padding: 18, borderRadius: 24 }}>
-            <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700, marginBottom: 8 }}>
+            <div
+              style={{
+                fontSize: 12,
+                color: "#64748b",
+                fontWeight: 700,
+                marginBottom: 8,
+              }}
+            >
               顧客情報
             </div>
             <h2 style={{ margin: "0 0 12px", fontSize: 24, color: "#0f172a" }}>
@@ -418,7 +431,14 @@ export default function CustomerDetailPage() {
           </div>
 
           <div style={{ ...CARD, padding: 18, borderRadius: 24 }}>
-            <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700, marginBottom: 8 }}>
+            <div
+              style={{
+                fontSize: 12,
+                color: "#64748b",
+                fontWeight: 700,
+                marginBottom: 8,
+              }}
+            >
               契約・利用状況
             </div>
             <div style={{ display: "grid", gap: 8, color: "#334155", fontSize: 14 }}>
@@ -428,14 +448,24 @@ export default function CustomerDetailPage() {
               <div>使用回数：{usageSummary.usedCount || 0}</div>
               <div>繰越：{usageSummary.carryOver || 0}</div>
               <div>残回数：{usageSummary.remaining || 0}</div>
-              <div>料金：{customer?.price ? `¥${Number(customer.price).toLocaleString()}` : "—"}</div>
+              <div>
+                料金：
+                {customer?.price ? `¥${Number(customer.price).toLocaleString()}` : "—"}
+              </div>
               <div>状態：{customer?.status || "—"}</div>
               <div>次回支払日：{formatDate(customer?.nextPayment)}</div>
             </div>
           </div>
 
           <div style={{ ...CARD, padding: 18, borderRadius: 24 }}>
-            <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700, marginBottom: 8 }}>
+            <div
+              style={{
+                fontSize: 12,
+                color: "#64748b",
+                fontWeight: 700,
+                marginBottom: 8,
+              }}
+            >
               トレーニングサマリー
             </div>
 
@@ -447,10 +477,24 @@ export default function CustomerDetailPage() {
               }}
             >
               {[
-                { label: "前回トレーニング日", value: formatDate(latestSession?.session_date) },
-                { label: "最終体重", value: latestWeight === "—" ? "—" : `${latestWeight} kg` },
-                { label: "履歴件数", value: `${totalSessions}件` },
-                { label: "最終更新", value: formatDateTime(latestSession?.updated_at || latestSession?.created_at) },
+                {
+                  label: "前回トレーニング日",
+                  value: formatDate(latestSession?.session_date),
+                },
+                {
+                  label: "最終体重",
+                  value: latestWeight === "—" ? "—" : `${latestWeight} kg`,
+                },
+                {
+                  label: "履歴件数",
+                  value: `${sessions.length}件`,
+                },
+                {
+                  label: "最終更新",
+                  value: formatDateTime(
+                    latestSession?.updated_at || latestSession?.created_at
+                  ),
+                },
               ].map((item) => (
                 <div
                   key={item.label}
@@ -461,7 +505,14 @@ export default function CustomerDetailPage() {
                     padding: 14,
                   }}
                 >
-                  <div style={{ fontSize: 12, color: "#64748b", marginBottom: 6, fontWeight: 700 }}>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "#64748b",
+                      marginBottom: 6,
+                      fontWeight: 700,
+                    }}
+                  >
                     {item.label}
                   </div>
                   <div style={{ fontSize: 17, fontWeight: 800, color: "#0f172a" }}>
@@ -653,9 +704,17 @@ export default function CustomerDetailPage() {
                           padding: 14,
                         }}
                       >
-                        <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700, marginBottom: 8 }}>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#64748b",
+                            fontWeight: 700,
+                            marginBottom: 8,
+                          }}
+                        >
                           種目一覧
                         </div>
+
                         {exerciseNames.length > 0 ? (
                           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                             {exerciseNames.map((name, idx) => (
@@ -720,7 +779,14 @@ export default function CustomerDetailPage() {
                           padding: 14,
                         }}
                       >
-                        <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700, marginBottom: 8 }}>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#64748b",
+                            fontWeight: 700,
+                            marginBottom: 8,
+                          }}
+                        >
                           総評
                         </div>
                         <div style={{ whiteSpace: "pre-wrap", color: "#334155", fontSize: 14 }}>
@@ -761,7 +827,14 @@ export default function CustomerDetailPage() {
 
                     {postureImages.length > 0 && (
                       <div style={{ marginTop: 16 }}>
-                        <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700, marginBottom: 10 }}>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#64748b",
+                            fontWeight: 700,
+                            marginBottom: 10,
+                          }}
+                        >
                           姿勢画像
                         </div>
                         <div

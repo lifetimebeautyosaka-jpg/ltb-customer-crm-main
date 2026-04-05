@@ -17,6 +17,20 @@ type TrainingSetRow = {
   memo: string;
 };
 
+type TrainingSetDB = {
+  id?: string;
+  session_id?: string;
+  row_id?: string | null;
+  row_order?: number | null;
+  category?: string | null;
+  exercise_name?: string | null;
+  set_count?: number | null;
+  reps?: string | null;
+  weight?: string | null;
+  seconds?: string | null;
+  memo?: string | null;
+};
+
 type TrainingSession = {
   id: string;
   customer_id: string;
@@ -32,20 +46,6 @@ type TrainingSession = {
   training_sets?: TrainingSetDB[];
 };
 
-type TrainingSetDB = {
-  id?: string;
-  session_id?: string;
-  row_id?: string | null;
-  row_order?: number | null;
-  category?: string | null;
-  exercise_name?: string | null;
-  set_count?: number | null;
-  reps?: string | null;
-  weight?: string | null;
-  seconds?: string | null;
-  memo?: string | null;
-};
-
 const supabase =
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -54,17 +54,6 @@ const supabase =
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
       )
     : null;
-
-const emptyRow = (): TrainingSetRow => ({
-  rowId: crypto.randomUUID(),
-  category: "",
-  exercise_name: "",
-  set_count: "",
-  reps: "",
-  weight: "",
-  seconds: "",
-  memo: "",
-});
 
 function safeArray<T>(value: T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : [];
@@ -84,18 +73,34 @@ function formatDateTime(date?: string | null) {
   return d.toLocaleString("ja-JP");
 }
 
+function makeRow(): TrainingSetRow {
+  return {
+    rowId: crypto.randomUUID(),
+    category: "",
+    exercise_name: "",
+    set_count: "",
+    reps: "",
+    weight: "",
+    seconds: "",
+    memo: "",
+  };
+}
+
 function sessionToForm(session: TrainingSession) {
-  const sets = safeArray(session.training_sets)
+  const rows = safeArray(session.training_sets)
     .sort((a, b) => (a.row_order ?? 0) - (b.row_order ?? 0))
-    .map((set) => ({
-      rowId: set.row_id || crypto.randomUUID(),
-      category: set.category || "",
-      exercise_name: set.exercise_name || "",
-      set_count: set.set_count !== null && set.set_count !== undefined ? String(set.set_count) : "",
-      reps: set.reps || "",
-      weight: set.weight || "",
-      seconds: set.seconds || "",
-      memo: set.memo || "",
+    .map((item) => ({
+      rowId: item.row_id || crypto.randomUUID(),
+      category: item.category || "",
+      exercise_name: item.exercise_name || "",
+      set_count:
+        item.set_count !== null && item.set_count !== undefined
+          ? String(item.set_count)
+          : "",
+      reps: item.reps || "",
+      weight: item.weight || "",
+      seconds: item.seconds || "",
+      memo: item.memo || "",
     }));
 
   return {
@@ -108,8 +113,8 @@ function sessionToForm(session: TrainingSession) {
     nextTask: session.next_task || "",
     postureNote: session.posture_note || "",
     stretchMenu: safeArray(session.stretch_menu).join("\n"),
-    setRows: sets.length > 0 ? sets : [emptyRow()],
     postureImageUrls: safeArray(session.posture_image_urls),
+    setRows: rows.length > 0 ? rows : [makeRow()],
   };
 }
 
@@ -134,8 +139,8 @@ export default function TrainingPage() {
   const [nextTask, setNextTask] = useState("");
   const [postureNote, setPostureNote] = useState("");
   const [stretchMenu, setStretchMenu] = useState("");
-  const [setRows, setSetRows] = useState<TrainingSetRow[]>([emptyRow()]);
   const [postureImageUrls, setPostureImageUrls] = useState<string[]>([]);
+  const [setRows, setSetRows] = useState<TrainingSetRow[]>([makeRow()]);
   const [history, setHistory] = useState<TrainingSession[]>([]);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
 
@@ -174,7 +179,7 @@ export default function TrainingPage() {
       const target = history.find((item) => item.id === copyFrom);
       if (target) {
         applySessionToForm(target, false);
-        setSuccess("履歴をコピーしました。必要があれば内容を調整して保存してください。");
+        setSuccess("履歴をコピーしました。必要に応じて調整して保存してください。");
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -191,7 +196,7 @@ export default function TrainingPage() {
     setError("");
 
     try {
-      const { data, error } = await supabase
+      const { data, error: fetchError } = await supabase
         .from("training_sessions")
         .select(
           `
@@ -215,9 +220,9 @@ export default function TrainingPage() {
         .order("session_date", { ascending: false })
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (fetchError) throw fetchError;
       setHistory((data as TrainingSession[]) ?? []);
-    } catch (e: unknown) {
+    } catch (e) {
       console.error(e);
       setError("トレーニング履歴の取得に失敗しました。");
     } finally {
@@ -233,8 +238,8 @@ export default function TrainingPage() {
     setNextTask("");
     setPostureNote("");
     setStretchMenu("");
-    setSetRows([emptyRow()]);
     setPostureImageUrls([]);
+    setSetRows([makeRow()]);
     setError("");
     setSuccess("");
   }
@@ -248,8 +253,8 @@ export default function TrainingPage() {
     setNextTask(form.nextTask);
     setPostureNote(form.postureNote);
     setStretchMenu(form.stretchMenu);
-    setSetRows(form.setRows);
     setPostureImageUrls(form.postureImageUrls);
+    setSetRows(form.setRows);
     setEditingSessionId(isEdit ? session.id : null);
 
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -262,17 +267,17 @@ export default function TrainingPage() {
   }
 
   function addRow() {
-    setSetRows((prev) => [...prev, emptyRow()]);
+    setSetRows((prev) => [...prev, makeRow()]);
   }
 
   function removeRow(rowId: string) {
     setSetRows((prev) => {
-      if (prev.length === 1) return [emptyRow()];
+      if (prev.length === 1) return [makeRow()];
       return prev.filter((row) => row.rowId !== rowId);
     });
   }
 
-  async function handleUploadFiles(files: FileList | null) {
+  async function handleUpload(files: FileList | null) {
     if (!files || files.length === 0) return;
     if (!supabase) {
       setError("Supabaseの環境変数が設定されていません。");
@@ -284,7 +289,7 @@ export default function TrainingPage() {
     setSuccess("");
 
     try {
-      const uploadedUrls: string[] = [];
+      const urls: string[] = [];
 
       for (const file of Array.from(files)) {
         const ext = file.name.split(".").pop() || "jpg";
@@ -300,16 +305,16 @@ export default function TrainingPage() {
         if (uploadError) throw uploadError;
 
         const { data } = supabase.storage.from("training-images").getPublicUrl(fileName);
-        if (data?.publicUrl) {
-          uploadedUrls.push(data.publicUrl);
+        if (data.publicUrl) {
+          urls.push(data.publicUrl);
         }
       }
 
-      setPostureImageUrls((prev) => [...prev, ...uploadedUrls]);
+      setPostureImageUrls((prev) => [...prev, ...urls]);
       setSuccess("姿勢画像をアップロードしました。");
-    } catch (e: unknown) {
+    } catch (e) {
       console.error(e);
-      setError("画像アップロードに失敗しました。Storage設定を確認してください。");
+      setError("画像アップロードに失敗しました。");
     } finally {
       setUploading(false);
     }
@@ -375,14 +380,14 @@ export default function TrainingPage() {
 
         if (deleteError) throw deleteError;
       } else {
-        const { data: inserted, error: insertError } = await supabase
+        const { data, error: insertError } = await supabase
           .from("training_sessions")
           .insert(sessionPayload)
           .select("id")
           .single();
 
         if (insertError) throw insertError;
-        sessionId = inserted.id;
+        sessionId = data.id;
       }
 
       if (!sessionId) {
@@ -413,16 +418,17 @@ export default function TrainingPage() {
       setSuccess(editingSessionId ? "履歴を更新しました。" : "トレーニング履歴を保存しました。");
       resetForm();
       await loadHistory();
-    } catch (e: unknown) {
+    } catch (e) {
       console.error(e);
-      setError("保存に失敗しました。カラム名やSupabase設定を確認してください。");
+      setError("保存に失敗しました。");
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleDeleteSession(sessionId: string) {
+  async function handleDelete(sessionId: string) {
     if (!supabase) return;
+
     const ok = window.confirm("この履歴を削除しますか？");
     if (!ok) return;
 
@@ -450,15 +456,13 @@ export default function TrainingPage() {
 
       setSuccess("履歴を削除しました。");
       await loadHistory();
-    } catch (e: unknown) {
+    } catch (e) {
       console.error(e);
       setError("履歴の削除に失敗しました。");
     }
   }
 
-  const formTitle = editingSessionId ? "トレーニング履歴を編集" : "トレーニング履歴を登録";
-
-  const totalExerciseCount = useMemo(() => {
+  const exerciseCount = useMemo(() => {
     return setRows.filter((row) => row.exercise_name.trim()).length;
   }, [setRows]);
 
@@ -505,7 +509,7 @@ export default function TrainingPage() {
                 TRAINING SESSION
               </div>
               <h1 style={{ margin: 0, fontSize: 28, color: "#0f172a" }}>
-                {formTitle}
+                {editingSessionId ? "トレーニング履歴を編集" : "トレーニング履歴を登録"}
               </h1>
               <p style={{ margin: "8px 0 0", color: "#475569", fontSize: 14 }}>
                 セッション情報・ストレッチ項目・種目テーブル・総評・画像をまとめて管理できます
@@ -530,8 +534,8 @@ export default function TrainingPage() {
               </Link>
 
               <button
-                onClick={resetForm}
                 type="button"
+                onClick={resetForm}
                 style={{
                   padding: "12px 16px",
                   borderRadius: 14,
@@ -690,8 +694,9 @@ export default function TrainingPage() {
                       fontWeight: 800,
                     }}
                   >
-                    入力種目数：{totalExerciseCount}
+                    入力種目数：{exerciseCount}
                   </span>
+
                   <button type="button" onClick={addRow} style={BUTTON_PRIMARY}>
                     行を追加
                   </button>
@@ -868,12 +873,7 @@ export default function TrainingPage() {
                 POSTURE IMAGE
               </div>
 
-              <label
-                style={{
-                  display: "grid",
-                  gap: 10,
-                }}
-              >
+              <label style={{ display: "grid", gap: 10 }}>
                 <span style={{ color: "#334155", fontWeight: 700, fontSize: 14 }}>
                   姿勢画像アップロード
                 </span>
@@ -881,18 +881,12 @@ export default function TrainingPage() {
                   type="file"
                   accept="image/*"
                   multiple
-                  onChange={(e) => void handleUploadFiles(e.target.files)}
+                  onChange={(e) => void handleUpload(e.target.files)}
                   style={inputStyle}
                 />
               </label>
 
-              <div
-                style={{
-                  marginTop: 10,
-                  fontSize: 13,
-                  color: "#64748b",
-                }}
-              >
+              <div style={{ marginTop: 10, fontSize: 13, color: "#64748b" }}>
                 {uploading ? "アップロード中..." : "複数画像アップロードOK"}
               </div>
 
@@ -1037,6 +1031,7 @@ export default function TrainingPage() {
                 履歴一覧
               </h2>
             </div>
+
             <div
               style={{
                 fontSize: 13,
@@ -1176,7 +1171,7 @@ export default function TrainingPage() {
 
                         <button
                           type="button"
-                          onClick={() => void handleDeleteSession(session.id)}
+                          onClick={() => void handleDelete(session.id)}
                           style={{
                             padding: "12px 16px",
                             borderRadius: 14,
@@ -1207,7 +1202,14 @@ export default function TrainingPage() {
                           padding: 14,
                         }}
                       >
-                        <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700, marginBottom: 10 }}>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#64748b",
+                            fontWeight: 700,
+                            marginBottom: 10,
+                          }}
+                        >
                           種目一覧
                         </div>
 
@@ -1227,7 +1229,13 @@ export default function TrainingPage() {
                                   fontSize: 14,
                                 }}
                               >
-                                <div style={{ fontWeight: 800, color: "#0f172a", marginBottom: 4 }}>
+                                <div
+                                  style={{
+                                    fontWeight: 800,
+                                    color: "#0f172a",
+                                    marginBottom: 4,
+                                  }}
+                                >
                                   {set.exercise_name || "種目名未入力"}
                                 </div>
                                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -1291,7 +1299,14 @@ export default function TrainingPage() {
                           padding: 14,
                         }}
                       >
-                        <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700, marginBottom: 8 }}>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#64748b",
+                            fontWeight: 700,
+                            marginBottom: 8,
+                          }}
+                        >
                           総評
                         </div>
                         <div style={{ whiteSpace: "pre-wrap", color: "#334155", fontSize: 14 }}>
@@ -1332,7 +1347,14 @@ export default function TrainingPage() {
 
                     {images.length > 0 && (
                       <div style={{ marginTop: 16 }}>
-                        <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700, marginBottom: 10 }}>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#64748b",
+                            fontWeight: 700,
+                            marginBottom: 10,
+                          }}
+                        >
                           姿勢画像
                         </div>
                         <div
@@ -1378,7 +1400,7 @@ export default function TrainingPage() {
   );
 }
 
-const inputStyle: React.CSSProperties = {
+const inputStyle = {
   width: "100%",
   borderRadius: 14,
   border: "1px solid rgba(148,163,184,0.24)",
@@ -1387,10 +1409,10 @@ const inputStyle: React.CSSProperties = {
   fontSize: 14,
   color: "#0f172a",
   outline: "none",
-  boxSizing: "border-box",
+  boxSizing: "border-box" as const,
 };
 
-const textareaStyle: React.CSSProperties = {
+const textareaStyle = {
   width: "100%",
   borderRadius: 16,
   border: "1px solid rgba(148,163,184,0.24)",
@@ -1399,11 +1421,11 @@ const textareaStyle: React.CSSProperties = {
   fontSize: 14,
   color: "#0f172a",
   outline: "none",
-  resize: "vertical",
-  boxSizing: "border-box",
+  resize: "vertical" as const,
+  boxSizing: "border-box" as const,
 };
 
-const tableInputStyle: React.CSSProperties = {
+const tableInputStyle = {
   width: "100%",
   borderRadius: 12,
   border: "1px solid rgba(148,163,184,0.22)",
@@ -1412,5 +1434,5 @@ const tableInputStyle: React.CSSProperties = {
   fontSize: 14,
   color: "#0f172a",
   outline: "none",
-  boxSizing: "border-box",
+  boxSizing: "border-box" as const,
 };
