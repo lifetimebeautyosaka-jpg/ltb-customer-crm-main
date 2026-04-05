@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import React from "react";
 
 export default function HomePage() {
   return (
     <main style={styles.page}>
       <style>{`
-        /* ===== 背景ダイヤ上昇 ===== */
+        /* ===== 背景ダイヤ（常時 上昇） ===== */
         @keyframes diamondRise {
           0% {
             transform: translateY(0px) scale(0.6) rotate(45deg);
@@ -38,11 +39,11 @@ export default function HomePage() {
           pointer-events: none;
         }
 
-        /* ===== パネル ===== */
+        /* ===== パネル演出（軽量） ===== */
         .panel {
           position: relative;
           overflow: hidden;
-          transition: all .3s ease;
+          transition: transform .25s ease, box-shadow .25s ease;
         }
 
         .panel:hover {
@@ -57,15 +58,16 @@ export default function HomePage() {
           inset:0;
           background: linear-gradient(
             120deg,
-            transparent,
-            rgba(255,255,255,0.8),
-            transparent
+            transparent 40%,
+            rgba(255,255,255,0.8) 50%,
+            transparent 60%
           );
           transform: translateX(-150%);
+          opacity: 0;
         }
 
         .panel:hover::before {
-          animation: shineX 1.2s;
+          animation: shineX 1.2s ease;
         }
 
         @keyframes shineX {
@@ -89,10 +91,11 @@ export default function HomePage() {
             rgba(255,255,255,0.9),
             transparent
           );
+          opacity: 0;
         }
 
         .panel:hover::after {
-          animation: shineY 1.4s;
+          animation: shineY 1.4s ease;
         }
 
         @keyframes shineY {
@@ -100,29 +103,36 @@ export default function HomePage() {
           50% { opacity:1; }
           100% { transform: translateY(150%); opacity:0; }
         }
+
+        @media (max-width: 720px) {
+          .grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
       `}</style>
 
       {/* ===== 背景ダイヤ ===== */}
-      <div className="diamond" style={{ left:"10%", animationDelay:"0s" }} />
-      <div className="diamond" style={{ left:"25%", animationDelay:"2s" }} />
-      <div className="diamond" style={{ left:"40%", animationDelay:"1s" }} />
-      <div className="diamond" style={{ left:"55%", animationDelay:"3s" }} />
-      <div className="diamond" style={{ left:"70%", animationDelay:"1.5s" }} />
-      <div className="diamond" style={{ left:"85%", animationDelay:"2.5s" }} />
+      <div className="diamond" style={{ left: "10%", animationDelay: "0s" }} />
+      <div className="diamond" style={{ left: "25%", animationDelay: "2s" }} />
+      <div className="diamond" style={{ left: "40%", animationDelay: "1s" }} />
+      <div className="diamond" style={{ left: "55%", animationDelay: "3s" }} />
+      <div className="diamond" style={{ left: "70%", animationDelay: "1.5s" }} />
+      <div className="diamond" style={{ left: "85%", animationDelay: "2.5s" }} />
 
       <div style={styles.container}>
         {/* ===== HERO ===== */}
         <section style={styles.hero}>
-          <img src="/gymup-logo.png" style={styles.logo} />
+          <img src="/gymup-logo.png" alt="GYMUP" style={styles.logo} />
           <h1 style={styles.title}>GYMUP CRM</h1>
           <p style={styles.desc}>
             顧客・売上・予約・トレーニングを一元管理する
-            <br />プレミアムCRM
+            <br />
+            プレミアムCRM
           </p>
         </section>
 
         {/* ===== MENU ===== */}
-        <section style={styles.grid}>
+        <section style={styles.grid} className="grid">
           <Link href="/customer" className="panel" style={styles.panel}>
             <div style={styles.label}>CUSTOMER</div>
             <div style={styles.panelTitle}>顧客管理</div>
@@ -158,50 +168,60 @@ export default function HomePage() {
   );
 }
 
-const styles = {
-  page:{
-    minHeight:"100vh",
-    background:"linear-gradient(135deg,#ffffff,#eef2f7)",
-    padding:"40px",
-    position:"relative"
+/* ===== 型付きスタイル（これでビルド通る） ===== */
+const styles: { [key: string]: React.CSSProperties } = {
+  page: {
+    minHeight: "100vh",
+    background: "linear-gradient(135deg,#ffffff,#eef2f7)",
+    padding: "40px",
+    position: "relative",
   },
-  container:{
-    maxWidth:"1000px",
-    margin:"0 auto",
-    position:"relative",
-    zIndex:1
+  container: {
+    maxWidth: "1000px",
+    margin: "0 auto",
+    position: "relative",
+    zIndex: 1,
   },
-  hero:{
-    textAlign:"center" as const,
-    marginBottom:"40px"
+  hero: {
+    textAlign: "center",
+    marginBottom: "40px",
   },
-  logo:{ width:"260px" },
-  title:{
-    fontSize:"42px",
-    fontWeight:900
+  logo: {
+    width: "260px",
+    display: "block",
+    margin: "0 auto",
   },
-  desc:{
-    color:"#64748b"
+  title: {
+    fontSize: "42px",
+    fontWeight: 900,
+    marginTop: "12px",
   },
-  grid:{
-    display:"grid",
-    gridTemplateColumns:"1fr 1fr",
-    gap:"20px"
+  desc: {
+    color: "#64748b",
+    marginTop: "8px",
+    lineHeight: 1.8,
   },
-  panel:{
-    padding:"30px",
-    borderRadius:"20px",
-    background:"rgba(255,255,255,0.9)",
-    backdropFilter:"blur(10px)",
-    textDecoration:"none",
-    color:"#111"
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "20px",
   },
-  label:{
-    fontSize:"12px",
-    color:"#94a3b8"
+  panel: {
+    padding: "30px",
+    borderRadius: "20px",
+    background: "rgba(255,255,255,0.9)",
+    backdropFilter: "blur(10px)",
+    textDecoration: "none",
+    color: "#111",
   },
-  panelTitle:{
-    fontSize:"22px",
-    fontWeight:800
-  }
+  label: {
+    fontSize: "12px",
+    color: "#94a3b8",
+    letterSpacing: "0.1em",
+  },
+  panelTitle: {
+    fontSize: "22px",
+    fontWeight: 800,
+    marginTop: "6px",
+  },
 };
