@@ -3,6 +3,8 @@
 import Link from "next/link";
 import React from "react";
 
+const titleText = "GYMUP CRM";
+
 export default function HomePage() {
   return (
     <main style={styles.page}>
@@ -42,6 +44,17 @@ export default function HomePage() {
             box-shadow:
               0 18px 40px rgba(15, 23, 42, 0.05),
               inset 0 1px 0 rgba(255,255,255,0.95);
+          }
+        }
+
+        @keyframes titleCharIn {
+          0% {
+            opacity: 0;
+            transform: translateY(12px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
           }
         }
 
@@ -110,6 +123,14 @@ export default function HomePage() {
           transform: translateY(-1px);
         }
 
+        .gymup-title-char {
+          display: inline-block;
+          opacity: 0;
+          transform: translateY(12px);
+          animation: titleCharIn 0.55s ease forwards;
+          will-change: transform, opacity;
+        }
+
         .gymup-grid {
           display: grid;
           grid-template-columns: 1fr 1fr;
@@ -135,7 +156,22 @@ export default function HomePage() {
 
         <section style={styles.hero}>
           <div style={styles.eyebrow}>PREMIUM GYM & PILATES MANAGEMENT SYSTEM</div>
-          <h1 style={styles.title}>GYMUP CRM</h1>
+
+          <h1 style={styles.title} aria-label={titleText}>
+            {titleText.split("").map((char, index) => (
+              <span
+                key={`${char}-${index}`}
+                className="gymup-title-char"
+                style={{
+                  animationDelay: `${0.08 + index * 0.045}s`,
+                  marginRight: char === " " ? "0.22em" : undefined,
+                }}
+              >
+                {char === " " ? "\u00A0" : char}
+              </span>
+            ))}
+          </h1>
+
           <p style={styles.desc}>
             パーソナルジム・ストレッチ・ピラティス運営を、
             <br />
@@ -304,6 +340,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     color: "#0f172a",
     letterSpacing: "-0.04em",
     margin: 0,
+    minHeight: "58px",
   },
 
   desc: {
