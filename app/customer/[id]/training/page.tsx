@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
+import { BG, CARD, BUTTON_PRIMARY } from "../../../../styles/theme";
 
 type TrainingSet = {
+  rowId: string;
   id?: string;
   session_id?: string;
   exercise_name: string;
@@ -27,13 +29,12 @@ type TrainingSession = {
   condition: string | null;
   sleep_hours: number | null;
   note: string | null;
-
   split_angle: number | null;
   forward_flexion: number | null;
   shoulder_right: number | null;
   shoulder_left: number | null;
   posture_note: string | null;
-
+  posture_image_urls?: string[] | null;
   summary: string | null;
   next_task: string | null;
   template_name: string | null;
@@ -80,6 +81,7 @@ const exerciseOptions = [
 ];
 
 const emptySetRow = (): TrainingSet => ({
+  rowId: crypto.randomUUID(),
   exercise_name: "",
   weight: "",
   reps: "",
@@ -133,6 +135,8 @@ export default function CustomerTrainingPage() {
 
   const [history, setHistory] = useState<TrainingSession[]>([]);
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
+  const [postureImageFiles, setPostureImageFiles] = useState<File[]>([]);
+  const [postureImagePreviews, setPostureImagePreviews] = useState<string[]>([]);
 
   useEffect(() => {
     setMounted(true);
@@ -201,6 +205,7 @@ export default function CustomerTrainingPage() {
           const key = item.session_id;
           if (!acc[key]) acc[key] = [];
           acc[key].push({
+            rowId: crypto.randomUUID(),
             id: item.id,
             session_id: item.session_id,
             exercise_name: item.exercise_name ?? "",
@@ -236,39 +241,35 @@ export default function CustomerTrainingPage() {
     setCondition("");
     setSleepHours("");
     setNote("");
-
     setSplitAngle("");
     setForwardFlexion("");
     setShoulderRight("");
     setShoulderLeft("");
     setPostureNote("");
-
     setSummary("");
     setNextTask("");
     setTemplateName("");
     setSetRows([emptySetRow(), emptySetRow(), emptySetRow()]);
     setSelectedHistoryId(null);
     setCopyMessage("");
+    setPostureImageFiles([]);
+    setPostureImagePreviews([]);
   };
 
   const addSetRow = () => {
     setSetRows((prev) => [...prev, emptySetRow()]);
   };
 
-  const removeSetRow = (index: number) => {
+  const removeSetRow = (rowId: string) => {
     setSetRows((prev) => {
       if (prev.length <= 1) return prev;
-      return prev.filter((_, i) => i !== index);
+      return prev.filter((row) => row.rowId !== rowId);
     });
   };
 
-  const updateSetRow = (
-    index: number,
-    field: keyof TrainingSet,
-    value: string
-  ) => {
+  const updateSetRow = (rowId: string, field: keyof TrainingSet, value: string) => {
     setSetRows((prev) =>
-      prev.map((row, i) => (i === index ? { ...row, [field]: value } : row))
+      prev.map((row) => (row.rowId === rowId ? { ...row, [field]: value } : row))
     );
   };
 
@@ -276,6 +277,41 @@ export default function CustomerTrainingPage() {
     if (value === "" || value == null) return null;
     const num = Number(value);
     return Number.isNaN(num) ? null : num;
+  };
+
+  const handlePostureImageChange = (files: FileList | null) => {
+    if (!files) return;
+    const nextFiles = Array.from(files);
+    setPostureImageFiles(nextFiles);
+    setPostureImagePreviews(nextFiles.map((file) => URL.createObjectURL(file)));
+  };
+
+  const uploadPostureImages = async (): Promise<string[]> => {
+    if (!supabase) return [];
+    if (postureImageFiles.length === 0) return [];
+
+    const uploadedUrls: string[] = [];
+
+    for (const file of postureImageFiles) {
+      const fileExt = file.name.split(".").pop() || "jpg";
+      const filePath = `customer-${customerId}/${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2)}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("training-images")
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from("training-images").getPublicUrl(filePath);
+      if (data?.publicUrl) uploadedUrls.push(data.publicUrl);
+    }
+
+    return uploadedUrls;
   };
 
   const applyCopyFromHistory = (item: TrainingSession) => {
@@ -288,6 +324,7 @@ export default function CustomerTrainingPage() {
     const copiedRows =
       item.training_sets && item.training_sets.length > 0
         ? item.training_sets.map((set) => ({
+            rowId: crypto.randomUUID(),
             exercise_name: set.exercise_name || "",
             weight: set.weight || "",
             reps: set.reps || "",
@@ -300,6 +337,8 @@ export default function CustomerTrainingPage() {
     setSetRows(copiedRows);
     setSelectedHistoryId(item.id);
     setCopyMessage(`履歴 ${item.date || ""} の内容をコピー中`);
+    setPostureImageFiles([]);
+    setPostureImagePreviews(item.posture_image_urls || []);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -319,6 +358,9 @@ export default function CustomerTrainingPage() {
       setErrorMessage("");
       setSuccessMessage("");
 
+      const uploadedImageUrls =
+        postureImageFiles.length > 0 ? await uploadPostureImages() : [];
+
       const sessionPayload = {
         customer_id: customerId,
         date: date || null,
@@ -329,13 +371,12 @@ export default function CustomerTrainingPage() {
         condition: condition || null,
         sleep_hours: toNullableNumber(sleepHours),
         note: note || null,
-
         split_angle: toNullableNumber(splitAngle),
         forward_flexion: toNullableNumber(forwardFlexion),
         shoulder_right: toNullableNumber(shoulderRight),
         shoulder_left: toNullableNumber(shoulderLeft),
         posture_note: postureNote || null,
-
+        posture_image_urls: uploadedImageUrls.length > 0 ? uploadedImageUrls : postureImagePreviews,
         summary: summary || null,
         next_task: nextTask || null,
         template_name: templateName || null,
@@ -349,16 +390,7 @@ export default function CustomerTrainingPage() {
 
       if (sessionError) throw sessionError;
 
-      const validSets = setRows.filter((row) => {
-        return (
-          row.exercise_name.trim() ||
-          row.weight.trim() ||
-          row.reps.trim() ||
-          row.sets.trim() ||
-          row.rpe.trim() ||
-          row.memo.trim()
-        );
-      });
+      const validSets = setRows.filter((row) => row.exercise_name.trim() !== "");
 
       if (validSets.length > 0) {
         const setsPayload = validSets.map((row) => ({
@@ -392,88 +424,32 @@ export default function CustomerTrainingPage() {
     const isOpen = selectedHistoryId === item.id;
 
     return (
-      <div
-        key={item.id}
-        style={{
-          border: "1px solid #e5e7eb",
-          borderRadius: 16,
-          background: "#fff",
-          padding: 16,
-          boxShadow: "0 6px 20px rgba(0,0,0,0.04)",
-          marginBottom: 14,
-        }}
-      >
+      <div key={item.id} style={styles.historyCard}>
         <button
           type="button"
           onClick={() => setSelectedHistoryId(isOpen ? null : item.id)}
-          style={{
-            width: "100%",
-            background: "transparent",
-            border: "none",
-            padding: 0,
-            textAlign: "left",
-            cursor: "pointer",
-          }}
+          style={styles.historyToggleButton}
         >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 12,
-              alignItems: "center",
-              flexWrap: "wrap",
-            }}
-          >
+          <div style={styles.historyHeader}>
             <div>
-              <div
-                style={{
-                  fontSize: 18,
-                  fontWeight: 700,
-                  color: "#111827",
-                  marginBottom: 6,
-                }}
-              >
-                {item.date || "日付未設定"}
-              </div>
-              <div style={{ fontSize: 13, color: "#6b7280" }}>
+              <div style={styles.historyDate}>{item.date || "日付未設定"}</div>
+              <div style={styles.historyMeta}>
                 体重: {item.weight ?? "-"} / 体脂肪: {item.body_fat ?? "-"} / 筋肉量:{" "}
                 {item.muscle_mass ?? "-"}
               </div>
             </div>
-            <div
-              style={{
-                fontSize: 12,
-                color: "#8b5e3c",
-                fontWeight: 700,
-                background: "#f7f1eb",
-                borderRadius: 9999,
-                padding: "6px 10px",
-              }}
-            >
-              {isOpen ? "閉じる" : "詳細を見る"}
-            </div>
+            <div style={styles.historyOpenBadge}>{isOpen ? "閉じる" : "詳細を見る"}</div>
           </div>
         </button>
 
-        <div
-          style={{
-            display: "flex",
-            gap: 10,
-            flexWrap: "wrap",
-            marginTop: 14,
-          }}
-        >
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
           <button
             type="button"
             onClick={() => applyCopyFromHistory(item)}
             style={{
-              border: "none",
-              background: "linear-gradient(135deg, #8b5e3c 0%, #c49a6c 100%)",
-              color: "#fff",
-              borderRadius: 12,
+              ...BUTTON_PRIMARY,
               padding: "10px 14px",
-              fontWeight: 700,
-              cursor: "pointer",
+              boxShadow: "0 10px 20px rgba(139,94,60,0.18)",
             }}
           >
             この履歴をコピー
@@ -482,14 +458,7 @@ export default function CustomerTrainingPage() {
 
         {isOpen && (
           <div style={{ marginTop: 16 }}>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                gap: 10,
-                marginBottom: 16,
-              }}
-            >
+            <div style={styles.infoGrid}>
               <InfoBox label="内臓脂肪" value={item.visceral_fat} />
               <InfoBox label="体調" value={item.condition} />
               <InfoBox label="睡眠時間" value={item.sleep_hours} />
@@ -500,27 +469,31 @@ export default function CustomerTrainingPage() {
               <InfoBox label="テンプレ名" value={item.template_name} />
             </div>
 
-            <div style={{ marginBottom: 14 }}>
+            <div style={{ marginTop: 14 }}>
               <SectionMiniTitle>姿勢メモ</SectionMiniTitle>
               <HistoryText>{item.posture_note}</HistoryText>
             </div>
 
-            <div style={{ marginBottom: 14 }}>
+            {item.posture_image_urls && item.posture_image_urls.length > 0 ? (
+              <div style={{ marginTop: 14 }}>
+                <SectionMiniTitle>姿勢画像</SectionMiniTitle>
+                <div style={styles.previewGrid}>
+                  {item.posture_image_urls.map((url, idx) => (
+                    <img key={`${item.id}-${idx}`} src={url} alt="姿勢画像" style={styles.previewImage} />
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div style={{ marginTop: 14 }}>
               <SectionMiniTitle>セッションメモ</SectionMiniTitle>
               <HistoryText>{item.note}</HistoryText>
             </div>
 
-            <div style={{ marginBottom: 14 }}>
+            <div style={{ marginTop: 14 }}>
               <SectionMiniTitle>トレーニング内容</SectionMiniTitle>
               <div style={{ overflowX: "auto" }}>
-                <table
-                  style={{
-                    width: "100%",
-                    minWidth: 720,
-                    borderCollapse: "collapse",
-                    fontSize: 14,
-                  }}
-                >
+                <table style={styles.table}>
                   <thead>
                     <tr style={{ background: "#f8fafc" }}>
                       <th style={thStyle}>種目名</th>
@@ -555,12 +528,12 @@ export default function CustomerTrainingPage() {
               </div>
             </div>
 
-            <div style={{ marginBottom: 14 }}>
+            <div style={{ marginTop: 14 }}>
               <SectionMiniTitle>総評</SectionMiniTitle>
               <HistoryText>{item.summary}</HistoryText>
             </div>
 
-            <div>
+            <div style={{ marginTop: 14 }}>
               <SectionMiniTitle>次回課題</SectionMiniTitle>
               <HistoryText>{item.next_task}</HistoryText>
             </div>
@@ -573,176 +546,41 @@ export default function CustomerTrainingPage() {
   if (!mounted) return null;
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background:
-          "linear-gradient(180deg, #f8f8f7 0%, #f3efe9 45%, #f8f8f7 100%)",
-        padding: "24px 16px 80px",
-      }}
-    >
-      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+    <main style={styles.page}>
+      <div style={styles.glowA} />
+      <div style={styles.glowB} />
+      <div style={styles.glowC} />
+
+      <div style={styles.container}>
         <div style={{ marginBottom: 20 }}>
-          <Link
-            href={`/customer/${customerId}`}
-            style={{
-              display: "inline-block",
-              textDecoration: "none",
-              color: "#6b7280",
-              fontSize: 14,
-              marginBottom: 12,
-            }}
-          >
+          <Link href={`/customer/${customerId}`} style={styles.backLink}>
             ← 顧客詳細へ戻る
           </Link>
 
-          <div
-            style={{
-              background: "#ffffffcc",
-              backdropFilter: "blur(8px)",
-              border: "1px solid #ece7df",
-              borderRadius: 24,
-              padding: "24px 20px",
-              boxShadow: "0 10px 30px rgba(0,0,0,0.06)",
-            }}
-          >
-            <div
-              style={{
-                fontSize: 12,
-                letterSpacing: "0.16em",
-                color: "#8b5e3c",
-                fontWeight: 700,
-                marginBottom: 8,
-              }}
-            >
-              TRAINING SESSION
-            </div>
-            <h1
-              style={{
-                margin: 0,
-                fontSize: 30,
-                lineHeight: 1.3,
-                color: "#111827",
-              }}
-            >
-              顧客トレーニング履歴
-            </h1>
-            <p
-              style={{
-                marginTop: 10,
-                marginBottom: 0,
-                color: "#6b7280",
-                fontSize: 14,
-              }}
-            >
+          <div style={{ ...CARD, padding: "24px", marginTop: 12 }}>
+            <div style={styles.eyebrow}>TRAINING SESSION</div>
+            <h1 style={styles.pageTitle}>顧客トレーニング履歴</h1>
+            <p style={styles.pageSub}>
               顧客ID: {customerId || "-"} のセッション記録を入力・保存できます。
             </p>
           </div>
         </div>
 
-        {copyMessage ? (
-          <div
-            style={{
-              marginBottom: 16,
-              background: "#fff7ed",
-              color: "#9a3412",
-              border: "1px solid #fed7aa",
-              borderRadius: 14,
-              padding: "12px 14px",
-              fontSize: 14,
-            }}
-          >
-            {copyMessage}
-          </div>
-        ) : null}
+        {copyMessage ? <div style={styles.copyBox}>{copyMessage}</div> : null}
+        {errorMessage ? <div style={styles.errorBox}>{errorMessage}</div> : null}
+        {successMessage ? <div style={styles.successBox}>{successMessage}</div> : null}
 
-        {errorMessage ? (
-          <div
-            style={{
-              marginBottom: 16,
-              background: "#fef2f2",
-              color: "#b91c1c",
-              border: "1px solid #fecaca",
-              borderRadius: 14,
-              padding: "12px 14px",
-              fontSize: 14,
-            }}
-          >
-            {errorMessage}
-          </div>
-        ) : null}
-
-        {successMessage ? (
-          <div
-            style={{
-              marginBottom: 16,
-              background: "#f0fdf4",
-              color: "#166534",
-              border: "1px solid #bbf7d0",
-              borderRadius: 14,
-              padding: "12px 14px",
-              fontSize: 14,
-            }}
-          >
-            {successMessage}
-          </div>
-        ) : null}
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1.2fr 1fr",
-            gap: 20,
-          }}
-        >
-          <section
-            style={{
-              background: "#fff",
-              border: "1px solid #ece7df",
-              borderRadius: 24,
-              padding: 20,
-              boxShadow: "0 8px 24px rgba(0,0,0,0.05)",
-            }}
-          >
+        <div style={styles.mainGrid}>
+          <section style={{ ...CARD, padding: "20px" }}>
             <SectionTitle>上部：セッション情報</SectionTitle>
 
             <div style={grid2Style}>
-              <InputBox
-                label="日付"
-                value={date}
-                onChange={setDate}
-                type="date"
-              />
-              <InputBox
-                label="体重"
-                value={bodyWeight}
-                onChange={setBodyWeight}
-                placeholder="例 65.2"
-              />
-              <InputBox
-                label="体脂肪率"
-                value={bodyFat}
-                onChange={setBodyFat}
-                placeholder="例 18.5"
-              />
-              <InputBox
-                label="筋肉量"
-                value={muscleMass}
-                onChange={setMuscleMass}
-                placeholder="例 48.3"
-              />
-              <InputBox
-                label="内臓脂肪"
-                value={visceralFat}
-                onChange={setVisceralFat}
-                placeholder="例 7"
-              />
-              <InputBox
-                label="睡眠時間"
-                value={sleepHours}
-                onChange={setSleepHours}
-                placeholder="例 6.5"
-              />
+              <InputBox label="日付" value={date} onChange={setDate} type="date" />
+              <InputBox label="体重" value={bodyWeight} onChange={setBodyWeight} placeholder="例 65.2" />
+              <InputBox label="体脂肪率" value={bodyFat} onChange={setBodyFat} placeholder="例 18.5" />
+              <InputBox label="筋肉量" value={muscleMass} onChange={setMuscleMass} placeholder="例 48.3" />
+              <InputBox label="内臓脂肪" value={visceralFat} onChange={setVisceralFat} placeholder="例 7" />
+              <InputBox label="睡眠時間" value={sleepHours} onChange={setSleepHours} placeholder="例 6.5" />
             </div>
 
             <div style={{ marginTop: 14 }}>
@@ -769,30 +607,10 @@ export default function CustomerTrainingPage() {
             <div style={{ marginTop: 26 }}>
               <SectionTitle>ストレッチ向け項目</SectionTitle>
               <div style={grid2Style}>
-                <InputBox
-                  label="開脚"
-                  value={splitAngle}
-                  onChange={setSplitAngle}
-                  placeholder="例 120"
-                />
-                <InputBox
-                  label="前屈"
-                  value={forwardFlexion}
-                  onChange={setForwardFlexion}
-                  placeholder="例 10"
-                />
-                <InputBox
-                  label="肩可動域 右"
-                  value={shoulderRight}
-                  onChange={setShoulderRight}
-                  placeholder="例 160"
-                />
-                <InputBox
-                  label="肩可動域 左"
-                  value={shoulderLeft}
-                  onChange={setShoulderLeft}
-                  placeholder="例 155"
-                />
+                <InputBox label="開脚" value={splitAngle} onChange={setSplitAngle} placeholder="例 120" />
+                <InputBox label="前屈" value={forwardFlexion} onChange={setForwardFlexion} placeholder="例 10" />
+                <InputBox label="肩可動域 右" value={shoulderRight} onChange={setShoulderRight} placeholder="例 160" />
+                <InputBox label="肩可動域 左" value={shoulderLeft} onChange={setShoulderLeft} placeholder="例 155" />
               </div>
 
               <div style={{ marginTop: 14 }}>
@@ -805,29 +623,35 @@ export default function CustomerTrainingPage() {
                   style={textareaStyle}
                 />
               </div>
+
+              <div style={{ marginTop: 14 }}>
+                <Label>姿勢画像アップロード</Label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(e) => handlePostureImageChange(e.target.files)}
+                  style={inputStyle}
+                />
+              </div>
+
+              {postureImagePreviews.length > 0 ? (
+                <div style={{ marginTop: 12 }}>
+                  <div style={styles.previewGrid}>
+                    {postureImagePreviews.map((src, idx) => (
+                      <img key={idx} src={src} alt="姿勢プレビュー" style={styles.previewImage} />
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           </section>
 
-          <section
-            style={{
-              background: "#fff",
-              border: "1px solid #ece7df",
-              borderRadius: 24,
-              padding: 20,
-              boxShadow: "0 8px 24px rgba(0,0,0,0.05)",
-            }}
-          >
+          <section style={{ ...CARD, padding: "20px" }}>
             <SectionTitle>中央：トレーニング入力</SectionTitle>
 
             <div style={{ overflowX: "auto" }}>
-              <table
-                style={{
-                  width: "100%",
-                  minWidth: 820,
-                  borderCollapse: "collapse",
-                  fontSize: 14,
-                }}
-              >
+              <table style={styles.tableLarge}>
                 <thead>
                   <tr style={{ background: "#f8fafc" }}>
                     <th style={thStyle}>種目名</th>
@@ -841,13 +665,13 @@ export default function CustomerTrainingPage() {
                 </thead>
                 <tbody>
                   {setRows.map((row, index) => (
-                    <tr key={index}>
+                    <tr key={row.rowId}>
                       <td style={tdStyle}>
                         <input
                           list={`exercise-options-${index}`}
                           value={row.exercise_name}
                           onChange={(e) =>
-                            updateSetRow(index, "exercise_name", e.target.value)
+                            updateSetRow(row.rowId, "exercise_name", e.target.value)
                           }
                           style={tableInputStyle}
                           placeholder="種目を選択 or 入力"
@@ -861,9 +685,7 @@ export default function CustomerTrainingPage() {
                       <td style={tdStyle}>
                         <input
                           value={row.weight}
-                          onChange={(e) =>
-                            updateSetRow(index, "weight", e.target.value)
-                          }
+                          onChange={(e) => updateSetRow(row.rowId, "weight", e.target.value)}
                           style={tableInputStyle}
                           placeholder="50"
                         />
@@ -871,9 +693,7 @@ export default function CustomerTrainingPage() {
                       <td style={tdStyle}>
                         <input
                           value={row.reps}
-                          onChange={(e) =>
-                            updateSetRow(index, "reps", e.target.value)
-                          }
+                          onChange={(e) => updateSetRow(row.rowId, "reps", e.target.value)}
                           style={tableInputStyle}
                           placeholder="10"
                         />
@@ -881,9 +701,7 @@ export default function CustomerTrainingPage() {
                       <td style={tdStyle}>
                         <input
                           value={row.sets}
-                          onChange={(e) =>
-                            updateSetRow(index, "sets", e.target.value)
-                          }
+                          onChange={(e) => updateSetRow(row.rowId, "sets", e.target.value)}
                           style={tableInputStyle}
                           placeholder="3"
                         />
@@ -891,9 +709,7 @@ export default function CustomerTrainingPage() {
                       <td style={tdStyle}>
                         <input
                           value={row.rpe}
-                          onChange={(e) =>
-                            updateSetRow(index, "rpe", e.target.value)
-                          }
+                          onChange={(e) => updateSetRow(row.rowId, "rpe", e.target.value)}
                           style={tableInputStyle}
                           placeholder="8"
                         />
@@ -901,9 +717,7 @@ export default function CustomerTrainingPage() {
                       <td style={tdStyle}>
                         <input
                           value={row.memo}
-                          onChange={(e) =>
-                            updateSetRow(index, "memo", e.target.value)
-                          }
+                          onChange={(e) => updateSetRow(row.rowId, "memo", e.target.value)}
                           style={tableInputStyle}
                           placeholder="フォーム注意点など"
                         />
@@ -911,8 +725,8 @@ export default function CustomerTrainingPage() {
                       <td style={tdStyle}>
                         <button
                           type="button"
-                          onClick={() => removeSetRow(index)}
-                          style={smallDeleteButtonStyle}
+                          onClick={() => removeSetRow(row.rowId)}
+                          style={styles.deleteButton}
                         >
                           削除
                         </button>
@@ -923,20 +737,7 @@ export default function CustomerTrainingPage() {
               </table>
             </div>
 
-            <button
-              type="button"
-              onClick={addSetRow}
-              style={{
-                marginTop: 14,
-                border: "1px solid #d6c3b3",
-                background: "#faf6f2",
-                color: "#6f4e37",
-                borderRadius: 12,
-                padding: "10px 14px",
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-            >
+            <button type="button" onClick={addSetRow} style={styles.addRowButton}>
               ＋ 種目追加
             </button>
 
@@ -975,46 +776,21 @@ export default function CustomerTrainingPage() {
                 />
               </div>
 
-              <div
-                style={{
-                  marginTop: 20,
-                  display: "flex",
-                  gap: 12,
-                  flexWrap: "wrap",
-                }}
-              >
+              <div style={{ marginTop: 20, display: "flex", gap: 12, flexWrap: "wrap" }}>
                 <button
                   type="button"
                   onClick={handleSave}
                   disabled={saving}
                   style={{
-                    border: "none",
-                    background:
-                      "linear-gradient(135deg, #8b5e3c 0%, #c49a6c 100%)",
-                    color: "#fff",
-                    borderRadius: 14,
+                    ...BUTTON_PRIMARY,
                     padding: "14px 22px",
-                    fontWeight: 700,
-                    cursor: "pointer",
                     boxShadow: "0 10px 20px rgba(139,94,60,0.22)",
                   }}
                 >
                   {saving ? "保存中..." : "保存する"}
                 </button>
 
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  style={{
-                    border: "1px solid #e5e7eb",
-                    background: "#fff",
-                    color: "#374151",
-                    borderRadius: 14,
-                    padding: "14px 22px",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                  }}
-                >
+                <button type="button" onClick={resetForm} style={styles.whiteButton}>
                   入力リセット
                 </button>
               </div>
@@ -1022,28 +798,15 @@ export default function CustomerTrainingPage() {
           </section>
         </div>
 
-        <section
-          style={{
-            marginTop: 24,
-            background: "#fff",
-            border: "1px solid #ece7df",
-            borderRadius: 24,
-            padding: 20,
-            boxShadow: "0 8px 24px rgba(0,0,0,0.05)",
-          }}
-        >
+        <section style={{ ...CARD, padding: "20px", marginTop: 24 }}>
           <SectionTitle>履歴一覧</SectionTitle>
 
           {loadingHistory ? (
-            <div style={{ color: "#6b7280", fontSize: 14 }}>履歴を読み込み中...</div>
+            <div style={{ color: "#64748b", fontSize: 14 }}>履歴を読み込み中...</div>
           ) : history.length === 0 ? (
-            <div style={{ color: "#6b7280", fontSize: 14 }}>
-              まだ履歴はありません。
-            </div>
+            <div style={{ color: "#64748b", fontSize: 14 }}>まだ履歴はありません。</div>
           ) : (
-            <div style={{ marginTop: 14 }}>
-              {history.map((item) => renderHistoryDetail(item))}
-            </div>
+            <div style={{ marginTop: 14 }}>{history.map((item) => renderHistoryDetail(item))}</div>
           )}
         </section>
       </div>
@@ -1052,52 +815,15 @@ export default function CustomerTrainingPage() {
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <h2
-      style={{
-        margin: 0,
-        fontSize: 20,
-        color: "#111827",
-        marginBottom: 12,
-      }}
-    >
-      {children}
-    </h2>
-  );
+  return <h2 style={styles.sectionTitle}>{children}</h2>;
 }
 
 function SectionMiniTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        fontSize: 13,
-        fontWeight: 700,
-        color: "#8b5e3c",
-        marginBottom: 6,
-      }}
-    >
-      {children}
-    </div>
-  );
+  return <div style={styles.sectionMiniTitle}>{children}</div>;
 }
 
 function HistoryText({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        background: "#f9fafb",
-        border: "1px solid #e5e7eb",
-        borderRadius: 12,
-        padding: 12,
-        color: "#374151",
-        fontSize: 14,
-        whiteSpace: "pre-wrap",
-        minHeight: 44,
-      }}
-    >
-      {children || "-"}
-    </div>
-  );
+  return <div style={styles.historyText}>{children || "-"}</div>;
 }
 
 function InfoBox({
@@ -1108,27 +834,9 @@ function InfoBox({
   value: string | number | null;
 }) {
   return (
-    <div
-      style={{
-        background: "#faf7f3",
-        border: "1px solid #eee4d8",
-        borderRadius: 12,
-        padding: 12,
-      }}
-    >
-      <div
-        style={{
-          fontSize: 12,
-          color: "#8b5e3c",
-          fontWeight: 700,
-          marginBottom: 4,
-        }}
-      >
-        {label}
-      </div>
-      <div style={{ fontSize: 15, color: "#111827", fontWeight: 600 }}>
-        {value ?? "-"}
-      </div>
+    <div style={styles.infoBox}>
+      <div style={styles.infoBoxLabel}>{label}</div>
+      <div style={styles.infoBoxValue}>{value ?? "-"}</div>
     </div>
   );
 }
@@ -1161,18 +869,7 @@ function InputBox({
 }
 
 function Label({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        fontSize: 13,
-        fontWeight: 700,
-        color: "#6f4e37",
-        marginBottom: 6,
-      }}
-    >
-      {children}
-    </div>
-  );
+  return <div style={styles.label}>{children}</div>;
 }
 
 const grid2Style: React.CSSProperties = {
@@ -1185,8 +882,9 @@ const inputStyle: React.CSSProperties = {
   width: "100%",
   height: 44,
   borderRadius: 12,
-  border: "1px solid #e5e7eb",
-  background: "#fff",
+  border: "1px solid rgba(226,232,240,0.9)",
+  background: "rgba(255,255,255,0.88)",
+  color: "#0f172a",
   padding: "0 12px",
   fontSize: 14,
   outline: "none",
@@ -1196,8 +894,9 @@ const inputStyle: React.CSSProperties = {
 const textareaStyle: React.CSSProperties = {
   width: "100%",
   borderRadius: 12,
-  border: "1px solid #e5e7eb",
-  background: "#fff",
+  border: "1px solid rgba(226,232,240,0.9)",
+  background: "rgba(255,255,255,0.88)",
+  color: "#0f172a",
   padding: 12,
   fontSize: 14,
   outline: "none",
@@ -1230,14 +929,269 @@ const tableInputStyle: React.CSSProperties = {
   padding: "0 10px",
   fontSize: 14,
   boxSizing: "border-box",
+  background: "#fff",
 };
 
-const smallDeleteButtonStyle: React.CSSProperties = {
-  border: "none",
-  background: "#fee2e2",
-  color: "#b91c1c",
-  borderRadius: 10,
-  padding: "8px 10px",
-  fontWeight: 700,
-  cursor: "pointer",
+const styles: { [key: string]: React.CSSProperties } = {
+  page: {
+    minHeight: "100vh",
+    position: "relative",
+    overflow: "hidden",
+    padding: "24px 20px 60px",
+    background: BG,
+  },
+  glowA: {
+    position: "absolute",
+    top: "-90px",
+    left: "-70px",
+    width: "280px",
+    height: "280px",
+    borderRadius: "999px",
+    background: "rgba(255,255,255,0.95)",
+    filter: "blur(55px)",
+    pointerEvents: "none",
+  },
+  glowB: {
+    position: "absolute",
+    top: "120px",
+    right: "-60px",
+    width: "320px",
+    height: "320px",
+    borderRadius: "999px",
+    background: "rgba(255,255,255,0.85)",
+    filter: "blur(70px)",
+    pointerEvents: "none",
+  },
+  glowC: {
+    position: "absolute",
+    bottom: "-120px",
+    left: "18%",
+    width: "340px",
+    height: "340px",
+    borderRadius: "999px",
+    background: "rgba(203,213,225,0.35)",
+    filter: "blur(75px)",
+    pointerEvents: "none",
+  },
+  container: {
+    position: "relative",
+    zIndex: 1,
+    maxWidth: "1200px",
+    margin: "0 auto",
+  },
+  backLink: {
+    display: "inline-flex",
+    textDecoration: "none",
+    color: "#64748b",
+    fontSize: 14,
+    fontWeight: 700,
+  },
+  eyebrow: {
+    fontSize: 11,
+    letterSpacing: "0.22em",
+    color: "#94a3b8",
+    fontWeight: 700,
+    marginBottom: 8,
+  },
+  pageTitle: {
+    margin: 0,
+    fontSize: 30,
+    lineHeight: 1.3,
+    color: "#0f172a",
+    fontWeight: 900,
+  },
+  pageSub: {
+    marginTop: 10,
+    marginBottom: 0,
+    color: "#64748b",
+    fontSize: 14,
+  },
+  copyBox: {
+    marginBottom: 16,
+    background: "#fff7ed",
+    color: "#9a3412",
+    border: "1px solid #fed7aa",
+    borderRadius: 14,
+    padding: "12px 14px",
+    fontSize: 14,
+  },
+  errorBox: {
+    marginBottom: 16,
+    background: "#fef2f2",
+    color: "#b91c1c",
+    border: "1px solid #fecaca",
+    borderRadius: 14,
+    padding: "12px 14px",
+    fontSize: 14,
+  },
+  successBox: {
+    marginBottom: 16,
+    background: "#f0fdf4",
+    color: "#166534",
+    border: "1px solid #bbf7d0",
+    borderRadius: 14,
+    padding: "12px 14px",
+    fontSize: 14,
+  },
+  mainGrid: {
+    display: "grid",
+    gridTemplateColumns: "1.2fr 1fr",
+    gap: 20,
+  },
+  sectionTitle: {
+    margin: 0,
+    fontSize: 20,
+    color: "#0f172a",
+    marginBottom: 12,
+    fontWeight: 800,
+  },
+  sectionMiniTitle: {
+    fontSize: 13,
+    fontWeight: 700,
+    color: "#8b5e3c",
+    marginBottom: 6,
+  },
+  historyText: {
+    background: "rgba(255,255,255,0.72)",
+    border: "1px solid rgba(255,255,255,0.95)",
+    borderRadius: 12,
+    padding: 12,
+    color: "#475569",
+    fontSize: 14,
+    whiteSpace: "pre-wrap",
+    minHeight: 44,
+    boxShadow:
+      "0 10px 24px rgba(15,23,42,0.04), inset 0 1px 0 rgba(255,255,255,0.98)",
+  },
+  infoGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+    gap: 10,
+    marginBottom: 16,
+  },
+  infoBox: {
+    background: "rgba(255,255,255,0.72)",
+    border: "1px solid rgba(255,255,255,0.95)",
+    borderRadius: 12,
+    padding: 12,
+    boxShadow:
+      "0 10px 24px rgba(15,23,42,0.04), inset 0 1px 0 rgba(255,255,255,0.98)",
+  },
+  infoBoxLabel: {
+    fontSize: 12,
+    color: "#94a3b8",
+    fontWeight: 700,
+    marginBottom: 4,
+  },
+  infoBoxValue: {
+    fontSize: 15,
+    color: "#0f172a",
+    fontWeight: 600,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: 700,
+    color: "#64748b",
+    marginBottom: 6,
+  },
+  table: {
+    width: "100%",
+    minWidth: 720,
+    borderCollapse: "collapse",
+    fontSize: 14,
+  },
+  tableLarge: {
+    width: "100%",
+    minWidth: 820,
+    borderCollapse: "collapse",
+    fontSize: 14,
+  },
+  deleteButton: {
+    border: "none",
+    background: "#fee2e2",
+    color: "#b91c1c",
+    borderRadius: 10,
+    padding: "8px 10px",
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+  addRowButton: {
+    marginTop: 14,
+    border: "1px solid rgba(214,195,179,0.8)",
+    background: "rgba(255,255,255,0.6)",
+    color: "#8b5e3c",
+    borderRadius: 12,
+    padding: "10px 14px",
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+  whiteButton: {
+    border: "1px solid rgba(255,255,255,0.95)",
+    background: "rgba(255,255,255,0.82)",
+    color: "#334155",
+    borderRadius: 14,
+    padding: "14px 22px",
+    fontWeight: 700,
+    cursor: "pointer",
+    boxShadow:
+      "0 10px 24px rgba(15,23,42,0.05), inset 0 1px 0 rgba(255,255,255,0.98)",
+  },
+  historyCard: {
+    border: "1px solid rgba(255,255,255,0.95)",
+    borderRadius: 18,
+    background: "rgba(255,255,255,0.68)",
+    padding: 16,
+    boxShadow:
+      "0 14px 30px rgba(15,23,42,0.04), inset 0 1px 0 rgba(255,255,255,0.98)",
+    marginBottom: 14,
+  },
+  historyToggleButton: {
+    width: "100%",
+    background: "transparent",
+    border: "none",
+    padding: 0,
+    textAlign: "left",
+    cursor: "pointer",
+  },
+  historyHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 12,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  historyDate: {
+    fontSize: 18,
+    fontWeight: 700,
+    color: "#0f172a",
+    marginBottom: 6,
+  },
+  historyMeta: {
+    fontSize: 13,
+    color: "#64748b",
+  },
+  historyOpenBadge: {
+    fontSize: 12,
+    color: "#8b5e3c",
+    fontWeight: 700,
+    background: "rgba(255,255,255,0.72)",
+    borderRadius: 9999,
+    padding: "6px 10px",
+    border: "1px solid rgba(255,255,255,0.95)",
+  },
+  previewGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+    gap: 12,
+  },
+  previewImage: {
+    width: "100%",
+    height: 160,
+    objectFit: "cover",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.95)",
+    background: "#fff",
+    boxShadow:
+      "0 10px 24px rgba(15,23,42,0.04), inset 0 1px 0 rgba(255,255,255,0.98)",
+  },
 };
