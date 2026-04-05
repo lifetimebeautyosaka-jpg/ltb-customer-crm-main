@@ -7,19 +7,19 @@ export default function HomePage() {
   return (
     <main style={styles.page}>
       <style>{`
-        /* ===== 背景ダイヤ（常時 上昇） ===== */
+        /* ===== ダイヤ（強めキラキラ） ===== */
         @keyframes diamondRise {
           0% {
-            transform: translateY(0px) scale(0.6) rotate(45deg);
+            transform: translateY(0px) scale(0.7) rotate(45deg);
             opacity: 0;
           }
-          20% { opacity: 0.7; }
-          60% {
-            transform: translateY(-220px) scale(1) rotate(45deg);
+          15% { opacity: 1; }
+          50% {
+            transform: translateY(-200px) scale(1.2) rotate(45deg);
             opacity: 1;
           }
           100% {
-            transform: translateY(-420px) scale(0.6) rotate(45deg);
+            transform: translateY(-450px) scale(0.6) rotate(45deg);
             opacity: 0;
           }
         }
@@ -27,23 +27,34 @@ export default function HomePage() {
         .diamond {
           position: absolute;
           bottom: -40px;
-          width: 8px;
-          height: 8px;
+          width: 10px;
+          height: 10px;
           transform: rotate(45deg);
-          background: linear-gradient(135deg, #ffffff, #fcd34d);
+          background: #ffffff;
           box-shadow:
-            0 0 10px rgba(255,255,255,0.9),
-            0 0 20px rgba(255,255,255,0.6);
-          opacity: 0;
-          animation: diamondRise 10s linear infinite;
+            0 0 12px rgba(255,255,255,1),
+            0 0 24px rgba(255,255,255,0.9),
+            0 0 40px rgba(255,255,255,0.7);
+          animation: diamondRise 8s linear infinite;
           pointer-events: none;
         }
 
-        /* ===== パネル演出（軽量） ===== */
+        /* ===== ロゴ浮遊 ===== */
+        @keyframes logoFloat {
+          0% { transform: translateY(0px); }
+          50% { transform: translateY(-6px); }
+          100% { transform: translateY(0px); }
+        }
+
+        .logo-float {
+          animation: logoFloat 4s ease-in-out infinite;
+        }
+
+        /* ===== パネル ===== */
         .panel {
           position: relative;
           overflow: hidden;
-          transition: transform .25s ease, box-shadow .25s ease;
+          transition: all .3s ease;
         }
 
         .panel:hover {
@@ -59,7 +70,7 @@ export default function HomePage() {
           background: linear-gradient(
             120deg,
             transparent 40%,
-            rgba(255,255,255,0.8) 50%,
+            rgba(255,255,255,0.9) 50%,
             transparent 60%
           );
           transform: translateX(-150%);
@@ -88,7 +99,7 @@ export default function HomePage() {
           background: linear-gradient(
             180deg,
             transparent,
-            rgba(255,255,255,0.9),
+            rgba(255,255,255,1),
             transparent
           );
           opacity: 0;
@@ -111,18 +122,25 @@ export default function HomePage() {
         }
       `}</style>
 
-      {/* ===== 背景ダイヤ ===== */}
-      <div className="diamond" style={{ left: "10%", animationDelay: "0s" }} />
-      <div className="diamond" style={{ left: "25%", animationDelay: "2s" }} />
-      <div className="diamond" style={{ left: "40%", animationDelay: "1s" }} />
-      <div className="diamond" style={{ left: "55%", animationDelay: "3s" }} />
-      <div className="diamond" style={{ left: "70%", animationDelay: "1.5s" }} />
-      <div className="diamond" style={{ left: "85%", animationDelay: "2.5s" }} />
+      {/* ===== ダイヤ背景（増量＆強め） ===== */}
+      <div className="diamond" style={{ left:"10%", animationDelay:"0s" }} />
+      <div className="diamond" style={{ left:"20%", animationDelay:"1s" }} />
+      <div className="diamond" style={{ left:"30%", animationDelay:"2s" }} />
+      <div className="diamond" style={{ left:"40%", animationDelay:"1.5s" }} />
+      <div className="diamond" style={{ left:"50%", animationDelay:"3s" }} />
+      <div className="diamond" style={{ left:"60%", animationDelay:"2.2s" }} />
+      <div className="diamond" style={{ left:"70%", animationDelay:"1.2s" }} />
+      <div className="diamond" style={{ left:"80%", animationDelay:"2.8s" }} />
+      <div className="diamond" style={{ left:"90%", animationDelay:"1.7s" }} />
 
       <div style={styles.container}>
+        {/* ===== ロゴ（左上固定＋浮遊） ===== */}
+        <div style={styles.logoFixed} className="logo-float">
+          <img src="/gymup-logo.png" style={styles.logoSmall} />
+        </div>
+
         {/* ===== HERO ===== */}
         <section style={styles.hero}>
-          <img src="/gymup-logo.png" alt="GYMUP" style={styles.logo} />
           <h1 style={styles.title}>GYMUP CRM</h1>
           <p style={styles.desc}>
             顧客・売上・予約・トレーニングを一元管理する
@@ -168,60 +186,57 @@ export default function HomePage() {
   );
 }
 
-/* ===== 型付きスタイル（これでビルド通る） ===== */
 const styles: { [key: string]: React.CSSProperties } = {
-  page: {
-    minHeight: "100vh",
-    background: "linear-gradient(135deg,#ffffff,#eef2f7)",
-    padding: "40px",
-    position: "relative",
+  page:{
+    minHeight:"100vh",
+    background:"linear-gradient(135deg,#ffffff,#eef2f7)",
+    padding:"40px",
+    position:"relative"
   },
-  container: {
-    maxWidth: "1000px",
-    margin: "0 auto",
-    position: "relative",
-    zIndex: 1,
+  container:{
+    maxWidth:"1000px",
+    margin:"0 auto",
+    position:"relative",
+    zIndex:1
   },
-  hero: {
-    textAlign: "center",
-    marginBottom: "40px",
+  logoFixed:{
+    position:"absolute",
+    top:"10px",
+    left:"10px"
   },
-  logo: {
-    width: "260px",
-    display: "block",
-    margin: "0 auto",
+  logoSmall:{
+    width:"140px"
   },
-  title: {
-    fontSize: "42px",
-    fontWeight: 900,
-    marginTop: "12px",
+  hero:{
+    textAlign:"center",
+    marginBottom:"40px"
   },
-  desc: {
-    color: "#64748b",
-    marginTop: "8px",
-    lineHeight: 1.8,
+  title:{
+    fontSize:"42px",
+    fontWeight:900
   },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "20px",
+  desc:{
+    color:"#64748b"
   },
-  panel: {
-    padding: "30px",
-    borderRadius: "20px",
-    background: "rgba(255,255,255,0.9)",
-    backdropFilter: "blur(10px)",
-    textDecoration: "none",
-    color: "#111",
+  grid:{
+    display:"grid",
+    gridTemplateColumns:"1fr 1fr",
+    gap:"20px"
   },
-  label: {
-    fontSize: "12px",
-    color: "#94a3b8",
-    letterSpacing: "0.1em",
+  panel:{
+    padding:"30px",
+    borderRadius:"20px",
+    background:"rgba(255,255,255,0.9)",
+    backdropFilter:"blur(10px)",
+    textDecoration:"none",
+    color:"#111"
   },
-  panelTitle: {
-    fontSize: "22px",
-    fontWeight: 800,
-    marginTop: "6px",
+  label:{
+    fontSize:"12px",
+    color:"#94a3b8"
   },
+  panelTitle:{
+    fontSize:"22px",
+    fontWeight:800
+  }
 };
