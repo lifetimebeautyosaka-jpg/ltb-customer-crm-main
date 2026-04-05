@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { BG, GLASS, CARD, BUTTON_PRIMARY } from "../../../styles/theme";
@@ -72,6 +72,21 @@ const supabase =
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
       )
     : null;
+
+function toStyle(value: unknown): CSSProperties {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as CSSProperties;
+  }
+  if (typeof value === "string" && value.trim()) {
+    return { background: value };
+  }
+  return {};
+}
+
+const BG_STYLE = toStyle(BG);
+const GLASS_STYLE = toStyle(GLASS);
+const CARD_STYLE = toStyle(CARD);
+const BUTTON_PRIMARY_STYLE = toStyle(BUTTON_PRIMARY);
 
 function formatDate(date?: string | null) {
   if (!date) return "—";
@@ -280,7 +295,7 @@ export default function CustomerDetailPage() {
   return (
     <main
       style={{
-        ...BG,
+        ...BG_STYLE,
         minHeight: "100vh",
         padding: "24px 16px 80px",
       }}
@@ -288,7 +303,7 @@ export default function CustomerDetailPage() {
       <div style={{ maxWidth: 1180, margin: "0 auto" }}>
         <div
           style={{
-            ...GLASS,
+            ...GLASS_STYLE,
             padding: 20,
             borderRadius: 24,
             marginBottom: 18,
@@ -357,7 +372,7 @@ export default function CustomerDetailPage() {
                 href={`/customer/${customerId}/training`}
                 style={{ textDecoration: "none" }}
               >
-                <button style={BUTTON_PRIMARY}>トレーニング開始</button>
+                <button style={BUTTON_PRIMARY_STYLE}>トレーニング開始</button>
               </Link>
             </div>
           </div>
@@ -366,7 +381,7 @@ export default function CustomerDetailPage() {
         {copiedNotice && (
           <div
             style={{
-              ...CARD,
+              ...CARD_STYLE,
               marginBottom: 16,
               borderRadius: 20,
               padding: 16,
@@ -383,7 +398,7 @@ export default function CustomerDetailPage() {
         {error && (
           <div
             style={{
-              ...CARD,
+              ...CARD_STYLE,
               marginBottom: 16,
               borderRadius: 20,
               padding: 16,
@@ -405,7 +420,7 @@ export default function CustomerDetailPage() {
             marginBottom: 18,
           }}
         >
-          <div style={{ ...CARD, padding: 18, borderRadius: 24 }}>
+          <div style={{ ...CARD_STYLE, padding: 18, borderRadius: 24 }}>
             <div
               style={{
                 fontSize: 12,
@@ -430,7 +445,7 @@ export default function CustomerDetailPage() {
             </div>
           </div>
 
-          <div style={{ ...CARD, padding: 18, borderRadius: 24 }}>
+          <div style={{ ...CARD_STYLE, padding: 18, borderRadius: 24 }}>
             <div
               style={{
                 fontSize: 12,
@@ -457,7 +472,7 @@ export default function CustomerDetailPage() {
             </div>
           </div>
 
-          <div style={{ ...CARD, padding: 18, borderRadius: 24 }}>
+          <div style={{ ...CARD_STYLE, padding: 18, borderRadius: 24 }}>
             <div
               style={{
                 fontSize: 12,
@@ -527,7 +542,7 @@ export default function CustomerDetailPage() {
                 href={`/customer/${customerId}/training`}
                 style={{ textDecoration: "none" }}
               >
-                <button style={BUTTON_PRIMARY}>トレーニング開始</button>
+                <button style={BUTTON_PRIMARY_STYLE}>トレーニング開始</button>
               </Link>
 
               <Link
@@ -552,7 +567,7 @@ export default function CustomerDetailPage() {
           </div>
         </section>
 
-        <section style={{ ...CARD, borderRadius: 28, padding: 22 }}>
+        <section style={{ ...CARD_STYLE, borderRadius: 28, padding: 22 }}>
           <div
             style={{
               display: "flex",
@@ -684,7 +699,7 @@ export default function CustomerDetailPage() {
                           href={`/customer/${customerId}/training?copyFrom=${session.id}`}
                           style={{ textDecoration: "none" }}
                         >
-                          <button style={BUTTON_PRIMARY}>この履歴をコピー</button>
+                          <button style={BUTTON_PRIMARY_STYLE}>この履歴をコピー</button>
                         </Link>
                       </div>
                     </div>
