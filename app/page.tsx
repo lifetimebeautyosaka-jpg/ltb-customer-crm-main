@@ -9,48 +9,11 @@ export default function HomePage() {
   return (
     <main style={styles.page}>
       <style>{`
-        @keyframes floatLogo {
-          0% { transform: translateY(0px); }
-          50% { transform: translateY(-6px); }
-          100% { transform: translateY(0px); }
-        }
-
-        @keyframes cardShine {
-          0% {
-            transform: translateX(-160%) skewX(-20deg);
-            opacity: 0;
-          }
-          20% {
-            opacity: 1;
-          }
-          100% {
-            transform: translateX(220%) skewX(-20deg);
-            opacity: 0;
-          }
-        }
-
-        @keyframes softGlow {
-          0% {
-            box-shadow:
-              0 18px 40px rgba(15, 23, 42, 0.05),
-              inset 0 1px 0 rgba(255,255,255,0.95);
-          }
-          50% {
-            box-shadow:
-              0 24px 56px rgba(15, 23, 42, 0.08),
-              inset 0 1px 0 rgba(255,255,255,1);
-          }
-          100% {
-            box-shadow:
-              0 18px 40px rgba(15, 23, 42, 0.05),
-              inset 0 1px 0 rgba(255,255,255,0.95);
-          }
-        }
-
+        /* ===== タイトル出現 ===== */
         @keyframes titleCharIn {
           0% {
             opacity: 0;
-            transform: translateY(12px);
+            transform: translateY(14px);
           }
           100% {
             opacity: 1;
@@ -58,113 +21,144 @@ export default function HomePage() {
           }
         }
 
-        .gymup-logo-float {
+        /* ===== ダイヤキラ ===== */
+        @keyframes shineText {
+          0% {
+            left: -120%;
+            opacity: 0;
+          }
+          10% {
+            opacity: 1;
+          }
+          40% {
+            left: 220%;
+            opacity: 0;
+          }
+          100% {
+            left: 220%;
+            opacity: 0;
+          }
+        }
+
+        .diamond-text {
+          position: relative;
+          display: inline-block;
+          opacity: 0;
+          transform: translateY(14px);
+          animation: titleCharIn 0.6s ease forwards;
+          color: #0f172a;
+          text-shadow:
+            0 0 6px rgba(255,255,255,0.9),
+            0 0 12px rgba(255,255,255,0.6);
+        }
+
+        .diamond-text::after {
+          content: "";
+          position: absolute;
+          top: 0;
+          left: -120%;
+          width: 60%;
+          height: 100%;
+          background: linear-gradient(
+            120deg,
+            transparent 0%,
+            rgba(255,255,255,0.9) 45%,
+            rgba(255,255,255,1) 50%,
+            rgba(255,255,255,0.9) 55%,
+            transparent 100%
+          );
+          transform: skewX(-20deg);
+          opacity: 0;
+          animation: shineText 4s ease-in-out infinite;
+        }
+
+        /* ===== ロゴ浮遊 ===== */
+        @keyframes floatLogo {
+          0% { transform: translateY(0px); }
+          50% { transform: translateY(-6px); }
+          100% { transform: translateY(0px); }
+        }
+
+        .logo {
           animation: floatLogo 5s ease-in-out infinite;
         }
 
-        .gymup-card {
+        /* ===== 高級カード ===== */
+        .card {
           position: relative;
           overflow: hidden;
-          transition:
-            transform 0.35s ease,
-            box-shadow 0.35s ease,
-            border-color 0.35s ease,
-            background 0.35s ease;
-          animation: softGlow 6s ease-in-out infinite;
+          transition: all 0.35s ease;
+          border-radius: 22px;
         }
 
-        .gymup-card:hover {
+        .card:hover {
           transform: translateY(-6px);
-          box-shadow:
-            0 28px 64px rgba(15, 23, 42, 0.10),
-            inset 0 1px 0 rgba(255,255,255,1);
-          border-color: rgba(255,255,255,1);
+          box-shadow: 0 25px 60px rgba(0,0,0,0.08);
         }
 
-        .gymup-card::before {
+        .card::before {
           content: "";
           position: absolute;
           inset: 0;
           border-radius: inherit;
-          border: 1px solid rgba(255,255,255,0.78);
-          pointer-events: none;
+          border: 1px solid rgba(255,255,255,0.7);
         }
 
-        .gymup-card::after {
-          content: "";
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 42%;
-          height: 100%;
+        .card::after {
+          content:"";
+          position:absolute;
+          inset:0;
           background: linear-gradient(
-            115deg,
-            transparent 0%,
-            rgba(255,255,255,0.0) 25%,
-            rgba(255,255,255,0.72) 50%,
-            rgba(255,255,255,0.0) 75%,
-            transparent 100%
+            120deg,
+            transparent 30%,
+            rgba(255,255,255,0.8) 50%,
+            transparent 70%
           );
-          transform: translateX(-160%) skewX(-20deg);
-          opacity: 0;
-          pointer-events: none;
+          transform: translateX(-150%);
         }
 
-        .gymup-card:hover::after {
-          animation: cardShine 1.3s ease;
+        .card:hover::after {
+          animation: shine 1.4s ease;
         }
 
-        .gymup-card-title {
-          transition: letter-spacing 0.28s ease, transform 0.28s ease;
+        @keyframes shine {
+          0% { transform: translateX(-150%); }
+          100% { transform: translateX(250%); }
         }
 
-        .gymup-card:hover .gymup-card-title {
-          letter-spacing: -0.01em;
-          transform: translateY(-1px);
-        }
-
-        .gymup-title-char {
-          display: inline-block;
-          opacity: 0;
-          transform: translateY(12px);
-          animation: titleCharIn 0.55s ease forwards;
-          will-change: transform, opacity;
-        }
-
-        .gymup-grid {
+        .grid {
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 24px;
         }
 
         @media (max-width: 720px) {
-          .gymup-grid {
+          .grid {
             grid-template-columns: 1fr !important;
-            gap: 16px !important;
           }
         }
       `}</style>
 
-      <div style={styles.bgGlowA} />
-      <div style={styles.bgGlowB} />
-      <div style={styles.bgGlowC} />
-
       <div style={styles.container}>
-        <div style={styles.logoWrap} className="gymup-logo-float">
-          <img src="/gymup-logo.png" alt="GYMUP" style={styles.logo} />
+        {/* ロゴ */}
+        <div style={styles.logoWrap}>
+          <img src="/gymup-logo.png" style={styles.logo} className="logo" />
         </div>
 
+        {/* HERO */}
         <section style={styles.hero}>
-          <div style={styles.eyebrow}>PREMIUM GYM & PILATES MANAGEMENT SYSTEM</div>
+          <div style={styles.eyebrow}>
+            PREMIUM GYM & PILATES MANAGEMENT SYSTEM
+          </div>
 
-          <h1 style={styles.title} aria-label={titleText}>
-            {titleText.split("").map((char, index) => (
+          <h1 style={styles.title}>
+            {titleText.split("").map((char, i) => (
               <span
-                key={`${char}-${index}`}
-                className="gymup-title-char"
+                key={i}
+                className="diamond-text"
                 style={{
-                  animationDelay: `${0.08 + index * 0.045}s`,
-                  marginRight: char === " " ? "0.22em" : undefined,
+                  animationDelay: `${i * 0.06}s`,
+                  marginRight: char === " " ? "0.25em" : undefined,
                 }}
               >
                 {char === " " ? "\u00A0" : char}
@@ -173,71 +167,42 @@ export default function HomePage() {
           </h1>
 
           <p style={styles.desc}>
-            パーソナルジム・ストレッチ・ピラティス運営を、
+            パーソナルジム・ストレッチ・ピラティス運営を
             <br />
-            顧客管理・予約・売上・会計・トレーニング記録まで美しく一元管理。
+            美しく一元管理するプレミアムCRM
           </p>
         </section>
 
-        <section className="gymup-grid" style={styles.grid}>
-          <Link href="/customer" className="gymup-card" style={styles.card}>
-            <div style={styles.cardLabel}>CUSTOMER</div>
-            <div className="gymup-card-title" style={styles.cardTitle}>
-              顧客管理
-            </div>
-            <div style={styles.cardDesc}>
-              顧客情報、来店履歴、契約状況、LTVをまとめて管理
-            </div>
+        {/* MENU */}
+        <section className="grid" style={styles.grid}>
+          <Link href="/customer" className="card" style={styles.card}>
+            <div style={styles.label}>CUSTOMER</div>
+            <div style={styles.cardTitle}>顧客管理</div>
           </Link>
 
-          <Link href="/training" className="gymup-card" style={styles.card}>
-            <div style={styles.cardLabel}>TRAINING / PILATES</div>
-            <div className="gymup-card-title" style={styles.cardTitle}>
-              トレーニング・ピラティス記録
-            </div>
-            <div style={styles.cardDesc}>
-              セッション記録、姿勢比較、メニュー履歴を美しく蓄積
-            </div>
+          <Link href="/training" className="card" style={styles.card}>
+            <div style={styles.label}>TRAINING / PILATES</div>
+            <div style={styles.cardTitle}>トレーニング・ピラティス</div>
           </Link>
 
-          <Link href="/sales" className="gymup-card" style={styles.card}>
-            <div style={styles.cardLabel}>SALES</div>
-            <div className="gymup-card-title" style={styles.cardTitle}>
-              売上管理
-            </div>
-            <div style={styles.cardDesc}>
-              売上登録、顧客別売上、日別集計、CSV出力に対応
-            </div>
+          <Link href="/sales" className="card" style={styles.card}>
+            <div style={styles.label}>SALES</div>
+            <div style={styles.cardTitle}>売上管理</div>
           </Link>
 
-          <Link href="/reservation" className="gymup-card" style={styles.card}>
-            <div style={styles.cardLabel}>RESERVATION</div>
-            <div className="gymup-card-title" style={styles.cardTitle}>
-              予約管理
-            </div>
-            <div style={styles.cardDesc}>
-              予約確認、日別管理、導線連携で運営をスムーズに
-            </div>
+          <Link href="/reservation" className="card" style={styles.card}>
+            <div style={styles.label}>RESERVATION</div>
+            <div style={styles.cardTitle}>予約管理</div>
           </Link>
 
-          <Link href="/accounting" className="gymup-card" style={styles.card}>
-            <div style={styles.cardLabel}>ACCOUNTING</div>
-            <div className="gymup-card-title" style={styles.cardTitle}>
-              会計管理
-            </div>
-            <div style={styles.cardDesc}>
-              数値集計、チェック、運営全体のお金の流れを整理
-            </div>
+          <Link href="/accounting" className="card" style={styles.card}>
+            <div style={styles.label}>ACCOUNTING</div>
+            <div style={styles.cardTitle}>会計管理</div>
           </Link>
 
-          <Link href="/attendance" className="gymup-card" style={styles.card}>
-            <div style={styles.cardLabel}>ATTENDANCE</div>
-            <div className="gymup-card-title" style={styles.cardTitle}>
-              出退勤管理
-            </div>
-            <div style={styles.cardDesc}>
-              スタッフの出退勤、勤怠確認、日々の管理をスマートに
-            </div>
+          <Link href="/attendance" className="card" style={styles.card}>
+            <div style={styles.label}>ATTENDANCE</div>
+            <div style={styles.cardTitle}>出退勤管理</div>
           </Link>
         </section>
       </div>
@@ -248,150 +213,57 @@ export default function HomePage() {
 const styles: { [key: string]: React.CSSProperties } = {
   page: {
     minHeight: "100vh",
-    position: "relative",
-    overflow: "hidden",
-    padding: "38px 20px 60px",
-    background: `
-      radial-gradient(circle at 15% 14%, rgba(255,255,255,0.98) 0%, rgba(255,255,255,0.72) 18%, transparent 40%),
-      radial-gradient(circle at 85% 12%, rgba(255,255,255,0.95) 0%, rgba(241,245,249,0.68) 18%, transparent 44%),
-      linear-gradient(135deg, #ffffff 0%, #f8fafc 34%, #eef2f7 68%, #e2e8f0 100%)
-    `,
+    background: "linear-gradient(135deg,#ffffff,#eef2f7)",
+    padding: "40px",
   },
-
-  bgGlowA: {
-    position: "absolute",
-    top: "-70px",
-    left: "-60px",
-    width: "240px",
-    height: "240px",
-    borderRadius: "999px",
-    background: "rgba(255,255,255,0.85)",
-    filter: "blur(55px)",
-    pointerEvents: "none",
-  },
-
-  bgGlowB: {
-    position: "absolute",
-    top: "120px",
-    right: "-70px",
-    width: "300px",
-    height: "300px",
-    borderRadius: "999px",
-    background: "rgba(255,255,255,0.82)",
-    filter: "blur(70px)",
-    pointerEvents: "none",
-  },
-
-  bgGlowC: {
-    position: "absolute",
-    bottom: "-120px",
-    left: "20%",
-    width: "320px",
-    height: "320px",
-    borderRadius: "999px",
-    background: "rgba(226,232,240,0.38)",
-    filter: "blur(75px)",
-    pointerEvents: "none",
-  },
-
   container: {
     maxWidth: "1100px",
     margin: "0 auto",
     position: "relative",
-    zIndex: 1,
   },
-
   logoWrap: {
     position: "absolute",
-    top: "0px",
-    left: "6px",
-    padding: "12px 18px",
-    borderRadius: "24px",
-    background:
-      "linear-gradient(135deg, rgba(255,255,255,0.94), rgba(248,250,252,0.72))",
-    border: "1px solid rgba(255,255,255,0.88)",
-    boxShadow:
-      "0 16px 38px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.95)",
+    top: "0",
+    left: "0",
   },
-
   logo: {
-    width: "205px",
-    display: "block",
-    objectFit: "contain",
+    width: "200px",
   },
-
   hero: {
     textAlign: "center",
-    marginBottom: "54px",
-    paddingTop: "72px",
+    marginBottom: "60px",
+    paddingTop: "80px",
   },
-
   eyebrow: {
     fontSize: "11px",
-    letterSpacing: "0.22em",
+    letterSpacing: "0.2em",
     color: "#94a3b8",
-    fontWeight: 700,
-    marginBottom: "12px",
   },
-
   title: {
-    fontSize: "46px",
+    fontSize: "48px",
     fontWeight: 900,
-    color: "#0f172a",
-    letterSpacing: "-0.04em",
-    margin: 0,
-    minHeight: "58px",
   },
-
   desc: {
     color: "#64748b",
-    fontSize: "15px",
-    lineHeight: 1.95,
-    marginTop: "14px",
-    marginBottom: 0,
-    fontWeight: 500,
   },
-
   grid: {
     display: "grid",
     gridTemplateColumns: "1fr 1fr",
     gap: "24px",
   },
-
   card: {
-    padding: "32px 30px",
-    borderRadius: "22px",
-    background:
-      "linear-gradient(135deg, rgba(255,255,255,0.92), rgba(248,250,252,0.76))",
-    backdropFilter: "blur(14px)",
-    WebkitBackdropFilter: "blur(14px)",
+    padding: "34px",
+    background: "rgba(255,255,255,0.9)",
+    backdropFilter: "blur(10px)",
     textDecoration: "none",
-    color: "#111827",
-    boxShadow:
-      "0 18px 40px rgba(15,23,42,0.05), inset 0 1px 0 rgba(255,255,255,0.96)",
-    border: "1px solid rgba(255,255,255,0.7)",
+    color: "#111",
   },
-
-  cardLabel: {
+  label: {
     fontSize: "11px",
-    letterSpacing: "0.16em",
     color: "#94a3b8",
-    fontWeight: 700,
-    marginBottom: "10px",
   },
-
   cardTitle: {
     fontSize: "24px",
-    fontWeight: 900,
-    color: "#0f172a",
-    marginBottom: "10px",
-    letterSpacing: "-0.02em",
-  },
-
-  cardDesc: {
-    fontSize: "13px",
-    lineHeight: 1.85,
-    color: "#64748b",
-    fontWeight: 500,
+    fontWeight: 800,
   },
 };
