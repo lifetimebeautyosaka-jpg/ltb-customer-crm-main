@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
@@ -54,6 +53,45 @@ const CATEGORY_OPTIONS = [
   "腕",
   "体幹",
   "有酸素",
+  "ストレッチ",
+  "その他",
+];
+
+const EXERCISE_OPTIONS = [
+  "スクワット",
+  "フロントスクワット",
+  "ブルガリアンスクワット",
+  "ランジ",
+  "レッグプレス",
+  "レッグエクステンション",
+  "レッグカール",
+  "ヒップスラスト",
+  "ルーマニアンデッドリフト",
+  "デッドリフト",
+  "ベンチプレス",
+  "インクラインベンチプレス",
+  "ダンベルプレス",
+  "ダンベルフライ",
+  "プッシュアップ",
+  "ラットプルダウン",
+  "シーテッドロー",
+  "ベントオーバーロウ",
+  "ワンハンドロウ",
+  "チンニング",
+  "ショルダープレス",
+  "サイドレイズ",
+  "リアレイズ",
+  "フロントレイズ",
+  "アームカール",
+  "ハンマーカール",
+  "トライセプスプレスダウン",
+  "フレンチプレス",
+  "クランチ",
+  "レッグレイズ",
+  "プランク",
+  "サイドプランク",
+  "バイク",
+  "ウォーキング",
   "ストレッチ",
   "その他",
 ];
@@ -533,9 +571,6 @@ export default function TrainingPage() {
             </div>
 
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <Link href={`/customer/${customerId}`} style={{ textDecoration: "none" }}>
-                <button style={secondaryButtonStyle}>顧客詳細へ戻る</button>
-              </Link>
               <button type="button" onClick={() => resetForm(true)} style={secondaryButtonStyle}>
                 新規入力に戻す
               </button>
@@ -543,17 +578,8 @@ export default function TrainingPage() {
           </div>
         </div>
 
-        {error && (
-          <div style={{ ...alertErrorStyle, marginBottom: 16 }}>
-            {error}
-          </div>
-        )}
-
-        {success && (
-          <div style={{ ...alertSuccessStyle, marginBottom: 16 }}>
-            {success}
-          </div>
-        )}
+        {error && <div style={{ ...alertErrorStyle, marginBottom: 16 }}>{error}</div>}
+        {success && <div style={{ ...alertSuccessStyle, marginBottom: 16 }}>{success}</div>}
 
         <div style={{ display: "grid", gap: 18 }}>
           <section style={{ ...CARD_STYLE, borderRadius: 24, padding: 20 }}>
@@ -624,12 +650,12 @@ export default function TrainingPage() {
             </div>
 
             <div style={{ overflowX: "auto" }}>
-              <div style={{ minWidth: 980 }}>
+              <div style={{ minWidth: 1120 }}>
                 <div
                   style={{
                     display: "grid",
                     gridTemplateColumns:
-                      "140px 170px 100px 100px 100px 100px 1fr 90px",
+                      "140px 220px 100px 100px 100px 100px 1fr 90px",
                     gap: 10,
                     marginBottom: 10,
                     fontSize: 12,
@@ -655,7 +681,7 @@ export default function TrainingPage() {
                       style={{
                         display: "grid",
                         gridTemplateColumns:
-                          "140px 170px 100px 100px 100px 100px 1fr 90px",
+                          "140px 220px 100px 100px 100px 100px 1fr 90px",
                         gap: 10,
                         background: "rgba(255,255,255,0.72)",
                         border: "1px solid rgba(148,163,184,0.16)",
@@ -676,14 +702,21 @@ export default function TrainingPage() {
                         ))}
                       </select>
 
-                      <input
+                      <select
                         value={row.exercise_name}
                         onChange={(e) =>
                           updateRow(row.rowId, "exercise_name", e.target.value)
                         }
-                        placeholder="例：スクワット"
                         style={tableInputStyle}
-                      />
+                      >
+                        <option value="">種目を選択</option>
+                        {EXERCISE_OPTIONS.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+
                       <input
                         value={row.set_count}
                         onChange={(e) => updateRow(row.rowId, "set_count", e.target.value)}
