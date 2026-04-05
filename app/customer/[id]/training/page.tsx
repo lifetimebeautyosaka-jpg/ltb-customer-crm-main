@@ -46,6 +46,18 @@ type TrainingSession = {
   training_sets?: TrainingSetDB[];
 };
 
+const CATEGORY_OPTIONS = [
+  "胸",
+  "背中",
+  "脚",
+  "肩",
+  "腕",
+  "体幹",
+  "有酸素",
+  "ストレッチ",
+  "その他",
+];
+
 const supabase =
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -193,7 +205,7 @@ export default function TrainingPage() {
       const target = history.find((item) => item.id === copyFrom);
       if (target) {
         applySessionToForm(target, false);
-        setSuccess("履歴をコピーしました。必要に応じて調整して保存してください。");
+        setSuccess("履歴をコピーしました。内容を調整して保存できます。");
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -244,7 +256,7 @@ export default function TrainingPage() {
     }
   }
 
-  function resetForm() {
+  function resetForm(clearMessage = false) {
     setEditingSessionId(null);
     setSessionDate(new Date().toISOString().slice(0, 10));
     setBodyWeight("");
@@ -255,7 +267,7 @@ export default function TrainingPage() {
     setPostureImageUrls([]);
     setSetRows([makeRow()]);
     setError("");
-    setSuccess("");
+    if (clearMessage) setSuccess("");
   }
 
   function applySessionToForm(session: TrainingSession, isEdit: boolean) {
@@ -300,7 +312,6 @@ export default function TrainingPage() {
 
     setUploading(true);
     setError("");
-    setSuccess("");
 
     try {
       const urls: string[] = [];
@@ -319,9 +330,7 @@ export default function TrainingPage() {
         if (uploadError) throw uploadError;
 
         const { data } = supabase.storage.from("training-images").getPublicUrl(fileName);
-        if (data.publicUrl) {
-          urls.push(data.publicUrl);
-        }
+        if (data.publicUrl) urls.push(data.publicUrl);
       }
 
       setPostureImageUrls((prev) => [...prev, ...urls]);
@@ -404,9 +413,7 @@ export default function TrainingPage() {
         sessionId = data.id;
       }
 
-      if (!sessionId) {
-        throw new Error("セッションIDの取得に失敗しました。");
-      }
+      if (!sessionId) throw new Error("セッションIDの取得に失敗しました。");
 
       if (validRows.length > 0) {
         const rowsPayload = validRows.map((row, index) => ({
@@ -429,9 +436,9 @@ export default function TrainingPage() {
         if (rowsError) throw rowsError;
       }
 
-      setSuccess(editingSessionId ? "履歴を更新しました。" : "トレーニング履歴を保存しました。");
-      resetForm();
       await loadHistory();
+      resetForm(false);
+      setSuccess(editingSessionId ? "履歴を更新しました。" : "トレーニング履歴を保存しました。");
     } catch (e) {
       console.error(e);
       setError("保存に失敗しました。");
@@ -465,7 +472,7 @@ export default function TrainingPage() {
       if (deleteSessionError) throw deleteSessionError;
 
       if (editingSessionId === sessionId) {
-        resetForm();
+        resetForm(true);
       }
 
       setSuccess("履歴を削除しました。");
@@ -490,15 +497,13 @@ export default function TrainingPage() {
         padding: "24px 16px 80px",
       }}
     >
-      <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+      <div style={{ maxWidth: 1180, margin: "0 auto" }}>
         <div
           style={{
             ...CARD_STYLE,
-            borderRadius: 26,
+            borderRadius: 24,
             padding: 20,
             marginBottom: 18,
-            background:
-              "linear-gradient(135deg, rgba(255,255,255,0.88), rgba(248,250,252,0.78))",
           }}
         >
           <div
@@ -525,41 +530,13 @@ export default function TrainingPage() {
               <h1 style={{ margin: 0, fontSize: 28, color: "#0f172a" }}>
                 {editingSessionId ? "トレーニング履歴を編集" : "トレーニング履歴を登録"}
               </h1>
-              <p style={{ margin: "8px 0 0", color: "#475569", fontSize: 14 }}>
-                セッション情報・ストレッチ項目・種目テーブル・総評・画像をまとめて管理できます
-              </p>
             </div>
 
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <Link href={`/customer/${customerId}`} style={{ textDecoration: "none" }}>
-                <button
-                  style={{
-                    padding: "12px 16px",
-                    borderRadius: 14,
-                    border: "1px solid rgba(148,163,184,0.3)",
-                    background: "rgba(255,255,255,0.78)",
-                    color: "#0f172a",
-                    cursor: "pointer",
-                    fontWeight: 700,
-                  }}
-                >
-                  顧客詳細へ戻る
-                </button>
+                <button style={secondaryButtonStyle}>顧客詳細へ戻る</button>
               </Link>
-
-              <button
-                type="button"
-                onClick={resetForm}
-                style={{
-                  padding: "12px 16px",
-                  borderRadius: 14,
-                  border: "1px solid rgba(148,163,184,0.3)",
-                  background: "rgba(255,255,255,0.78)",
-                  color: "#0f172a",
-                  cursor: "pointer",
-                  fontWeight: 700,
-                }}
-              >
+              <button type="button" onClick={() => resetForm(true)} style={secondaryButtonStyle}>
                 新規入力に戻す
               </button>
             </div>
@@ -567,330 +544,228 @@ export default function TrainingPage() {
         </div>
 
         {error && (
-          <div
-            style={{
-              ...CARD_STYLE,
-              marginBottom: 16,
-              borderRadius: 20,
-              padding: 16,
-              color: "#991b1b",
-              background:
-                "linear-gradient(135deg, rgba(254,242,242,0.95), rgba(254,226,226,0.9))",
-              border: "1px solid rgba(239,68,68,0.18)",
-            }}
-          >
+          <div style={{ ...alertErrorStyle, marginBottom: 16 }}>
             {error}
           </div>
         )}
 
         {success && (
-          <div
-            style={{
-              ...CARD_STYLE,
-              marginBottom: 16,
-              borderRadius: 20,
-              padding: 16,
-              color: "#065f46",
-              background:
-                "linear-gradient(135deg, rgba(236,253,245,0.95), rgba(220,252,231,0.88))",
-              border: "1px solid rgba(16,185,129,0.22)",
-            }}
-          >
+          <div style={{ ...alertSuccessStyle, marginBottom: 16 }}>
             {success}
           </div>
         )}
 
-        <section
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1.2fr 0.8fr",
-            gap: 18,
-            alignItems: "start",
-          }}
-        >
-          <div style={{ display: "grid", gap: 18 }}>
-            <div style={{ ...CARD_STYLE, borderRadius: 26, padding: 20 }}>
-              <div
-                style={{
-                  fontSize: 12,
-                  color: "#64748b",
-                  fontWeight: 700,
-                  marginBottom: 12,
-                }}
-              >
-                SESSION INFO
-              </div>
+        <div style={{ display: "grid", gap: 18 }}>
+          <section style={{ ...CARD_STYLE, borderRadius: 24, padding: 20 }}>
+            <h2 style={sectionTitleStyle}>基本情報</h2>
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                  gap: 14,
-                }}
-              >
-                <label style={{ display: "grid", gap: 8 }}>
-                  <span style={{ color: "#334155", fontWeight: 700, fontSize: 14 }}>
-                    セッション日
-                  </span>
-                  <input
-                    type="date"
-                    value={sessionDate}
-                    onChange={(e) => setSessionDate(e.target.value)}
-                    style={inputStyle}
-                  />
-                </label>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: 14,
+              }}
+            >
+              <label style={{ display: "grid", gap: 8 }}>
+                <span style={labelStyle}>セッション日</span>
+                <input
+                  type="date"
+                  value={sessionDate}
+                  onChange={(e) => setSessionDate(e.target.value)}
+                  style={inputStyle}
+                />
+              </label>
 
-                <label style={{ display: "grid", gap: 8 }}>
-                  <span style={{ color: "#334155", fontWeight: 700, fontSize: 14 }}>
-                    体重（kg）
-                  </span>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={bodyWeight}
-                    onChange={(e) => setBodyWeight(e.target.value)}
-                    placeholder="例：65.4"
-                    style={inputStyle}
-                  />
-                </label>
-              </div>
+              <label style={{ display: "grid", gap: 8 }}>
+                <span style={labelStyle}>体重（kg）</span>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={bodyWeight}
+                  onChange={(e) => setBodyWeight(e.target.value)}
+                  placeholder="例：65.4"
+                  style={inputStyle}
+                />
+              </label>
+            </div>
 
-              <div style={{ marginTop: 14 }}>
-                <label style={{ display: "grid", gap: 8 }}>
-                  <span style={{ color: "#334155", fontWeight: 700, fontSize: 14 }}>
-                    ストレッチ項目
-                  </span>
-                  <textarea
-                    value={stretchMenu}
-                    onChange={(e) => setStretchMenu(e.target.value)}
-                    placeholder={"1行に1項目ずつ入力\n例：股関節ストレッチ\n胸椎回旋"}
-                    style={{ ...textareaStyle, minHeight: 110 }}
-                  />
-                </label>
+            <div style={{ marginTop: 14 }}>
+              <label style={{ display: "grid", gap: 8 }}>
+                <span style={labelStyle}>ストレッチ項目</span>
+                <textarea
+                  value={stretchMenu}
+                  onChange={(e) => setStretchMenu(e.target.value)}
+                  placeholder={"1行に1項目ずつ入力\n例：股関節ストレッチ\n胸椎回旋"}
+                  style={{ ...textareaStyle, minHeight: 100 }}
+                />
+              </label>
+            </div>
+          </section>
+
+          <section style={{ ...CARD_STYLE, borderRadius: 24, padding: 20 }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: 12,
+                marginBottom: 14,
+              }}
+            >
+              <h2 style={sectionTitleStyle}>トレーニング種目</h2>
+
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <span style={countBadgeStyle}>入力種目数：{exerciseCount}</span>
+                <button type="button" onClick={addRow} style={BUTTON_PRIMARY_STYLE}>
+                  行を追加
+                </button>
               </div>
             </div>
 
-            <div style={{ ...CARD_STYLE, borderRadius: 26, padding: 20 }}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                  gap: 12,
-                  marginBottom: 14,
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: "#64748b",
-                      fontWeight: 700,
-                      marginBottom: 6,
-                    }}
-                  >
-                    TRAINING SETS
-                  </div>
-                  <h2 style={{ margin: 0, fontSize: 22, color: "#0f172a" }}>
-                    種目テーブル
-                  </h2>
+            <div style={{ overflowX: "auto" }}>
+              <div style={{ minWidth: 980 }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      "140px 170px 100px 100px 100px 100px 1fr 90px",
+                    gap: 10,
+                    marginBottom: 10,
+                    fontSize: 12,
+                    fontWeight: 800,
+                    color: "#64748b",
+                    padding: "0 6px",
+                  }}
+                >
+                  <div>カテゴリ</div>
+                  <div>種目名</div>
+                  <div>セット数</div>
+                  <div>回数</div>
+                  <div>重量</div>
+                  <div>秒数</div>
+                  <div>メモ</div>
+                  <div>操作</div>
                 </div>
 
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <span
-                    style={{
-                      fontSize: 12,
-                      padding: "8px 12px",
-                      borderRadius: 999,
-                      background: "rgba(59,130,246,0.08)",
-                      color: "#1d4ed8",
-                      fontWeight: 800,
-                    }}
-                  >
-                    入力種目数：{exerciseCount}
-                  </span>
-
-                  <button type="button" onClick={addRow} style={BUTTON_PRIMARY_STYLE}>
-                    行を追加
-                  </button>
-                </div>
-              </div>
-
-              <div style={{ overflowX: "auto" }}>
-                <div style={{ minWidth: 980 }}>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns:
-                        "140px 170px 100px 100px 100px 100px 1fr 90px",
-                      gap: 10,
-                      marginBottom: 10,
-                      fontSize: 12,
-                      fontWeight: 800,
-                      color: "#64748b",
-                      padding: "0 6px",
-                    }}
-                  >
-                    <div>カテゴリ</div>
-                    <div>種目名</div>
-                    <div>セット数</div>
-                    <div>回数</div>
-                    <div>重量</div>
-                    <div>秒数</div>
-                    <div>メモ</div>
-                    <div>操作</div>
-                  </div>
-
-                  <div style={{ display: "grid", gap: 12 }}>
-                    {setRows.map((row) => (
-                      <div
-                        key={row.rowId}
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns:
-                            "140px 170px 100px 100px 100px 100px 1fr 90px",
-                          gap: 10,
-                          background: "rgba(255,255,255,0.68)",
-                          border: "1px solid rgba(148,163,184,0.16)",
-                          borderRadius: 18,
-                          padding: 10,
-                        }}
+                <div style={{ display: "grid", gap: 12 }}>
+                  {setRows.map((row) => (
+                    <div
+                      key={row.rowId}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns:
+                          "140px 170px 100px 100px 100px 100px 1fr 90px",
+                        gap: 10,
+                        background: "rgba(255,255,255,0.72)",
+                        border: "1px solid rgba(148,163,184,0.16)",
+                        borderRadius: 18,
+                        padding: 10,
+                      }}
+                    >
+                      <select
+                        value={row.category}
+                        onChange={(e) => updateRow(row.rowId, "category", e.target.value)}
+                        style={tableInputStyle}
                       >
-                        <input
-                          value={row.category}
-                          onChange={(e) => updateRow(row.rowId, "category", e.target.value)}
-                          placeholder="例：下半身"
-                          style={tableInputStyle}
-                        />
-                        <input
-                          value={row.exercise_name}
-                          onChange={(e) =>
-                            updateRow(row.rowId, "exercise_name", e.target.value)
-                          }
-                          placeholder="例：スクワット"
-                          style={tableInputStyle}
-                        />
-                        <input
-                          value={row.set_count}
-                          onChange={(e) => updateRow(row.rowId, "set_count", e.target.value)}
-                          placeholder="3"
-                          style={tableInputStyle}
-                        />
-                        <input
-                          value={row.reps}
-                          onChange={(e) => updateRow(row.rowId, "reps", e.target.value)}
-                          placeholder="10回"
-                          style={tableInputStyle}
-                        />
-                        <input
-                          value={row.weight}
-                          onChange={(e) => updateRow(row.rowId, "weight", e.target.value)}
-                          placeholder="40kg"
-                          style={tableInputStyle}
-                        />
-                        <input
-                          value={row.seconds}
-                          onChange={(e) => updateRow(row.rowId, "seconds", e.target.value)}
-                          placeholder="30秒"
-                          style={tableInputStyle}
-                        />
-                        <input
-                          value={row.memo}
-                          onChange={(e) => updateRow(row.rowId, "memo", e.target.value)}
-                          placeholder="フォーム意識など"
-                          style={tableInputStyle}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeRow(row.rowId)}
-                          style={{
-                            border: "none",
-                            borderRadius: 12,
-                            background: "rgba(239,68,68,0.12)",
-                            color: "#b91c1c",
-                            fontWeight: 800,
-                            cursor: "pointer",
-                          }}
-                        >
-                          削除
-                        </button>
-                      </div>
-                    ))}
-                  </div>
+                        <option value="">選択</option>
+                        {CATEGORY_OPTIONS.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+
+                      <input
+                        value={row.exercise_name}
+                        onChange={(e) =>
+                          updateRow(row.rowId, "exercise_name", e.target.value)
+                        }
+                        placeholder="例：スクワット"
+                        style={tableInputStyle}
+                      />
+                      <input
+                        value={row.set_count}
+                        onChange={(e) => updateRow(row.rowId, "set_count", e.target.value)}
+                        placeholder="3"
+                        style={tableInputStyle}
+                      />
+                      <input
+                        value={row.reps}
+                        onChange={(e) => updateRow(row.rowId, "reps", e.target.value)}
+                        placeholder="10回"
+                        style={tableInputStyle}
+                      />
+                      <input
+                        value={row.weight}
+                        onChange={(e) => updateRow(row.rowId, "weight", e.target.value)}
+                        placeholder="40kg"
+                        style={tableInputStyle}
+                      />
+                      <input
+                        value={row.seconds}
+                        onChange={(e) => updateRow(row.rowId, "seconds", e.target.value)}
+                        placeholder="30秒"
+                        style={tableInputStyle}
+                      />
+                      <input
+                        value={row.memo}
+                        onChange={(e) => updateRow(row.rowId, "memo", e.target.value)}
+                        placeholder="フォーム意識など"
+                        style={tableInputStyle}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeRow(row.rowId)}
+                        style={deleteButtonStyle}
+                      >
+                        削除
+                      </button>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
+          </section>
 
-            <div style={{ ...CARD_STYLE, borderRadius: 26, padding: 20 }}>
-              <div
-                style={{
-                  fontSize: 12,
-                  color: "#64748b",
-                  fontWeight: 700,
-                  marginBottom: 12,
-                }}
-              >
-                REVIEW & TASK
-              </div>
+          <section style={{ ...CARD_STYLE, borderRadius: 24, padding: 20 }}>
+            <h2 style={sectionTitleStyle}>総評・次回課題・姿勢</h2>
 
-              <div style={{ display: "grid", gap: 14 }}>
-                <label style={{ display: "grid", gap: 8 }}>
-                  <span style={{ color: "#334155", fontWeight: 700, fontSize: 14 }}>
-                    総評
-                  </span>
-                  <textarea
-                    value={summary}
-                    onChange={(e) => setSummary(e.target.value)}
-                    placeholder="本日の総評を入力"
-                    style={{ ...textareaStyle, minHeight: 120 }}
-                  />
-                </label>
+            <div style={{ display: "grid", gap: 14 }}>
+              <label style={{ display: "grid", gap: 8 }}>
+                <span style={labelStyle}>総評</span>
+                <textarea
+                  value={summary}
+                  onChange={(e) => setSummary(e.target.value)}
+                  placeholder="本日の総評を入力"
+                  style={{ ...textareaStyle, minHeight: 110 }}
+                />
+              </label>
 
-                <label style={{ display: "grid", gap: 8 }}>
-                  <span style={{ color: "#334155", fontWeight: 700, fontSize: 14 }}>
-                    次回課題
-                  </span>
-                  <textarea
-                    value={nextTask}
-                    onChange={(e) => setNextTask(e.target.value)}
-                    placeholder="次回に向けた課題を入力"
-                    style={{ ...textareaStyle, minHeight: 120 }}
-                  />
-                </label>
+              <label style={{ display: "grid", gap: 8 }}>
+                <span style={labelStyle}>次回課題</span>
+                <textarea
+                  value={nextTask}
+                  onChange={(e) => setNextTask(e.target.value)}
+                  placeholder="次回に向けた課題を入力"
+                  style={{ ...textareaStyle, minHeight: 110 }}
+                />
+              </label>
 
-                <label style={{ display: "grid", gap: 8 }}>
-                  <span style={{ color: "#334155", fontWeight: 700, fontSize: 14 }}>
-                    姿勢メモ
-                  </span>
-                  <textarea
-                    value={postureNote}
-                    onChange={(e) => setPostureNote(e.target.value)}
-                    placeholder="姿勢・可動域・左右差などのメモ"
-                    style={{ ...textareaStyle, minHeight: 120 }}
-                  />
-                </label>
-              </div>
+              <label style={{ display: "grid", gap: 8 }}>
+                <span style={labelStyle}>姿勢メモ</span>
+                <textarea
+                  value={postureNote}
+                  onChange={(e) => setPostureNote(e.target.value)}
+                  placeholder="姿勢・可動域・左右差などのメモ"
+                  style={{ ...textareaStyle, minHeight: 110 }}
+                />
+              </label>
             </div>
-          </div>
 
-          <div style={{ display: "grid", gap: 18 }}>
-            <div style={{ ...CARD_STYLE, borderRadius: 26, padding: 20 }}>
-              <div
-                style={{
-                  fontSize: 12,
-                  color: "#64748b",
-                  fontWeight: 700,
-                  marginBottom: 12,
-                }}
-              >
-                POSTURE IMAGE
-              </div>
-
+            <div style={{ marginTop: 16 }}>
               <label style={{ display: "grid", gap: 10 }}>
-                <span style={{ color: "#334155", fontWeight: 700, fontSize: 14 }}>
-                  姿勢画像アップロード
-                </span>
+                <span style={labelStyle}>姿勢画像アップロード</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -908,7 +783,7 @@ export default function TrainingPage() {
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
                     gap: 12,
                     marginTop: 16,
                   }}
@@ -937,19 +812,7 @@ export default function TrainingPage() {
                       <button
                         type="button"
                         onClick={() => removeImage(url)}
-                        style={{
-                          position: "absolute",
-                          top: 10,
-                          right: 10,
-                          border: "none",
-                          borderRadius: 999,
-                          background: "rgba(15,23,42,0.78)",
-                          color: "#fff",
-                          padding: "8px 10px",
-                          cursor: "pointer",
-                          fontWeight: 800,
-                          fontSize: 12,
-                        }}
+                        style={removeImageButtonStyle}
                       >
                         削除
                       </button>
@@ -959,460 +822,250 @@ export default function TrainingPage() {
               )}
             </div>
 
-            <div style={{ ...CARD_STYLE, borderRadius: 26, padding: 20 }}>
-              <div
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 20 }}>
+              <button
+                type="button"
+                onClick={() => void handleSave()}
+                disabled={saving}
                 style={{
-                  fontSize: 12,
-                  color: "#64748b",
-                  fontWeight: 700,
-                  marginBottom: 12,
+                  ...BUTTON_PRIMARY_STYLE,
+                  opacity: saving ? 0.7 : 1,
+                  cursor: saving ? "not-allowed" : "pointer",
                 }}
               >
-                SAVE ACTION
-              </div>
+                {saving
+                  ? "保存中..."
+                  : editingSessionId
+                  ? "更新して保存"
+                  : "新規保存"}
+              </button>
 
-              <div style={{ display: "grid", gap: 12 }}>
-                <button
-                  type="button"
-                  onClick={() => void handleSave()}
-                  disabled={saving}
-                  style={{
-                    ...BUTTON_PRIMARY_STYLE,
-                    opacity: saving ? 0.7 : 1,
-                    cursor: saving ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {saving
-                    ? "保存中..."
-                    : editingSessionId
-                    ? "更新して保存"
-                    : "新規保存"}
+              {editingSessionId && (
+                <button type="button" onClick={() => resetForm(true)} style={secondaryButtonStyle}>
+                  編集をやめる
                 </button>
-
-                {editingSessionId && (
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    style={{
-                      padding: "12px 16px",
-                      borderRadius: 14,
-                      border: "1px solid rgba(148,163,184,0.3)",
-                      background: "rgba(255,255,255,0.78)",
-                      color: "#0f172a",
-                      cursor: "pointer",
-                      fontWeight: 700,
-                    }}
-                  >
-                    編集をやめて新規入力に戻す
-                  </button>
-                )}
-              </div>
+              )}
             </div>
-          </div>
-        </section>
+          </section>
 
-        <section
-          id="history"
-          style={{
-            ...CARD_STYLE,
-            borderRadius: 28,
-            padding: 22,
-            marginTop: 18,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: 12,
-              flexWrap: "wrap",
-              marginBottom: 16,
-            }}
+          <section
+            id="history"
+            style={{ ...CARD_STYLE, borderRadius: 24, padding: 20 }}
           >
-            <div>
-              <div
-                style={{
-                  fontSize: 12,
-                  color: "#64748b",
-                  fontWeight: 700,
-                  marginBottom: 6,
-                }}
-              >
-                TRAINING HISTORY
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+                flexWrap: "wrap",
+                marginBottom: 16,
+              }}
+            >
+              <h2 style={sectionTitleStyle}>履歴一覧</h2>
+              <div style={{ fontSize: 13, color: "#64748b", fontWeight: 700 }}>
+                {loading ? "読み込み中..." : `履歴 ${history.length}件`}
               </div>
-              <h2 style={{ margin: 0, fontSize: 22, color: "#0f172a" }}>
-                履歴一覧
-              </h2>
             </div>
 
-            <div
-              style={{
-                fontSize: 13,
-                color: "#64748b",
-                fontWeight: 700,
-              }}
-            >
-              {loading ? "読み込み中..." : `履歴 ${history.length}件`}
-            </div>
-          </div>
+            {loading ? (
+              <div style={{ color: "#475569" }}>読み込み中です...</div>
+            ) : history.length === 0 ? (
+              <div style={emptyBoxStyle}>まだ履歴はありません。</div>
+            ) : (
+              <div style={{ display: "grid", gap: 16 }}>
+                {history.map((session) => {
+                  const sets = safeArray(session.training_sets).sort(
+                    (a, b) => (a.row_order ?? 0) - (b.row_order ?? 0)
+                  );
+                  const images = safeArray(session.posture_image_urls);
 
-          {loading ? (
-            <div style={{ color: "#475569" }}>読み込み中です...</div>
-          ) : history.length === 0 ? (
-            <div
-              style={{
-                borderRadius: 20,
-                padding: 18,
-                background: "rgba(255,255,255,0.62)",
-                border: "1px solid rgba(148,163,184,0.16)",
-                color: "#475569",
-              }}
-            >
-              まだ履歴はありません。
-            </div>
-          ) : (
-            <div style={{ display: "grid", gap: 16 }}>
-              {history.map((session) => {
-                const sets = safeArray(session.training_sets).sort(
-                  (a, b) => (a.row_order ?? 0) - (b.row_order ?? 0)
-                );
-                const images = safeArray(session.posture_image_urls);
-
-                return (
-                  <article
-                    key={session.id}
-                    style={{
-                      background: "rgba(255,255,255,0.72)",
-                      border: "1px solid rgba(148,163,184,0.18)",
-                      borderRadius: 24,
-                      padding: 18,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "flex-start",
-                        flexWrap: "wrap",
-                        gap: 12,
-                        marginBottom: 14,
-                      }}
-                    >
-                      <div>
-                        <div
-                          style={{
-                            fontSize: 18,
-                            fontWeight: 800,
-                            color: "#0f172a",
-                            marginBottom: 6,
-                          }}
-                        >
-                          {formatDate(session.session_date)}
-                        </div>
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                          <span
-                            style={{
-                              fontSize: 12,
-                              background: "rgba(15,23,42,0.06)",
-                              color: "#334155",
-                              padding: "6px 10px",
-                              borderRadius: 999,
-                              fontWeight: 700,
-                            }}
-                          >
-                            体重：{session.body_weight ? `${session.body_weight} kg` : "—"}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: 12,
-                              background: "rgba(15,23,42,0.06)",
-                              color: "#334155",
-                              padding: "6px 10px",
-                              borderRadius: 999,
-                              fontWeight: 700,
-                            }}
-                          >
-                            種目数：{sets.length}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: 12,
-                              background: "rgba(15,23,42,0.06)",
-                              color: "#334155",
-                              padding: "6px 10px",
-                              borderRadius: 999,
-                              fontWeight: 700,
-                            }}
-                          >
-                            更新：{formatDateTime(session.updated_at || session.created_at)}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <button
-                          type="button"
-                          onClick={() => applySessionToForm(session, false)}
-                          style={{
-                            padding: "12px 16px",
-                            borderRadius: 14,
-                            border: "1px solid rgba(59,130,246,0.24)",
-                            background: "rgba(239,246,255,0.95)",
-                            color: "#1d4ed8",
-                            cursor: "pointer",
-                            fontWeight: 800,
-                          }}
-                        >
-                          履歴コピー
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => applySessionToForm(session, true)}
-                          style={{
-                            padding: "12px 16px",
-                            borderRadius: 14,
-                            border: "1px solid rgba(15,23,42,0.14)",
-                            background: "rgba(255,255,255,0.88)",
-                            color: "#0f172a",
-                            cursor: "pointer",
-                            fontWeight: 800,
-                          }}
-                        >
-                          編集する
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => void handleDelete(session.id)}
-                          style={{
-                            padding: "12px 16px",
-                            borderRadius: 14,
-                            border: "1px solid rgba(239,68,68,0.18)",
-                            background: "rgba(254,242,242,0.95)",
-                            color: "#b91c1c",
-                            cursor: "pointer",
-                            fontWeight: 800,
-                          }}
-                        >
-                          削除
-                        </button>
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-                        gap: 14,
-                      }}
-                    >
+                  return (
+                    <article key={session.id} style={historyCardStyle}>
                       <div
                         style={{
-                          background: "rgba(248,250,252,0.92)",
-                          border: "1px solid rgba(148,163,184,0.14)",
-                          borderRadius: 18,
-                          padding: 14,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "flex-start",
+                          flexWrap: "wrap",
+                          gap: 12,
+                          marginBottom: 14,
                         }}
                       >
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: "#64748b",
-                            fontWeight: 700,
-                            marginBottom: 10,
-                          }}
-                        >
-                          種目一覧
+                        <div>
+                          <div style={historyDateStyle}>{formatDate(session.session_date)}</div>
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                            <span style={historyBadgeStyle}>
+                              体重：{session.body_weight ? `${session.body_weight} kg` : "—"}
+                            </span>
+                            <span style={historyBadgeStyle}>種目数：{sets.length}</span>
+                            <span style={historyBadgeStyle}>
+                              更新：{formatDateTime(session.updated_at || session.created_at)}
+                            </span>
+                          </div>
                         </div>
 
-                        {sets.length === 0 ? (
-                          <div style={{ color: "#64748b", fontSize: 14 }}>未登録</div>
-                        ) : (
-                          <div style={{ display: "grid", gap: 8 }}>
-                            {sets.map((set, idx) => (
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          <button
+                            type="button"
+                            onClick={() => applySessionToForm(session, false)}
+                            style={copyButtonStyle}
+                          >
+                            履歴コピー
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => applySessionToForm(session, true)}
+                            style={secondaryButtonStyle}
+                          >
+                            編集する
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => void handleDelete(session.id)}
+                            style={dangerButtonStyle}
+                          >
+                            削除
+                          </button>
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+                          gap: 14,
+                        }}
+                      >
+                        <div style={historyInnerBoxStyle}>
+                          <div style={historyBoxTitleStyle}>種目一覧</div>
+
+                          {sets.length === 0 ? (
+                            <div style={{ color: "#64748b", fontSize: 14 }}>未登録</div>
+                          ) : (
+                            <div style={{ display: "grid", gap: 8 }}>
+                              {sets.map((set, idx) => (
+                                <div
+                                  key={set.row_id || `${session.id}-${idx}`}
+                                  style={setItemStyle}
+                                >
+                                  <div style={setItemTitleStyle}>
+                                    {set.exercise_name || "種目名未入力"}
+                                  </div>
+                                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                                    {set.category && <span>カテゴリ：{set.category}</span>}
+                                    {set.set_count !== null && set.set_count !== undefined && (
+                                      <span>セット：{set.set_count}</span>
+                                    )}
+                                    {set.reps && <span>回数：{set.reps}</span>}
+                                    {set.weight && <span>重量：{set.weight}</span>}
+                                    {set.seconds && <span>秒数：{set.seconds}</span>}
+                                  </div>
+                                  {set.memo && (
+                                    <div style={{ marginTop: 6, color: "#475569" }}>
+                                      メモ：{set.memo}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {safeArray(session.stretch_menu).length > 0 && (
+                            <>
+                              <div style={{ ...historyBoxTitleStyle, marginTop: 12 }}>
+                                ストレッチ項目
+                              </div>
+                              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                {safeArray(session.stretch_menu).map((item, idx) => (
+                                  <span key={`${session.id}-stretch-${idx}`} style={stretchBadgeStyle}>
+                                    {item}
+                                  </span>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
+
+                        <div style={historyInnerBoxStyle}>
+                          <div style={historyBoxTitleStyle}>総評</div>
+                          <div style={{ whiteSpace: "pre-wrap", color: "#334155", fontSize: 14 }}>
+                            {session.summary || "未入力"}
+                          </div>
+
+                          <div style={{ ...historyBoxTitleStyle, marginTop: 14 }}>次回課題</div>
+                          <div style={{ whiteSpace: "pre-wrap", color: "#334155", fontSize: 14 }}>
+                            {session.next_task || "未入力"}
+                          </div>
+
+                          <div style={{ ...historyBoxTitleStyle, marginTop: 14 }}>姿勢メモ</div>
+                          <div style={{ whiteSpace: "pre-wrap", color: "#334155", fontSize: 14 }}>
+                            {session.posture_note || "未入力"}
+                          </div>
+                        </div>
+                      </div>
+
+                      {images.length > 0 && (
+                        <div style={{ marginTop: 16 }}>
+                          <div style={historyBoxTitleStyle}>姿勢画像</div>
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                              gap: 12,
+                            }}
+                          >
+                            {images.map((url, idx) => (
                               <div
-                                key={set.row_id || `${session.id}-${idx}`}
+                                key={`${session.id}-img-${idx}`}
                                 style={{
-                                  borderRadius: 14,
-                                  background: "rgba(255,255,255,0.76)",
-                                  border: "1px solid rgba(148,163,184,0.14)",
-                                  padding: 12,
-                                  color: "#334155",
-                                  fontSize: 14,
+                                  borderRadius: 18,
+                                  overflow: "hidden",
+                                  border: "1px solid rgba(148,163,184,0.16)",
+                                  background: "#fff",
                                 }}
                               >
-                                <div
+                                <img
+                                  src={url}
+                                  alt={`posture-${idx + 1}`}
                                   style={{
-                                    fontWeight: 800,
-                                    color: "#0f172a",
-                                    marginBottom: 4,
+                                    width: "100%",
+                                    aspectRatio: "3 / 4",
+                                    objectFit: "cover",
+                                    display: "block",
                                   }}
-                                >
-                                  {set.exercise_name || "種目名未入力"}
-                                </div>
-                                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                                  {set.category && <span>カテゴリ：{set.category}</span>}
-                                  {set.set_count !== null && set.set_count !== undefined && (
-                                    <span>セット：{set.set_count}</span>
-                                  )}
-                                  {set.reps && <span>回数：{set.reps}</span>}
-                                  {set.weight && <span>重量：{set.weight}</span>}
-                                  {set.seconds && <span>秒数：{set.seconds}</span>}
-                                </div>
-                                {set.memo && (
-                                  <div style={{ marginTop: 6, color: "#475569" }}>
-                                    メモ：{set.memo}
-                                  </div>
-                                )}
+                                />
                               </div>
                             ))}
                           </div>
-                        )}
-
-                        {safeArray(session.stretch_menu).length > 0 && (
-                          <>
-                            <div
-                              style={{
-                                fontSize: 12,
-                                color: "#64748b",
-                                fontWeight: 700,
-                                marginTop: 12,
-                                marginBottom: 10,
-                              }}
-                            >
-                              ストレッチ項目
-                            </div>
-                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                              {safeArray(session.stretch_menu).map((item, idx) => (
-                                <span
-                                  key={`${session.id}-stretch-${idx}`}
-                                  style={{
-                                    fontSize: 12,
-                                    padding: "7px 10px",
-                                    borderRadius: 999,
-                                    background: "rgba(16,185,129,0.08)",
-                                    color: "#047857",
-                                    fontWeight: 700,
-                                  }}
-                                >
-                                  {item}
-                                </span>
-                              ))}
-                            </div>
-                          </>
-                        )}
-                      </div>
-
-                      <div
-                        style={{
-                          background: "rgba(248,250,252,0.92)",
-                          border: "1px solid rgba(148,163,184,0.14)",
-                          borderRadius: 18,
-                          padding: 14,
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: "#64748b",
-                            fontWeight: 700,
-                            marginBottom: 8,
-                          }}
-                        >
-                          総評
                         </div>
-                        <div style={{ whiteSpace: "pre-wrap", color: "#334155", fontSize: 14 }}>
-                          {session.summary || "未入力"}
-                        </div>
-
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: "#64748b",
-                            fontWeight: 700,
-                            marginTop: 14,
-                            marginBottom: 8,
-                          }}
-                        >
-                          次回課題
-                        </div>
-                        <div style={{ whiteSpace: "pre-wrap", color: "#334155", fontSize: 14 }}>
-                          {session.next_task || "未入力"}
-                        </div>
-
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: "#64748b",
-                            fontWeight: 700,
-                            marginTop: 14,
-                            marginBottom: 8,
-                          }}
-                        >
-                          姿勢メモ
-                        </div>
-                        <div style={{ whiteSpace: "pre-wrap", color: "#334155", fontSize: 14 }}>
-                          {session.posture_note || "未入力"}
-                        </div>
-                      </div>
-                    </div>
-
-                    {images.length > 0 && (
-                      <div style={{ marginTop: 16 }}>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: "#64748b",
-                            fontWeight: 700,
-                            marginBottom: 10,
-                          }}
-                        >
-                          姿勢画像
-                        </div>
-                        <div
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                            gap: 12,
-                          }}
-                        >
-                          {images.map((url, idx) => (
-                            <div
-                              key={`${session.id}-img-${idx}`}
-                              style={{
-                                borderRadius: 18,
-                                overflow: "hidden",
-                                border: "1px solid rgba(148,163,184,0.16)",
-                                background: "#fff",
-                              }}
-                            >
-                              <img
-                                src={url}
-                                alt={`posture-${idx + 1}`}
-                                style={{
-                                  width: "100%",
-                                  aspectRatio: "3 / 4",
-                                  objectFit: "cover",
-                                  display: "block",
-                                }}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </section>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </div>
       </div>
     </main>
   );
 }
+
+const sectionTitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 22,
+  color: "#0f172a",
+  fontWeight: 800,
+};
+
+const labelStyle: CSSProperties = {
+  color: "#334155",
+  fontWeight: 700,
+  fontSize: 14,
+};
 
 const inputStyle: CSSProperties = {
   width: "100%",
@@ -1449,4 +1102,153 @@ const tableInputStyle: CSSProperties = {
   color: "#0f172a",
   outline: "none",
   boxSizing: "border-box",
+};
+
+const secondaryButtonStyle: CSSProperties = {
+  padding: "12px 16px",
+  borderRadius: 14,
+  border: "1px solid rgba(148,163,184,0.3)",
+  background: "rgba(255,255,255,0.78)",
+  color: "#0f172a",
+  cursor: "pointer",
+  fontWeight: 700,
+};
+
+const deleteButtonStyle: CSSProperties = {
+  border: "none",
+  borderRadius: 12,
+  background: "rgba(239,68,68,0.12)",
+  color: "#b91c1c",
+  fontWeight: 800,
+  cursor: "pointer",
+};
+
+const removeImageButtonStyle: CSSProperties = {
+  position: "absolute",
+  top: 10,
+  right: 10,
+  border: "none",
+  borderRadius: 999,
+  background: "rgba(15,23,42,0.78)",
+  color: "#fff",
+  padding: "8px 10px",
+  cursor: "pointer",
+  fontWeight: 800,
+  fontSize: 12,
+};
+
+const alertErrorStyle: CSSProperties = {
+  padding: 16,
+  borderRadius: 20,
+  color: "#991b1b",
+  background:
+    "linear-gradient(135deg, rgba(254,242,242,0.95), rgba(254,226,226,0.9))",
+  border: "1px solid rgba(239,68,68,0.18)",
+};
+
+const alertSuccessStyle: CSSProperties = {
+  padding: 16,
+  borderRadius: 20,
+  color: "#065f46",
+  background:
+    "linear-gradient(135deg, rgba(236,253,245,0.95), rgba(220,252,231,0.88))",
+  border: "1px solid rgba(16,185,129,0.22)",
+};
+
+const countBadgeStyle: CSSProperties = {
+  fontSize: 12,
+  padding: "8px 12px",
+  borderRadius: 999,
+  background: "rgba(59,130,246,0.08)",
+  color: "#1d4ed8",
+  fontWeight: 800,
+};
+
+const emptyBoxStyle: CSSProperties = {
+  borderRadius: 20,
+  padding: 18,
+  background: "rgba(255,255,255,0.62)",
+  border: "1px solid rgba(148,163,184,0.16)",
+  color: "#475569",
+};
+
+const historyCardStyle: CSSProperties = {
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(148,163,184,0.18)",
+  borderRadius: 24,
+  padding: 18,
+};
+
+const historyDateStyle: CSSProperties = {
+  fontSize: 18,
+  fontWeight: 800,
+  color: "#0f172a",
+  marginBottom: 6,
+};
+
+const historyBadgeStyle: CSSProperties = {
+  fontSize: 12,
+  background: "rgba(15,23,42,0.06)",
+  color: "#334155",
+  padding: "6px 10px",
+  borderRadius: 999,
+  fontWeight: 700,
+};
+
+const historyInnerBoxStyle: CSSProperties = {
+  background: "rgba(248,250,252,0.92)",
+  border: "1px solid rgba(148,163,184,0.14)",
+  borderRadius: 18,
+  padding: 14,
+};
+
+const historyBoxTitleStyle: CSSProperties = {
+  fontSize: 12,
+  color: "#64748b",
+  fontWeight: 700,
+  marginBottom: 10,
+};
+
+const setItemStyle: CSSProperties = {
+  borderRadius: 14,
+  background: "rgba(255,255,255,0.76)",
+  border: "1px solid rgba(148,163,184,0.14)",
+  padding: 12,
+  color: "#334155",
+  fontSize: 14,
+};
+
+const setItemTitleStyle: CSSProperties = {
+  fontWeight: 800,
+  color: "#0f172a",
+  marginBottom: 4,
+};
+
+const stretchBadgeStyle: CSSProperties = {
+  fontSize: 12,
+  padding: "7px 10px",
+  borderRadius: 999,
+  background: "rgba(16,185,129,0.08)",
+  color: "#047857",
+  fontWeight: 700,
+};
+
+const copyButtonStyle: CSSProperties = {
+  padding: "12px 16px",
+  borderRadius: 14,
+  border: "1px solid rgba(59,130,246,0.24)",
+  background: "rgba(239,246,255,0.95)",
+  color: "#1d4ed8",
+  cursor: "pointer",
+  fontWeight: 800,
+};
+
+const dangerButtonStyle: CSSProperties = {
+  padding: "12px 16px",
+  borderRadius: 14,
+  border: "1px solid rgba(239,68,68,0.18)",
+  background: "rgba(254,242,242,0.95)",
+  color: "#b91c1c",
+  cursor: "pointer",
+  fontWeight: 800,
 };
