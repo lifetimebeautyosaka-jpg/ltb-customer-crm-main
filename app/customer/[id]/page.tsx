@@ -34,6 +34,7 @@ type Customer = {
   bodyFat?: number | string;
   muscleMass?: number | string;
   visceralFat?: number | string;
+  ltv?: number | null;
 };
 
 type TrainingSet = {
@@ -103,6 +104,19 @@ const BG_STYLE = toStyle(BG);
 const GLASS_STYLE = toStyle(GLASS);
 const CARD_STYLE = toStyle(CARD);
 const BUTTON_PRIMARY_STYLE = toStyle(BUTTON_PRIMARY);
+
+const miniLabelStyle: CSSProperties = {
+  fontSize: 12,
+  color: "#64748b",
+  fontWeight: 700,
+  marginBottom: 6,
+};
+
+const valueTextStyle: CSSProperties = {
+  color: "#334155",
+  fontSize: 14,
+  lineHeight: 1.6,
+};
 
 function formatDate(date?: string | null) {
   if (!date) return "—";
@@ -337,6 +351,13 @@ export default function CustomerDetailPage() {
     };
   }, [sales]);
 
+  const displayLtv = useMemo(() => {
+    if (customer?.ltv !== undefined && customer?.ltv !== null) {
+      return Number(customer.ltv) || 0;
+    }
+    return salesSummary.total;
+  }, [customer?.ltv, salesSummary.total]);
+
   if (!mounted) return null;
 
   return (
@@ -494,7 +515,7 @@ export default function CustomerDetailPage() {
               <div>筋肉量：{customer?.muscleMass || "—"}</div>
               <div>内臓脂肪：{customer?.visceralFat || "—"}</div>
               <div>最終来店日：{formatDate(customer?.lastVisitAt)}</div>
-              <div>LTV：{formatCurrency(customer?.ltv || 0)}</div>
+              <div>LTV：{formatCurrency(displayLtv)}</div>
               <div>目標：{customer?.goal || "未設定"}</div>
               <div>メモ：{customer?.memo || "未設定"}</div>
             </div>
@@ -1099,16 +1120,12 @@ export default function CustomerDetailPage() {
                           {session.summary || "未入力"}
                         </div>
 
-                        <div style={{ ...miniLabelStyle, marginTop: 14 }}>
-                          次回課題
-                        </div>
+                        <div style={{ ...miniLabelStyle, marginTop: 14 }}>次回課題</div>
                         <div style={{ whiteSpace: "pre-wrap", color: "#334155", fontSize: 14 }}>
                           {session.next_task || "未入力"}
                         </div>
 
-                        <div style={{ ...miniLabelStyle, marginTop: 14 }}>
-                          姿勢メモ
-                        </div>
+                        <div style={{ ...miniLabelStyle, marginTop: 14 }}>姿勢メモ</div>
                         <div style={{ whiteSpace: "pre-wrap", color: "#334155", fontSize: 14 }}>
                           {session.posture_note || "未入力"}
                         </div>
@@ -1126,26 +1143,26 @@ export default function CustomerDetailPage() {
                           }}
                         >
                           {postureImages.map((url, idx) => (
-                            <div
-                              key={`${session.id}-img-${idx}`}
-                              style={{
-                                borderRadius: 18,
-                                overflow: "hidden",
-                                border: "1px solid rgba(148,163,184,0.16)",
-                                background: "#fff",
-                              }}
+                            <a
+                              key={`${session.id}-image-${idx}`}
+                              href={url}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{ textDecoration: "none" }}
                             >
                               <img
                                 src={url}
-                                alt={`posture-${idx + 1}`}
+                                alt={`姿勢画像 ${idx + 1}`}
                                 style={{
                                   width: "100%",
-                                  aspectRatio: "3 / 4",
+                                  height: 180,
                                   objectFit: "cover",
-                                  display: "block",
+                                  borderRadius: 18,
+                                  border: "1px solid rgba(148,163,184,0.18)",
+                                  background: "#fff",
                                 }}
                               />
-                            </div>
+                            </a>
                           ))}
                         </div>
                       </div>
@@ -1160,16 +1177,3 @@ export default function CustomerDetailPage() {
     </main>
   );
 }
-
-const miniLabelStyle: CSSProperties = {
-  fontSize: 12,
-  color: "#64748b",
-  fontWeight: 700,
-  marginBottom: 8,
-};
-
-const valueTextStyle: CSSProperties = {
-  color: "#334155",
-  fontSize: 14,
-  whiteSpace: "pre-wrap",
-};
