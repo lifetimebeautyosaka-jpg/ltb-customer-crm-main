@@ -2,827 +2,807 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
-import { BG, CARD, BUTTON_PRIMARY } from "../../../styles/theme";
+import { BG, GLASS, CARD, BUTTON_PRIMARY } from "../../../styles/theme";
 
 type Customer = {
-  id: number | string;
+  id: string;
   name?: string;
   kana?: string;
   gender?: string;
   age?: number | string;
   phone?: string;
   email?: string;
+  birthday?: string;
+  goal?: string;
+  memo?: string;
+  planType?: string;
+  planStyle?: string;
+  monthlyCount?: number;
+  usedCount?: number;
+  carryOver?: number;
+  remaining?: number;
+  price?: number;
+  status?: string;
+  nextPayment?: string;
+  lastVisitAt?: string;
+  created_at?: string;
+  updated_at?: string;
   height?: number | string;
   weight?: number | string;
   bodyFat?: number | string;
   muscleMass?: number | string;
   visceralFat?: number | string;
-  goal?: string;
-  memo?: string;
-  notes?: string;
-  note?: string;
-  purpose?: string;
-  target?: string;
-  planType?: string;
-  planStyle?: string;
-  price?: number | string;
-  monthlyCount?: number | string;
-  usedCount?: number | string;
-  carryOver?: number | string;
-  remaining?: number | string;
-  status?: string;
-  nextPayment?: string;
-  lastVisitDate?: string;
-  ltv?: number | string;
-  [key: string]: any;
 };
 
-type TrainingSetItem = {
-  id: string;
-  session_id?: string;
-  exercise_name: string | null;
-  weight: number | null;
-  reps: number | null;
-  sets: number | null;
-  rpe: number | null;
-  memo: string | null;
+type TrainingSet = {
+  id?: string;
+  row_id?: string | null;
+  row_order?: number | null;
+  category?: string | null;
+  exercise_name?: string | null;
+  set_count?: number | null;
+  reps?: string | null;
+  weight?: string | null;
+  seconds?: string | null;
+  memo?: string | null;
 };
 
-type TrainingHistoryItem = {
+type TrainingSession = {
   id: string;
-  date: string | null;
-  weight: number | null;
+  customer_id: string;
+  session_date: string | null;
+  body_weight: number | null;
   summary: string | null;
   next_task: string | null;
-  template_name: string | null;
   posture_note: string | null;
-  posture_image_urls?: string[] | null;
-  created_at: string;
-  training_sets?: TrainingSetItem[];
+  stretch_menu: string[] | null;
+  posture_image_urls: string[] | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  training_sets?: TrainingSet[];
 };
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-
 const supabase =
-  supabaseUrl && supabaseAnonKey
-    ? createClient(supabaseUrl, supabaseAnonKey)
+  process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    ? createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      )
     : null;
+
+function formatDate(date?: string | null) {
+  if (!date) return "—";
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return date;
+  return d.toLocaleDateString("ja-JP");
+}
+
+function formatDateTime(date?: string | null) {
+  if (!date) return "—";
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return date;
+  return d.toLocaleString("ja-JP");
+}
+
+function safeArray<T>(value: T[] | null | undefined): T[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function parseLocalStorageJson<T>(key: string): T | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+function getCustomerFromLocalStorage(customerId: string): Customer | null {
+  if (typeof window === "undefined") return null;
+
+  const keys = [
+    "gymup_customers",
+    "customers",
+    "gymup_customer_list",
+    "customer_list",
+  ];
+
+  for (const key of keys) {
+    const list = parseLocalStorageJson<Customer[]>(key);
+    if (Array.isArray(list)) {
+      const found = list.find((item) => String(item.id) === String(customerId));
+      if (found) return found;
+    }
+  }
+
+  const detailKeys = [
+    `customer-${customerId}`,
+    `gymup_customer_${customerId}`,
+    `customer_detail_${customerId}`,
+  ];
+
+  for (const key of detailKeys) {
+    const detail = parseLocalStorageJson<Customer>(key);
+    if (detail) return { id: customerId, ...detail };
+  }
+
+  return null;
+}
+
+function getSummaryExercises(session: TrainingSession) {
+  const names = safeArray(session.training_sets)
+    .map((set) => set.exercise_name?.trim())
+    .filter(Boolean) as string[];
+  return names;
+}
 
 export default function CustomerDetailPage() {
   const params = useParams();
-  const rawId = params?.id;
-
-  const id = useMemo(() => {
-    if (Array.isArray(rawId)) return String(rawId[0]);
-    return String(rawId || "");
-  }, [rawId]);
-
-  const numericId = useMemo(() => {
-    const n = Number(id);
-    return Number.isNaN(n) ? null : n;
-  }, [id]);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const customerId = String(params?.id ?? "");
 
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [customer, setCustomer] = useState<Customer | null>(null);
-  const [errorMessage, setErrorMessage] = useState("");
-
-  const [latestTrainingDate, setLatestTrainingDate] = useState("");
-  const [latestTrainingWeight, setLatestTrainingWeight] = useState("");
-  const [latestTrainingId, setLatestTrainingId] = useState("");
-  const [loadingTrainingSummary, setLoadingTrainingSummary] = useState(false);
-  const [recentTrainingHistory, setRecentTrainingHistory] = useState<
-    TrainingHistoryItem[]
-  >([]);
+  const [sessions, setSessions] = useState<TrainingSession[]>([]);
+  const [error, setError] = useState("");
+  const [copiedSessionId, setCopiedSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
-
-    const loggedIn =
-      localStorage.getItem("gymup_logged_in") ||
-      localStorage.getItem("isLoggedIn");
-
-    if (loggedIn !== "true") {
-      window.location.href = "/login";
-      return;
-    }
   }, []);
 
   useEffect(() => {
-    if (!mounted || !id) return;
-    fetchCustomer();
-  }, [mounted, id]);
+    if (!mounted) return;
+
+    const loggedIn = localStorage.getItem("gymup_logged_in");
+    if (loggedIn !== "true") {
+      router.push("/login");
+      return;
+    }
+
+    void loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, customerId]);
 
   useEffect(() => {
-    if (!mounted || !numericId) return;
-    fetchTrainingSummaryAndHistory(numericId);
-  }, [mounted, numericId]);
+    const copied = searchParams.get("copied");
+    if (copied) {
+      setCopiedSessionId(copied);
+      const timer = setTimeout(() => setCopiedSessionId(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [searchParams]);
 
-  const fetchCustomer = async () => {
+  async function loadAll() {
+    setLoading(true);
+    setError("");
+
     try {
-      setLoading(true);
-      setErrorMessage("");
+      const localCustomer = getCustomerFromLocalStorage(customerId);
+      if (localCustomer) {
+        setCustomer(localCustomer);
+      }
 
-      let foundCustomer: Customer | null = null;
+      if (supabase) {
+        const [{ data: customerData, error: customerError }, { data: sessionData, error: sessionError }] =
+          await Promise.all([
+            supabase.from("customers").select("*").eq("id", customerId).single(),
+            supabase
+              .from("training_sessions")
+              .select(
+                `
+                *,
+                training_sets (
+                  id,
+                  row_id,
+                  row_order,
+                  category,
+                  exercise_name,
+                  set_count,
+                  reps,
+                  weight,
+                  seconds,
+                  memo
+                )
+              `
+              )
+              .eq("customer_id", customerId)
+              .order("session_date", { ascending: false })
+              .order("created_at", { ascending: false }),
+          ]);
 
-      if (supabase && numericId != null) {
-        const { data, error } = await supabase
-          .from("customers")
-          .select("*")
-          .eq("id", numericId)
-          .maybeSingle();
-
-        if (!error && data) {
-          foundCustomer = data as Customer;
+        if (!customerError && customerData) {
+          setCustomer((prev) => ({
+            ...(prev ?? { id: customerId }),
+            ...customerData,
+          }));
         }
-      }
 
-      if (!foundCustomer) {
-        const detailRaw = localStorage.getItem(`customer-${id}`);
-        if (detailRaw) {
-          try {
-            const parsed = JSON.parse(detailRaw);
-            foundCustomer = {
-              id,
-              ...parsed,
-            };
-          } catch {}
+        if (sessionError) {
+          throw sessionError;
         }
-      }
 
-      if (!foundCustomer) {
-        const customersRaw = localStorage.getItem("customers");
-        if (customersRaw) {
-          try {
-            const parsed = JSON.parse(customersRaw);
-            if (Array.isArray(parsed)) {
-              const matched = parsed.find(
-                (item: any) =>
-                  String(item?.id) === String(id) ||
-                  String(item?.customerId) === String(id)
-              );
-              if (matched) {
-                foundCustomer = matched;
-              }
-            }
-          } catch {}
-        }
+        setSessions((sessionData as TrainingSession[]) ?? []);
+      } else {
+        setSessions([]);
       }
-
-      if (!foundCustomer) {
-        setErrorMessage("顧客情報が見つかりませんでした。");
-        setCustomer(null);
-        return;
-      }
-
-      setCustomer(foundCustomer);
-    } catch (error: any) {
-      setErrorMessage(error?.message || "顧客情報の取得に失敗しました。");
-      setCustomer(null);
+    } catch (e: unknown) {
+      console.error(e);
+      setError("顧客情報またはトレーニング履歴の取得に失敗しました。");
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const fetchTrainingSummaryAndHistory = async (customerId: number) => {
-    if (!supabase) return;
+  const latestSession = useMemo(() => {
+    return sessions.length > 0 ? sessions[0] : null;
+  }, [sessions]);
 
-    try {
-      setLoadingTrainingSummary(true);
+  const totalSessions = sessions.length;
 
-      const { data: sessions, error: sessionError } = await supabase
-        .from("training_sessions")
-        .select(
-          "id, date, weight, summary, next_task, template_name, posture_note, posture_image_urls, created_at"
-        )
-        .eq("customer_id", customerId)
-        .order("date", { ascending: false })
-        .order("created_at", { ascending: false })
-        .limit(6);
+  const latestWeight = useMemo(() => {
+    const found = sessions.find((s) => s.body_weight !== null && s.body_weight !== undefined);
+    return found?.body_weight ?? customer?.weight ?? "—";
+  }, [sessions, customer]);
 
-      if (sessionError) throw sessionError;
+  const usageSummary = useMemo(() => {
+    const monthlyCount = Number(customer?.monthlyCount ?? 0);
+    const usedCount = Number(customer?.usedCount ?? 0);
+    const carryOver = Number(customer?.carryOver ?? 0);
+    const remaining =
+      customer?.remaining !== undefined && customer?.remaining !== null
+        ? Number(customer.remaining)
+        : Math.max(monthlyCount + carryOver - usedCount, 0);
 
-      const sessionRows = (sessions || []) as TrainingHistoryItem[];
-      const sessionIds = sessionRows.map((item) => item.id);
-
-      let setsMap: Record<string, TrainingSetItem[]> = {};
-
-      if (sessionIds.length > 0) {
-        const { data: setsData, error: setsError } = await supabase
-          .from("training_sets")
-          .select("id, session_id, exercise_name, weight, reps, sets, rpe, memo")
-          .in("session_id", sessionIds)
-          .order("created_at", { ascending: true });
-
-        if (setsError) throw setsError;
-
-        setsMap = (setsData || []).reduce(
-          (acc: Record<string, TrainingSetItem[]>, item: any) => {
-            const key = item.session_id;
-            if (!acc[key]) acc[key] = [];
-            acc[key].push(item as TrainingSetItem);
-            return acc;
-          },
-          {}
-        );
-      }
-
-      const rows = sessionRows.map((item) => ({
-        ...item,
-        training_sets: setsMap[item.id] || [],
-      }));
-
-      const latest = rows[0];
-      setLatestTrainingId(latest?.id ? String(latest.id) : "");
-      setLatestTrainingDate(latest?.date ? String(latest.date) : "");
-      setLatestTrainingWeight(
-        latest?.weight != null ? `${latest.weight}kg` : ""
-      );
-      setRecentTrainingHistory(rows);
-    } catch (e) {
-      console.error("トレーニング情報取得失敗:", e);
-      setRecentTrainingHistory([]);
-    } finally {
-      setLoadingTrainingSummary(false);
-    }
-  };
-
-  const displayName =
-    customer?.name ||
-    customer?.customer_name ||
-    customer?.full_name ||
-    customer?.nickname ||
-    "顧客名未設定";
-
-  const displayGoal = customer?.goal || customer?.purpose || customer?.target || "";
-  const displayMemo = customer?.memo || customer?.notes || customer?.note || "";
+    return {
+      monthlyCount,
+      usedCount,
+      carryOver,
+      remaining,
+    };
+  }, [customer]);
 
   if (!mounted) return null;
 
   return (
-    <main style={styles.page}>
-      <div style={styles.glowA} />
-      <div style={styles.glowB} />
-      <div style={styles.glowC} />
+    <main
+      style={{
+        ...BG,
+        minHeight: "100vh",
+        padding: "24px 16px 80px",
+      }}
+    >
+      <div style={{ maxWidth: 1180, margin: "0 auto" }}>
+        <div
+          style={{
+            ...GLASS,
+            padding: 20,
+            borderRadius: 24,
+            marginBottom: 18,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              justifyContent: "space-between",
+              gap: 16,
+              alignItems: "center",
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: 12,
+                  letterSpacing: "0.12em",
+                  color: "#64748b",
+                  marginBottom: 6,
+                  fontWeight: 700,
+                }}
+              >
+                CUSTOMER DETAIL
+              </div>
+              <h1
+                style={{
+                  margin: 0,
+                  fontSize: 28,
+                  lineHeight: 1.3,
+                  color: "#0f172a",
+                }}
+              >
+                顧客詳細
+              </h1>
+              <p
+                style={{
+                  margin: "8px 0 0",
+                  color: "#475569",
+                  fontSize: 14,
+                }}
+              >
+                顧客情報・契約状況・最近のトレーニング履歴を確認できます
+              </p>
+            </div>
 
-      <div style={styles.container}>
-        <div style={styles.headerBar}>
-          <Link href="/customer" style={styles.backLink}>
-            ← 顧客一覧へ戻る
-          </Link>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+              <Link href="/customer" style={{ textDecoration: "none" }}>
+                <button
+                  style={{
+                    padding: "12px 16px",
+                    borderRadius: 14,
+                    border: "1px solid rgba(148,163,184,0.3)",
+                    background: "rgba(255,255,255,0.78)",
+                    color: "#0f172a",
+                    cursor: "pointer",
+                    fontWeight: 700,
+                  }}
+                >
+                  顧客一覧へ戻る
+                </button>
+              </Link>
+
+              <Link
+                href={`/customer/${customerId}/training`}
+                style={{ textDecoration: "none" }}
+              >
+                <button style={BUTTON_PRIMARY}>トレーニング開始</button>
+              </Link>
+            </div>
+          </div>
         </div>
+
+        {copiedSessionId && (
+          <div
+            style={{
+              ...CARD,
+              marginBottom: 16,
+              borderRadius: 20,
+              padding: 16,
+              color: "#065f46",
+              background:
+                "linear-gradient(135deg, rgba(236,253,245,0.95), rgba(220,252,231,0.88))",
+              border: "1px solid rgba(16,185,129,0.22)",
+            }}
+          >
+            履歴をコピーしてトレーニングページを開きました。
+          </div>
+        )}
+
+        {error && (
+          <div
+            style={{
+              ...CARD,
+              marginBottom: 16,
+              borderRadius: 20,
+              padding: 16,
+              color: "#991b1b",
+              background:
+                "linear-gradient(135deg, rgba(254,242,242,0.95), rgba(254,226,226,0.9))",
+              border: "1px solid rgba(239,68,68,0.18)",
+            }}
+          >
+            {error}
+          </div>
+        )}
 
         <section
           style={{
-            ...CARD,
-            ...styles.heroCard,
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+            gap: 16,
+            marginBottom: 18,
           }}
         >
-          <div style={styles.heroShine} />
-          <div style={styles.eyebrow}>CUSTOMER DETAIL</div>
-          <h1 style={styles.name}>{displayName}</h1>
-          <p style={styles.sub}>顧客ID: {id || "-"}</p>
-        </section>
-
-        {errorMessage ? <div style={styles.errorBox}>{errorMessage}</div> : null}
-
-        {loading ? (
-          <div style={{ ...CARD, padding: "24px", color: "#64748b" }}>
-            読み込み中...
+          <div style={{ ...CARD, padding: 18, borderRadius: 24 }}>
+            <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700, marginBottom: 8 }}>
+              顧客情報
+            </div>
+            <h2 style={{ margin: "0 0 12px", fontSize: 24, color: "#0f172a" }}>
+              {customer?.name || "名前未登録"}
+            </h2>
+            <div style={{ display: "grid", gap: 8, color: "#334155", fontSize: 14 }}>
+              <div>かな：{customer?.kana || "—"}</div>
+              <div>電話：{customer?.phone || "—"}</div>
+              <div>メール：{customer?.email || "—"}</div>
+              <div>性別：{customer?.gender || "—"}</div>
+              <div>年齢：{customer?.age || "—"}</div>
+              <div>誕生日：{formatDate(customer?.birthday)}</div>
+              <div>目標：{customer?.goal || "—"}</div>
+            </div>
           </div>
-        ) : customer ? (
-          <>
-            <div style={styles.mainGrid}>
-              <section style={{ ...CARD, padding: "24px" }}>
-                <h2 style={styles.sectionTitle}>顧客情報</h2>
 
-                <div style={styles.infoGrid}>
-                  <InfoCard label="氏名" value={displayName} />
-                  <InfoCard label="フリガナ" value={customer.kana} />
-                  <InfoCard label="性別" value={customer.gender} />
-                  <InfoCard label="年齢" value={customer.age} />
-                  <InfoCard label="電話番号" value={customer.phone} />
-                  <InfoCard label="メール" value={customer.email} />
-                  <InfoCard label="身長" value={withUnit(customer.height, "cm")} />
-                  <InfoCard label="現在体重" value={withUnit(customer.weight, "kg")} />
-                  <InfoCard label="体脂肪率" value={withUnit(customer.bodyFat, "%")} />
-                  <InfoCard label="筋肉量" value={withUnit(customer.muscleMass, "kg")} />
-                  <InfoCard label="内臓脂肪" value={customer.visceralFat} />
-                  <InfoCard label="最終来店日" value={customer.lastVisitDate} />
-                  <InfoCard label="LTV" value={yen(customer.ltv)} />
-                </div>
+          <div style={{ ...CARD, padding: 18, borderRadius: 24 }}>
+            <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700, marginBottom: 8 }}>
+              契約・利用状況
+            </div>
+            <div style={{ display: "grid", gap: 8, color: "#334155", fontSize: 14 }}>
+              <div>プラン種別：{customer?.planType || "—"}</div>
+              <div>利用形態：{customer?.planStyle || "—"}</div>
+              <div>月回数：{usageSummary.monthlyCount || "—"}</div>
+              <div>使用回数：{usageSummary.usedCount || 0}</div>
+              <div>繰越：{usageSummary.carryOver || 0}</div>
+              <div>残回数：{usageSummary.remaining || 0}</div>
+              <div>料金：{customer?.price ? `¥${Number(customer.price).toLocaleString()}` : "—"}</div>
+              <div>状態：{customer?.status || "—"}</div>
+              <div>次回支払日：{formatDate(customer?.nextPayment)}</div>
+            </div>
+          </div>
 
-                <div style={{ marginTop: 18 }}>
-                  <MiniLabel>目標・目的</MiniLabel>
-                  <MemoBox>{displayGoal || "未設定"}</MemoBox>
-                </div>
-
-                <div style={{ marginTop: 14 }}>
-                  <MiniLabel>メモ</MiniLabel>
-                  <MemoBox>{displayMemo || "未設定"}</MemoBox>
-                </div>
-              </section>
-
-              <section style={{ ...CARD, padding: "24px" }}>
-                <h2 style={styles.sectionTitle}>契約・利用状況</h2>
-
-                <div style={styles.infoGrid}>
-                  <InfoCard label="プラン種別" value={customer.planType} />
-                  <InfoCard label="利用形態" value={customer.planStyle} />
-                  <InfoCard label="月額料金" value={yen(customer.price)} />
-                  <InfoCard label="月回数" value={customer.monthlyCount} />
-                  <InfoCard label="使用回数" value={customer.usedCount} />
-                  <InfoCard label="繰越" value={customer.carryOver} />
-                  <InfoCard label="残回数" value={customer.remaining} />
-                  <InfoCard label="契約状態" value={customer.status} />
-                  <InfoCard label="次回支払日" value={customer.nextPayment} />
-                </div>
-              </section>
+          <div style={{ ...CARD, padding: 18, borderRadius: 24 }}>
+            <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700, marginBottom: 8 }}>
+              トレーニングサマリー
             </div>
 
-            <section style={{ ...CARD, padding: "24px", marginTop: "20px" }}>
-              <h2 style={styles.sectionTitle}>トレーニングサマリー</h2>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                gap: 12,
+              }}
+            >
+              {[
+                { label: "前回トレーニング日", value: formatDate(latestSession?.session_date) },
+                { label: "最終体重", value: latestWeight === "—" ? "—" : `${latestWeight} kg` },
+                { label: "履歴件数", value: `${totalSessions}件` },
+                { label: "最終更新", value: formatDateTime(latestSession?.updated_at || latestSession?.created_at) },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  style={{
+                    background: "rgba(255,255,255,0.66)",
+                    border: "1px solid rgba(148,163,184,0.18)",
+                    borderRadius: 18,
+                    padding: 14,
+                  }}
+                >
+                  <div style={{ fontSize: 12, color: "#64748b", marginBottom: 6, fontWeight: 700 }}>
+                    {item.label}
+                  </div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: "#0f172a" }}>
+                    {item.value}
+                  </div>
+                </div>
+              ))}
+            </div>
 
-              <div style={styles.infoGrid}>
-                <InfoCard
-                  label="前回トレーニング日"
-                  value={
-                    loadingTrainingSummary ? "読込中..." : latestTrainingDate || "未登録"
-                  }
-                />
-                <InfoCard
-                  label="最終体重"
-                  value={
-                    loadingTrainingSummary ? "読込中..." : latestTrainingWeight || "未登録"
-                  }
-                />
-                <InfoCard
-                  label="履歴件数"
-                  value={
-                    loadingTrainingSummary ? "読込中..." : recentTrainingHistory.length || 0
-                  }
-                />
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 16 }}>
+              <Link
+                href={`/customer/${customerId}/training`}
+                style={{ textDecoration: "none" }}
+              >
+                <button style={BUTTON_PRIMARY}>トレーニング開始</button>
+              </Link>
+
+              <Link
+                href={`/customer/${customerId}/training#history`}
+                style={{ textDecoration: "none" }}
+              >
+                <button
+                  style={{
+                    padding: "12px 16px",
+                    borderRadius: 14,
+                    border: "1px solid rgba(148,163,184,0.3)",
+                    background: "rgba(255,255,255,0.78)",
+                    color: "#0f172a",
+                    cursor: "pointer",
+                    fontWeight: 700,
+                  }}
+                >
+                  履歴を見る
+                </button>
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        <section style={{ ...CARD, borderRadius: 28, padding: 22 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 12,
+              flexWrap: "wrap",
+              marginBottom: 16,
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "#64748b",
+                  fontWeight: 700,
+                  marginBottom: 6,
+                }}
+              >
+                RECENT TRAINING COPY
               </div>
+              <h2 style={{ margin: 0, fontSize: 22, color: "#0f172a" }}>
+                最近のトレーニング履歴からコピー
+              </h2>
+            </div>
 
-              <div style={styles.actionGrid}>
-                <Link href={`/customer/${id}/training`} style={styles.linkReset}>
-                  <button
+            <Link
+              href={`/customer/${customerId}/training#history`}
+              style={{ textDecoration: "none" }}
+            >
+              <button
+                style={{
+                  padding: "12px 16px",
+                  borderRadius: 14,
+                  border: "1px solid rgba(148,163,184,0.3)",
+                  background: "rgba(255,255,255,0.78)",
+                  color: "#0f172a",
+                  cursor: "pointer",
+                  fontWeight: 700,
+                }}
+              >
+                履歴一覧へ
+              </button>
+            </Link>
+          </div>
+
+          {loading ? (
+            <div style={{ color: "#475569", padding: "12px 0" }}>読み込み中です...</div>
+          ) : sessions.length === 0 ? (
+            <div
+              style={{
+                borderRadius: 20,
+                padding: 18,
+                background: "rgba(255,255,255,0.62)",
+                border: "1px solid rgba(148,163,184,0.16)",
+                color: "#475569",
+              }}
+            >
+              まだトレーニング履歴はありません。
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 16 }}>
+              {sessions.slice(0, 5).map((session) => {
+                const exerciseNames = getSummaryExercises(session);
+                const stretchMenu = safeArray(session.stretch_menu);
+                const postureImages = safeArray(session.posture_image_urls);
+
+                return (
+                  <article
+                    key={session.id}
                     style={{
-                      ...BUTTON_PRIMARY,
-                      padding: "14px 18px",
-                      width: "100%",
-                      boxShadow: "0 10px 20px rgba(139,94,60,0.22)",
+                      background: "rgba(255,255,255,0.7)",
+                      border: "1px solid rgba(148,163,184,0.18)",
+                      borderRadius: 24,
+                      padding: 18,
                     }}
                   >
-                    トレーニング開始
-                  </button>
-                </Link>
-
-                <Link href={`/customer/${id}/training`} style={styles.linkReset}>
-                  <button style={styles.whiteButton}>履歴を見る</button>
-                </Link>
-
-                <Link
-                  href={
-                    latestTrainingId
-                      ? `/customer/${id}/training?copy=${latestTrainingId}`
-                      : `/customer/${id}/training`
-                  }
-                  style={styles.linkReset}
-                >
-                  <button style={styles.softButton}>履歴からコピーして開始</button>
-                </Link>
-              </div>
-            </section>
-
-            <section style={{ ...CARD, padding: "24px", marginTop: "20px" }}>
-              <h2 style={styles.sectionTitle}>最近のトレーニング履歴からコピー</h2>
-
-              {loadingTrainingSummary ? (
-                <div style={{ color: "#64748b", fontSize: 14 }}>読み込み中...</div>
-              ) : recentTrainingHistory.length === 0 ? (
-                <div style={{ color: "#64748b", fontSize: 14 }}>
-                  まだトレーニング履歴はありません。
-                </div>
-              ) : (
-                <div style={{ display: "grid", gap: 12 }}>
-                  {recentTrainingHistory.map((item) => (
-                    <div key={item.id} style={styles.historyCard}>
-                      <div style={styles.historyTop}>
-                        <div>
-                          <div style={styles.historyDate}>
-                            {item.date || "日付未設定"}
-                          </div>
-                          <div style={styles.historyMeta}>
-                            体重: {item.weight != null ? `${item.weight}kg` : "-"}
-                            {item.template_name ? ` / テンプレ: ${item.template_name}` : ""}
-                          </div>
-                        </div>
-
-                        <Link
-                          href={`/customer/${id}/training?copy=${item.id}`}
-                          style={styles.linkReset}
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                        gap: 14,
+                        flexWrap: "wrap",
+                        marginBottom: 14,
+                      }}
+                    >
+                      <div>
+                        <div
+                          style={{
+                            fontSize: 18,
+                            fontWeight: 800,
+                            color: "#0f172a",
+                            marginBottom: 6,
+                          }}
                         >
-                          <button
+                          {formatDate(session.session_date)}
+                        </div>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          <span
                             style={{
-                              ...BUTTON_PRIMARY,
-                              padding: "10px 14px",
-                              boxShadow: "0 10px 20px rgba(139,94,60,0.18)",
+                              fontSize: 12,
+                              background: "rgba(15,23,42,0.06)",
+                              color: "#334155",
+                              padding: "6px 10px",
+                              borderRadius: 999,
+                              fontWeight: 700,
                             }}
                           >
-                            この履歴をコピー
-                          </button>
-                        </Link>
+                            体重：{session.body_weight ? `${session.body_weight} kg` : "—"}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 12,
+                              background: "rgba(15,23,42,0.06)",
+                              color: "#334155",
+                              padding: "6px 10px",
+                              borderRadius: 999,
+                              fontWeight: 700,
+                            }}
+                          >
+                            種目数：{exerciseNames.length}件
+                          </span>
+                        </div>
                       </div>
 
-                      <div style={{ marginTop: 12 }}>
-                        <MiniLabel>種目一覧</MiniLabel>
-                        {item.training_sets && item.training_sets.length > 0 ? (
-                          <div style={styles.trainingSetList}>
-                            {item.training_sets.map((set) => (
-                              <div key={set.id} style={styles.trainingSetItem}>
-                                <div style={styles.trainingSetName}>
-                                  {set.exercise_name || "種目未設定"}
-                                </div>
-                                <div style={styles.trainingSetMeta}>
-                                  重量: {set.weight ?? "-"} / 回数: {set.reps ?? "-"} / セット:{" "}
-                                  {set.sets ?? "-"} / RPE: {set.rpe ?? "-"}
-                                </div>
-                                {set.memo ? (
-                                  <div style={styles.trainingSetMemo}>メモ: {set.memo}</div>
-                                ) : null}
-                              </div>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <Link
+                          href={`/customer/${customerId}/training?copyFrom=${session.id}`}
+                          style={{ textDecoration: "none" }}
+                        >
+                          <button style={BUTTON_PRIMARY}>この履歴をコピー</button>
+                        </Link>
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+                        gap: 14,
+                      }}
+                    >
+                      <div
+                        style={{
+                          background: "rgba(248,250,252,0.92)",
+                          border: "1px solid rgba(148,163,184,0.14)",
+                          borderRadius: 18,
+                          padding: 14,
+                        }}
+                      >
+                        <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700, marginBottom: 8 }}>
+                          種目一覧
+                        </div>
+                        {exerciseNames.length > 0 ? (
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                            {exerciseNames.map((name, idx) => (
+                              <span
+                                key={`${session.id}-${name}-${idx}`}
+                                style={{
+                                  fontSize: 12,
+                                  padding: "7px 10px",
+                                  borderRadius: 999,
+                                  background: "rgba(59,130,246,0.08)",
+                                  color: "#1d4ed8",
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {name}
+                              </span>
                             ))}
                           </div>
                         ) : (
-                          <MemoBox compact>種目データなし</MemoBox>
+                          <div style={{ color: "#64748b", fontSize: 14 }}>未登録</div>
+                        )}
+
+                        {stretchMenu.length > 0 && (
+                          <>
+                            <div
+                              style={{
+                                fontSize: 12,
+                                color: "#64748b",
+                                fontWeight: 700,
+                                marginTop: 12,
+                                marginBottom: 8,
+                              }}
+                            >
+                              ストレッチ項目
+                            </div>
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                              {stretchMenu.map((item, idx) => (
+                                <span
+                                  key={`${session.id}-stretch-${idx}`}
+                                  style={{
+                                    fontSize: 12,
+                                    padding: "7px 10px",
+                                    borderRadius: 999,
+                                    background: "rgba(16,185,129,0.08)",
+                                    color: "#047857",
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  {item}
+                                </span>
+                              ))}
+                            </div>
+                          </>
                         )}
                       </div>
 
-                      <div style={{ marginTop: 12 }}>
-                        <MiniLabel>総評</MiniLabel>
-                        <MemoBox compact>{item.summary || "未設定"}</MemoBox>
-                      </div>
-
-                      <div style={{ marginTop: 10 }}>
-                        <MiniLabel>次回課題</MiniLabel>
-                        <MemoBox compact>{item.next_task || "未設定"}</MemoBox>
-                      </div>
-
-                      <div style={{ marginTop: 10 }}>
-                        <MiniLabel>姿勢メモ</MiniLabel>
-                        <MemoBox compact>{item.posture_note || "未設定"}</MemoBox>
-                      </div>
-
-                      {item.posture_image_urls && item.posture_image_urls.length > 0 ? (
-                        <div style={{ marginTop: 12 }}>
-                          <MiniLabel>姿勢画像</MiniLabel>
-                          <div style={styles.imageGrid}>
-                            {item.posture_image_urls.map((url, idx) => (
-                              <a
-                                key={`${item.id}-${idx}`}
-                                href={url}
-                                target="_blank"
-                                rel="noreferrer"
-                                style={styles.imageLink}
-                              >
-                                <img src={url} alt="姿勢画像" style={styles.postureImage} />
-                              </a>
-                            ))}
-                          </div>
+                      <div
+                        style={{
+                          background: "rgba(248,250,252,0.92)",
+                          border: "1px solid rgba(148,163,184,0.14)",
+                          borderRadius: 18,
+                          padding: 14,
+                        }}
+                      >
+                        <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700, marginBottom: 8 }}>
+                          総評
                         </div>
-                      ) : null}
+                        <div style={{ whiteSpace: "pre-wrap", color: "#334155", fontSize: 14 }}>
+                          {session.summary || "未入力"}
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#64748b",
+                            fontWeight: 700,
+                            marginTop: 14,
+                            marginBottom: 8,
+                          }}
+                        >
+                          次回課題
+                        </div>
+                        <div style={{ whiteSpace: "pre-wrap", color: "#334155", fontSize: 14 }}>
+                          {session.next_task || "未入力"}
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#64748b",
+                            fontWeight: 700,
+                            marginTop: 14,
+                            marginBottom: 8,
+                          }}
+                        >
+                          姿勢メモ
+                        </div>
+                        <div style={{ whiteSpace: "pre-wrap", color: "#334155", fontSize: 14 }}>
+                          {session.posture_note || "未入力"}
+                        </div>
+                      </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          </>
-        ) : null}
+
+                    {postureImages.length > 0 && (
+                      <div style={{ marginTop: 16 }}>
+                        <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700, marginBottom: 10 }}>
+                          姿勢画像
+                        </div>
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                            gap: 12,
+                          }}
+                        >
+                          {postureImages.map((url, idx) => (
+                            <div
+                              key={`${session.id}-img-${idx}`}
+                              style={{
+                                borderRadius: 18,
+                                overflow: "hidden",
+                                border: "1px solid rgba(148,163,184,0.16)",
+                                background: "#fff",
+                              }}
+                            >
+                              <img
+                                src={url}
+                                alt={`posture-${idx + 1}`}
+                                style={{
+                                  width: "100%",
+                                  aspectRatio: "3 / 4",
+                                  objectFit: "cover",
+                                  display: "block",
+                                }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
       </div>
     </main>
   );
 }
-
-function MiniLabel({ children }: { children: React.ReactNode }) {
-  return <div style={styles.miniLabel}>{children}</div>;
-}
-
-function MemoBox({
-  children,
-  compact = false,
-}: {
-  children: React.ReactNode;
-  compact?: boolean;
-}) {
-  return (
-    <div
-      style={{
-        ...styles.memoBox,
-        minHeight: compact ? 40 : 52,
-        padding: compact ? 10 : 12,
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-function InfoCard({
-  label,
-  value,
-}: {
-  label: string;
-  value: React.ReactNode;
-}) {
-  return (
-    <div style={styles.infoCard}>
-      <div style={styles.infoLabel}>{label}</div>
-      <div style={styles.infoValue}>{value || "未設定"}</div>
-    </div>
-  );
-}
-
-function withUnit(value: any, unit: string) {
-  if (value === null || value === undefined || value === "") return "";
-  return `${value}${unit}`;
-}
-
-function yen(value: any) {
-  if (value === null || value === undefined || value === "") return "";
-  const num = Number(value);
-  if (Number.isNaN(num)) return String(value);
-  return `¥${num.toLocaleString()}`;
-}
-
-const styles: { [key: string]: React.CSSProperties } = {
-  page: {
-    minHeight: "100vh",
-    position: "relative",
-    overflow: "hidden",
-    padding: "24px 20px 60px",
-    background: BG,
-  },
-  glowA: {
-    position: "absolute",
-    top: "-90px",
-    left: "-70px",
-    width: "280px",
-    height: "280px",
-    borderRadius: "999px",
-    background: "rgba(255,255,255,0.95)",
-    filter: "blur(55px)",
-    pointerEvents: "none",
-  },
-  glowB: {
-    position: "absolute",
-    top: "120px",
-    right: "-60px",
-    width: "320px",
-    height: "320px",
-    borderRadius: "999px",
-    background: "rgba(255,255,255,0.85)",
-    filter: "blur(70px)",
-    pointerEvents: "none",
-  },
-  glowC: {
-    position: "absolute",
-    bottom: "-120px",
-    left: "18%",
-    width: "340px",
-    height: "340px",
-    borderRadius: "999px",
-    background: "rgba(203,213,225,0.35)",
-    filter: "blur(75px)",
-    pointerEvents: "none",
-  },
-  container: {
-    position: "relative",
-    zIndex: 1,
-    maxWidth: "1180px",
-    margin: "0 auto",
-  },
-  headerBar: {
-    marginBottom: "16px",
-  },
-  backLink: {
-    display: "inline-flex",
-    alignItems: "center",
-    textDecoration: "none",
-    color: "#64748b",
-    fontSize: 14,
-    fontWeight: 700,
-  },
-  heroCard: {
-    position: "relative",
-    overflow: "hidden",
-    padding: "28px 24px",
-    borderRadius: "28px",
-    marginBottom: "20px",
-  },
-  heroShine: {
-    position: "absolute",
-    top: 0,
-    left: "-20%",
-    width: "60%",
-    height: "2px",
-    background:
-      "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.95) 35%, rgba(245,158,11,0.45) 52%, rgba(255,255,255,0.9) 70%, transparent 100%)",
-    transform: "skewX(-28deg)",
-  },
-  eyebrow: {
-    marginBottom: "10px",
-    fontSize: "11px",
-    letterSpacing: "0.22em",
-    color: "#94a3b8",
-    fontWeight: 700,
-  },
-  name: {
-    margin: 0,
-    fontSize: "30px",
-    fontWeight: 900,
-    color: "#0f172a",
-    letterSpacing: "-0.03em",
-  },
-  sub: {
-    marginTop: "8px",
-    marginBottom: 0,
-    color: "#64748b",
-    fontSize: 14,
-  },
-  errorBox: {
-    marginBottom: 16,
-    background: "#fef2f2",
-    color: "#b91c1c",
-    border: "1px solid #fecaca",
-    borderRadius: 14,
-    padding: "12px 14px",
-    fontSize: 14,
-  },
-  mainGrid: {
-    display: "grid",
-    gridTemplateColumns: "1.1fr 0.9fr",
-    gap: 20,
-  },
-  sectionTitle: {
-    margin: 0,
-    marginBottom: 14,
-    fontSize: 20,
-    color: "#0f172a",
-    fontWeight: 800,
-    letterSpacing: "-0.02em",
-  },
-  infoGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-    gap: 12,
-  },
-  infoCard: {
-    background: "rgba(255,255,255,0.72)",
-    border: "1px solid rgba(255,255,255,0.95)",
-    borderRadius: 16,
-    padding: 14,
-    boxShadow:
-      "0 10px 24px rgba(15,23,42,0.04), inset 0 1px 0 rgba(255,255,255,0.98)",
-  },
-  infoLabel: {
-    fontSize: 12,
-    color: "#94a3b8",
-    fontWeight: 700,
-    marginBottom: 6,
-  },
-  infoValue: {
-    fontSize: 15,
-    color: "#0f172a",
-    fontWeight: 700,
-    lineHeight: 1.5,
-    wordBreak: "break-word",
-  },
-  miniLabel: {
-    fontSize: 12,
-    color: "#94a3b8",
-    fontWeight: 700,
-    marginBottom: 6,
-    letterSpacing: "0.08em",
-  },
-  memoBox: {
-    background: "rgba(255,255,255,0.72)",
-    border: "1px solid rgba(255,255,255,0.95)",
-    borderRadius: 14,
-    color: "#475569",
-    fontSize: 14,
-    whiteSpace: "pre-wrap",
-    boxShadow:
-      "0 10px 24px rgba(15,23,42,0.04), inset 0 1px 0 rgba(255,255,255,0.98)",
-  },
-  actionGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: 12,
-    marginTop: 16,
-  },
-  linkReset: {
-    textDecoration: "none",
-  },
-  whiteButton: {
-    width: "100%",
-    padding: "14px 18px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.95)",
-    background: "rgba(255,255,255,0.82)",
-    color: "#334155",
-    fontWeight: 700,
-    cursor: "pointer",
-    boxShadow:
-      "0 10px 24px rgba(15,23,42,0.05), inset 0 1px 0 rgba(255,255,255,0.98)",
-  },
-  softButton: {
-    width: "100%",
-    padding: "14px 18px",
-    borderRadius: 12,
-    border: "1px solid rgba(214,195,179,0.8)",
-    background: "rgba(255,255,255,0.6)",
-    color: "#8b5e3c",
-    fontWeight: 700,
-    cursor: "pointer",
-    boxShadow:
-      "0 10px 24px rgba(15,23,42,0.04), inset 0 1px 0 rgba(255,255,255,0.96)",
-  },
-  historyCard: {
-    border: "1px solid rgba(255,255,255,0.95)",
-    borderRadius: 18,
-    padding: 16,
-    background: "rgba(255,255,255,0.68)",
-    boxShadow:
-      "0 14px 30px rgba(15,23,42,0.04), inset 0 1px 0 rgba(255,255,255,0.98)",
-    backdropFilter: "blur(10px)",
-    WebkitBackdropFilter: "blur(10px)",
-  },
-  historyTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 12,
-    flexWrap: "wrap",
-    alignItems: "center",
-  },
-  historyDate: {
-    fontSize: 17,
-    fontWeight: 800,
-    color: "#0f172a",
-    marginBottom: 6,
-  },
-  historyMeta: {
-    fontSize: 13,
-    color: "#64748b",
-  },
-  trainingSetList: {
-    display: "grid",
-    gap: 10,
-  },
-  trainingSetItem: {
-    background: "rgba(255,255,255,0.72)",
-    border: "1px solid rgba(255,255,255,0.95)",
-    borderRadius: 14,
-    padding: 12,
-    boxShadow:
-      "0 10px 24px rgba(15,23,42,0.04), inset 0 1px 0 rgba(255,255,255,0.98)",
-  },
-  trainingSetName: {
-    fontSize: 15,
-    fontWeight: 700,
-    color: "#0f172a",
-    marginBottom: 4,
-  },
-  trainingSetMeta: {
-    fontSize: 13,
-    color: "#64748b",
-    lineHeight: 1.7,
-  },
-  trainingSetMemo: {
-    marginTop: 6,
-    fontSize: 13,
-    color: "#475569",
-  },
-  imageGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-    gap: 12,
-  },
-  imageLink: {
-    display: "block",
-    textDecoration: "none",
-  },
-  postureImage: {
-    width: "100%",
-    height: 180,
-    objectFit: "cover",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.95)",
-    boxShadow:
-      "0 10px 24px rgba(15,23,42,0.04), inset 0 1px 0 rgba(255,255,255,0.98)",
-    background: "#fff",
-  },
-};
