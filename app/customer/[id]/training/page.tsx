@@ -62,16 +62,19 @@ const EXERCISE_OPTIONS = [
   "フロントスクワット",
   "ブルガリアンスクワット",
   "ランジ",
+  "ステップアップ",
   "レッグプレス",
   "レッグエクステンション",
   "レッグカール",
   "ヒップスラスト",
   "ルーマニアンデッドリフト",
   "デッドリフト",
+  "スミススクワット",
   "ベンチプレス",
   "インクラインベンチプレス",
   "ダンベルプレス",
   "ダンベルフライ",
+  "チェストプレス",
   "プッシュアップ",
   "ラットプルダウン",
   "シーテッドロー",
@@ -82,6 +85,7 @@ const EXERCISE_OPTIONS = [
   "サイドレイズ",
   "リアレイズ",
   "フロントレイズ",
+  "アップライトロウ",
   "アームカール",
   "ハンマーカール",
   "トライセプスプレスダウン",
@@ -90,8 +94,10 @@ const EXERCISE_OPTIONS = [
   "レッグレイズ",
   "プランク",
   "サイドプランク",
+  "ロシアンツイスト",
   "バイク",
   "ウォーキング",
+  "ジョギング",
   "ストレッチ",
   "その他",
 ];
@@ -180,6 +186,32 @@ function sessionToForm(session: TrainingSession) {
     postureImageUrls: safeArray(session.posture_image_urls),
     setRows: rows.length > 0 ? rows : [makeRow()],
   };
+}
+
+function extractErrorMessage(error: unknown): string {
+  if (!error) return "不明なエラーです。";
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+
+  if (typeof error === "object") {
+    const maybe = error as {
+      message?: unknown;
+      details?: unknown;
+      hint?: unknown;
+      code?: unknown;
+    };
+
+    const parts = [
+      typeof maybe.message === "string" ? maybe.message : "",
+      typeof maybe.details === "string" ? maybe.details : "",
+      typeof maybe.hint === "string" ? maybe.hint : "",
+      typeof maybe.code === "string" ? `code: ${maybe.code}` : "",
+    ].filter(Boolean);
+
+    if (parts.length > 0) return parts.join(" / ");
+  }
+
+  return "不明なエラーです。";
 }
 
 export default function TrainingPage() {
@@ -288,7 +320,7 @@ export default function TrainingPage() {
       setHistory((data as TrainingSession[]) ?? []);
     } catch (e) {
       console.error(e);
-      setError("トレーニング履歴の取得に失敗しました。");
+      setError(`履歴取得エラー: ${extractErrorMessage(e)}`);
     } finally {
       setLoading(false);
     }
@@ -375,7 +407,7 @@ export default function TrainingPage() {
       setSuccess("姿勢画像をアップロードしました。");
     } catch (e) {
       console.error(e);
-      setError("画像アップロードに失敗しました。");
+      setError(`画像アップロードエラー: ${extractErrorMessage(e)}`);
     } finally {
       setUploading(false);
     }
@@ -424,6 +456,8 @@ export default function TrainingPage() {
         posture_image_urls: postureImageUrls,
       };
 
+      console.log("sessionPayload", sessionPayload);
+
       let sessionId = editingSessionId;
 
       if (editingSessionId) {
@@ -451,7 +485,9 @@ export default function TrainingPage() {
         sessionId = data.id;
       }
 
-      if (!sessionId) throw new Error("セッションIDの取得に失敗しました。");
+      if (!sessionId) {
+        throw new Error("セッションIDの取得に失敗しました。");
+      }
 
       if (validRows.length > 0) {
         const rowsPayload = validRows.map((row, index) => ({
@@ -467,6 +503,8 @@ export default function TrainingPage() {
           memo: row.memo.trim() || null,
         }));
 
+        console.log("rowsPayload", rowsPayload);
+
         const { error: rowsError } = await supabase
           .from("training_sets")
           .insert(rowsPayload);
@@ -479,7 +517,7 @@ export default function TrainingPage() {
       setSuccess(editingSessionId ? "履歴を更新しました。" : "トレーニング履歴を保存しました。");
     } catch (e) {
       console.error(e);
-      setError("保存に失敗しました。");
+      setError(`保存エラー: ${extractErrorMessage(e)}`);
     } finally {
       setSaving(false);
     }
@@ -517,7 +555,7 @@ export default function TrainingPage() {
       await loadHistory();
     } catch (e) {
       console.error(e);
-      setError("履歴の削除に失敗しました。");
+      setError(`削除エラー: ${extractErrorMessage(e)}`);
     }
   }
 
@@ -1177,6 +1215,7 @@ const alertErrorStyle: CSSProperties = {
   background:
     "linear-gradient(135deg, rgba(254,242,242,0.95), rgba(254,226,226,0.9))",
   border: "1px solid rgba(239,68,68,0.18)",
+  whiteSpace: "pre-wrap",
 };
 
 const alertSuccessStyle: CSSProperties = {
