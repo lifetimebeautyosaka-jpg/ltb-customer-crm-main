@@ -67,6 +67,21 @@ type SupabaseSaleRow = {
   created_at: string | null;
 };
 
+type DailySummaryRow = {
+  date: string;
+  stretchCash: number;
+  stretchCard: number;
+  stretchReceived: number;
+  trainingCash: number;
+  trainingCard: number;
+  trainingReceived: number;
+  netSalesTotal: number;
+  advanceCash: number;
+  advanceCard: number;
+  advanceTotal: number;
+  grandTotal: number;
+};
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -85,6 +100,13 @@ function todayString() {
   const m = `${d.getMonth() + 1}`.padStart(2, "0");
   const day = `${d.getDate()}`.padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+function formatDateJP(value: string) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return `${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
 function buildCategory(
@@ -176,6 +198,85 @@ function detectServiceTypeFromMenu(menu?: string | null): ServiceType {
   return "トレーニング";
 }
 
+function toCsvValue(value: string | number) {
+  return `"${String(value ?? "").replace(/"/g, '""')}"`;
+}
+
+function buildDailySummaryRows(sales: Sale[]): DailySummaryRow[] {
+  const grouped: Record<string, DailySummaryRow> = {};
+
+  sales.forEach((sale) => {
+    const date = sale.date || todayString();
+    if (!grouped[date]) {
+      grouped[date] = {
+        date,
+        stretchCash: 0,
+        stretchCard: 0,
+        stretchReceived: 0,
+        trainingCash: 0,
+        trainingCard: 0,
+        trainingReceived: 0,
+        netSalesTotal: 0,
+        advanceCash: 0,
+        advanceCard: 0,
+        advanceTotal: 0,
+        grandTotal: 0,
+      };
+    }
+
+    const amount = Number(sale.amount || 0);
+    const isAdvance = sale.accountingType === "前受金";
+
+    if (isAdvance) {
+      if (sale.paymentMethod === "現金") {
+        grouped[date].advanceCash += amount;
+      } else {
+        grouped[date].advanceCard += amount;
+      }
+    } else {
+      if (sale.serviceType === "ストレッチ") {
+        if (sale.paymentMethod === "現金") {
+          grouped[date].stretchCash += amount;
+        } else if (sale.paymentMethod === "その他") {
+          grouped[date].stretchReceived += amount;
+        } else {
+          grouped[date].stretchCard += amount;
+        }
+      } else {
+        if (sale.paymentMethod === "現金") {
+          grouped[date].trainingCash += amount;
+        } else if (sale.paymentMethod === "その他") {
+          grouped[date].trainingReceived += amount;
+        } else {
+          grouped[date].trainingCard += amount;
+        }
+      }
+    }
+  });
+
+  return Object.values(grouped)
+    .map((row) => {
+      const netSalesTotal =
+        row.stretchCash +
+        row.stretchCard +
+        row.stretchReceived +
+        row.trainingCash +
+        row.trainingCard +
+        row.trainingReceived;
+
+      const advanceTotal = row.advanceCash + row.advanceCard;
+      const grandTotal = netSalesTotal + advanceTotal;
+
+      return {
+        ...row,
+        netSalesTotal,
+        advanceTotal,
+        grandTotal,
+      };
+    })
+    .sort((a, b) => (a.date > b.date ? 1 : -1));
+}
+
 export default function SalesPage() {
   const [mounted, setMounted] = useState(false);
 
@@ -200,14 +301,10 @@ export default function SalesPage() {
 
   const applyQueryParams = (customerList: Customer[]) => {
     const queryDate = getQueryParam("date");
-    const queryCustomerName =
-      getQueryParam("customer_name") || getQueryParam("customer");
-    const queryStore =
-      getQueryParam("store_name") || getQueryParam("store");
-    const queryStaff =
-      getQueryParam("staff_name") || getQueryParam("staff");
-    const queryService =
-      getQueryParam("service_type") || getQueryParam("service");
+    const queryCustomerName = getQueryParam("customer_name") || getQueryParam("customer");
+    const queryStore = getQueryParam("store_name") || getQueryParam("store");
+    const queryStaff = getQueryParam("staff_name") || getQueryParam("staff");
+    const queryService = getQueryParam("service_type") || getQueryParam("service");
     const queryMenu = getQueryParam("menu");
     const queryReservationId = getQueryParam("reservation_id");
 
@@ -281,6 +378,7 @@ export default function SalesPage() {
         .select(
           "id, customer_id, customer_name, sale_date, menu_type, sale_type, payment_method, amount, staff_name, store_name, reservation_id, memo, created_at"
         )
+        .order("sale_date", { ascending: false })
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -301,8 +399,8 @@ export default function SalesPage() {
 
   useEffect(() => {
     if (!mounted) return;
-    fetchCustomers();
-    fetchSales();
+    void fetchCustomers();
+    void fetchSales();
   }, [mounted]);
 
   const selectedCustomer = useMemo(() => {
@@ -382,6 +480,10 @@ export default function SalesPage() {
     return sales.reduce((sum, sale) => sum + Number(sale.amount || 0), 0);
   }, [sales]);
 
+  const dailySummaryRows = useMemo(() => {
+    return buildDailySummaryRows(sales);
+  }, [sales]);
+
   const updatePayment = <K extends keyof PaymentRow>(
     id: string,
     key: K,
@@ -458,10 +560,7 @@ export default function SalesPage() {
     try {
       setSaving(true);
 
-      const mergedNote = [
-        menuName.trim() ? `メニュー名: ${menuName.trim()}` : "",
-        note.trim(),
-      ]
+      const mergedNote = [menuName.trim() ? `メニュー名: ${menuName.trim()}` : "", note.trim()]
         .filter(Boolean)
         .join("\n");
 
@@ -519,47 +618,43 @@ export default function SalesPage() {
 
     const header = [
       "日付",
-      "顧客ID",
-      "顧客名",
-      "店舗",
-      "メニュー名",
-      "担当者",
-      "サービス区分",
-      "会計区分",
-      "支払方法",
-      "カテゴリ",
-      "金額",
-      "予約ID",
-      "メモ",
+      "ストレッチ(現金)",
+      "ストレッチ(カード等)",
+      "ストレッチ(受領済)",
+      "トレーニング(現金)",
+      "トレーニング(カード等)",
+      "トレーニング(受領済)",
+      "純売上合計",
+      "前受(現金)",
+      "前受(カード等)",
+      "前受合計",
+      "総合計",
     ];
 
-    const rows = sales.map((sale) => [
-      sale.date,
-      String(sale.customerId ?? ""),
-      sale.customerName,
-      sale.storeName,
-      sale.menuName,
-      sale.staff,
-      sale.serviceType,
-      sale.accountingType,
-      sale.paymentMethod,
-      sale.category,
-      String(sale.amount),
-      String(sale.reservationId ?? ""),
-      sale.note.replace(/\n/g, " "),
+    const rows = dailySummaryRows.map((row) => [
+      formatDateJP(row.date),
+      row.stretchCash,
+      row.stretchCard,
+      row.stretchReceived,
+      row.trainingCash,
+      row.trainingCard,
+      row.trainingReceived,
+      row.netSalesTotal,
+      row.advanceCash,
+      row.advanceCard,
+      row.advanceTotal,
+      row.grandTotal,
     ]);
 
     const csv = [header, ...rows]
-      .map((row) =>
-        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
-      )
+      .map((row) => row.map((cell) => toCsvValue(cell)).join(","))
       .join("\n");
 
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `gymup-sales-${todayString()}.csv`;
+    a.download = `gymup-daily-sales-summary-${todayString()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -570,13 +665,12 @@ export default function SalesPage() {
     <div
       style={{
         minHeight: "100vh",
-        background:
-          "linear-gradient(135deg, #f7f7f8 0%, #ececef 45%, #dfe3e8 100%)",
+        background: "linear-gradient(135deg, #f7f7f8 0%, #ececef 45%, #dfe3e8 100%)",
         padding: "24px",
         fontFamily: "system-ui, sans-serif",
       }}
     >
-      <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+      <div style={{ maxWidth: "1320px", margin: "0 auto" }}>
         <div
           style={{
             display: "flex",
@@ -605,7 +699,7 @@ export default function SalesPage() {
                 fontSize: "14px",
               }}
             >
-              予約詳細からの連動・支払い追加・履歴確認・CSV出力ができます
+              予約詳細からの連動・支払い追加・履歴確認・日別集計CSV出力ができます
             </p>
           </div>
 
@@ -813,7 +907,11 @@ export default function SalesPage() {
                           <select
                             value={row.paymentMethod}
                             onChange={(e) =>
-                              updatePayment(row.id, "paymentMethod", e.target.value as PaymentMethod)
+                              updatePayment(
+                                row.id,
+                                "paymentMethod",
+                                e.target.value as PaymentMethod
+                              )
                             }
                             style={inputStyle}
                           >
@@ -872,9 +970,67 @@ export default function SalesPage() {
                 </button>
 
                 <button onClick={handleDownloadCsv} style={subButtonPlainStyle}>
-                  CSV出力
+                  日別集計CSV出力
                 </button>
               </div>
+            </section>
+
+            <section style={cardStyle}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: "12px",
+                  flexWrap: "wrap",
+                  marginBottom: "16px",
+                }}
+              >
+                <h2 style={{ ...sectionTitleStyle, marginBottom: 0 }}>日別集計表</h2>
+              </div>
+
+              {dailySummaryRows.length === 0 ? (
+                <div style={emptyBoxStyle}>集計データがありません</div>
+              ) : (
+                <div style={tableWrapStyle}>
+                  <table style={summaryTableStyle}>
+                    <thead>
+                      <tr>
+                        <th style={thStyle}>日付</th>
+                        <th style={thStyle}>ストレッチ(現金)</th>
+                        <th style={thStyle}>ストレッチ(カード等)</th>
+                        <th style={thStyle}>ストレッチ(受領済)</th>
+                        <th style={thStyle}>トレーニング(現金)</th>
+                        <th style={thStyle}>トレーニング(カード等)</th>
+                        <th style={thStyle}>トレーニング(受領済)</th>
+                        <th style={thStyle}>純売上合計</th>
+                        <th style={thStyle}>前受(現金)</th>
+                        <th style={thStyle}>前受(カード等)</th>
+                        <th style={thStyle}>前受合計</th>
+                        <th style={thStyle}>総合計</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dailySummaryRows.map((row) => (
+                        <tr key={row.date}>
+                          <td style={tdStyle}>{formatDateJP(row.date)}</td>
+                          <td style={tdStyleNumber}>{formatCurrency(row.stretchCash)}</td>
+                          <td style={tdStyleNumber}>{formatCurrency(row.stretchCard)}</td>
+                          <td style={tdStyleNumber}>{formatCurrency(row.stretchReceived)}</td>
+                          <td style={tdStyleNumber}>{formatCurrency(row.trainingCash)}</td>
+                          <td style={tdStyleNumber}>{formatCurrency(row.trainingCard)}</td>
+                          <td style={tdStyleNumber}>{formatCurrency(row.trainingReceived)}</td>
+                          <td style={tdStyleTotal}>{formatCurrency(row.netSalesTotal)}</td>
+                          <td style={tdStyleNumber}>{formatCurrency(row.advanceCash)}</td>
+                          <td style={tdStyleNumber}>{formatCurrency(row.advanceCard)}</td>
+                          <td style={tdStyleTotal}>{formatCurrency(row.advanceTotal)}</td>
+                          <td style={tdStyleGrand}>{formatCurrency(row.grandTotal)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </section>
 
             <section style={cardStyle}>
@@ -936,9 +1092,7 @@ export default function SalesPage() {
                           <div style={detailTextStyle}>カテゴリ：{sale.category}</div>
                           <div style={detailTextStyle}>会計区分：{sale.accountingType}</div>
                           <div style={detailTextStyle}>支払方法：{sale.paymentMethod}</div>
-                          <div style={detailTextStyle}>
-                            予約ID：{sale.reservationId ?? "なし"}
-                          </div>
+                          <div style={detailTextStyle}>予約ID：{sale.reservationId ?? "なし"}</div>
                           <div
                             style={{
                               fontSize: "15px",
@@ -950,7 +1104,13 @@ export default function SalesPage() {
                             金額：{formatCurrency(sale.amount)}
                           </div>
                           {sale.note ? (
-                            <div style={{ ...detailTextStyle, marginTop: "6px", whiteSpace: "pre-wrap" }}>
+                            <div
+                              style={{
+                                ...detailTextStyle,
+                                marginTop: "6px",
+                                whiteSpace: "pre-wrap",
+                              }}
+                            >
                               メモ：{sale.note}
                             </div>
                           ) : null}
@@ -987,11 +1147,7 @@ export default function SalesPage() {
               ) : (
                 <div style={{ display: "grid", gap: "10px" }}>
                   {monthlyTotals.map(([month, amount]) => (
-                    <SoftRow
-                      key={month}
-                      label={month}
-                      value={formatCurrency(amount)}
-                    />
+                    <SoftRow key={month} label={month} value={formatCurrency(amount)} />
                   ))}
                 </div>
               )}
@@ -1005,11 +1161,7 @@ export default function SalesPage() {
               ) : (
                 <div style={{ display: "grid", gap: "10px" }}>
                   {staffTotals.map(([name, amount]) => (
-                    <SoftRow
-                      key={name}
-                      label={name}
-                      value={formatCurrency(amount)}
-                    />
+                    <SoftRow key={name} label={name} value={formatCurrency(amount)} />
                   ))}
                 </div>
               )}
@@ -1023,11 +1175,7 @@ export default function SalesPage() {
               ) : (
                 <div style={{ display: "grid", gap: "10px" }}>
                   {paymentTotals.map(([name, amount]) => (
-                    <SoftRow
-                      key={name}
-                      label={name}
-                      value={formatCurrency(amount)}
-                    />
+                    <SoftRow key={name} label={name} value={formatCurrency(amount)} />
                   ))}
                 </div>
               )}
@@ -1078,12 +1226,18 @@ const topMetricGridStyle: React.CSSProperties = {
 
 const mainGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "1.2fr 0.8fr",
+  gridTemplateColumns: "1.35fr 0.65fr",
   gap: "24px",
   alignItems: "start",
 };
 
 const paymentGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: "16px",
+};
+
+const formGridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
   gap: "16px",
@@ -1110,60 +1264,59 @@ const metricCardStyle: React.CSSProperties = {
 };
 
 const innerCardStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(226,232,240,0.95)",
+  background: "rgba(255,255,255,0.68)",
+  border: "1px solid rgba(229,231,235,0.95)",
   borderRadius: "18px",
   padding: "16px",
 };
 
 const sectionTitleStyle: React.CSSProperties = {
-  margin: "0 0 18px 0",
-  fontSize: "24px",
+  margin: "0 0 18px",
+  fontSize: "22px",
   fontWeight: 800,
   color: "#111827",
-};
-
-const formGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-  gap: "16px",
 };
 
 const labelStyle: React.CSSProperties = {
   display: "block",
   fontSize: "13px",
   fontWeight: 700,
-  color: "#6b7280",
+  color: "#4b5563",
   marginBottom: "8px",
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "12px 14px",
+  height: "48px",
   borderRadius: "14px",
-  border: "1px solid #dbe3ec",
+  border: "1px solid #d1d5db",
   background: "rgba(255,255,255,0.88)",
+  padding: "0 14px",
+  fontSize: "14px",
   color: "#111827",
   outline: "none",
   boxSizing: "border-box",
-  fontSize: "14px",
 };
 
 const readonlyBoxStyle: React.CSSProperties = {
-  ...inputStyle,
-  minHeight: "46px",
+  minHeight: "48px",
+  borderRadius: "14px",
+  border: "1px solid #d1d5db",
+  background: "rgba(248,250,252,0.9)",
+  padding: "12px 14px",
+  fontSize: "14px",
+  color: "#111827",
+  fontWeight: 700,
   display: "flex",
   alignItems: "center",
-  fontWeight: 700,
-  color: "#374151",
 };
 
 const summaryBoxStyle: React.CSSProperties = {
   marginTop: "20px",
-  background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(226,232,240,0.95)",
-  borderRadius: "18px",
   padding: "16px",
+  borderRadius: "18px",
+  background: "rgba(248,250,252,0.9)",
+  border: "1px solid #e5e7eb",
   display: "grid",
   gap: "10px",
 };
@@ -1172,65 +1325,133 @@ const summaryRowStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   gap: "12px",
-  alignItems: "center",
   color: "#111827",
+  fontSize: "14px",
 };
 
 const mainButtonStyle: React.CSSProperties = {
-  background: "linear-gradient(135deg, #8b5e3c, #c49a6c)",
-  color: "#fff",
   border: "none",
   borderRadius: "14px",
-  padding: "14px 20px",
+  background: "linear-gradient(135deg, #111827 0%, #374151 100%)",
+  color: "#fff",
   fontWeight: 800,
+  fontSize: "14px",
+  padding: "14px 18px",
   cursor: "pointer",
-  boxShadow: "0 12px 24px rgba(139,94,60,0.24)",
+  boxShadow: "0 10px 24px rgba(17,24,39,0.16)",
 };
 
 const subButtonPlainStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.8)",
-  color: "#374151",
-  border: "1px solid #dbe3ec",
+  border: "1px solid #d1d5db",
   borderRadius: "14px",
-  padding: "12px 16px",
+  background: "rgba(255,255,255,0.88)",
+  color: "#111827",
   fontWeight: 700,
+  fontSize: "14px",
+  padding: "14px 18px",
   cursor: "pointer",
 };
 
-const subButtonStyle: React.CSSProperties = {
-  ...subButtonPlainStyle,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
-
-const mainLinkStyle: React.CSSProperties = {
-  ...mainButtonStyle,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
-
 const deleteButtonStyle: React.CSSProperties = {
-  background: "#fee2e2",
-  color: "#b91c1c",
   border: "none",
   borderRadius: "12px",
-  padding: "10px 14px",
+  background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+  color: "#fff",
   fontWeight: 700,
+  fontSize: "13px",
+  padding: "10px 14px",
   cursor: "pointer",
 };
 
 const detailTextStyle: React.CSSProperties = {
-  fontSize: "14px",
   color: "#4b5563",
+  fontSize: "14px",
   lineHeight: 1.7,
 };
 
 const emptyBoxStyle: React.CSSProperties = {
-  ...innerCardStyle,
+  padding: "18px",
+  borderRadius: "18px",
+  background: "rgba(248,250,252,0.92)",
+  border: "1px solid #e5e7eb",
   color: "#6b7280",
+};
+
+const subButtonStyle: React.CSSProperties = {
+  textDecoration: "none",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "12px 16px",
+  borderRadius: "14px",
+  border: "1px solid #d1d5db",
+  background: "rgba(255,255,255,0.88)",
+  color: "#111827",
+  fontWeight: 700,
+  fontSize: "14px",
+};
+
+const mainLinkStyle: React.CSSProperties = {
+  textDecoration: "none",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "12px 16px",
+  borderRadius: "14px",
+  border: "none",
+  background: "linear-gradient(135deg, #111827 0%, #374151 100%)",
+  color: "#fff",
+  fontWeight: 800,
+  fontSize: "14px",
+  boxShadow: "0 10px 24px rgba(17,24,39,0.16)",
+};
+
+const tableWrapStyle: React.CSSProperties = {
+  overflowX: "auto",
+  borderRadius: "18px",
+  border: "1px solid #d1d5db",
+  background: "#fff",
+};
+
+const summaryTableStyle: React.CSSProperties = {
+  width: "100%",
+  minWidth: "1280px",
+  borderCollapse: "collapse",
+  fontSize: "13px",
+};
+
+const thStyle: React.CSSProperties = {
+  border: "1px solid #d1d5db",
+  background: "#f3f4f6",
+  color: "#111827",
+  padding: "10px 8px",
   textAlign: "center",
+  fontWeight: 800,
+  whiteSpace: "nowrap",
+};
+
+const tdStyle: React.CSSProperties = {
+  border: "1px solid #e5e7eb",
+  padding: "10px 8px",
+  textAlign: "center",
+  whiteSpace: "nowrap",
+  color: "#111827",
+};
+
+const tdStyleNumber: React.CSSProperties = {
+  ...tdStyle,
+  textAlign: "right",
+  fontVariantNumeric: "tabular-nums",
+};
+
+const tdStyleTotal: React.CSSProperties = {
+  ...tdStyleNumber,
+  background: "#f9fafb",
+  fontWeight: 800,
+};
+
+const tdStyleGrand: React.CSSProperties = {
+  ...tdStyleNumber,
+  background: "#eef2ff",
+  fontWeight: 800,
 };
