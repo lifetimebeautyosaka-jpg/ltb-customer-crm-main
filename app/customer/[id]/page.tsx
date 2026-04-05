@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
+import { BG, CARD, BUTTON_PRIMARY } from "../../../styles/theme";
 
 type Customer = {
   id: number | string;
@@ -21,6 +22,9 @@ type Customer = {
   goal?: string;
   memo?: string;
   notes?: string;
+  note?: string;
+  purpose?: string;
+  target?: string;
   planType?: string;
   planStyle?: string;
   price?: number | string;
@@ -110,7 +114,6 @@ export default function CustomerDetailPage() {
 
       let foundCustomer: Customer | null = null;
 
-      // 1) Supabase customers テーブルを優先
       if (supabase && numericId != null) {
         const { data, error } = await supabase
           .from("customers")
@@ -123,7 +126,6 @@ export default function CustomerDetailPage() {
         }
       }
 
-      // 2) localStorage fallback
       if (!foundCustomer) {
         const detailRaw = localStorage.getItem(`customer-${id}`);
         if (detailRaw) {
@@ -137,7 +139,6 @@ export default function CustomerDetailPage() {
         }
       }
 
-      // 3) customers 配列 fallback
       if (!foundCustomer) {
         const customersRaw = localStorage.getItem("customers");
         if (customersRaw) {
@@ -218,123 +219,56 @@ export default function CustomerDetailPage() {
   if (!mounted) return null;
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background:
-          "linear-gradient(180deg, #f8f8f7 0%, #f3efe9 45%, #f8f8f7 100%)",
-        padding: "24px 16px 80px",
-      }}
-    >
-      <div style={{ maxWidth: 1180, margin: "0 auto" }}>
-        <Link
-          href="/customer"
-          style={{
-            display: "inline-block",
-            textDecoration: "none",
-            color: "#6b7280",
-            fontSize: 14,
-            marginBottom: 12,
-          }}
-        >
-          ← 顧客一覧へ戻る
-        </Link>
+    <main style={styles.page}>
+      <div style={styles.glowA} />
+      <div style={styles.glowB} />
+      <div style={styles.glowC} />
 
-        <div
-          style={{
-            background: "#ffffffcc",
-            backdropFilter: "blur(8px)",
-            border: "1px solid #ece7df",
-            borderRadius: 24,
-            padding: "24px 20px",
-            boxShadow: "0 10px 30px rgba(0,0,0,0.06)",
-            marginBottom: 20,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 12,
-              letterSpacing: "0.16em",
-              color: "#8b5e3c",
-              fontWeight: 700,
-              marginBottom: 8,
-            }}
-          >
-            CUSTOMER DETAIL
-          </div>
-
-          <h1
-            style={{
-              margin: 0,
-              fontSize: 30,
-              lineHeight: 1.3,
-              color: "#111827",
-            }}
-          >
-            {displayName}
-          </h1>
-
-          <p
-            style={{
-              marginTop: 10,
-              marginBottom: 0,
-              color: "#6b7280",
-              fontSize: 14,
-            }}
-          >
-            顧客ID: {id || "-"}
-          </p>
+      <div style={styles.container}>
+        <div style={styles.headerBar}>
+          <Link href="/customer" style={styles.backLink}>
+            ← 顧客一覧へ戻る
+          </Link>
         </div>
 
+        <section
+          style={{
+            ...CARD,
+            ...styles.heroCard,
+          }}
+        >
+          <div style={styles.heroShine} />
+          <div style={styles.eyebrow}>CUSTOMER DETAIL</div>
+          <h1 style={styles.name}>{displayName}</h1>
+          <p style={styles.sub}>顧客ID: {id || "-"}</p>
+        </section>
+
         {errorMessage ? (
-          <div
-            style={{
-              marginBottom: 16,
-              background: "#fef2f2",
-              color: "#b91c1c",
-              border: "1px solid #fecaca",
-              borderRadius: 14,
-              padding: "12px 14px",
-              fontSize: 14,
-            }}
-          >
-            {errorMessage}
-          </div>
+          <div style={styles.errorBox}>{errorMessage}</div>
         ) : null}
 
         {loading ? (
           <div
             style={{
-              background: "#fff",
-              border: "1px solid #ece7df",
-              borderRadius: 20,
-              padding: 24,
-              color: "#6b7280",
+              ...CARD,
+              padding: "24px",
+              color: "#64748b",
             }}
           >
             読み込み中...
           </div>
         ) : customer ? (
           <>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1.1fr 0.9fr",
-                gap: 20,
-              }}
-            >
+            <div style={styles.mainGrid}>
               <section
                 style={{
-                  background: "#fff",
-                  border: "1px solid #ece7df",
-                  borderRadius: 24,
-                  padding: 20,
-                  boxShadow: "0 8px 24px rgba(0,0,0,0.05)",
+                  ...CARD,
+                  padding: "24px",
                 }}
               >
-                <SectionTitle>顧客情報</SectionTitle>
+                <h2 style={styles.sectionTitle}>顧客情報</h2>
 
-                <div style={infoGridStyle}>
+                <div style={styles.infoGrid}>
                   <InfoCard label="氏名" value={displayName} />
                   <InfoCard label="フリガナ" value={customer.kana} />
                   <InfoCard label="性別" value={customer.gender} />
@@ -342,10 +276,7 @@ export default function CustomerDetailPage() {
                   <InfoCard label="電話番号" value={customer.phone} />
                   <InfoCard label="メール" value={customer.email} />
                   <InfoCard label="身長" value={withUnit(customer.height, "cm")} />
-                  <InfoCard
-                    label="現在体重"
-                    value={withUnit(customer.weight, "kg")}
-                  />
+                  <InfoCard label="現在体重" value={withUnit(customer.weight, "kg")} />
                   <InfoCard
                     label="体脂肪率"
                     value={withUnit(customer.bodyFat, "%")}
@@ -354,10 +285,7 @@ export default function CustomerDetailPage() {
                     label="筋肉量"
                     value={withUnit(customer.muscleMass, "kg")}
                   />
-                  <InfoCard
-                    label="内臓脂肪"
-                    value={customer.visceralFat}
-                  />
+                  <InfoCard label="内臓脂肪" value={customer.visceralFat} />
                   <InfoCard label="最終来店日" value={customer.lastVisitDate} />
                   <InfoCard label="LTV" value={yen(customer.ltv)} />
                 </div>
@@ -375,16 +303,13 @@ export default function CustomerDetailPage() {
 
               <section
                 style={{
-                  background: "#fff",
-                  border: "1px solid #ece7df",
-                  borderRadius: 24,
-                  padding: 20,
-                  boxShadow: "0 8px 24px rgba(0,0,0,0.05)",
+                  ...CARD,
+                  padding: "24px",
                 }}
               >
-                <SectionTitle>契約・利用状況</SectionTitle>
+                <h2 style={styles.sectionTitle}>契約・利用状況</h2>
 
-                <div style={infoGridStyle}>
+                <div style={styles.infoGrid}>
                   <InfoCard label="プラン種別" value={customer.planType} />
                   <InfoCard label="利用形態" value={customer.planStyle} />
                   <InfoCard label="月額料金" value={yen(customer.price)} />
@@ -400,24 +325,14 @@ export default function CustomerDetailPage() {
 
             <section
               style={{
-                marginTop: 20,
-                background: "#fff",
-                border: "1px solid #ece7df",
-                borderRadius: 24,
-                padding: 20,
-                boxShadow: "0 8px 24px rgba(0,0,0,0.05)",
+                ...CARD,
+                padding: "24px",
+                marginTop: "20px",
               }}
             >
-              <SectionTitle>トレーニングサマリー</SectionTitle>
+              <h2 style={styles.sectionTitle}>トレーニングサマリー</h2>
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                  gap: 12,
-                  marginBottom: 16,
-                }}
-              >
+              <div style={styles.infoGrid}>
                 <InfoCard
                   label="前回トレーニング日"
                   value={
@@ -444,25 +359,22 @@ export default function CustomerDetailPage() {
                 />
               </div>
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                  gap: 12,
-                }}
-              >
-                <Link
-                  href={`/customer/${id}/training`}
-                  style={{ textDecoration: "none" }}
-                >
-                  <ActionButton primary>トレーニング開始</ActionButton>
+              <div style={styles.actionGrid}>
+                <Link href={`/customer/${id}/training`} style={styles.linkReset}>
+                  <button
+                    style={{
+                      ...BUTTON_PRIMARY,
+                      padding: "14px 18px",
+                      width: "100%",
+                      boxShadow: "0 10px 20px rgba(139,94,60,0.22)",
+                    }}
+                  >
+                    トレーニング開始
+                  </button>
                 </Link>
 
-                <Link
-                  href={`/customer/${id}/training`}
-                  style={{ textDecoration: "none" }}
-                >
-                  <ActionButton>履歴を見る</ActionButton>
+                <Link href={`/customer/${id}/training`} style={styles.linkReset}>
+                  <button style={styles.whiteButton}>履歴を見る</button>
                 </Link>
 
                 <Link
@@ -471,68 +383,39 @@ export default function CustomerDetailPage() {
                       ? `/customer/${id}/training?copy=${latestTrainingId}`
                       : `/customer/${id}/training`
                   }
-                  style={{ textDecoration: "none" }}
+                  style={styles.linkReset}
                 >
-                  <ActionButton soft>履歴からコピーして開始</ActionButton>
+                  <button style={styles.softButton}>履歴からコピーして開始</button>
                 </Link>
               </div>
             </section>
 
             <section
               style={{
-                marginTop: 20,
-                background: "#fff",
-                border: "1px solid #ece7df",
-                borderRadius: 24,
-                padding: 20,
-                boxShadow: "0 8px 24px rgba(0,0,0,0.05)",
+                ...CARD,
+                padding: "24px",
+                marginTop: "20px",
               }}
             >
-              <SectionTitle>最近のトレーニング履歴からコピー</SectionTitle>
+              <h2 style={styles.sectionTitle}>最近のトレーニング履歴からコピー</h2>
 
               {loadingTrainingSummary ? (
-                <div style={{ color: "#6b7280", fontSize: 14 }}>
-                  読み込み中...
-                </div>
+                <div style={{ color: "#64748b", fontSize: 14 }}>読み込み中...</div>
               ) : recentTrainingHistory.length === 0 ? (
-                <div style={{ color: "#6b7280", fontSize: 14 }}>
+                <div style={{ color: "#64748b", fontSize: 14 }}>
                   まだトレーニング履歴はありません。
                 </div>
               ) : (
                 <div style={{ display: "grid", gap: 12 }}>
                   {recentTrainingHistory.map((item) => (
-                    <div
-                      key={item.id}
-                      style={{
-                        border: "1px solid #e5e7eb",
-                        borderRadius: 16,
-                        padding: 16,
-                        background: "#fafaf9",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          gap: 12,
-                          flexWrap: "wrap",
-                          alignItems: "center",
-                        }}
-                      >
+                    <div key={item.id} style={styles.historyCard}>
+                      <div style={styles.historyTop}>
                         <div>
-                          <div
-                            style={{
-                              fontSize: 17,
-                              fontWeight: 700,
-                              color: "#111827",
-                              marginBottom: 6,
-                            }}
-                          >
+                          <div style={styles.historyDate}>
                             {item.date || "日付未設定"}
                           </div>
-                          <div style={{ fontSize: 13, color: "#6b7280" }}>
-                            体重:{" "}
-                            {item.weight != null ? `${item.weight}kg` : "-"}
+                          <div style={styles.historyMeta}>
+                            体重: {item.weight != null ? `${item.weight}kg` : "-"}
                             {item.template_name
                               ? ` / テンプレ: ${item.template_name}`
                               : ""}
@@ -541,11 +424,17 @@ export default function CustomerDetailPage() {
 
                         <Link
                           href={`/customer/${id}/training?copy=${item.id}`}
-                          style={{ textDecoration: "none" }}
+                          style={styles.linkReset}
                         >
-                          <ActionButton primary small>
+                          <button
+                            style={{
+                              ...BUTTON_PRIMARY,
+                              padding: "10px 14px",
+                              boxShadow: "0 10px 20px rgba(139,94,60,0.18)",
+                            }}
+                          >
                             この履歴をコピー
-                          </ActionButton>
+                          </button>
                         </Link>
                       </div>
 
@@ -571,34 +460,11 @@ export default function CustomerDetailPage() {
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <h2
-      style={{
-        margin: 0,
-        fontSize: 20,
-        color: "#111827",
-        marginBottom: 12,
-      }}
-    >
-      {children}
-    </h2>
-  );
+  return <h2 style={styles.sectionTitle}>{children}</h2>;
 }
 
 function MiniLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        fontSize: 12,
-        color: "#8b5e3c",
-        fontWeight: 700,
-        marginBottom: 6,
-        letterSpacing: "0.08em",
-      }}
-    >
-      {children}
-    </div>
-  );
+  return <div style={styles.miniLabel}>{children}</div>;
 }
 
 function MemoBox({
@@ -611,14 +477,9 @@ function MemoBox({
   return (
     <div
       style={{
-        background: "#f9fafb",
-        border: "1px solid #e5e7eb",
-        borderRadius: 12,
-        padding: compact ? 10 : 12,
-        color: "#374151",
-        fontSize: 14,
-        whiteSpace: "pre-wrap",
+        ...styles.memoBox,
         minHeight: compact ? 40 : 52,
+        padding: compact ? 10 : 12,
       }}
     >
       {children}
@@ -634,77 +495,10 @@ function InfoCard({
   value: React.ReactNode;
 }) {
   return (
-    <div
-      style={{
-        background: "#faf7f3",
-        border: "1px solid #eee4d8",
-        borderRadius: 14,
-        padding: 14,
-      }}
-    >
-      <div
-        style={{
-          fontSize: 12,
-          color: "#8b5e3c",
-          fontWeight: 700,
-          marginBottom: 6,
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          fontSize: 15,
-          color: "#111827",
-          fontWeight: 700,
-          lineHeight: 1.5,
-          wordBreak: "break-word",
-        }}
-      >
-        {value || "未設定"}
-      </div>
+    <div style={styles.infoCard}>
+      <div style={styles.infoLabel}>{label}</div>
+      <div style={styles.infoValue}>{value || "未設定"}</div>
     </div>
-  );
-}
-
-function ActionButton({
-  children,
-  primary = false,
-  soft = false,
-  small = false,
-}: {
-  children: React.ReactNode;
-  primary?: boolean;
-  soft?: boolean;
-  small?: boolean;
-}) {
-  const background = primary
-    ? "linear-gradient(135deg, #8b5e3c 0%, #c49a6c 100%)"
-    : soft
-    ? "#faf6f2"
-    : "#fff";
-
-  const color = primary ? "#fff" : soft ? "#6f4e37" : "#374151";
-  const border = primary ? "none" : soft ? "1px solid #d6c3b3" : "1px solid #e5e7eb";
-  const boxShadow = primary ? "0 8px 18px rgba(139,94,60,0.22)" : "none";
-
-  return (
-    <button
-      style={{
-        width: "100%",
-        padding: small ? "10px 14px" : "14px 16px",
-        borderRadius: 14,
-        border,
-        background,
-        color,
-        fontWeight: 700,
-        fontSize: small ? 14 : 15,
-        cursor: "pointer",
-        boxShadow,
-      }}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -720,8 +514,252 @@ function yen(value: any) {
   return `¥${num.toLocaleString()}`;
 }
 
-const infoGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gap: 12,
+const styles: { [key: string]: React.CSSProperties } = {
+  page: {
+    minHeight: "100vh",
+    position: "relative",
+    overflow: "hidden",
+    padding: "24px 20px 60px",
+    background: BG,
+  },
+
+  glowA: {
+    position: "absolute",
+    top: "-90px",
+    left: "-70px",
+    width: "280px",
+    height: "280px",
+    borderRadius: "999px",
+    background: "rgba(255,255,255,0.95)",
+    filter: "blur(55px)",
+    pointerEvents: "none",
+  },
+
+  glowB: {
+    position: "absolute",
+    top: "120px",
+    right: "-60px",
+    width: "320px",
+    height: "320px",
+    borderRadius: "999px",
+    background: "rgba(255,255,255,0.85)",
+    filter: "blur(70px)",
+    pointerEvents: "none",
+  },
+
+  glowC: {
+    position: "absolute",
+    bottom: "-120px",
+    left: "18%",
+    width: "340px",
+    height: "340px",
+    borderRadius: "999px",
+    background: "rgba(203,213,225,0.35)",
+    filter: "blur(75px)",
+    pointerEvents: "none",
+  },
+
+  container: {
+    position: "relative",
+    zIndex: 1,
+    maxWidth: "1180px",
+    margin: "0 auto",
+  },
+
+  headerBar: {
+    marginBottom: "16px",
+  },
+
+  backLink: {
+    display: "inline-flex",
+    alignItems: "center",
+    textDecoration: "none",
+    color: "#64748b",
+    fontSize: 14,
+    fontWeight: 700,
+  },
+
+  heroCard: {
+    position: "relative",
+    overflow: "hidden",
+    padding: "28px 24px",
+    borderRadius: "28px",
+    marginBottom: "20px",
+  },
+
+  heroShine: {
+    position: "absolute",
+    top: 0,
+    left: "-20%",
+    width: "60%",
+    height: "2px",
+    background:
+      "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.95) 35%, rgba(245,158,11,0.45) 52%, rgba(255,255,255,0.9) 70%, transparent 100%)",
+    transform: "skewX(-28deg)",
+  },
+
+  eyebrow: {
+    marginBottom: "10px",
+    fontSize: "11px",
+    letterSpacing: "0.22em",
+    color: "#94a3b8",
+    fontWeight: 700,
+  },
+
+  name: {
+    margin: 0,
+    fontSize: "30px",
+    fontWeight: 900,
+    color: "#0f172a",
+    letterSpacing: "-0.03em",
+  },
+
+  sub: {
+    marginTop: "8px",
+    marginBottom: 0,
+    color: "#64748b",
+    fontSize: 14,
+  },
+
+  errorBox: {
+    marginBottom: 16,
+    background: "#fef2f2",
+    color: "#b91c1c",
+    border: "1px solid #fecaca",
+    borderRadius: 14,
+    padding: "12px 14px",
+    fontSize: 14,
+  },
+
+  mainGrid: {
+    display: "grid",
+    gridTemplateColumns: "1.1fr 0.9fr",
+    gap: 20,
+  },
+
+  sectionTitle: {
+    margin: 0,
+    marginBottom: 14,
+    fontSize: 20,
+    color: "#0f172a",
+    fontWeight: 800,
+    letterSpacing: "-0.02em",
+  },
+
+  infoGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+    gap: 12,
+  },
+
+  infoCard: {
+    background: "rgba(255,255,255,0.72)",
+    border: "1px solid rgba(255,255,255,0.95)",
+    borderRadius: 16,
+    padding: 14,
+    boxShadow:
+      "0 10px 24px rgba(15,23,42,0.04), inset 0 1px 0 rgba(255,255,255,0.98)",
+  },
+
+  infoLabel: {
+    fontSize: 12,
+    color: "#94a3b8",
+    fontWeight: 700,
+    marginBottom: 6,
+  },
+
+  infoValue: {
+    fontSize: 15,
+    color: "#0f172a",
+    fontWeight: 700,
+    lineHeight: 1.5,
+    wordBreak: "break-word",
+  },
+
+  miniLabel: {
+    fontSize: 12,
+    color: "#94a3b8",
+    fontWeight: 700,
+    marginBottom: 6,
+    letterSpacing: "0.08em",
+  },
+
+  memoBox: {
+    background: "rgba(255,255,255,0.72)",
+    border: "1px solid rgba(255,255,255,0.95)",
+    borderRadius: 14,
+    color: "#475569",
+    fontSize: 14,
+    whiteSpace: "pre-wrap",
+    boxShadow:
+      "0 10px 24px rgba(15,23,42,0.04), inset 0 1px 0 rgba(255,255,255,0.98)",
+  },
+
+  actionGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: 12,
+    marginTop: 16,
+  },
+
+  linkReset: {
+    textDecoration: "none",
+  },
+
+  whiteButton: {
+    width: "100%",
+    padding: "14px 18px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.95)",
+    background: "rgba(255,255,255,0.82)",
+    color: "#334155",
+    fontWeight: 700,
+    cursor: "pointer",
+    boxShadow:
+      "0 10px 24px rgba(15,23,42,0.05), inset 0 1px 0 rgba(255,255,255,0.98)",
+  },
+
+  softButton: {
+    width: "100%",
+    padding: "14px 18px",
+    borderRadius: 12,
+    border: "1px solid rgba(214,195,179,0.8)",
+    background: "rgba(255,255,255,0.6)",
+    color: "#8b5e3c",
+    fontWeight: 700,
+    cursor: "pointer",
+    boxShadow:
+      "0 10px 24px rgba(15,23,42,0.04), inset 0 1px 0 rgba(255,255,255,0.96)",
+  },
+
+  historyCard: {
+    border: "1px solid rgba(255,255,255,0.95)",
+    borderRadius: 18,
+    padding: 16,
+    background: "rgba(255,255,255,0.68)",
+    boxShadow:
+      "0 14px 30px rgba(15,23,42,0.04), inset 0 1px 0 rgba(255,255,255,0.98)",
+    backdropFilter: "blur(10px)",
+    WebkitBackdropFilter: "blur(10px)",
+  },
+
+  historyTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 12,
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
+
+  historyDate: {
+    fontSize: 17,
+    fontWeight: 800,
+    color: "#0f172a",
+    marginBottom: 6,
+  },
+
+  historyMeta: {
+    fontSize: 13,
+    color: "#64748b",
+  },
 };

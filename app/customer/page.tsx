@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../lib/supabase";
+import { BG, CARD, BUTTON_PRIMARY } from "../../styles/theme";
 
 type Customer = {
   id: string;
@@ -75,6 +76,10 @@ export default function CustomerPage() {
 
   return (
     <main style={styles.page}>
+      <div style={styles.glowA} />
+      <div style={styles.glowB} />
+      <div style={styles.glowC} />
+
       <header style={styles.header}>
         <div style={styles.headerInner}>
           <div style={styles.brandWrap}>
@@ -94,7 +99,16 @@ export default function CustomerPage() {
       </header>
 
       <div style={styles.container}>
-        <div style={styles.heroCard}>
+        <div
+          style={{
+            ...CARD,
+            padding: "24px",
+            position: "relative",
+            overflow: "hidden",
+            borderRadius: "28px",
+          }}
+        >
+          <div style={styles.heroShine} />
           <div style={styles.badge}>CUSTOMER MANAGEMENT</div>
 
           <div style={styles.heroRow}>
@@ -111,7 +125,12 @@ export default function CustomerPage() {
           </div>
         </div>
 
-        <div style={styles.card}>
+        <div
+          style={{
+            ...CARD,
+            padding: "24px",
+          }}
+        >
           <h2 style={styles.cardTitle}>新規顧客追加</h2>
 
           <div style={styles.formGrid}>
@@ -142,7 +161,10 @@ export default function CustomerPage() {
             <button
               onClick={handleAddCustomer}
               disabled={saving}
-              style={styles.addButton}
+              style={{
+                ...BUTTON_PRIMARY,
+                padding: "12px 18px",
+              }}
             >
               {saving ? "保存中..." : "顧客を追加"}
             </button>
@@ -151,7 +173,12 @@ export default function CustomerPage() {
           {message ? <p style={styles.message}>{message}</p> : null}
         </div>
 
-        <div style={styles.card}>
+        <div
+          style={{
+            ...CARD,
+            padding: "24px",
+          }}
+        >
           <h2 style={styles.cardTitle}>顧客一覧</h2>
 
           {loading ? (
@@ -186,84 +213,140 @@ export default function CustomerPage() {
 const styles: { [key: string]: React.CSSProperties } = {
   page: {
     minHeight: "100vh",
-    background: "#f6f3ef",
-    color: "#111827",
+    position: "relative",
+    overflow: "hidden",
+    padding: "24px 20px 60px",
+    background: BG,
   },
+
+  glowA: {
+    position: "absolute",
+    top: "-90px",
+    left: "-70px",
+    width: "280px",
+    height: "280px",
+    borderRadius: "999px",
+    background: "rgba(255,255,255,0.95)",
+    filter: "blur(55px)",
+    pointerEvents: "none",
+  },
+
+  glowB: {
+    position: "absolute",
+    top: "120px",
+    right: "-60px",
+    width: "320px",
+    height: "320px",
+    borderRadius: "999px",
+    background: "rgba(255,255,255,0.85)",
+    filter: "blur(70px)",
+    pointerEvents: "none",
+  },
+
+  glowC: {
+    position: "absolute",
+    bottom: "-120px",
+    left: "18%",
+    width: "340px",
+    height: "340px",
+    borderRadius: "999px",
+    background: "rgba(203,213,225,0.35)",
+    filter: "blur(75px)",
+    pointerEvents: "none",
+  },
+
   header: {
     position: "sticky",
     top: 0,
     zIndex: 10,
-    borderBottom: "1px solid rgba(224, 216, 205, 0.9)",
-    background: "rgba(255,255,255,0.72)",
-    backdropFilter: "blur(14px)",
-    WebkitBackdropFilter: "blur(14px)",
+    marginBottom: "24px",
   },
+
   headerInner: {
     maxWidth: "1100px",
     margin: "0 auto",
-    padding: "16px 24px",
+    padding: "14px 18px",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     gap: "16px",
     flexWrap: "wrap",
+    background: "rgba(255,255,255,0.58)",
+    border: "1px solid rgba(255,255,255,0.92)",
+    borderRadius: "22px",
+    backdropFilter: "blur(16px)",
+    WebkitBackdropFilter: "blur(16px)",
+    boxShadow:
+      "0 16px 40px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.98)",
   },
+
   brandWrap: {
     display: "flex",
     alignItems: "center",
     gap: "14px",
   },
+
   logo: {
     height: "42px",
     width: "auto",
     objectFit: "contain",
   },
+
   brandTitle: {
     fontSize: "18px",
     fontWeight: 700,
     letterSpacing: "0.06em",
-    color: "#111827",
+    color: "#0f172a",
   },
+
   brandSub: {
     fontSize: "12px",
-    color: "#8b5e3c",
+    color: "#94a3b8",
     marginTop: "2px",
-    fontWeight: 600,
+    fontWeight: 700,
   },
+
   headerButtons: {
     display: "flex",
     gap: "10px",
     flexWrap: "wrap",
   },
+
   headerLink: {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
     textDecoration: "none",
-    background: "rgba(255,255,255,0.78)",
-    color: "#374151",
-    border: "1px solid rgba(229,231,235,0.95)",
+    background: "rgba(255,255,255,0.82)",
+    color: "#334155",
+    border: "1px solid rgba(255,255,255,0.95)",
     borderRadius: "12px",
     padding: "10px 16px",
     fontWeight: 700,
-    boxShadow: "0 6px 18px rgba(0,0,0,0.04)",
+    boxShadow:
+      "0 10px 24px rgba(15,23,42,0.05), inset 0 1px 0 rgba(255,255,255,0.98)",
   },
+
   container: {
+    position: "relative",
+    zIndex: 1,
     maxWidth: "1100px",
     margin: "0 auto",
-    padding: "24px",
     display: "grid",
     gap: "24px",
   },
-  heroCard: {
-    background: "rgba(255,255,255,0.62)",
-    border: "1px solid rgba(236,231,223,0.95)",
-    borderRadius: "24px",
-    padding: "24px",
-    backdropFilter: "blur(10px)",
-    WebkitBackdropFilter: "blur(10px)",
-    boxShadow: "0 12px 32px rgba(0,0,0,0.05)",
+
+  heroShine: {
+    position: "absolute",
+    top: 0,
+    left: "-20%",
+    width: "60%",
+    height: "2px",
+    background:
+      "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.95) 35%, rgba(245,158,11,0.45) 52%, rgba(255,255,255,0.9) 70%, transparent 100%)",
+    transform: "skewX(-28deg)",
   },
+
   badge: {
     display: "inline-block",
     marginBottom: "14px",
@@ -271,11 +354,12 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: "12px",
     letterSpacing: "0.12em",
     borderRadius: "999px",
-    background: "#faf7f3",
-    border: "1px solid #eee4d8",
-    color: "#8b5e3c",
+    background: "rgba(255,255,255,0.7)",
+    border: "1px solid rgba(255,255,255,0.95)",
+    color: "#94a3b8",
     fontWeight: 700,
   },
+
   heroRow: {
     display: "flex",
     justifyContent: "space-between",
@@ -283,120 +367,120 @@ const styles: { [key: string]: React.CSSProperties } = {
     gap: "16px",
     flexWrap: "wrap",
   },
+
   title: {
     fontSize: "32px",
-    fontWeight: 700,
-    color: "#111827",
+    fontWeight: 900,
+    color: "#0f172a",
     margin: 0,
+    letterSpacing: "-0.03em",
   },
+
   subText: {
     marginTop: "8px",
-    color: "#6b7280",
+    color: "#64748b",
     fontSize: "14px",
-    lineHeight: 1.7,
+    lineHeight: 1.8,
   },
+
   reloadButton: {
-    background: "rgba(255,255,255,0.9)",
-    color: "#374151",
-    border: "1px solid #e5e7eb",
+    background: "rgba(255,255,255,0.82)",
+    color: "#334155",
+    border: "1px solid rgba(255,255,255,0.95)",
     borderRadius: "12px",
     padding: "10px 16px",
     cursor: "pointer",
     fontWeight: 700,
-    boxShadow: "0 6px 18px rgba(0,0,0,0.04)",
+    boxShadow:
+      "0 10px 24px rgba(15,23,42,0.05), inset 0 1px 0 rgba(255,255,255,0.98)",
   },
-  card: {
-    background: "rgba(255,255,255,0.68)",
-    border: "1px solid rgba(236,231,223,0.95)",
-    borderRadius: "24px",
-    padding: "20px",
-    backdropFilter: "blur(10px)",
-    WebkitBackdropFilter: "blur(10px)",
-    boxShadow: "0 12px 30px rgba(0,0,0,0.05)",
-  },
+
   cardTitle: {
     fontSize: "20px",
-    fontWeight: 700,
-    color: "#111827",
+    fontWeight: 800,
+    color: "#0f172a",
     marginTop: 0,
     marginBottom: "16px",
+    letterSpacing: "-0.02em",
   },
+
   formGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
     gap: "16px",
   },
+
   label: {
     display: "block",
-    color: "#6f4e37",
-    fontSize: "14px",
+    color: "#64748b",
+    fontSize: "13px",
     marginBottom: "8px",
     fontWeight: 700,
   },
+
   input: {
     width: "100%",
     padding: "12px 14px",
     borderRadius: "12px",
-    border: "1px solid #e5e7eb",
-    background: "rgba(255,255,255,0.95)",
-    color: "#111827",
+    border: "1px solid rgba(226,232,240,0.9)",
+    background: "rgba(255,255,255,0.88)",
+    color: "#0f172a",
     outline: "none",
     boxSizing: "border-box",
-    boxShadow: "inset 0 1px 2px rgba(0,0,0,0.02)",
+    boxShadow: "inset 0 1px 2px rgba(15,23,42,0.02)",
   },
+
   actionRow: {
     marginTop: "16px",
     display: "flex",
     gap: "12px",
     flexWrap: "wrap",
   },
-  addButton: {
-    background: "linear-gradient(135deg, #8b5e3c 0%, #c49a6c 100%)",
-    color: "#fff",
-    border: "none",
-    borderRadius: "12px",
-    padding: "12px 18px",
-    fontWeight: 700,
-    cursor: "pointer",
-    boxShadow: "0 10px 20px rgba(139,94,60,0.22)",
-  },
+
   message: {
     marginTop: "12px",
     color: "#8b5e3c",
     fontSize: "14px",
     fontWeight: 700,
   },
+
   empty: {
-    color: "#6b7280",
+    color: "#64748b",
     margin: 0,
   },
+
   list: {
     display: "grid",
     gap: "12px",
   },
+
   customerItem: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     padding: "16px",
-    borderRadius: "16px",
-    background: "rgba(255,255,255,0.82)",
-    border: "1px solid #e5e7eb",
+    borderRadius: "18px",
+    background: "rgba(255,255,255,0.72)",
+    border: "1px solid rgba(255,255,255,0.95)",
     textDecoration: "none",
-    boxShadow: "0 6px 18px rgba(0,0,0,0.035)",
-    backdropFilter: "blur(8px)",
-    WebkitBackdropFilter: "blur(8px)",
+    boxShadow:
+      "0 14px 30px rgba(15,23,42,0.04), inset 0 1px 0 rgba(255,255,255,0.98)",
+    backdropFilter: "blur(12px)",
+    WebkitBackdropFilter: "blur(12px)",
   },
+
   customerName: {
-    color: "#111827",
+    color: "#0f172a",
     fontSize: "18px",
-    fontWeight: 700,
+    fontWeight: 800,
     marginBottom: "6px",
   },
+
   customerPhone: {
-    color: "#6b7280",
+    color: "#64748b",
     fontSize: "14px",
   },
+
   arrow: {
     color: "#c49a6c",
     fontSize: "28px",
