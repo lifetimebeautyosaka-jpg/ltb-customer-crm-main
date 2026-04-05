@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { BG, CARD, BUTTON_PRIMARY } from "../../../../styles/theme";
@@ -54,6 +54,20 @@ const supabase =
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
       )
     : null;
+
+function toStyle(value: unknown): CSSProperties {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as CSSProperties;
+  }
+  if (typeof value === "string" && value.trim()) {
+    return { background: value };
+  }
+  return {};
+}
+
+const BG_STYLE = toStyle(BG);
+const CARD_STYLE = toStyle(CARD);
+const BUTTON_PRIMARY_STYLE = toStyle(BUTTON_PRIMARY);
 
 function safeArray<T>(value: T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : [];
@@ -471,7 +485,7 @@ export default function TrainingPage() {
   return (
     <main
       style={{
-        ...BG,
+        ...BG_STYLE,
         minHeight: "100vh",
         padding: "24px 16px 80px",
       }}
@@ -479,7 +493,7 @@ export default function TrainingPage() {
       <div style={{ maxWidth: 1280, margin: "0 auto" }}>
         <div
           style={{
-            ...CARD,
+            ...CARD_STYLE,
             borderRadius: 26,
             padding: 20,
             marginBottom: 18,
@@ -555,7 +569,7 @@ export default function TrainingPage() {
         {error && (
           <div
             style={{
-              ...CARD,
+              ...CARD_STYLE,
               marginBottom: 16,
               borderRadius: 20,
               padding: 16,
@@ -572,7 +586,7 @@ export default function TrainingPage() {
         {success && (
           <div
             style={{
-              ...CARD,
+              ...CARD_STYLE,
               marginBottom: 16,
               borderRadius: 20,
               padding: 16,
@@ -595,7 +609,7 @@ export default function TrainingPage() {
           }}
         >
           <div style={{ display: "grid", gap: 18 }}>
-            <div style={{ ...CARD, borderRadius: 26, padding: 20 }}>
+            <div style={{ ...CARD_STYLE, borderRadius: 26, padding: 20 }}>
               <div
                 style={{
                   fontSize: 12,
@@ -656,7 +670,7 @@ export default function TrainingPage() {
               </div>
             </div>
 
-            <div style={{ ...CARD, borderRadius: 26, padding: 20 }}>
+            <div style={{ ...CARD_STYLE, borderRadius: 26, padding: 20 }}>
               <div
                 style={{
                   display: "flex",
@@ -697,7 +711,7 @@ export default function TrainingPage() {
                     入力種目数：{exerciseCount}
                   </span>
 
-                  <button type="button" onClick={addRow} style={BUTTON_PRIMARY}>
+                  <button type="button" onClick={addRow} style={BUTTON_PRIMARY_STYLE}>
                     行を追加
                   </button>
                 </div>
@@ -808,7 +822,7 @@ export default function TrainingPage() {
               </div>
             </div>
 
-            <div style={{ ...CARD, borderRadius: 26, padding: 20 }}>
+            <div style={{ ...CARD_STYLE, borderRadius: 26, padding: 20 }}>
               <div
                 style={{
                   fontSize: 12,
@@ -861,7 +875,7 @@ export default function TrainingPage() {
           </div>
 
           <div style={{ display: "grid", gap: 18 }}>
-            <div style={{ ...CARD, borderRadius: 26, padding: 20 }}>
+            <div style={{ ...CARD_STYLE, borderRadius: 26, padding: 20 }}>
               <div
                 style={{
                   fontSize: 12,
@@ -945,7 +959,7 @@ export default function TrainingPage() {
               )}
             </div>
 
-            <div style={{ ...CARD, borderRadius: 26, padding: 20 }}>
+            <div style={{ ...CARD_STYLE, borderRadius: 26, padding: 20 }}>
               <div
                 style={{
                   fontSize: 12,
@@ -963,7 +977,7 @@ export default function TrainingPage() {
                   onClick={() => void handleSave()}
                   disabled={saving}
                   style={{
-                    ...BUTTON_PRIMARY,
+                    ...BUTTON_PRIMARY_STYLE,
                     opacity: saving ? 0.7 : 1,
                     cursor: saving ? "not-allowed" : "pointer",
                   }}
@@ -1000,7 +1014,7 @@ export default function TrainingPage() {
         <section
           id="history"
           style={{
-            ...CARD,
+            ...CARD_STYLE,
             borderRadius: 28,
             padding: 22,
             marginTop: 18,
@@ -1400,7 +1414,7 @@ export default function TrainingPage() {
   );
 }
 
-const inputStyle = {
+const inputStyle: CSSProperties = {
   width: "100%",
   borderRadius: 14,
   border: "1px solid rgba(148,163,184,0.24)",
@@ -1409,10 +1423,10 @@ const inputStyle = {
   fontSize: 14,
   color: "#0f172a",
   outline: "none",
-  boxSizing: "border-box" as const,
+  boxSizing: "border-box",
 };
 
-const textareaStyle = {
+const textareaStyle: CSSProperties = {
   width: "100%",
   borderRadius: 16,
   border: "1px solid rgba(148,163,184,0.24)",
@@ -1421,11 +1435,11 @@ const textareaStyle = {
   fontSize: 14,
   color: "#0f172a",
   outline: "none",
-  resize: "vertical" as const,
-  boxSizing: "border-box" as const,
+  resize: "vertical",
+  boxSizing: "border-box",
 };
 
-const tableInputStyle = {
+const tableInputStyle: CSSProperties = {
   width: "100%",
   borderRadius: 12,
   border: "1px solid rgba(148,163,184,0.22)",
@@ -1434,5 +1448,5 @@ const tableInputStyle = {
   fontSize: 14,
   color: "#0f172a",
   outline: "none",
-  boxSizing: "border-box" as const,
+  boxSizing: "border-box",
 };
