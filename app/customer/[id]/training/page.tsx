@@ -268,7 +268,9 @@ export default function TrainingPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const customerId = String(params?.id ?? "");
+
+  const rawId = params?.id;
+  const customerId = Array.isArray(rawId) ? rawId[0] : String(rawId ?? "");
 
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -308,6 +310,12 @@ export default function TrainingPage() {
       return;
     }
 
+    if (!customerId) {
+      setLoading(false);
+      setError("顧客IDが取得できませんでした。顧客詳細ページから開き直してください。");
+      return;
+    }
+
     void loadHistory();
   }, [mounted, customerId, router]);
 
@@ -341,6 +349,12 @@ export default function TrainingPage() {
       return;
     }
 
+    if (!customerId) {
+      setLoading(false);
+      setError("顧客IDが見つかりません。");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
@@ -365,7 +379,7 @@ export default function TrainingPage() {
           )
         `
         )
-        .eq("customer_id", customerId)
+        .eq("customer_id", String(customerId))
         .order("session_date", { ascending: false })
         .order("created_at", { ascending: false });
 
@@ -509,6 +523,11 @@ export default function TrainingPage() {
       return;
     }
 
+    if (!customerId) {
+      setError("顧客IDが取得できません。");
+      return;
+    }
+
     setSaving(true);
     setError("");
     setSuccess("");
@@ -532,7 +551,7 @@ export default function TrainingPage() {
       });
 
       const sessionPayload = {
-        customer_id: customerId,
+        customer_id: String(customerId),
         session_date: sessionDate || null,
         body_height: toNumberOrNull(bodyHeight),
         body_weight: toNumberOrNull(bodyWeight),
@@ -1012,7 +1031,8 @@ export default function TrainingPage() {
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                    gridTemplateColumns:
+                      "repeat(auto-fit, minmax(180px, 1fr))",
                     gap: 12,
                     marginTop: 16,
                   }}
@@ -1185,7 +1205,8 @@ export default function TrainingPage() {
                       <div
                         style={{
                           display: "grid",
-                          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+                          gridTemplateColumns:
+                            "repeat(auto-fit, minmax(260px, 1fr))",
                           gap: 14,
                         }}
                       >
