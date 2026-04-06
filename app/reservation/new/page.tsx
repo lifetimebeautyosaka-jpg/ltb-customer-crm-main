@@ -38,7 +38,6 @@ export default function Page() {
 
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
-
   const [completed, setCompleted] = useState(false);
   const [savedCustomerId, setSavedCustomerId] = useState("");
 
@@ -50,6 +49,7 @@ export default function Page() {
     e.preventDefault();
     setSaving(true);
     setMsg("");
+    setCompleted(false);
 
     const name = customerName.trim();
     const memoText = memo.trim();
@@ -63,11 +63,13 @@ export default function Page() {
     try {
       let customerId = "";
 
-      const { data: existingCustomer, error: customerFindError } = await supabase
+      // 同姓同名で複数あっても落ちないように maybeSingle は使わない
+      const { data: existingCustomers, error: customerFindError } = await supabase
         .from("customers")
         .select("id")
         .eq("name", name)
-        .maybeSingle();
+        .order("id", { ascending: false })
+        .limit(1);
 
       if (customerFindError) {
         alert(`顧客取得エラー: ${customerFindError.message}`);
@@ -75,8 +77,8 @@ export default function Page() {
         return;
       }
 
-      if (existingCustomer?.id) {
-        customerId = String(existingCustomer.id);
+      if (existingCustomers && existingCustomers.length > 0) {
+        customerId = String(existingCustomers[0].id);
       } else {
         const { data: insertedCustomer, error: customerInsertError } = await supabase
           .from("customers")
@@ -93,19 +95,31 @@ export default function Page() {
         customerId = String(insertedCustomer.id);
       }
 
-      const { error: reservationError } = await supabase.from("reservations").insert([
-        {
-          customer_name: name,
-          date,
-          start_time: startTime,
-          end_time: endTime,
-          store_name: storeName,
-          staff_name: staffName,
-          menu,
-          payment_method: paymentMethod,
-          memo: memoText,
-        },
-      ]);
+      const reservationPayload: {
+        customer_name: string;
+        date: string;
+        start_time: string;
+        end_time: string;
+        store_name: string;
+        staff_name: string;
+        menu: string;
+        payment_method: string;
+        memo: string;
+      } = {
+        customer_name: name,
+        date,
+        start_time: startTime,
+        end_time: endTime,
+        store_name: storeName,
+        staff_name: staffName,
+        menu,
+        payment_method: paymentMethod,
+        memo: memoText,
+      };
+
+      const { error: reservationError } = await supabase
+        .from("reservations")
+        .insert([reservationPayload]);
 
       if (reservationError) {
         alert(`予約保存エラー: ${reservationError.message}`);
@@ -129,7 +143,15 @@ export default function Page() {
 
   return (
     <main style={{ background: "#f5f5f5", minHeight: "100vh", padding: "20px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "15px", gap: "12px", flexWrap: "wrap" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginBottom: "15px",
+          gap: "12px",
+          flexWrap: "wrap",
+        }}
+      >
         <h2 style={{ fontSize: "26px", fontWeight: "800", margin: 0 }}>新規予約</h2>
 
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
@@ -166,7 +188,11 @@ export default function Page() {
           {saving ? "保存中..." : "保存"}
         </button>
 
-        {msg && <p style={{ color: "green", textAlign: "center", margin: 0, fontWeight: 700 }}>{msg}</p>}
+        {msg && (
+          <p style={{ color: "green", textAlign: "center", margin: 0, fontWeight: 700 }}>
+            {msg}
+          </p>
+        )}
       </form>
 
       {completed && savedCustomerId && (
@@ -213,7 +239,12 @@ function Input({
   return (
     <div>
       <p style={labelStyle}>{label}</p>
-      <input type={type} value={value} onChange={(e) => set(e.target.value)} style={input} />
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => set(e.target.value)}
+        style={input}
+      />
     </div>
   );
 }
