@@ -5,6 +5,22 @@ import React from "react";
 
 const titleText = "GYMUP CRM";
 
+/**
+ * 画像をコード内に埋め込み
+ * public フォルダに画像を置かなくても表示される版
+ */
+const embeddedVisual =
+  "data:image/jpeg;base64,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od/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Ch3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Ch3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Ch3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv/9k=";
+
+const menuItems = [
+  { href: "/customer", label: "CUSTOMER", title: "顧客管理" },
+  { href: "/training", label: "TRAINING / PILATES", title: "トレーニング・ピラティス" },
+  { href: "/sales", label: "SALES", title: "売上管理" },
+  { href: "/reservation", label: "RESERVATION", title: "予約管理" },
+  { href: "/accounting", label: "ACCOUNTING", title: "会計管理" },
+  { href: "/attendance", label: "ATTENDANCE", title: "出退勤管理" },
+];
+
 export default function HomePage() {
   return (
     <main style={styles.page}>
@@ -126,7 +142,7 @@ export default function HomePage() {
 
         .hero-grid {
           display: grid;
-          grid-template-columns: 1.2fr 0.9fr;
+          grid-template-columns: 1.15fr 0.95fr;
           gap: 24px;
           align-items: stretch;
         }
@@ -153,12 +169,10 @@ export default function HomePage() {
       <div style={styles.bgOverlay} />
 
       <div style={styles.container}>
-        {/* ロゴ */}
         <div style={styles.logoWrap}>
           <img src="/gymup-logo.png" alt="GYMUP" style={styles.logo} className="logo" />
         </div>
 
-        {/* HERO */}
         <section className="hero-grid" style={styles.heroGrid}>
           <div style={styles.heroLeft} className="card">
             <div style={styles.eyebrow}>
@@ -202,7 +216,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* 人物ビジュアル */}
           <div style={styles.heroVisual} className="card">
             <div style={styles.visualGlowOrange} />
             <div style={styles.visualGlowBlue} />
@@ -212,8 +225,8 @@ export default function HomePage() {
 
               <div style={styles.modelWrap}>
                 <img
-                  src="/top-model.png"
-                  alt="Top visual"
+                  src={embeddedVisual}
+                  alt="Dashboard visual"
                   style={styles.modelImage}
                 />
               </div>
@@ -236,37 +249,13 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* MENU */}
         <section className="menu-grid" style={styles.grid}>
-          <Link href="/customer" className="card" style={styles.card}>
-            <div style={styles.label}>CUSTOMER</div>
-            <div style={styles.cardTitle}>顧客管理</div>
-          </Link>
-
-          <Link href="/training" className="card" style={styles.card}>
-            <div style={styles.label}>TRAINING / PILATES</div>
-            <div style={styles.cardTitle}>トレーニング・ピラティス</div>
-          </Link>
-
-          <Link href="/sales" className="card" style={styles.card}>
-            <div style={styles.label}>SALES</div>
-            <div style={styles.cardTitle}>売上管理</div>
-          </Link>
-
-          <Link href="/reservation" className="card" style={styles.card}>
-            <div style={styles.label}>RESERVATION</div>
-            <div style={styles.cardTitle}>予約管理</div>
-          </Link>
-
-          <Link href="/accounting" className="card" style={styles.card}>
-            <div style={styles.label}>ACCOUNTING</div>
-            <div style={styles.cardTitle}>会計管理</div>
-          </Link>
-
-          <Link href="/attendance" className="card" style={styles.card}>
-            <div style={styles.label}>ATTENDANCE</div>
-            <div style={styles.cardTitle}>出退勤管理</div>
-          </Link>
+          {menuItems.map((item) => (
+            <Link key={item.href} href={item.href} className="card" style={styles.card}>
+              <div style={styles.label}>{item.label}</div>
+              <div style={styles.cardTitle}>{item.title}</div>
+            </Link>
+          ))}
         </section>
       </div>
     </main>
@@ -337,7 +326,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     width: "260px",
     height: "260px",
     borderRadius: "50%",
-    background: "radial-gradient(circle, rgba(255,122,24,0.38) 0%, rgba(255,122,24,0.08) 45%, transparent 75%)",
+    background:
+      "radial-gradient(circle, rgba(255,122,24,0.38) 0%, rgba(255,122,24,0.08) 45%, transparent 75%)",
     top: "-60px",
     left: "-40px",
     filter: "blur(12px)",
@@ -347,7 +337,8 @@ const styles: { [key: string]: React.CSSProperties } = {
     width: "240px",
     height: "240px",
     borderRadius: "50%",
-    background: "radial-gradient(circle, rgba(91,140,255,0.28) 0%, rgba(91,140,255,0.08) 45%, transparent 75%)",
+    background:
+      "radial-gradient(circle, rgba(91,140,255,0.28) 0%, rgba(91,140,255,0.08) 45%, transparent 75%)",
     bottom: "-60px",
     right: "-30px",
     filter: "blur(12px)",
@@ -357,24 +348,28 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: "28px",
     fontWeight: 800,
     lineHeight: 1.15,
+    marginBottom: "10px",
   },
   modelWrap: {
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
     padding: "8px 0",
+    flex: 1,
   },
   modelImage: {
     width: "100%",
-    maxWidth: "260px",
+    maxWidth: "460px",
     height: "auto",
     objectFit: "contain",
-    filter: "drop-shadow(0 16px 30px rgba(0,0,0,0.35))",
+    borderRadius: "22px",
+    boxShadow: "0 16px 30px rgba(0,0,0,0.35)",
   },
   visualStats: {
     display: "grid",
     gridTemplateColumns: "repeat(3, 1fr)",
     gap: "10px",
+    marginTop: "14px",
   },
   statBox: {
     borderRadius: "16px",
