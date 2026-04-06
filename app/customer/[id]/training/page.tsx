@@ -327,9 +327,7 @@ export default function TrainingPage() {
 
     if (editId) {
       const target = history.find((item) => item.id === editId);
-      if (target) {
-        applySessionToForm(target, true);
-      }
+      if (target) applySessionToForm(target, true);
       return;
     }
 
@@ -592,9 +590,7 @@ export default function TrainingPage() {
         sessionId = data.id;
       }
 
-      if (!sessionId) {
-        throw new Error("セッションIDの取得に失敗しました。");
-      }
+      if (!sessionId) throw new Error("セッションIDの取得に失敗しました。");
 
       if (validRows.length > 0) {
         const rowsPayload = validRows.map((row, index) => ({
@@ -654,9 +650,7 @@ export default function TrainingPage() {
 
       if (deleteSessionError) throw deleteSessionError;
 
-      if (editingSessionId === sessionId) {
-        resetForm(true);
-      }
+      if (editingSessionId === sessionId) resetForm(true);
 
       setSuccess("履歴を削除しました。");
       await loadHistory();
