@@ -1,25 +1,55 @@
 "use client";
 
 import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
 import { CSSProperties, useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-type TrainingLog = {
-  id: number;
-  customer_id: string;
-  training_date: string;
-  weight: number | null;
-  body_fat: number | null;
-  muscle_mass: number | null;
-  visceral_fat: number | null;
-  note: string | null;
+type CustomerRow = {
+  id: string | number;
+  name?: string | null;
+  kana?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  gender?: string | null;
+  age?: number | null;
+  birthday?: string | null;
+  height?: number | null;
+  weight?: number | null;
+  body_fat?: number | null;
+  muscle_mass?: number | null;
+  visceral_fat?: number | null;
+  goal?: string | null;
+  memo?: string | null;
+  plan_type?: string | null;
+  plan_style?: string | null;
+  monthly_count?: number | null;
+  used_count?: number | null;
+  carry_over?: number | null;
+  remaining_count?: number | null;
+  price?: number | null;
+  status?: string | null;
+  next_payment_date?: string | null;
+  last_visit_date?: string | null;
+  ltv?: number | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
 
-type CustomerRow = {
-  id: number | string;
-  name?: string | null;
+type TrainingSessionRow = {
+  id: string;
+  customer_id: string;
+  session_date: string | null;
+  body_height?: number | null;
+  body_weight?: number | null;
+  body_fat?: number | null;
+  muscle_mass?: number | null;
+  visceral_fat?: number | null;
+  summary?: string | null;
+  next_task?: string | null;
+  posture_note?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 function getSupabaseClient() {
@@ -29,28 +59,21 @@ function getSupabaseClient() {
   return createClient(url, key);
 }
 
-function toNumberOrNull(value: string) {
-  if (value.trim() === "") return null;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
-}
-
-function formatDateLabel(dateStr?: string | null) {
-  if (!dateStr) return "-";
-  const date = new Date(`${dateStr}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return dateStr;
+function formatDate(value?: string | null) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
   return new Intl.DateTimeFormat("ja-JP", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-    weekday: "short",
-  }).format(date);
+  }).format(d);
 }
 
-function formatDateTime(dateStr?: string | null) {
-  if (!dateStr) return "-";
-  const date = new Date(dateStr);
-  if (Number.isNaN(date.getTime())) return "-";
+function formatDateTime(value?: string | null) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
   return new Intl.DateTimeFormat("ja-JP", {
     timeZone: "Asia/Tokyo",
     year: "numeric",
@@ -59,257 +82,119 @@ function formatDateTime(dateStr?: string | null) {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-  }).format(date);
+  }).format(d);
 }
 
-function displayMetric(value: number | null | undefined, unit = "") {
-  if (value == null) return "-";
-  return `${value}${unit}`;
+function displayValue(value: unknown, suffix = "") {
+  if (value === null || value === undefined || value === "") return "—";
+  return `${value}${suffix}`;
 }
 
-export default function CustomerTrainingPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+function formatPrice(value?: number | null) {
+  if (value == null) return "—";
+  return `${value.toLocaleString("ja-JP")}円`;
+}
+
+export default function CustomerDetailPage() {
+  const params = useParams();
+  const router = useRouter();
   const supabase = useMemo(() => getSupabaseClient(), []);
-  const [customerId, setCustomerId] = useState("");
-  const [customerName, setCustomerName] = useState("顧客");
+
+  const rawId = params?.id;
+  const customerId = Array.isArray(rawId) ? rawId[0] : String(rawId ?? "");
+
+  const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const [logs, setLogs] = useState<TrainingLog[]>([]);
-
-  const today = new Date();
-  const defaultDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(
-    today.getDate()
-  ).padStart(2, "0")}`;
-
-  const [trainingDate, setTrainingDate] = useState(defaultDate);
-  const [weight, setWeight] = useState("");
-  const [bodyFat, setBodyFat] = useState("");
-  const [muscleMass, setMuscleMass] = useState("");
-  const [visceralFat, setVisceralFat] = useState("");
-  const [note, setNote] = useState("");
-
-  const [editingLog, setEditingLog] = useState<TrainingLog | null>(null);
-  const [editTrainingDate, setEditTrainingDate] = useState("");
-  const [editWeight, setEditWeight] = useState("");
-  const [editBodyFat, setEditBodyFat] = useState("");
-  const [editMuscleMass, setEditMuscleMass] = useState("");
-  const [editVisceralFat, setEditVisceralFat] = useState("");
-  const [editNote, setEditNote] = useState("");
-
-  async function loadCustomerName(id: string) {
-    if (!supabase) return;
-
-    const { data, error } = await supabase
-      .from("customers")
-      .select("id, name")
-      .eq("id", id)
-      .maybeSingle();
-
-    if (error) {
-      throw new Error(`顧客取得エラー: ${error.message}`);
-    }
-
-    const row = (data as CustomerRow | null) || null;
-    setCustomerName(row?.name || "顧客");
-  }
-
-  async function loadLogs(id: string) {
-    if (!supabase) return;
-
-    const { data, error } = await supabase
-      .from("training_logs")
-      .select("*")
-      .eq("customer_id", id)
-      .order("training_date", { ascending: false })
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      if (error.message.includes("body_fat")) {
-        throw new Error("training_logs テーブルに body_fat 列がありません。列追加SQLを実行してください。");
-      }
-      if (error.message.includes("muscle_mass")) {
-        throw new Error("training_logs テーブルに muscle_mass 列がありません。列追加SQLを実行してください。");
-      }
-      if (error.message.includes("visceral_fat")) {
-        throw new Error("training_logs テーブルに visceral_fat 列がありません。列追加SQLを実行してください。");
-      }
-      throw new Error(`履歴取得エラー: ${error.message}`);
-    }
-
-    setLogs((data as TrainingLog[] | null) || []);
-  }
+  const [customer, setCustomer] = useState<CustomerRow | null>(null);
+  const [latestSession, setLatestSession] = useState<TrainingSessionRow | null>(null);
 
   useEffect(() => {
-    async function init() {
-      try {
-        setLoading(true);
-        setErrorMessage("");
+    setMounted(true);
+  }, []);
 
-        const resolved = await params;
-        const id = String(resolved.id || "");
-        setCustomerId(id);
+  useEffect(() => {
+    if (!mounted) return;
 
-        if (!supabase) {
-          setErrorMessage("NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY が未設定です。");
-          return;
-        }
-
-        await loadCustomerName(id);
-        await loadLogs(id);
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : "初期化に失敗しました。";
-        setErrorMessage(msg);
-      } finally {
-        setLoading(false);
-      }
+    const loggedIn = localStorage.getItem("gymup_logged_in");
+    if (loggedIn !== "true") {
+      router.push("/login");
+      return;
     }
 
-    init();
-  }, [params, supabase]);
+    if (!customerId) {
+      setLoading(false);
+      setErrorMessage("顧客IDが取得できませんでした。");
+      return;
+    }
 
-  async function handleAddLog() {
-    if (!supabase || !customerId) return;
+    void init();
+  }, [mounted, customerId, router]);
 
-    if (!trainingDate) {
-      alert("日付を入力してください。");
+  async function init() {
+    if (!supabase) {
+      setLoading(false);
+      setErrorMessage("NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY が未設定です。");
       return;
     }
 
     try {
-      setSaving(true);
+      setLoading(true);
       setErrorMessage("");
 
-      const { error } = await supabase.from("training_logs").insert({
-        customer_id: customerId,
-        training_date: trainingDate,
-        weight: toNumberOrNull(weight),
-        body_fat: toNumberOrNull(bodyFat),
-        muscle_mass: toNumberOrNull(muscleMass),
-        visceral_fat: toNumberOrNull(visceralFat),
-        note,
-      });
+      const { data: customerData, error: customerError } = await supabase
+        .from("customers")
+        .select("*")
+        .eq("id", customerId)
+        .maybeSingle();
 
-      if (error) {
-        if (error.message.includes("body_fat")) {
-          throw new Error("training_logs テーブルに body_fat 列がありません。列追加SQLを実行してください。");
-        }
-        if (error.message.includes("muscle_mass")) {
-          throw new Error("training_logs テーブルに muscle_mass 列がありません。列追加SQLを実行してください。");
-        }
-        if (error.message.includes("visceral_fat")) {
-          throw new Error("training_logs テーブルに visceral_fat 列がありません。列追加SQLを実行してください。");
-        }
-        throw new Error(`登録エラー: ${error.message}`);
+      if (customerError) {
+        throw new Error(`顧客取得エラー: ${customerError.message}`);
       }
 
-      setWeight("");
-      setBodyFat("");
-      setMuscleMass("");
-      setVisceralFat("");
-      setNote("");
-
-      await loadLogs(customerId);
-      alert("トレーニング履歴を登録しました。");
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : "登録に失敗しました。";
-      setErrorMessage(msg);
-      alert(msg);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function openEditModal(log: TrainingLog) {
-    setEditingLog(log);
-    setEditTrainingDate(log.training_date || "");
-    setEditWeight(log.weight != null ? String(log.weight) : "");
-    setEditBodyFat(log.body_fat != null ? String(log.body_fat) : "");
-    setEditMuscleMass(log.muscle_mass != null ? String(log.muscle_mass) : "");
-    setEditVisceralFat(log.visceral_fat != null ? String(log.visceral_fat) : "");
-    setEditNote(log.note || "");
-  }
-
-  function closeEditModal() {
-    setEditingLog(null);
-    setEditTrainingDate("");
-    setEditWeight("");
-    setEditBodyFat("");
-    setEditMuscleMass("");
-    setEditVisceralFat("");
-    setEditNote("");
-  }
-
-  async function handleSaveEdit() {
-    if (!supabase || !editingLog || !customerId) return;
-
-    if (!editTrainingDate) {
-      alert("日付を入力してください。");
-      return;
-    }
-
-    try {
-      setSaving(true);
-      setErrorMessage("");
-
-      const { error } = await supabase
-        .from("training_logs")
-        .update({
-          training_date: editTrainingDate,
-          weight: toNumberOrNull(editWeight),
-          body_fat: toNumberOrNull(editBodyFat),
-          muscle_mass: toNumberOrNull(editMuscleMass),
-          visceral_fat: toNumberOrNull(editVisceralFat),
-          note: editNote,
-        })
-        .eq("id", editingLog.id);
-
-      if (error) {
-        throw new Error(`更新エラー: ${error.message}`);
+      if (!customerData) {
+        throw new Error("顧客データが見つかりませんでした。");
       }
 
-      await loadLogs(customerId);
-      closeEditModal();
-      alert("履歴を更新しました。");
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : "更新に失敗しました。";
-      setErrorMessage(msg);
-      alert(msg);
-    } finally {
-      setSaving(false);
-    }
-  }
+      setCustomer(customerData as CustomerRow);
 
-  async function handleDeleteLog(id: number) {
-    if (!supabase || !customerId) return;
+      const { data: sessionData, error: sessionError } = await supabase
+        .from("training_sessions")
+        .select(`
+          id,
+          customer_id,
+          session_date,
+          body_height,
+          body_weight,
+          body_fat,
+          muscle_mass,
+          visceral_fat,
+          summary,
+          next_task,
+          posture_note,
+          created_at,
+          updated_at
+        `)
+        .eq("customer_id", String(customerId))
+        .order("session_date", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(1);
 
-    const ok = window.confirm("この履歴を削除しますか？");
-    if (!ok) return;
-
-    try {
-      setSaving(true);
-      setErrorMessage("");
-
-      const { error } = await supabase.from("training_logs").delete().eq("id", id);
-
-      if (error) {
-        throw new Error(`削除エラー: ${error.message}`);
+      if (sessionError) {
+        throw new Error(`トレーニング履歴取得エラー: ${sessionError.message}`);
       }
 
-      await loadLogs(customerId);
-      alert("履歴を削除しました。");
+      setLatestSession((sessionData?.[0] as TrainingSessionRow) || null);
     } catch (error) {
-      const msg = error instanceof Error ? error.message : "削除に失敗しました。";
+      const msg = error instanceof Error ? error.message : "読み込みに失敗しました。";
       setErrorMessage(msg);
-      alert(msg);
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   }
+
+  if (!mounted) return null;
 
   return (
     <div style={pageStyle}>
@@ -318,191 +203,166 @@ export default function CustomerTrainingPage({
 
       <div style={containerStyle}>
         <div style={topRowStyle}>
-          <Link href={`/customer/${customerId}`} style={backLinkStyle}>
-            ← 顧客詳細へ戻る
+          <Link href="/customer" style={backLinkStyle}>
+            ← 顧客一覧へ戻る
           </Link>
-          <div style={eyebrowStyle}>TRAINING RECORD</div>
+          <div style={eyebrowStyle}>CUSTOMER DETAIL</div>
         </div>
 
-        <div style={heroCardStyle}>
-          <div style={heroLeftStyle}>
-            <div style={miniLabelStyle}>GYMUP TRAINING</div>
-            <h1 style={titleStyle}>トレーニング履歴</h1>
-            <p style={descStyle}>
-              {customerName} 様の体重・体脂肪・筋肉量・内臓脂肪を記録し、あとから編集できます。
-            </p>
-          </div>
-        </div>
+        {loading ? (
+          <div style={loadingCardStyle}>読み込み中...</div>
+        ) : errorMessage ? (
+          <div style={errorBoxStyle}>{errorMessage}</div>
+        ) : !customer ? (
+          <div style={errorBoxStyle}>顧客データが見つかりませんでした。</div>
+        ) : (
+          <>
+            <section style={heroCardStyle}>
+              <div style={heroLeftStyle}>
+                <div style={miniLabelStyle}>GYMUP CRM</div>
+                <h1 style={titleStyle}>{customer.name || "顧客詳細"}</h1>
+                <p style={descStyle}>
+                  顧客情報・契約状況・最新のトレーニング記録を確認できます。
+                </p>
+              </div>
 
-        {errorMessage && <div style={errorBoxStyle}>{errorMessage}</div>}
+              <div style={heroButtonWrapStyle}>
+                <Link href={`/customer/${customerId}/training`} style={primaryLinkButtonStyle}>
+                  トレーニング履歴
+                </Link>
+                <Link href={`/customer/${customerId}/training?mode=new`} style={secondaryLinkButtonStyle}>
+                  新規トレーニング入力
+                </Link>
+              </div>
+            </section>
 
-        <div style={panelStyle}>
-          <div style={panelHeaderStyle}>
-            <div>
-              <div style={panelMiniStyle}>NEW RECORD</div>
-              <h2 style={panelTitleStyle}>履歴を追加</h2>
-            </div>
-          </div>
+            <section style={panelStyle}>
+              <div style={panelHeaderStyle}>
+                <div>
+                  <div style={panelMiniStyle}>PROFILE</div>
+                  <h2 style={panelTitleStyle}>顧客情報</h2>
+                </div>
+              </div>
 
-          <div style={formGridStyle}>
-            <div style={fieldGroupStyle}>
-              <label style={labelStyle}>日付</label>
-              <input type="date" value={trainingDate} onChange={(e) => setTrainingDate(e.target.value)} style={inputStyle} />
-            </div>
+              <div style={infoGridStyle}>
+                <InfoItem label="氏名" value={customer.name} />
+                <InfoItem label="かな" value={customer.kana} />
+                <InfoItem label="電話" value={customer.phone} />
+                <InfoItem label="メール" value={customer.email} />
+                <InfoItem label="性別" value={customer.gender} />
+                <InfoItem label="年齢" value={displayValue(customer.age)} />
+                <InfoItem label="誕生日" value={formatDate(customer.birthday)} />
+                <InfoItem label="身長" value={displayValue(customer.height, "cm")} />
+                <InfoItem label="現在の体重" value={displayValue(customer.weight, "kg")} />
+                <InfoItem label="体脂肪率" value={displayValue(customer.body_fat, "%")} />
+                <InfoItem label="筋肉量" value={displayValue(customer.muscle_mass, "kg")} />
+                <InfoItem label="内臓脂肪" value={displayValue(customer.visceral_fat)} />
+                <InfoItem label="最終来店日" value={formatDate(customer.last_visit_date)} />
+                <InfoItem label="LTV" value={formatPrice(customer.ltv)} />
+              </div>
 
-            <div style={fieldGroupStyle}>
-              <label style={labelStyle}>体重（kg）</label>
-              <input value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="例 68.5" style={inputStyle} />
-            </div>
+              <div style={memoWrapStyle}>
+                <div style={memoBlockStyle}>
+                  <div style={memoLabelStyle}>目標</div>
+                  <div style={memoValueStyle}>{customer.goal || "未設定"}</div>
+                </div>
 
-            <div style={fieldGroupStyle}>
-              <label style={labelStyle}>体脂肪（%）</label>
-              <input value={bodyFat} onChange={(e) => setBodyFat(e.target.value)} placeholder="例 18.2" style={inputStyle} />
-            </div>
+                <div style={memoBlockStyle}>
+                  <div style={memoLabelStyle}>メモ</div>
+                  <div style={memoValueStyle}>{customer.memo || "未設定"}</div>
+                </div>
+              </div>
+            </section>
 
-            <div style={fieldGroupStyle}>
-              <label style={labelStyle}>筋肉量（kg）</label>
-              <input value={muscleMass} onChange={(e) => setMuscleMass(e.target.value)} placeholder="例 52.3" style={inputStyle} />
-            </div>
+            <section style={panelStyle}>
+              <div style={panelHeaderStyle}>
+                <div>
+                  <div style={panelMiniStyle}>CONTRACT</div>
+                  <h2 style={panelTitleStyle}>契約・利用状況</h2>
+                </div>
+              </div>
 
-            <div style={fieldGroupStyle}>
-              <label style={labelStyle}>内臓脂肪</label>
-              <input value={visceralFat} onChange={(e) => setVisceralFat(e.target.value)} placeholder="例 8" style={inputStyle} />
-            </div>
+              <div style={infoGridStyle}>
+                <InfoItem label="プラン種類" value={customer.plan_type} />
+                <InfoItem label="利用形態" value={customer.plan_style} />
+                <InfoItem label="月回数" value={displayValue(customer.monthly_count, "回")} />
+                <InfoItem label="使用回数" value={displayValue(customer.used_count, "回")} />
+                <InfoItem label="繰越回数" value={displayValue(customer.carry_over, "回")} />
+                <InfoItem label="残回数" value={displayValue(customer.remaining_count, "回")} />
+                <InfoItem label="料金" value={formatPrice(customer.price)} />
+                <InfoItem label="ステータス" value={customer.status} />
+                <InfoItem label="次回支払日" value={formatDate(customer.next_payment_date)} />
+              </div>
+            </section>
 
-            <div style={{ ...fieldGroupStyle, gridColumn: "1 / -1" }}>
-              <label style={labelStyle}>メモ</label>
-              <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={4} placeholder="測定メモ" style={textareaStyle} />
-            </div>
-          </div>
+            <section style={panelStyle}>
+              <div style={panelHeaderStyle}>
+                <div>
+                  <div style={panelMiniStyle}>LATEST TRAINING</div>
+                  <h2 style={panelTitleStyle}>最新トレーニング記録</h2>
+                </div>
+                <Link href={`/customer/${customerId}/training`} style={miniActionLinkStyle}>
+                  一覧を見る →
+                </Link>
+              </div>
 
-          <div style={buttonRowStyle}>
-            <button onClick={handleAddLog} disabled={saving} style={primaryButtonStyle}>
-              {saving ? "保存中..." : "履歴を追加"}
-            </button>
-          </div>
-        </div>
+              {!latestSession ? (
+                <div style={emptyStyle}>まだトレーニング履歴がありません。</div>
+              ) : (
+                <div style={latestCardStyle}>
+                  <div style={infoGridStyle}>
+                    <InfoItem label="セッション日" value={formatDate(latestSession.session_date)} />
+                    <InfoItem label="身長" value={displayValue(latestSession.body_height, "cm")} />
+                    <InfoItem label="体重" value={displayValue(latestSession.body_weight, "kg")} />
+                    <InfoItem label="体脂肪" value={displayValue(latestSession.body_fat, "%")} />
+                    <InfoItem label="筋肉量" value={displayValue(latestSession.muscle_mass, "kg")} />
+                    <InfoItem label="内臓脂肪" value={displayValue(latestSession.visceral_fat)} />
+                    <InfoItem
+                      label="更新日時"
+                      value={formatDateTime(latestSession.updated_at || latestSession.created_at)}
+                    />
+                  </div>
 
-        <div style={panelStyle}>
-          <div style={panelHeaderStyle}>
-            <div>
-              <div style={panelMiniStyle}>HISTORY</div>
-              <h2 style={panelTitleStyle}>履歴一覧</h2>
-            </div>
-          </div>
+                  <div style={memoWrapStyle}>
+                    <div style={memoBlockStyle}>
+                      <div style={memoLabelStyle}>総評</div>
+                      <div style={memoValueStyle}>{latestSession.summary || "未入力"}</div>
+                    </div>
 
-          {loading ? (
-            <div style={loadingStyle}>読み込み中...</div>
-          ) : logs.length === 0 ? (
-            <div style={emptyStyle}>まだ履歴がありません。</div>
-          ) : (
-            <div style={tableWrapStyle}>
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={thStyle}>日付</th>
-                    <th style={thStyle}>体重</th>
-                    <th style={thStyle}>体脂肪</th>
-                    <th style={thStyle}>筋肉量</th>
-                    <th style={thStyle}>内臓脂肪</th>
-                    <th style={thStyle}>メモ</th>
-                    <th style={thStyle}>更新</th>
-                    <th style={thStyle}>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {logs.map((log) => (
-                    <tr key={log.id}>
-                      <td style={tdStyleStrong}>{formatDateLabel(log.training_date)}</td>
-                      <td style={tdStyle}>{displayMetric(log.weight, "kg")}</td>
-                      <td style={tdStyle}>{displayMetric(log.body_fat, "%")}</td>
-                      <td style={tdStyle}>{displayMetric(log.muscle_mass, "kg")}</td>
-                      <td style={tdStyle}>{displayMetric(log.visceral_fat)}</td>
-                      <td style={tdNoteStyle}>{log.note || "-"}</td>
-                      <td style={tdStyle}>{formatDateTime(log.updated_at || log.created_at)}</td>
-                      <td style={tdStyle}>
-                        <div style={actionButtonWrapStyle}>
-                          <button style={editButtonStyle} onClick={() => openEditModal(log)}>
-                            編集
-                          </button>
-                          <button style={deleteButtonStyle} onClick={() => handleDeleteLog(log.id)}>
-                            削除
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                    <div style={memoBlockStyle}>
+                      <div style={memoLabelStyle}>次回課題</div>
+                      <div style={memoValueStyle}>{latestSession.next_task || "未入力"}</div>
+                    </div>
+
+                    <div style={memoBlockStyle}>
+                      <div style={memoLabelStyle}>姿勢メモ</div>
+                      <div style={memoValueStyle}>{latestSession.posture_note || "未入力"}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </section>
+          </>
+        )}
       </div>
+    </div>
+  );
+}
 
-      {editingLog && (
-        <div style={modalOverlayStyle}>
-          <div style={modalCardStyle}>
-            <div style={panelHeaderStyle}>
-              <div>
-                <div style={panelMiniStyle}>EDIT RECORD</div>
-                <h3 style={modalTitleStyle}>履歴を編集</h3>
-              </div>
-              <button onClick={closeEditModal} style={closeButtonStyle}>
-                ✕
-              </button>
-            </div>
-
-            <div style={formGridStyle}>
-              <div style={fieldGroupStyle}>
-                <label style={labelStyle}>日付</label>
-                <input type="date" value={editTrainingDate} onChange={(e) => setEditTrainingDate(e.target.value)} style={inputStyle} />
-              </div>
-
-              <div style={fieldGroupStyle}>
-                <label style={labelStyle}>体重（kg）</label>
-                <input value={editWeight} onChange={(e) => setEditWeight(e.target.value)} style={inputStyle} />
-              </div>
-
-              <div style={fieldGroupStyle}>
-                <label style={labelStyle}>体脂肪（%）</label>
-                <input value={editBodyFat} onChange={(e) => setEditBodyFat(e.target.value)} style={inputStyle} />
-              </div>
-
-              <div style={fieldGroupStyle}>
-                <label style={labelStyle}>筋肉量（kg）</label>
-                <input value={editMuscleMass} onChange={(e) => setEditMuscleMass(e.target.value)} style={inputStyle} />
-              </div>
-
-              <div style={fieldGroupStyle}>
-                <label style={labelStyle}>内臓脂肪</label>
-                <input value={editVisceralFat} onChange={(e) => setEditVisceralFat(e.target.value)} style={inputStyle} />
-              </div>
-
-              <div style={{ ...fieldGroupStyle, gridColumn: "1 / -1" }}>
-                <label style={labelStyle}>メモ</label>
-                <textarea value={editNote} onChange={(e) => setEditNote(e.target.value)} rows={4} style={textareaStyle} />
-              </div>
-            </div>
-
-            <div style={buttonRowStyle}>
-              <button onClick={closeEditModal} style={secondaryButtonStyle}>
-                キャンセル
-              </button>
-              <button onClick={handleSaveEdit} disabled={saving} style={primaryButtonStyle}>
-                {saving ? "保存中..." : "更新する"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+function InfoItem({ label, value }: { label: string; value: unknown }) {
+  return (
+    <div style={infoCardStyle}>
+      <div style={infoLabelStyle}>{label}</div>
+      <div style={infoValueStyle}>
+        {value === null || value === undefined || value === "" ? "—" : String(value)}
+      </div>
     </div>
   );
 }
 
 const pageStyle: CSSProperties = {
   minHeight: "100vh",
-  background:
-    "linear-gradient(135deg, #eef4ff 0%, #f8fbff 30%, #f3f7ff 65%, #eef2ff 100%)",
+  background: "linear-gradient(135deg, #eef4ff 0%, #f8fbff 30%, #f3f7ff 65%, #eef2ff 100%)",
   position: "relative",
   overflow: "hidden",
 };
@@ -514,8 +374,7 @@ const bgGlowA: CSSProperties = {
   width: 420,
   height: 420,
   borderRadius: "50%",
-  background:
-    "radial-gradient(circle, rgba(147,197,253,0.22) 0%, rgba(147,197,253,0) 72%)",
+  background: "radial-gradient(circle, rgba(147,197,253,0.22) 0%, rgba(147,197,253,0) 72%)",
   pointerEvents: "none",
 };
 
@@ -526,8 +385,7 @@ const bgGlowB: CSSProperties = {
   width: 360,
   height: 360,
   borderRadius: "50%",
-  background:
-    "radial-gradient(circle, rgba(196,181,253,0.18) 0%, rgba(196,181,253,0) 72%)",
+  background: "radial-gradient(circle, rgba(196,181,253,0.18) 0%, rgba(196,181,253,0) 72%)",
   pointerEvents: "none",
 };
 
@@ -563,6 +421,15 @@ const eyebrowStyle: CSSProperties = {
   color: "rgba(30,41,59,0.42)",
 };
 
+const loadingCardStyle: CSSProperties = {
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(255,255,255,0.75)",
+  borderRadius: 24,
+  padding: 24,
+  color: "#0f172a",
+  boxShadow: "0 18px 40px rgba(148,163,184,0.14)",
+};
+
 const heroCardStyle: CSSProperties = {
   background: "rgba(255,255,255,0.55)",
   border: "1px solid rgba(255,255,255,0.75)",
@@ -571,6 +438,11 @@ const heroCardStyle: CSSProperties = {
   marginBottom: 20,
   boxShadow: "0 18px 40px rgba(148,163,184,0.14)",
   backdropFilter: "blur(10px)",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 16,
+  flexWrap: "wrap",
 };
 
 const heroLeftStyle: CSSProperties = {
@@ -600,6 +472,47 @@ const descStyle: CSSProperties = {
   color: "rgba(15,23,42,0.68)",
 };
 
+const heroButtonWrapStyle: CSSProperties = {
+  display: "flex",
+  gap: 12,
+  flexWrap: "wrap",
+};
+
+const primaryLinkButtonStyle: CSSProperties = {
+  minWidth: 150,
+  height: 48,
+  border: "none",
+  borderRadius: 16,
+  background: "linear-gradient(135deg, #ffffff, #eaf1ff)",
+  color: "#0f172a",
+  fontWeight: 700,
+  fontSize: 14,
+  cursor: "pointer",
+  boxShadow: "0 10px 24px rgba(148,163,184,0.15)",
+  padding: "0 18px",
+  textDecoration: "none",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const secondaryLinkButtonStyle: CSSProperties = {
+  minWidth: 170,
+  height: 48,
+  border: "1px solid rgba(203,213,225,0.95)",
+  borderRadius: 16,
+  background: "rgba(255,255,255,0.84)",
+  color: "#0f172a",
+  fontWeight: 700,
+  fontSize: 14,
+  cursor: "pointer",
+  padding: "0 18px",
+  textDecoration: "none",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
 const errorBoxStyle: CSSProperties = {
   marginBottom: 20,
   padding: "14px 16px",
@@ -626,6 +539,7 @@ const panelHeaderStyle: CSSProperties = {
   alignItems: "center",
   gap: 16,
   marginBottom: 16,
+  flexWrap: "wrap",
 };
 
 const panelMiniStyle: CSSProperties = {
@@ -642,202 +556,74 @@ const panelTitleStyle: CSSProperties = {
   fontWeight: 700,
 };
 
-const formGridStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: 14,
-};
-
-const fieldGroupStyle: CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: 8,
-};
-
-const labelStyle: CSSProperties = {
+const miniActionLinkStyle: CSSProperties = {
+  textDecoration: "none",
+  color: "#334155",
   fontSize: 13,
-  color: "rgba(15,23,42,0.78)",
+  fontWeight: 700,
 };
 
-const inputStyle: CSSProperties = {
-  width: "100%",
-  height: 48,
-  borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.9)",
-  background: "rgba(255,255,255,0.82)",
+const infoGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: 12,
+};
+
+const infoCardStyle: CSSProperties = {
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  borderRadius: 18,
+  padding: "14px 14px 12px",
+};
+
+const infoLabelStyle: CSSProperties = {
+  fontSize: 12,
+  color: "rgba(15,23,42,0.52)",
+  marginBottom: 8,
+};
+
+const infoValueStyle: CSSProperties = {
+  fontSize: 15,
   color: "#0f172a",
-  padding: "0 14px",
-  outline: "none",
-  fontSize: 14,
+  fontWeight: 700,
+  lineHeight: 1.5,
+  wordBreak: "break-word",
 };
 
-const textareaStyle: CSSProperties = {
-  width: "100%",
-  borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.9)",
-  background: "rgba(255,255,255,0.82)",
-  color: "#0f172a",
-  padding: "12px 14px",
-  outline: "none",
-  fontSize: 14,
-  resize: "vertical",
-};
-
-const buttonRowStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "flex-end",
+const memoWrapStyle: CSSProperties = {
+  display: "grid",
   gap: 12,
   marginTop: 16,
-  flexWrap: "wrap",
 };
 
-const primaryButtonStyle: CSSProperties = {
-  minWidth: 140,
-  height: 48,
-  border: "none",
-  borderRadius: 16,
-  background: "linear-gradient(135deg, #ffffff, #eaf1ff)",
-  color: "#0f172a",
-  fontWeight: 700,
-  fontSize: 14,
-  cursor: "pointer",
-  boxShadow: "0 10px 24px rgba(148,163,184,0.15)",
-  padding: "0 16px",
+const memoBlockStyle: CSSProperties = {
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  borderRadius: 18,
+  padding: "14px 16px",
 };
 
-const secondaryButtonStyle: CSSProperties = {
-  minWidth: 120,
-  height: 48,
-  border: "1px solid rgba(203,213,225,0.95)",
-  borderRadius: 16,
-  background: "rgba(255,255,255,0.84)",
-  color: "#0f172a",
-  fontWeight: 700,
-  fontSize: 14,
-  cursor: "pointer",
-  padding: "0 16px",
-};
-
-const tableWrapStyle: CSSProperties = {
-  width: "100%",
-  overflowX: "auto",
-};
-
-const tableStyle: CSSProperties = {
-  width: "100%",
-  minWidth: 980,
-  borderCollapse: "separate",
-  borderSpacing: 0,
-};
-
-const thStyle: CSSProperties = {
-  textAlign: "left",
-  padding: "14px 12px",
+const memoLabelStyle: CSSProperties = {
   fontSize: 12,
-  color: "rgba(15,23,42,0.56)",
-  borderBottom: "1px solid rgba(226,232,240,0.95)",
-  background: "rgba(255,255,255,0.55)",
-  whiteSpace: "nowrap",
+  color: "rgba(15,23,42,0.52)",
+  marginBottom: 8,
 };
 
-const tdStyle: CSSProperties = {
-  padding: "14px 12px",
-  fontSize: 13,
-  color: "#0f172a",
-  borderBottom: "1px solid rgba(226,232,240,0.82)",
-  whiteSpace: "nowrap",
-  verticalAlign: "top",
-};
-
-const tdStyleStrong: CSSProperties = {
-  ...tdStyle,
-  fontWeight: 700,
-};
-
-const tdNoteStyle: CSSProperties = {
-  ...tdStyle,
-  whiteSpace: "normal",
-  minWidth: 180,
-  lineHeight: 1.6,
-};
-
-const actionButtonWrapStyle: CSSProperties = {
-  display: "flex",
-  gap: 8,
-  flexWrap: "wrap",
-};
-
-const editButtonStyle: CSSProperties = {
-  height: 36,
-  border: "1px solid rgba(203,213,225,0.95)",
-  borderRadius: 12,
-  background: "rgba(255,255,255,0.9)",
-  color: "#0f172a",
-  fontWeight: 700,
-  fontSize: 13,
-  cursor: "pointer",
-  padding: "0 14px",
-};
-
-const deleteButtonStyle: CSSProperties = {
-  height: 36,
-  border: "1px solid rgba(254,202,202,0.95)",
-  borderRadius: 12,
-  background: "rgba(254,242,242,0.95)",
-  color: "#b91c1c",
-  fontWeight: 700,
-  fontSize: 13,
-  cursor: "pointer",
-  padding: "0 14px",
-};
-
-const loadingStyle: CSSProperties = {
-  padding: "18px 0",
+const memoValueStyle: CSSProperties = {
   fontSize: 14,
-  color: "rgba(15,23,42,0.62)",
+  lineHeight: 1.8,
+  color: "#0f172a",
+  whiteSpace: "pre-wrap",
+  wordBreak: "break-word",
+};
+
+const latestCardStyle: CSSProperties = {
+  display: "grid",
+  gap: 12,
 };
 
 const emptyStyle: CSSProperties = {
-  padding: "18px 0",
-  fontSize: 14,
+  padding: "14px 0",
   color: "rgba(15,23,42,0.62)",
-};
-
-const modalOverlayStyle: CSSProperties = {
-  position: "fixed",
-  inset: 0,
-  background: "rgba(15,23,42,0.22)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: 16,
-  zIndex: 1000,
-};
-
-const modalCardStyle: CSSProperties = {
-  width: "100%",
-  maxWidth: 760,
-  background: "rgba(255,255,255,0.95)",
-  border: "1px solid rgba(255,255,255,0.85)",
-  borderRadius: 24,
-  padding: 22,
-  boxShadow: "0 24px 60px rgba(15,23,42,0.16)",
-};
-
-const modalTitleStyle: CSSProperties = {
-  margin: 0,
-  fontSize: 22,
-  color: "#0f172a",
-  fontWeight: 800,
-};
-
-const closeButtonStyle: CSSProperties = {
-  width: 40,
-  height: 40,
-  borderRadius: 9999,
-  border: "1px solid rgba(203,213,225,0.95)",
-  background: "#ffffff",
-  color: "#0f172a",
-  fontSize: 16,
-  cursor: "pointer",
+  fontSize: 14,
 };
