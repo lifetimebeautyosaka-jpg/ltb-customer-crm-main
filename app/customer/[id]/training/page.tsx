@@ -181,7 +181,7 @@ function getExercisesByCategory(category: string) {
 }
 
 function toNumberOrNull(value: string) {
-  if (!value.trim()) return null;
+  if (!String(value || "").trim()) return null;
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
 }
@@ -541,13 +541,13 @@ export default function TrainingPage() {
 
       const validRows = setRows.filter((row) => {
         return (
-          row.category.trim() ||
-          row.exercise_name.trim() ||
-          row.set_count.trim() ||
-          row.reps.trim() ||
-          row.weight.trim() ||
-          row.seconds.trim() ||
-          row.memo.trim()
+          String(row.category || "").trim() ||
+          String(row.exercise_name || "").trim() ||
+          String(row.set_count || "").trim() ||
+          String(row.reps || "").trim() ||
+          String(row.weight || "").trim() ||
+          String(row.seconds || "").trim() ||
+          String(row.memo || "").trim()
         );
       });
 
@@ -600,13 +600,15 @@ export default function TrainingPage() {
           session_id: sessionId,
           row_id: row.rowId,
           row_order: index,
-          category: row.category.trim() || null,
-          exercise_name: row.exercise_name.trim() || null,
-          set_count: row.set_count ? Number(row.set_count) : null,
-          reps: row.reps.trim() || null,
-          weight: row.weight.trim() || null,
-          seconds: row.seconds.trim() || null,
-          memo: row.memo.trim() || null,
+          category: String(row.category || "").trim() || null,
+          exercise_name: String(row.exercise_name || "").trim() || null,
+          set_count: String(row.set_count || "").trim()
+            ? Number(row.set_count)
+            : null,
+          reps: String(row.reps || "").trim() || null,
+          weight: String(row.weight || "").trim() || null,
+          seconds: String(row.seconds || "").trim() || null,
+          memo: String(row.memo || "").trim() || null,
         }));
 
         const { error: rowsError } = await supabase
@@ -664,7 +666,9 @@ export default function TrainingPage() {
   }
 
   const exerciseCount = useMemo(() => {
-    return setRows.filter((row) => row.exercise_name.trim()).length;
+    return setRows.filter(
+      (row) => String(row.exercise_name || "").trim()
+    ).length;
   }, [setRows]);
 
   if (!mounted) return null;
@@ -930,7 +934,9 @@ export default function TrainingPage() {
                         <span style={labelStyle}>回数</span>
                         <input
                           value={row.reps}
-                          onChange={(e) => updateRow(row.rowId, "reps", e.target.value)}
+                          onChange={(e) =>
+                            updateRow(row.rowId, "reps", e.target.value)
+                          }
                           placeholder="10回"
                           style={tableInputStyle}
                         />
@@ -940,7 +946,9 @@ export default function TrainingPage() {
                         <span style={labelStyle}>重量</span>
                         <input
                           value={row.weight}
-                          onChange={(e) => updateRow(row.rowId, "weight", e.target.value)}
+                          onChange={(e) =>
+                            updateRow(row.rowId, "weight", e.target.value)
+                          }
                           placeholder="40kg"
                           style={tableInputStyle}
                         />
@@ -968,7 +976,9 @@ export default function TrainingPage() {
                         <span style={labelStyle}>メモ</span>
                         <textarea
                           value={row.memo}
-                          onChange={(e) => updateRow(row.rowId, "memo", e.target.value)}
+                          onChange={(e) =>
+                            updateRow(row.rowId, "memo", e.target.value)
+                          }
                           placeholder="フォーム意識、注意点など"
                           style={{ ...textareaStyle, minHeight: 88 }}
                         />
@@ -1428,12 +1438,6 @@ const trainingDeleteButtonStyle: CSSProperties = {
   padding: "0 12px",
 };
 
-const exerciseCardGridStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gap: 12,
-};
-
 const removeImageButtonStyle: CSSProperties = {
   position: "absolute",
   right: 10,
@@ -1447,6 +1451,12 @@ const removeImageButtonStyle: CSSProperties = {
   fontSize: 12,
   cursor: "pointer",
   padding: "0 12px",
+};
+
+const exerciseCardGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: 12,
 };
 
 const emptyBoxStyle: CSSProperties = {
