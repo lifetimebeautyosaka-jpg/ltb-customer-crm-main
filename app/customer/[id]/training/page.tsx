@@ -304,7 +304,10 @@ export default function TrainingPage() {
   useEffect(() => {
     if (!mounted) return;
 
-    const loggedIn = localStorage.getItem("gymup_logged_in");
+    const loggedIn =
+      localStorage.getItem("gymup_logged_in") ||
+      localStorage.getItem("isLoggedIn");
+
     if (loggedIn !== "true") {
       router.push("/login");
       return;
@@ -710,6 +713,13 @@ export default function TrainingPage() {
             </div>
 
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={() => router.push(`/customer/${customerId}`)}
+                style={secondaryButtonStyle}
+              >
+                顧客詳細へ戻る
+              </button>
               <button
                 type="button"
                 onClick={() => resetForm(true)}
@@ -1150,192 +1160,125 @@ export default function TrainingPage() {
                           <div style={historyDateStyle}>
                             {formatDate(session.session_date)}
                           </div>
-                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                            <span style={historyBadgeStyle}>
-                              身長：{session.body_height ?? "—"} cm
-                            </span>
-                            <span style={historyBadgeStyle}>
-                              体重：{session.body_weight ?? "—"} kg
-                            </span>
-                            <span style={historyBadgeStyle}>
-                              体脂肪：{session.body_fat ?? "—"} %
-                            </span>
-                            <span style={historyBadgeStyle}>
-                              筋肉量：{session.muscle_mass ?? "—"} kg
-                            </span>
-                            <span style={historyBadgeStyle}>
-                              内臓脂肪：{session.visceral_fat ?? "—"}
-                            </span>
+                          <div style={historySubStyle}>
+                            体重 {session.body_weight ?? "—"}kg / 体脂肪{" "}
+                            {session.body_fat ?? "—"}%
+                          </div>
+                          <div style={historySubStyle}>
+                            筋肉量 {session.muscle_mass ?? "—"}kg / 内臓脂肪{" "}
+                            {session.visceral_fat ?? "—"}
+                          </div>
+                          <div style={historySubStyle}>
+                            更新日時 {formatDateTime(session.updated_at || session.created_at)}
                           </div>
                         </div>
 
                         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                           <button
                             type="button"
-                            onClick={() => applySessionToForm(session, false)}
-                            style={copyButtonStyle}
+                            onClick={() => applySessionToForm(session, true)}
+                            style={historyActionButtonStyle}
                           >
-                            履歴コピー
+                            編集
                           </button>
-
                           <button
                             type="button"
-                            onClick={() => applySessionToForm(session, true)}
-                            style={secondaryButtonStyle}
+                            onClick={() => applySessionToForm(session, false)}
+                            style={historyActionButtonStyle}
                           >
-                            編集する
+                            コピー
                           </button>
-
                           <button
                             type="button"
                             onClick={() => void handleDelete(session.id)}
-                            style={dangerButtonStyle}
+                            style={historyDeleteButtonStyle}
                           >
                             削除
                           </button>
                         </div>
                       </div>
 
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns:
-                            "repeat(auto-fit, minmax(260px, 1fr))",
-                          gap: 14,
-                        }}
-                      >
-                        <div style={historyInnerBoxStyle}>
-                          <div style={historyBoxTitleStyle}>種目一覧</div>
-
-                          {sets.length === 0 ? (
-                            <div style={{ color: "#64748b", fontSize: 14 }}>未登録</div>
-                          ) : (
-                            <div style={{ display: "grid", gap: 8 }}>
-                              {sets.map((set, idx) => (
-                                <div
-                                  key={set.row_id || `${session.id}-${idx}`}
-                                  style={setItemStyle}
-                                >
-                                  <div style={setItemTitleStyle}>
-                                    {set.exercise_name || "種目名未入力"}
-                                  </div>
-                                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                                    {set.category && <span>カテゴリ：{set.category}</span>}
-                                    {set.set_count !== null &&
-                                      set.set_count !== undefined && (
-                                        <span>セット：{set.set_count}</span>
-                                      )}
-                                    {set.reps && <span>回数：{set.reps}</span>}
-                                    {set.weight && <span>重量：{set.weight}</span>}
-                                    {set.seconds && <span>秒数：{set.seconds}</span>}
-                                  </div>
-                                  {set.memo && (
-                                    <div style={{ marginTop: 6, color: "#475569" }}>
-                                      メモ：{set.memo}
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
+                      {(session.summary || session.next_task || session.posture_note) && (
+                        <div style={historyTextBlockWrapStyle}>
+                          <div style={historyTextBlockStyle}>
+                            <div style={historyTextLabelStyle}>総評</div>
+                            <div style={historyTextValueStyle}>
+                              {session.summary || "—"}
                             </div>
-                          )}
+                          </div>
+                          <div style={historyTextBlockStyle}>
+                            <div style={historyTextLabelStyle}>次回課題</div>
+                            <div style={historyTextValueStyle}>
+                              {session.next_task || "—"}
+                            </div>
+                          </div>
+                          <div style={historyTextBlockStyle}>
+                            <div style={historyTextLabelStyle}>姿勢メモ</div>
+                            <div style={historyTextValueStyle}>
+                              {session.posture_note || "—"}
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
-                          {safeArray(session.stretch_menu).length > 0 && (
-                            <>
-                              <div
-                                style={{ ...historyBoxTitleStyle, marginTop: 12 }}
-                              >
-                                ストレッチ項目
-                              </div>
-                              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                                {safeArray(session.stretch_menu).map((item, idx) => (
-                                  <span
-                                    key={`${session.id}-stretch-${idx}`}
-                                    style={stretchBadgeStyle}
-                                  >
-                                    {item}
-                                  </span>
+                      {safeArray(session.stretch_menu).length > 0 && (
+                        <div style={{ marginTop: 14 }}>
+                          <div style={historyTextLabelStyle}>ストレッチ項目</div>
+                          <div style={chipWrapStyle}>
+                            {safeArray(session.stretch_menu).map((item, idx) => (
+                              <span key={`${item}-${idx}`} style={chipStyle}>
+                                {item}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {sets.length > 0 && (
+                        <div style={{ marginTop: 16 }}>
+                          <div style={historyTextLabelStyle}>トレーニング種目</div>
+                          <div style={setTableWrapStyle}>
+                            <table style={setTableStyle}>
+                              <thead>
+                                <tr>
+                                  <th style={thStyle}>カテゴリ</th>
+                                  <th style={thStyle}>種目名</th>
+                                  <th style={thStyle}>セット数</th>
+                                  <th style={thStyle}>回数</th>
+                                  <th style={thStyle}>重量</th>
+                                  <th style={thStyle}>秒数</th>
+                                  <th style={thStyle}>メモ</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {sets.map((set) => (
+                                  <tr key={set.id}>
+                                    <td style={tdStyle}>{set.category || "—"}</td>
+                                    <td style={tdStyle}>{set.exercise_name || "—"}</td>
+                                    <td style={tdStyle}>{set.set_count ?? "—"}</td>
+                                    <td style={tdStyle}>{set.reps || "—"}</td>
+                                    <td style={tdStyle}>{set.weight || "—"}</td>
+                                    <td style={tdStyle}>{set.seconds || "—"}</td>
+                                    <td style={tdStyleMemo}>{set.memo || "—"}</td>
+                                  </tr>
                                 ))}
-                              </div>
-                            </>
-                          )}
-                        </div>
-
-                        <div style={historyInnerBoxStyle}>
-                          <div style={historyBoxTitleStyle}>総評</div>
-                          <div
-                            style={{
-                              whiteSpace: "pre-wrap",
-                              color: "#334155",
-                              fontSize: 14,
-                            }}
-                          >
-                            {session.summary || "未入力"}
-                          </div>
-
-                          <div
-                            style={{ ...historyBoxTitleStyle, marginTop: 14 }}
-                          >
-                            次回課題
-                          </div>
-                          <div
-                            style={{
-                              whiteSpace: "pre-wrap",
-                              color: "#334155",
-                              fontSize: 14,
-                            }}
-                          >
-                            {session.next_task || "未入力"}
-                          </div>
-
-                          <div
-                            style={{ ...historyBoxTitleStyle, marginTop: 14 }}
-                          >
-                            姿勢メモ
-                          </div>
-                          <div
-                            style={{
-                              whiteSpace: "pre-wrap",
-                              color: "#334155",
-                              fontSize: 14,
-                            }}
-                          >
-                            {session.posture_note || "未入力"}
+                              </tbody>
+                            </table>
                           </div>
                         </div>
-                      </div>
+                      )}
 
                       {images.length > 0 && (
                         <div style={{ marginTop: 16 }}>
-                          <div style={historyBoxTitleStyle}>姿勢画像</div>
-                          <div
-                            style={{
-                              display: "grid",
-                              gridTemplateColumns:
-                                "repeat(auto-fit, minmax(180px, 1fr))",
-                              gap: 12,
-                            }}
-                          >
+                          <div style={historyTextLabelStyle}>姿勢画像</div>
+                          <div style={historyImageGridStyle}>
                             {images.map((url, idx) => (
-                              <div
-                                key={`${session.id}-img-${idx}`}
-                                style={{
-                                  borderRadius: 18,
-                                  overflow: "hidden",
-                                  border: "1px solid rgba(148,163,184,0.16)",
-                                  background: "#fff",
-                                }}
-                              >
-                                <img
-                                  src={url}
-                                  alt={`posture-${idx + 1}`}
-                                  style={{
-                                    width: "100%",
-                                    aspectRatio: "3 / 4",
-                                    objectFit: "cover",
-                                    display: "block",
-                                  }}
-                                />
-                              </div>
+                              <img
+                                key={`${url}-${idx}`}
+                                src={url}
+                                alt={`history-posture-${idx + 1}`}
+                                style={historyImageStyle}
+                              />
                             ))}
                           </div>
                         </div>
@@ -1361,93 +1304,101 @@ const sectionTitleStyle: CSSProperties = {
 
 const labelStyle: CSSProperties = {
   fontSize: 13,
-  color: "#334155",
+  color: "#475569",
   fontWeight: 700,
 };
 
 const inputStyle: CSSProperties = {
   width: "100%",
-  minWidth: 0,
-  height: 46,
+  height: 48,
   borderRadius: 14,
-  border: "1px solid rgba(148,163,184,0.24)",
-  background: "rgba(255,255,255,0.86)",
-  padding: "0 14px",
+  border: "1px solid rgba(203,213,225,0.9)",
+  background: "rgba(255,255,255,0.88)",
   color: "#0f172a",
-  fontSize: 14,
+  padding: "0 14px",
   outline: "none",
+  fontSize: 14,
+  boxSizing: "border-box",
 };
 
 const textareaStyle: CSSProperties = {
   width: "100%",
-  minWidth: 0,
   borderRadius: 14,
-  border: "1px solid rgba(148,163,184,0.24)",
-  background: "rgba(255,255,255,0.86)",
-  padding: "12px 14px",
+  border: "1px solid rgba(203,213,225,0.9)",
+  background: "rgba(255,255,255,0.88)",
   color: "#0f172a",
-  fontSize: 14,
+  padding: "12px 14px",
   outline: "none",
+  fontSize: 14,
   resize: "vertical",
+  boxSizing: "border-box",
+};
+
+const tableInputStyle: CSSProperties = {
+  width: "100%",
+  height: 46,
+  borderRadius: 12,
+  border: "1px solid rgba(203,213,225,0.9)",
+  background: "rgba(255,255,255,0.9)",
+  color: "#0f172a",
+  padding: "0 12px",
+  outline: "none",
+  fontSize: 14,
+  boxSizing: "border-box",
 };
 
 const secondaryButtonStyle: CSSProperties = {
-  height: 44,
+  minWidth: 140,
+  height: 46,
   borderRadius: 14,
-  border: "1px solid rgba(148,163,184,0.24)",
-  background: "rgba(255,255,255,0.82)",
-  color: "#0f172a",
-  padding: "0 16px",
+  border: "1px solid rgba(203,213,225,0.95)",
+  background: "rgba(255,255,255,0.88)",
+  color: "#334155",
   fontWeight: 700,
+  fontSize: 14,
   cursor: "pointer",
-};
-
-const dangerButtonStyle: CSSProperties = {
-  height: 44,
-  borderRadius: 14,
-  border: "1px solid rgba(248,113,113,0.22)",
-  background: "rgba(254,242,242,0.96)",
-  color: "#b91c1c",
   padding: "0 16px",
-  fontWeight: 700,
-  cursor: "pointer",
 };
 
 const alertErrorStyle: CSSProperties = {
-  padding: 16,
-  borderRadius: 18,
-  background: "rgba(254,242,242,0.95)",
-  border: "1px solid rgba(248,113,113,0.22)",
+  background: "rgba(254,226,226,0.92)",
+  border: "1px solid rgba(248,113,113,0.28)",
   color: "#b91c1c",
-  fontWeight: 700,
+  borderRadius: 16,
+  padding: "14px 16px",
+  fontSize: 14,
+  lineHeight: 1.7,
 };
 
 const alertSuccessStyle: CSSProperties = {
-  padding: 16,
-  borderRadius: 18,
-  background: "rgba(236,253,245,0.95)",
-  border: "1px solid rgba(16,185,129,0.18)",
-  color: "#047857",
-  fontWeight: 700,
+  background: "rgba(220,252,231,0.92)",
+  border: "1px solid rgba(74,222,128,0.28)",
+  color: "#166534",
+  borderRadius: 16,
+  padding: "14px 16px",
+  fontSize: 14,
+  lineHeight: 1.7,
 };
 
 const countBadgeStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
-  height: 42,
+  height: 40,
+  borderRadius: 9999,
+  background: "rgba(255,255,255,0.9)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  color: "#334155",
   padding: "0 14px",
-  borderRadius: 999,
-  background: "rgba(59,130,246,0.08)",
-  color: "#1d4ed8",
-  fontWeight: 800,
   fontSize: 13,
+  fontWeight: 700,
 };
 
 const exerciseCardStyle: CSSProperties = {
   background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(148,163,184,0.16)",
+  border: "1px solid rgba(226,232,240,0.92)",
   borderRadius: 20,
-  padding: 14,
+  padding: 16,
+  boxShadow: "0 12px 30px rgba(15,23,42,0.05)",
 };
 
 const exerciseCardHeaderStyle: CSSProperties = {
@@ -1456,13 +1407,25 @@ const exerciseCardHeaderStyle: CSSProperties = {
   alignItems: "center",
   gap: 12,
   flexWrap: "wrap",
-  marginBottom: 12,
+  marginBottom: 14,
 };
 
 const exerciseCardIndexStyle: CSSProperties = {
-  fontSize: 13,
+  fontSize: 14,
   fontWeight: 800,
-  color: "#334155",
+  color: "#0f172a",
+};
+
+const trainingDeleteButtonStyle: CSSProperties = {
+  height: 36,
+  borderRadius: 12,
+  border: "1px solid rgba(239,68,68,0.22)",
+  background: "rgba(254,242,242,0.95)",
+  color: "#b91c1c",
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: "pointer",
+  padding: "0 12px",
 };
 
 const exerciseCardGridStyle: CSSProperties = {
@@ -1471,25 +1434,14 @@ const exerciseCardGridStyle: CSSProperties = {
   gap: 12,
 };
 
-const tableInputStyle: CSSProperties = {
-  width: "100%",
-  minWidth: 0,
-  height: 42,
-  borderRadius: 12,
-  border: "1px solid rgba(203,213,225,0.9)",
-  background: "rgba(255,255,255,0.92)",
-  color: "#0f172a",
-  padding: "0 10px",
-  outline: "none",
-  fontSize: 13,
-};
-
-const trainingDeleteButtonStyle: CSSProperties = {
-  minWidth: 88,
-  height: 40,
-  border: "1px solid rgba(254,202,202,0.95)",
-  borderRadius: 12,
-  background: "rgba(254,242,242,0.95)",
+const removeImageButtonStyle: CSSProperties = {
+  position: "absolute",
+  right: 10,
+  bottom: 10,
+  height: 34,
+  borderRadius: 10,
+  border: "1px solid rgba(239,68,68,0.25)",
+  background: "rgba(255,255,255,0.95)",
   color: "#b91c1c",
   fontWeight: 700,
   fontSize: 12,
@@ -1497,33 +1449,21 @@ const trainingDeleteButtonStyle: CSSProperties = {
   padding: "0 12px",
 };
 
-const removeImageButtonStyle: CSSProperties = {
-  position: "absolute",
-  right: 8,
-  bottom: 8,
-  border: "none",
-  borderRadius: 10,
-  background: "rgba(15,23,42,0.76)",
-  color: "#fff",
-  fontSize: 12,
-  padding: "6px 10px",
-  cursor: "pointer",
-  fontWeight: 700,
-};
-
 const emptyBoxStyle: CSSProperties = {
-  padding: 18,
-  borderRadius: 18,
+  padding: "18px 16px",
+  borderRadius: 16,
   background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(148,163,184,0.16)",
-  color: "#64748b",
+  border: "1px solid rgba(226,232,240,0.95)",
+  color: "#475569",
+  fontSize: 14,
 };
 
 const historyCardStyle: CSSProperties = {
-  background: "rgba(255,255,255,0.7)",
-  border: "1px solid rgba(148,163,184,0.18)",
-  borderRadius: 24,
+  background: "rgba(255,255,255,0.82)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  borderRadius: 22,
   padding: 18,
+  boxShadow: "0 12px 30px rgba(15,23,42,0.05)",
 };
 
 const historyDateStyle: CSSProperties = {
@@ -1533,61 +1473,135 @@ const historyDateStyle: CSSProperties = {
   marginBottom: 6,
 };
 
-const historyBadgeStyle: CSSProperties = {
-  fontSize: 12,
-  background: "rgba(15,23,42,0.06)",
-  color: "#334155",
-  padding: "6px 10px",
-  borderRadius: 999,
-  fontWeight: 700,
-};
-
-const historyInnerBoxStyle: CSSProperties = {
-  background: "rgba(248,250,252,0.92)",
-  border: "1px solid rgba(148,163,184,0.14)",
-  borderRadius: 18,
-  padding: 14,
-};
-
-const historyBoxTitleStyle: CSSProperties = {
+const historySubStyle: CSSProperties = {
   fontSize: 13,
-  color: "#475569",
-  fontWeight: 800,
-  marginBottom: 10,
+  color: "#64748b",
+  lineHeight: 1.8,
 };
 
-const setItemStyle: CSSProperties = {
-  borderRadius: 14,
-  padding: 10,
-  background: "rgba(255,255,255,0.82)",
-  border: "1px solid rgba(148,163,184,0.14)",
-  fontSize: 13,
+const historyActionButtonStyle: CSSProperties = {
+  height: 38,
+  borderRadius: 12,
+  border: "1px solid rgba(203,213,225,0.95)",
+  background: "rgba(255,255,255,0.92)",
   color: "#334155",
-};
-
-const setItemTitleStyle: CSSProperties = {
-  fontSize: 14,
-  fontWeight: 800,
-  color: "#0f172a",
-  marginBottom: 6,
-};
-
-const stretchBadgeStyle: CSSProperties = {
-  fontSize: 12,
-  padding: "7px 10px",
-  borderRadius: 999,
-  background: "rgba(16,185,129,0.08)",
-  color: "#047857",
-  fontWeight: 700,
-};
-
-const copyButtonStyle: CSSProperties = {
-  height: 44,
-  borderRadius: 14,
-  border: "1px solid rgba(59,130,246,0.18)",
-  background: "rgba(239,246,255,0.96)",
-  color: "#1d4ed8",
-  padding: "0 16px",
+  fontSize: 13,
   fontWeight: 700,
   cursor: "pointer",
+  padding: "0 14px",
+};
+
+const historyDeleteButtonStyle: CSSProperties = {
+  height: 38,
+  borderRadius: 12,
+  border: "1px solid rgba(239,68,68,0.22)",
+  background: "rgba(254,242,242,0.95)",
+  color: "#b91c1c",
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: "pointer",
+  padding: "0 14px",
+};
+
+const historyTextBlockWrapStyle: CSSProperties = {
+  display: "grid",
+  gap: 12,
+  marginTop: 14,
+};
+
+const historyTextBlockStyle: CSSProperties = {
+  background: "rgba(248,250,252,0.9)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  borderRadius: 16,
+  padding: "12px 14px",
+};
+
+const historyTextLabelStyle: CSSProperties = {
+  fontSize: 12,
+  color: "#64748b",
+  fontWeight: 700,
+  marginBottom: 8,
+};
+
+const historyTextValueStyle: CSSProperties = {
+  fontSize: 14,
+  color: "#0f172a",
+  lineHeight: 1.8,
+  whiteSpace: "pre-wrap",
+  wordBreak: "break-word",
+};
+
+const chipWrapStyle: CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+  marginTop: 8,
+};
+
+const chipStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 32,
+  borderRadius: 9999,
+  background: "rgba(241,245,249,0.95)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  color: "#334155",
+  padding: "0 12px",
+  fontSize: 12,
+  fontWeight: 700,
+};
+
+const setTableWrapStyle: CSSProperties = {
+  marginTop: 8,
+  overflowX: "auto",
+};
+
+const setTableStyle: CSSProperties = {
+  width: "100%",
+  minWidth: 760,
+  borderCollapse: "separate",
+  borderSpacing: 0,
+};
+
+const thStyle: CSSProperties = {
+  textAlign: "left",
+  padding: "12px 10px",
+  fontSize: 12,
+  color: "#64748b",
+  fontWeight: 700,
+  background: "rgba(248,250,252,0.95)",
+  borderBottom: "1px solid rgba(226,232,240,0.95)",
+  whiteSpace: "nowrap",
+};
+
+const tdStyle: CSSProperties = {
+  padding: "12px 10px",
+  fontSize: 13,
+  color: "#0f172a",
+  borderBottom: "1px solid rgba(226,232,240,0.8)",
+  whiteSpace: "nowrap",
+  verticalAlign: "top",
+};
+
+const tdStyleMemo: CSSProperties = {
+  ...tdStyle,
+  whiteSpace: "normal",
+  minWidth: 180,
+  lineHeight: 1.7,
+};
+
+const historyImageGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+  gap: 12,
+  marginTop: 8,
+};
+
+const historyImageStyle: CSSProperties = {
+  width: "100%",
+  aspectRatio: "3 / 4",
+  objectFit: "cover",
+  borderRadius: 16,
+  border: "1px solid rgba(226,232,240,0.95)",
+  background: "#fff",
 };
