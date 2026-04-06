@@ -1,1179 +1,843 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { CSSProperties, useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { BG, GLASS, CARD, BUTTON_PRIMARY } from "../../../styles/theme";
 
-type Customer = {
-  id: string;
-  name?: string;
-  kana?: string;
-  gender?: string;
-  age?: number | string;
-  phone?: string;
-  email?: string;
-  birthday?: string;
-  goal?: string;
-  memo?: string;
-  planType?: string;
-  planStyle?: string;
-  monthlyCount?: number;
-  usedCount?: number;
-  carryOver?: number;
-  remaining?: number;
-  price?: number;
-  status?: string;
-  nextPayment?: string;
-  lastVisitAt?: string;
-  created_at?: string;
-  updated_at?: string;
-  height?: number | string;
-  weight?: number | string;
-  bodyFat?: number | string;
-  muscleMass?: number | string;
-  visceralFat?: number | string;
-  ltv?: number | null;
-};
-
-type TrainingSet = {
-  id?: string;
-  row_id?: string | null;
-  row_order?: number | null;
-  category?: string | null;
-  exercise_name?: string | null;
-  set_count?: number | null;
-  reps?: string | null;
-  weight?: string | null;
-  seconds?: string | null;
-  memo?: string | null;
-};
-
-type TrainingSession = {
-  id: string;
+type TrainingLog = {
+  id: number;
   customer_id: string;
-  session_date: string | null;
-  body_weight: number | null;
-  summary: string | null;
-  next_task: string | null;
-  posture_note: string | null;
-  stretch_menu: string[] | null;
-  posture_image_urls: string[] | null;
+  training_date: string;
+  weight: number | null;
+  body_fat: number | null;
+  muscle_mass: number | null;
+  visceral_fat: number | null;
+  note: string | null;
   created_at?: string | null;
   updated_at?: string | null;
-  training_sets?: TrainingSet[];
 };
 
-type SaleItem = {
-  id: string | number;
-  customer_id?: string | number | null;
-  customer_name?: string | null;
-  sale_date?: string | null;
-  menu_type?: string | null;
-  sale_type?: string | null;
-  payment_method?: string | null;
-  amount?: number | null;
-  staff_name?: string | null;
-  store_name?: string | null;
-  reservation_id?: number | null;
-  memo?: string | null;
-  created_at?: string | null;
+type CustomerRow = {
+  id: number | string;
+  name?: string | null;
 };
 
-const supabase =
-  process.env.NEXT_PUBLIC_SUPABASE_URL &&
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    ? createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      )
-    : null;
-
-function toStyle(value: unknown): CSSProperties {
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    return value as CSSProperties;
-  }
-  if (typeof value === "string" && value.trim()) {
-    return { background: value };
-  }
-  return {};
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+  if (!url || !key) return null;
+  return createClient(url, key);
 }
 
-const BG_STYLE = toStyle(BG);
-const GLASS_STYLE = toStyle(GLASS);
-const CARD_STYLE = toStyle(CARD);
-const BUTTON_PRIMARY_STYLE = toStyle(BUTTON_PRIMARY);
-
-const miniLabelStyle: CSSProperties = {
-  fontSize: 12,
-  color: "#64748b",
-  fontWeight: 700,
-  marginBottom: 6,
-};
-
-const valueTextStyle: CSSProperties = {
-  color: "#334155",
-  fontSize: 14,
-  lineHeight: 1.6,
-};
-
-function formatDate(date?: string | null) {
-  if (!date) return "—";
-  const d = new Date(date);
-  if (Number.isNaN(d.getTime())) return date;
-  return d.toLocaleDateString("ja-JP");
+function toNumberOrNull(value: string) {
+  if (value.trim() === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
-function formatDateTime(date?: string | null) {
-  if (!date) return "—";
-  const d = new Date(date);
-  if (Number.isNaN(d.getTime())) return date;
-  return d.toLocaleString("ja-JP");
+function formatDateLabel(dateStr?: string | null) {
+  if (!dateStr) return "-";
+  const date = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return dateStr;
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "short",
+  }).format(date);
 }
 
-function formatCurrency(value?: number | string | null) {
-  const num = Number(value || 0);
-  if (Number.isNaN(num)) return "—";
-  return `¥${num.toLocaleString()}`;
+function formatDateTime(dateStr?: string | null) {
+  if (!dateStr) return "-";
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
 }
 
-function safeArray<T>(value: T[] | null | undefined): T[] {
-  return Array.isArray(value) ? value : [];
+function displayMetric(value: number | null | undefined, unit = "") {
+  if (value == null) return "-";
+  return `${value}${unit}`;
 }
 
-function parseLocalStorageJson<T>(key: string): T | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return null;
-    return JSON.parse(raw) as T;
-  } catch {
-    return null;
-  }
-}
-
-function getCustomerFromLocalStorage(customerId: string): Customer | null {
-  if (typeof window === "undefined") return null;
-
-  const keys = [
-    "gymup_customers",
-    "customers",
-    "gymup_customer_list",
-    "customer_list",
-  ];
-
-  for (const key of keys) {
-    const list = parseLocalStorageJson<Customer[]>(key);
-    if (Array.isArray(list)) {
-      const found = list.find((item) => String(item.id) === String(customerId));
-      if (found) return found;
-    }
-  }
-
-  const detailKeys = [
-    `customer-${customerId}`,
-    `gymup_customer_${customerId}`,
-    `customer_detail_${customerId}`,
-  ];
-
-  for (const key of detailKeys) {
-    const detail = parseLocalStorageJson<Customer>(key);
-    if (detail) {
-      return {
-        ...detail,
-        id: customerId,
-      };
-    }
-  }
-
-  return null;
-}
-
-function getSummaryExercises(session: TrainingSession) {
-  return safeArray(session.training_sets)
-    .map((set) => set.exercise_name?.trim())
-    .filter(Boolean) as string[];
-}
-
-export default function CustomerDetailPage() {
-  const params = useParams();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const customerId = String(params?.id ?? "");
-
-  const [mounted, setMounted] = useState(false);
+export default function CustomerTrainingPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const supabase = useMemo(() => getSupabaseClient(), []);
+  const [customerId, setCustomerId] = useState("");
+  const [customerName, setCustomerName] = useState("顧客");
   const [loading, setLoading] = useState(true);
-  const [customer, setCustomer] = useState<Customer | null>(null);
-  const [sessions, setSessions] = useState<TrainingSession[]>([]);
-  const [sales, setSales] = useState<SaleItem[]>([]);
-  const [error, setError] = useState("");
-  const [copiedNotice, setCopiedNotice] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const [logs, setLogs] = useState<TrainingLog[]>([]);
+
+  const today = new Date();
+  const defaultDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(
+    today.getDate()
+  ).padStart(2, "0")}`;
+
+  const [trainingDate, setTrainingDate] = useState(defaultDate);
+  const [weight, setWeight] = useState("");
+  const [bodyFat, setBodyFat] = useState("");
+  const [muscleMass, setMuscleMass] = useState("");
+  const [visceralFat, setVisceralFat] = useState("");
+  const [note, setNote] = useState("");
+
+  const [editingLog, setEditingLog] = useState<TrainingLog | null>(null);
+  const [editTrainingDate, setEditTrainingDate] = useState("");
+  const [editWeight, setEditWeight] = useState("");
+  const [editBodyFat, setEditBodyFat] = useState("");
+  const [editMuscleMass, setEditMuscleMass] = useState("");
+  const [editVisceralFat, setEditVisceralFat] = useState("");
+  const [editNote, setEditNote] = useState("");
+
+  async function loadCustomerName(id: string) {
+    if (!supabase) return;
+
+    const { data, error } = await supabase
+      .from("customers")
+      .select("id, name")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`顧客取得エラー: ${error.message}`);
+    }
+
+    const row = (data as CustomerRow | null) || null;
+    setCustomerName(row?.name || "顧客");
+  }
+
+  async function loadLogs(id: string) {
+    if (!supabase) return;
+
+    const { data, error } = await supabase
+      .from("training_logs")
+      .select("*")
+      .eq("customer_id", id)
+      .order("training_date", { ascending: false })
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      if (error.message.includes("body_fat")) {
+        throw new Error("training_logs テーブルに body_fat 列がありません。列追加SQLを実行してください。");
+      }
+      if (error.message.includes("muscle_mass")) {
+        throw new Error("training_logs テーブルに muscle_mass 列がありません。列追加SQLを実行してください。");
+      }
+      if (error.message.includes("visceral_fat")) {
+        throw new Error("training_logs テーブルに visceral_fat 列がありません。列追加SQLを実行してください。");
+      }
+      throw new Error(`履歴取得エラー: ${error.message}`);
+    }
+
+    setLogs((data as TrainingLog[] | null) || []);
+  }
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
+    async function init() {
+      try {
+        setLoading(true);
+        setErrorMessage("");
 
-  useEffect(() => {
-    if (!mounted) return;
+        const resolved = await params;
+        const id = String(resolved.id || "");
+        setCustomerId(id);
 
-    const loggedIn = localStorage.getItem("gymup_logged_in");
-    if (loggedIn !== "true") {
-      router.push("/login");
+        if (!supabase) {
+          setErrorMessage("NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY が未設定です。");
+          return;
+        }
+
+        await loadCustomerName(id);
+        await loadLogs(id);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : "初期化に失敗しました。";
+        setErrorMessage(msg);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    init();
+  }, [params, supabase]);
+
+  async function handleAddLog() {
+    if (!supabase || !customerId) return;
+
+    if (!trainingDate) {
+      alert("日付を入力してください。");
       return;
     }
 
-    void loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mounted, customerId]);
-
-  useEffect(() => {
-    const copied = searchParams.get("copied");
-    if (copied) {
-      setCopiedNotice(true);
-      const timer = setTimeout(() => setCopiedNotice(false), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [searchParams]);
-
-  async function loadAll() {
-    setLoading(true);
-    setError("");
-
     try {
-      const localCustomer = getCustomerFromLocalStorage(customerId);
-      if (localCustomer) {
-        setCustomer(localCustomer);
+      setSaving(true);
+      setErrorMessage("");
+
+      const { error } = await supabase.from("training_logs").insert({
+        customer_id: customerId,
+        training_date: trainingDate,
+        weight: toNumberOrNull(weight),
+        body_fat: toNumberOrNull(bodyFat),
+        muscle_mass: toNumberOrNull(muscleMass),
+        visceral_fat: toNumberOrNull(visceralFat),
+        note,
+      });
+
+      if (error) {
+        if (error.message.includes("body_fat")) {
+          throw new Error("training_logs テーブルに body_fat 列がありません。列追加SQLを実行してください。");
+        }
+        if (error.message.includes("muscle_mass")) {
+          throw new Error("training_logs テーブルに muscle_mass 列がありません。列追加SQLを実行してください。");
+        }
+        if (error.message.includes("visceral_fat")) {
+          throw new Error("training_logs テーブルに visceral_fat 列がありません。列追加SQLを実行してください。");
+        }
+        throw new Error(`登録エラー: ${error.message}`);
       }
 
-      if (!supabase) {
-        setSessions([]);
-        setSales([]);
-        return;
-      }
+      setWeight("");
+      setBodyFat("");
+      setMuscleMass("");
+      setVisceralFat("");
+      setNote("");
 
-      const [customerRes, sessionRes, salesRes] = await Promise.all([
-        supabase.from("customers").select("*").eq("id", customerId).maybeSingle(),
-        supabase
-          .from("training_sessions")
-          .select(
-            `
-            *,
-            training_sets (
-              id,
-              row_id,
-              row_order,
-              category,
-              exercise_name,
-              set_count,
-              reps,
-              weight,
-              seconds,
-              memo
-            )
-          `
-          )
-          .eq("customer_id", customerId)
-          .order("session_date", { ascending: false })
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("sales")
-          .select(
-            "id, customer_id, customer_name, sale_date, menu_type, sale_type, payment_method, amount, staff_name, store_name, reservation_id, memo, created_at"
-          )
-          .eq("customer_id", customerId)
-          .order("sale_date", { ascending: false })
-          .order("created_at", { ascending: false }),
-      ]);
-
-      if (customerRes.error) {
-        console.error(customerRes.error);
-      } else if (customerRes.data) {
-        setCustomer((prev) => ({
-          ...(prev ?? { id: customerId }),
-          ...customerRes.data,
-        }));
-      }
-
-      if (sessionRes.error) {
-        throw sessionRes.error;
-      }
-
-      if (salesRes.error) {
-        throw salesRes.error;
-      }
-
-      setSessions((sessionRes.data as TrainingSession[]) ?? []);
-      setSales((salesRes.data as SaleItem[]) ?? []);
-    } catch (e) {
-      console.error(e);
-      setError("顧客情報・トレーニング履歴・売上履歴の取得に失敗しました。");
+      await loadLogs(customerId);
+      alert("トレーニング履歴を登録しました。");
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "登録に失敗しました。";
+      setErrorMessage(msg);
+      alert(msg);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   }
 
-  const latestSession = useMemo(() => {
-    return sessions.length > 0 ? sessions[0] : null;
-  }, [sessions]);
+  function openEditModal(log: TrainingLog) {
+    setEditingLog(log);
+    setEditTrainingDate(log.training_date || "");
+    setEditWeight(log.weight != null ? String(log.weight) : "");
+    setEditBodyFat(log.body_fat != null ? String(log.body_fat) : "");
+    setEditMuscleMass(log.muscle_mass != null ? String(log.muscle_mass) : "");
+    setEditVisceralFat(log.visceral_fat != null ? String(log.visceral_fat) : "");
+    setEditNote(log.note || "");
+  }
 
-  const latestWeight = useMemo(() => {
-    const found = sessions.find(
-      (item) => item.body_weight !== null && item.body_weight !== undefined
-    );
-    return found?.body_weight ?? customer?.weight ?? "—";
-  }, [sessions, customer]);
+  function closeEditModal() {
+    setEditingLog(null);
+    setEditTrainingDate("");
+    setEditWeight("");
+    setEditBodyFat("");
+    setEditMuscleMass("");
+    setEditVisceralFat("");
+    setEditNote("");
+  }
 
-  const usageSummary = useMemo(() => {
-    const monthlyCount = Number(customer?.monthlyCount ?? 0);
-    const usedCount = Number(customer?.usedCount ?? 0);
-    const carryOver = Number(customer?.carryOver ?? 0);
-    const remaining =
-      customer?.remaining !== undefined && customer?.remaining !== null
-        ? Number(customer.remaining)
-        : Math.max(monthlyCount + carryOver - usedCount, 0);
+  async function handleSaveEdit() {
+    if (!supabase || !editingLog || !customerId) return;
 
-    return {
-      monthlyCount,
-      usedCount,
-      carryOver,
-      remaining,
-    };
-  }, [customer]);
-
-  const salesSummary = useMemo(() => {
-    const total = sales.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-    const latest = sales[0];
-    return {
-      count: sales.length,
-      total,
-      latestDate: latest?.sale_date || null,
-    };
-  }, [sales]);
-
-  const displayLtv = useMemo(() => {
-    if (customer?.ltv !== undefined && customer?.ltv !== null) {
-      return Number(customer.ltv) || 0;
+    if (!editTrainingDate) {
+      alert("日付を入力してください。");
+      return;
     }
-    return salesSummary.total;
-  }, [customer?.ltv, salesSummary.total]);
 
-  if (!mounted) return null;
+    try {
+      setSaving(true);
+      setErrorMessage("");
+
+      const { error } = await supabase
+        .from("training_logs")
+        .update({
+          training_date: editTrainingDate,
+          weight: toNumberOrNull(editWeight),
+          body_fat: toNumberOrNull(editBodyFat),
+          muscle_mass: toNumberOrNull(editMuscleMass),
+          visceral_fat: toNumberOrNull(editVisceralFat),
+          note: editNote,
+        })
+        .eq("id", editingLog.id);
+
+      if (error) {
+        throw new Error(`更新エラー: ${error.message}`);
+      }
+
+      await loadLogs(customerId);
+      closeEditModal();
+      alert("履歴を更新しました。");
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "更新に失敗しました。";
+      setErrorMessage(msg);
+      alert(msg);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeleteLog(id: number) {
+    if (!supabase || !customerId) return;
+
+    const ok = window.confirm("この履歴を削除しますか？");
+    if (!ok) return;
+
+    try {
+      setSaving(true);
+      setErrorMessage("");
+
+      const { error } = await supabase.from("training_logs").delete().eq("id", id);
+
+      if (error) {
+        throw new Error(`削除エラー: ${error.message}`);
+      }
+
+      await loadLogs(customerId);
+      alert("履歴を削除しました。");
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "削除に失敗しました。";
+      setErrorMessage(msg);
+      alert(msg);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
-    <main
-      style={{
-        ...BG_STYLE,
-        minHeight: "100vh",
-        padding: "24px 16px 80px",
-      }}
-    >
-      <div style={{ maxWidth: 1180, margin: "0 auto" }}>
-        <div
-          style={{
-            ...GLASS_STYLE,
-            padding: 20,
-            borderRadius: 24,
-            marginBottom: 18,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              justifyContent: "space-between",
-              gap: 16,
-              alignItems: "center",
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontSize: 12,
-                  letterSpacing: "0.12em",
-                  color: "#64748b",
-                  marginBottom: 6,
-                  fontWeight: 700,
-                }}
-              >
-                CUSTOMER DETAIL
-              </div>
-              <h1
-                style={{
-                  margin: 0,
-                  fontSize: 28,
-                  lineHeight: 1.3,
-                  color: "#0f172a",
-                }}
-              >
-                顧客詳細
-              </h1>
-              <p
-                style={{
-                  margin: "8px 0 0",
-                  color: "#475569",
-                  fontSize: 14,
-                }}
-              >
-                顧客情報・契約状況・トレーニング履歴・売上履歴を確認できます
-              </p>
-            </div>
+    <div style={pageStyle}>
+      <div style={bgGlowA} />
+      <div style={bgGlowB} />
 
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-              <Link href="/customer" style={{ textDecoration: "none" }}>
-                <button
-                  style={{
-                    padding: "12px 16px",
-                    borderRadius: 14,
-                    border: "1px solid rgba(148,163,184,0.3)",
-                    background: "rgba(255,255,255,0.78)",
-                    color: "#0f172a",
-                    cursor: "pointer",
-                    fontWeight: 700,
-                  }}
-                >
-                  顧客一覧へ戻る
-                </button>
-              </Link>
+      <div style={containerStyle}>
+        <div style={topRowStyle}>
+          <Link href={`/customer/${customerId}`} style={backLinkStyle}>
+            ← 顧客詳細へ戻る
+          </Link>
+          <div style={eyebrowStyle}>TRAINING RECORD</div>
+        </div>
 
-              <Link
-                href={`/customer/${customerId}/training`}
-                style={{ textDecoration: "none" }}
-              >
-                <button style={BUTTON_PRIMARY_STYLE}>トレーニング開始</button>
-              </Link>
-            </div>
+        <div style={heroCardStyle}>
+          <div style={heroLeftStyle}>
+            <div style={miniLabelStyle}>GYMUP TRAINING</div>
+            <h1 style={titleStyle}>トレーニング履歴</h1>
+            <p style={descStyle}>
+              {customerName} 様の体重・体脂肪・筋肉量・内臓脂肪を記録し、あとから編集できます。
+            </p>
           </div>
         </div>
 
-        {copiedNotice && (
-          <div
-            style={{
-              ...CARD_STYLE,
-              marginBottom: 16,
-              borderRadius: 20,
-              padding: 16,
-              color: "#065f46",
-              background:
-                "linear-gradient(135deg, rgba(236,253,245,0.95), rgba(220,252,231,0.88))",
-              border: "1px solid rgba(16,185,129,0.22)",
-            }}
-          >
-            履歴をコピーしてトレーニングページを開きました。
-          </div>
-        )}
+        {errorMessage && <div style={errorBoxStyle}>{errorMessage}</div>}
 
-        {error && (
-          <div
-            style={{
-              ...CARD_STYLE,
-              marginBottom: 16,
-              borderRadius: 20,
-              padding: 16,
-              color: "#991b1b",
-              background:
-                "linear-gradient(135deg, rgba(254,242,242,0.95), rgba(254,226,226,0.9))",
-              border: "1px solid rgba(239,68,68,0.18)",
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        <section
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-            gap: 16,
-            marginBottom: 18,
-          }}
-        >
-          <div style={{ ...CARD_STYLE, padding: 18, borderRadius: 24 }}>
-            <div
-              style={{
-                fontSize: 12,
-                color: "#64748b",
-                fontWeight: 700,
-                marginBottom: 8,
-              }}
-            >
-              顧客情報
-            </div>
-            <h2 style={{ margin: "0 0 12px", fontSize: 24, color: "#0f172a" }}>
-              {customer?.name ? `${customer.name}様` : "名前未登録"}
-            </h2>
-            <div style={{ display: "grid", gap: 8, color: "#334155", fontSize: 14 }}>
-              <div>かな：{customer?.kana || "—"}</div>
-              <div>電話：{customer?.phone || "—"}</div>
-              <div>メール：{customer?.email || "—"}</div>
-              <div>性別：{customer?.gender || "—"}</div>
-              <div>年齢：{customer?.age || "—"}</div>
-              <div>誕生日：{formatDate(customer?.birthday)}</div>
-              <div>身長：{customer?.height || "—"}</div>
-              <div>現在の体重：{customer?.weight || "—"}</div>
-              <div>体脂肪率：{customer?.bodyFat || "—"}</div>
-              <div>筋肉量：{customer?.muscleMass || "—"}</div>
-              <div>内臓脂肪：{customer?.visceralFat || "—"}</div>
-              <div>最終来店日：{formatDate(customer?.lastVisitAt)}</div>
-              <div>LTV：{formatCurrency(displayLtv)}</div>
-              <div>目標：{customer?.goal || "未設定"}</div>
-              <div>メモ：{customer?.memo || "未設定"}</div>
-            </div>
-          </div>
-
-          <div style={{ ...CARD_STYLE, padding: 18, borderRadius: 24 }}>
-            <div
-              style={{
-                fontSize: 12,
-                color: "#64748b",
-                fontWeight: 700,
-                marginBottom: 8,
-              }}
-            >
-              契約・利用状況
-            </div>
-            <div style={{ display: "grid", gap: 8, color: "#334155", fontSize: 14 }}>
-              <div>プラン種類：{customer?.planType || "—"}</div>
-              <div>利用形態：{customer?.planStyle || "—"}</div>
-              <div>月回数：{usageSummary.monthlyCount || "—"}</div>
-              <div>使用回数：{usageSummary.usedCount || "—"}</div>
-              <div>繰越：{usageSummary.carryOver || "—"}</div>
-              <div>残回数：{usageSummary.remaining || "—"}</div>
-              <div>料金：{customer?.price ? formatCurrency(customer.price) : "0円"}</div>
-              <div>状態：{customer?.status || "—"}</div>
-              <div>次回支払い日：{formatDate(customer?.nextPayment)}</div>
-            </div>
-          </div>
-
-          <div style={{ ...CARD_STYLE, padding: 18, borderRadius: 24 }}>
-            <div
-              style={{
-                fontSize: 12,
-                color: "#64748b",
-                fontWeight: 700,
-                marginBottom: 8,
-              }}
-            >
-              トレーニングサマリー
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                gap: 12,
-              }}
-            >
-              {[
-                {
-                  label: "前回トレーニング日",
-                  value: formatDate(latestSession?.session_date),
-                },
-                {
-                  label: "最終体重",
-                  value: latestWeight === "—" ? "—" : `${latestWeight} kg`,
-                },
-                {
-                  label: "履歴件数",
-                  value: `${sessions.length}件`,
-                },
-                {
-                  label: "最終更新",
-                  value: formatDateTime(
-                    latestSession?.updated_at || latestSession?.created_at
-                  ),
-                },
-              ].map((item) => (
-                <div
-                  key={item.label}
-                  style={{
-                    background: "rgba(255,255,255,0.66)",
-                    border: "1px solid rgba(148,163,184,0.18)",
-                    borderRadius: 18,
-                    padding: 14,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: "#64748b",
-                      marginBottom: 6,
-                      fontWeight: 700,
-                    }}
-                  >
-                    {item.label}
-                  </div>
-                  <div style={{ fontSize: 17, fontWeight: 800, color: "#0f172a" }}>
-                    {item.value}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 16 }}>
-              <Link
-                href={`/customer/${customerId}/training`}
-                style={{ textDecoration: "none" }}
-              >
-                <button style={BUTTON_PRIMARY_STYLE}>トレーニング開始</button>
-              </Link>
-
-              <Link
-                href={`/customer/${customerId}/training#history`}
-                style={{ textDecoration: "none" }}
-              >
-                <button
-                  style={{
-                    padding: "12px 16px",
-                    borderRadius: 14,
-                    border: "1px solid rgba(148,163,184,0.3)",
-                    background: "rgba(255,255,255,0.78)",
-                    color: "#0f172a",
-                    cursor: "pointer",
-                    fontWeight: 700,
-                  }}
-                >
-                  履歴を見る
-                </button>
-              </Link>
-            </div>
-          </div>
-
-          <div style={{ ...CARD_STYLE, padding: 18, borderRadius: 24 }}>
-            <div
-              style={{
-                fontSize: 12,
-                color: "#64748b",
-                fontWeight: 700,
-                marginBottom: 8,
-              }}
-            >
-              売上サマリー
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                gap: 12,
-              }}
-            >
-              {[
-                {
-                  label: "売上件数",
-                  value: `${salesSummary.count}件`,
-                },
-                {
-                  label: "累計売上",
-                  value: formatCurrency(salesSummary.total),
-                },
-                {
-                  label: "最終支払日",
-                  value: formatDate(salesSummary.latestDate),
-                },
-                {
-                  label: "表示状態",
-                  value: salesSummary.count > 0 ? "反映中" : "未登録",
-                },
-              ].map((item) => (
-                <div
-                  key={item.label}
-                  style={{
-                    background: "rgba(255,255,255,0.66)",
-                    border: "1px solid rgba(148,163,184,0.18)",
-                    borderRadius: 18,
-                    padding: 14,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: "#64748b",
-                      marginBottom: 6,
-                      fontWeight: 700,
-                    }}
-                  >
-                    {item.label}
-                  </div>
-                  <div style={{ fontSize: 17, fontWeight: 800, color: "#0f172a" }}>
-                    {item.value}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 16 }}>
-              <Link href="/sales" style={{ textDecoration: "none" }}>
-                <button
-                  style={{
-                    padding: "12px 16px",
-                    borderRadius: 14,
-                    border: "1px solid rgba(148,163,184,0.3)",
-                    background: "rgba(255,255,255,0.78)",
-                    color: "#0f172a",
-                    cursor: "pointer",
-                    fontWeight: 700,
-                  }}
-                >
-                  売上管理へ
-                </button>
-              </Link>
-            </div>
-          </div>
-        </section>
-
-        <section style={{ ...CARD_STYLE, borderRadius: 28, padding: 22, marginBottom: 18 }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: 12,
-              flexWrap: "wrap",
-              marginBottom: 16,
-            }}
-          >
+        <div style={panelStyle}>
+          <div style={panelHeaderStyle}>
             <div>
-              <div
-                style={{
-                  fontSize: 12,
-                  color: "#64748b",
-                  fontWeight: 700,
-                  marginBottom: 6,
-                }}
-              >
-                SALES HISTORY
-              </div>
-              <h2 style={{ margin: 0, fontSize: 22, color: "#0f172a" }}>
-                売上履歴
-              </h2>
+              <div style={panelMiniStyle}>NEW RECORD</div>
+              <h2 style={panelTitleStyle}>履歴を追加</h2>
+            </div>
+          </div>
+
+          <div style={formGridStyle}>
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>日付</label>
+              <input type="date" value={trainingDate} onChange={(e) => setTrainingDate(e.target.value)} style={inputStyle} />
             </div>
 
-            <Link href="/sales" style={{ textDecoration: "none" }}>
-              <button
-                style={{
-                  padding: "12px 16px",
-                  borderRadius: 14,
-                  border: "1px solid rgba(148,163,184,0.3)",
-                  background: "rgba(255,255,255,0.78)",
-                  color: "#0f172a",
-                  cursor: "pointer",
-                  fontWeight: 700,
-                }}
-              >
-                売上管理へ
-              </button>
-            </Link>
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>体重（kg）</label>
+              <input value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="例 68.5" style={inputStyle} />
+            </div>
+
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>体脂肪（%）</label>
+              <input value={bodyFat} onChange={(e) => setBodyFat(e.target.value)} placeholder="例 18.2" style={inputStyle} />
+            </div>
+
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>筋肉量（kg）</label>
+              <input value={muscleMass} onChange={(e) => setMuscleMass(e.target.value)} placeholder="例 52.3" style={inputStyle} />
+            </div>
+
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>内臓脂肪</label>
+              <input value={visceralFat} onChange={(e) => setVisceralFat(e.target.value)} placeholder="例 8" style={inputStyle} />
+            </div>
+
+            <div style={{ ...fieldGroupStyle, gridColumn: "1 / -1" }}>
+              <label style={labelStyle}>メモ</label>
+              <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={4} placeholder="測定メモ" style={textareaStyle} />
+            </div>
+          </div>
+
+          <div style={buttonRowStyle}>
+            <button onClick={handleAddLog} disabled={saving} style={primaryButtonStyle}>
+              {saving ? "保存中..." : "履歴を追加"}
+            </button>
+          </div>
+        </div>
+
+        <div style={panelStyle}>
+          <div style={panelHeaderStyle}>
+            <div>
+              <div style={panelMiniStyle}>HISTORY</div>
+              <h2 style={panelTitleStyle}>履歴一覧</h2>
+            </div>
           </div>
 
           {loading ? (
-            <div style={{ color: "#475569", padding: "12px 0" }}>読み込み中です...</div>
-          ) : sales.length === 0 ? (
-            <div
-              style={{
-                borderRadius: 20,
-                padding: 18,
-                background: "rgba(255,255,255,0.62)",
-                border: "1px solid rgba(148,163,184,0.16)",
-                color: "#475569",
-              }}
-            >
-              まだ売上履歴はありません。
-            </div>
+            <div style={loadingStyle}>読み込み中...</div>
+          ) : logs.length === 0 ? (
+            <div style={emptyStyle}>まだ履歴がありません。</div>
           ) : (
-            <div style={{ display: "grid", gap: 14 }}>
-              {sales.map((sale) => (
-                <article
-                  key={String(sale.id)}
-                  style={{
-                    background: "rgba(255,255,255,0.7)",
-                    border: "1px solid rgba(148,163,184,0.18)",
-                    borderRadius: 24,
-                    padding: 18,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "flex-start",
-                      gap: 14,
-                      flexWrap: "wrap",
-                      marginBottom: 12,
-                    }}
-                  >
-                    <div>
-                      <div
-                        style={{
-                          fontSize: 18,
-                          fontWeight: 800,
-                          color: "#0f172a",
-                          marginBottom: 6,
-                        }}
-                      >
-                        {formatDate(sale.sale_date)}
-                      </div>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <span
-                          style={{
-                            fontSize: 12,
-                            padding: "6px 10px",
-                            borderRadius: 999,
-                            background: "rgba(59,130,246,0.08)",
-                            color: "#1d4ed8",
-                            fontWeight: 700,
-                          }}
-                        >
-                          金額：{formatCurrency(sale.amount)}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: 12,
-                            padding: "6px 10px",
-                            borderRadius: 999,
-                            background: "rgba(16,185,129,0.08)",
-                            color: "#047857",
-                            fontWeight: 700,
-                          }}
-                        >
-                          支払方法：{sale.payment_method || "—"}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        fontSize: 12,
-                        padding: "6px 10px",
-                        borderRadius: 999,
-                        background: "rgba(15,23,42,0.06)",
-                        color: "#334155",
-                        fontWeight: 700,
-                      }}
-                    >
-                      {sale.sale_type || "通常売上"}
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                      gap: 12,
-                    }}
-                  >
-                    <div
-                      style={{
-                        background: "rgba(248,250,252,0.92)",
-                        border: "1px solid rgba(148,163,184,0.14)",
-                        borderRadius: 18,
-                        padding: 14,
-                      }}
-                    >
-                      <div style={miniLabelStyle}>サービス区分</div>
-                      <div style={valueTextStyle}>{sale.menu_type || "—"}</div>
-
-                      <div style={{ ...miniLabelStyle, marginTop: 12 }}>担当者</div>
-                      <div style={valueTextStyle}>{sale.staff_name || "—"}</div>
-
-                      <div style={{ ...miniLabelStyle, marginTop: 12 }}>店舗</div>
-                      <div style={valueTextStyle}>{sale.store_name || "—"}</div>
-                    </div>
-
-                    <div
-                      style={{
-                        background: "rgba(248,250,252,0.92)",
-                        border: "1px solid rgba(148,163,184,0.14)",
-                        borderRadius: 18,
-                        padding: 14,
-                      }}
-                    >
-                      <div style={miniLabelStyle}>予約ID</div>
-                      <div style={valueTextStyle}>
-                        {sale.reservation_id != null ? String(sale.reservation_id) : "—"}
-                      </div>
-
-                      <div style={{ ...miniLabelStyle, marginTop: 12 }}>メモ</div>
-                      <div style={{ ...valueTextStyle, whiteSpace: "pre-wrap" }}>
-                        {sale.memo || "未入力"}
-                      </div>
-                    </div>
-                  </div>
-                </article>
-              ))}
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={thStyle}>日付</th>
+                    <th style={thStyle}>体重</th>
+                    <th style={thStyle}>体脂肪</th>
+                    <th style={thStyle}>筋肉量</th>
+                    <th style={thStyle}>内臓脂肪</th>
+                    <th style={thStyle}>メモ</th>
+                    <th style={thStyle}>更新</th>
+                    <th style={thStyle}>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {logs.map((log) => (
+                    <tr key={log.id}>
+                      <td style={tdStyleStrong}>{formatDateLabel(log.training_date)}</td>
+                      <td style={tdStyle}>{displayMetric(log.weight, "kg")}</td>
+                      <td style={tdStyle}>{displayMetric(log.body_fat, "%")}</td>
+                      <td style={tdStyle}>{displayMetric(log.muscle_mass, "kg")}</td>
+                      <td style={tdStyle}>{displayMetric(log.visceral_fat)}</td>
+                      <td style={tdNoteStyle}>{log.note || "-"}</td>
+                      <td style={tdStyle}>{formatDateTime(log.updated_at || log.created_at)}</td>
+                      <td style={tdStyle}>
+                        <div style={actionButtonWrapStyle}>
+                          <button style={editButtonStyle} onClick={() => openEditModal(log)}>
+                            編集
+                          </button>
+                          <button style={deleteButtonStyle} onClick={() => handleDeleteLog(log.id)}>
+                            削除
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
-        </section>
-
-        <section style={{ ...CARD_STYLE, borderRadius: 28, padding: 22 }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: 12,
-              flexWrap: "wrap",
-              marginBottom: 16,
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontSize: 12,
-                  color: "#64748b",
-                  fontWeight: 700,
-                  marginBottom: 6,
-                }}
-              >
-                RECENT TRAINING COPY
-              </div>
-              <h2 style={{ margin: 0, fontSize: 22, color: "#0f172a" }}>
-                最近のトレーニング履歴からコピー
-              </h2>
-            </div>
-
-            <Link
-              href={`/customer/${customerId}/training#history`}
-              style={{ textDecoration: "none" }}
-            >
-              <button
-                style={{
-                  padding: "12px 16px",
-                  borderRadius: 14,
-                  border: "1px solid rgba(148,163,184,0.3)",
-                  background: "rgba(255,255,255,0.78)",
-                  color: "#0f172a",
-                  cursor: "pointer",
-                  fontWeight: 700,
-                }}
-              >
-                履歴一覧へ
-              </button>
-            </Link>
-          </div>
-
-          {loading ? (
-            <div style={{ color: "#475569", padding: "12px 0" }}>読み込み中です...</div>
-          ) : sessions.length === 0 ? (
-            <div
-              style={{
-                borderRadius: 20,
-                padding: 18,
-                background: "rgba(255,255,255,0.62)",
-                border: "1px solid rgba(148,163,184,0.16)",
-                color: "#475569",
-              }}
-            >
-              まだトレーニング履歴はありません。
-            </div>
-          ) : (
-            <div style={{ display: "grid", gap: 16 }}>
-              {sessions.slice(0, 5).map((session) => {
-                const exerciseNames = getSummaryExercises(session);
-                const stretchMenu = safeArray(session.stretch_menu);
-                const postureImages = safeArray(session.posture_image_urls);
-
-                return (
-                  <article
-                    key={session.id}
-                    style={{
-                      background: "rgba(255,255,255,0.7)",
-                      border: "1px solid rgba(148,163,184,0.18)",
-                      borderRadius: 24,
-                      padding: 18,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "flex-start",
-                        gap: 14,
-                        flexWrap: "wrap",
-                        marginBottom: 14,
-                      }}
-                    >
-                      <div>
-                        <div
-                          style={{
-                            fontSize: 18,
-                            fontWeight: 800,
-                            color: "#0f172a",
-                            marginBottom: 6,
-                          }}
-                        >
-                          {formatDate(session.session_date)}
-                        </div>
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                          <span
-                            style={{
-                              fontSize: 12,
-                              background: "rgba(15,23,42,0.06)",
-                              color: "#334155",
-                              padding: "6px 10px",
-                              borderRadius: 999,
-                              fontWeight: 700,
-                            }}
-                          >
-                            体重：{session.body_weight ? `${session.body_weight} kg` : "—"}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: 12,
-                              background: "rgba(15,23,42,0.06)",
-                              color: "#334155",
-                              padding: "6px 10px",
-                              borderRadius: 999,
-                              fontWeight: 700,
-                            }}
-                          >
-                            種目数：{exerciseNames.length}件
-                          </span>
-                        </div>
-                      </div>
-
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <Link
-                          href={`/customer/${customerId}/training?copyFrom=${session.id}`}
-                          style={{ textDecoration: "none" }}
-                        >
-                          <button style={BUTTON_PRIMARY_STYLE}>この履歴をコピー</button>
-                        </Link>
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-                        gap: 14,
-                      }}
-                    >
-                      <div
-                        style={{
-                          background: "rgba(248,250,252,0.92)",
-                          border: "1px solid rgba(148,163,184,0.14)",
-                          borderRadius: 18,
-                          padding: 14,
-                        }}
-                      >
-                        <div style={miniLabelStyle}>種目一覧</div>
-
-                        {exerciseNames.length > 0 ? (
-                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                            {exerciseNames.map((name, idx) => (
-                              <span
-                                key={`${session.id}-${name}-${idx}`}
-                                style={{
-                                  fontSize: 12,
-                                  padding: "7px 10px",
-                                  borderRadius: 999,
-                                  background: "rgba(59,130,246,0.08)",
-                                  color: "#1d4ed8",
-                                  fontWeight: 700,
-                                }}
-                              >
-                                {name}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <div style={{ color: "#64748b", fontSize: 14 }}>未登録</div>
-                        )}
-
-                        {stretchMenu.length > 0 && (
-                          <>
-                            <div style={{ ...miniLabelStyle, marginTop: 12 }}>
-                              ストレッチ項目
-                            </div>
-                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                              {stretchMenu.map((item, idx) => (
-                                <span
-                                  key={`${session.id}-stretch-${idx}`}
-                                  style={{
-                                    fontSize: 12,
-                                    padding: "7px 10px",
-                                    borderRadius: 999,
-                                    background: "rgba(16,185,129,0.08)",
-                                    color: "#047857",
-                                    fontWeight: 700,
-                                  }}
-                                >
-                                  {item}
-                                </span>
-                              ))}
-                            </div>
-                          </>
-                        )}
-                      </div>
-
-                      <div
-                        style={{
-                          background: "rgba(248,250,252,0.92)",
-                          border: "1px solid rgba(148,163,184,0.14)",
-                          borderRadius: 18,
-                          padding: 14,
-                        }}
-                      >
-                        <div style={miniLabelStyle}>総評</div>
-                        <div style={{ whiteSpace: "pre-wrap", color: "#334155", fontSize: 14 }}>
-                          {session.summary || "未入力"}
-                        </div>
-
-                        <div style={{ ...miniLabelStyle, marginTop: 14 }}>次回課題</div>
-                        <div style={{ whiteSpace: "pre-wrap", color: "#334155", fontSize: 14 }}>
-                          {session.next_task || "未入力"}
-                        </div>
-
-                        <div style={{ ...miniLabelStyle, marginTop: 14 }}>姿勢メモ</div>
-                        <div style={{ whiteSpace: "pre-wrap", color: "#334155", fontSize: 14 }}>
-                          {session.posture_note || "未入力"}
-                        </div>
-                      </div>
-                    </div>
-
-                    {postureImages.length > 0 && (
-                      <div style={{ marginTop: 16 }}>
-                        <div style={miniLabelStyle}>姿勢画像</div>
-                        <div
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                            gap: 12,
-                          }}
-                        >
-                          {postureImages.map((url, idx) => (
-                            <a
-                              key={`${session.id}-image-${idx}`}
-                              href={url}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{ textDecoration: "none" }}
-                            >
-                              <img
-                                src={url}
-                                alt={`姿勢画像 ${idx + 1}`}
-                                style={{
-                                  width: "100%",
-                                  height: 180,
-                                  objectFit: "cover",
-                                  borderRadius: 18,
-                                  border: "1px solid rgba(148,163,184,0.18)",
-                                  background: "#fff",
-                                }}
-                              />
-                            </a>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </section>
+        </div>
       </div>
-    </main>
+
+      {editingLog && (
+        <div style={modalOverlayStyle}>
+          <div style={modalCardStyle}>
+            <div style={panelHeaderStyle}>
+              <div>
+                <div style={panelMiniStyle}>EDIT RECORD</div>
+                <h3 style={modalTitleStyle}>履歴を編集</h3>
+              </div>
+              <button onClick={closeEditModal} style={closeButtonStyle}>
+                ✕
+              </button>
+            </div>
+
+            <div style={formGridStyle}>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>日付</label>
+                <input type="date" value={editTrainingDate} onChange={(e) => setEditTrainingDate(e.target.value)} style={inputStyle} />
+              </div>
+
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>体重（kg）</label>
+                <input value={editWeight} onChange={(e) => setEditWeight(e.target.value)} style={inputStyle} />
+              </div>
+
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>体脂肪（%）</label>
+                <input value={editBodyFat} onChange={(e) => setEditBodyFat(e.target.value)} style={inputStyle} />
+              </div>
+
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>筋肉量（kg）</label>
+                <input value={editMuscleMass} onChange={(e) => setEditMuscleMass(e.target.value)} style={inputStyle} />
+              </div>
+
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>内臓脂肪</label>
+                <input value={editVisceralFat} onChange={(e) => setEditVisceralFat(e.target.value)} style={inputStyle} />
+              </div>
+
+              <div style={{ ...fieldGroupStyle, gridColumn: "1 / -1" }}>
+                <label style={labelStyle}>メモ</label>
+                <textarea value={editNote} onChange={(e) => setEditNote(e.target.value)} rows={4} style={textareaStyle} />
+              </div>
+            </div>
+
+            <div style={buttonRowStyle}>
+              <button onClick={closeEditModal} style={secondaryButtonStyle}>
+                キャンセル
+              </button>
+              <button onClick={handleSaveEdit} disabled={saving} style={primaryButtonStyle}>
+                {saving ? "保存中..." : "更新する"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
+
+const pageStyle: CSSProperties = {
+  minHeight: "100vh",
+  background:
+    "linear-gradient(135deg, #eef4ff 0%, #f8fbff 30%, #f3f7ff 65%, #eef2ff 100%)",
+  position: "relative",
+  overflow: "hidden",
+};
+
+const bgGlowA: CSSProperties = {
+  position: "absolute",
+  top: -140,
+  left: -120,
+  width: 420,
+  height: 420,
+  borderRadius: "50%",
+  background:
+    "radial-gradient(circle, rgba(147,197,253,0.22) 0%, rgba(147,197,253,0) 72%)",
+  pointerEvents: "none",
+};
+
+const bgGlowB: CSSProperties = {
+  position: "absolute",
+  right: -120,
+  top: 80,
+  width: 360,
+  height: 360,
+  borderRadius: "50%",
+  background:
+    "radial-gradient(circle, rgba(196,181,253,0.18) 0%, rgba(196,181,253,0) 72%)",
+  pointerEvents: "none",
+};
+
+const containerStyle: CSSProperties = {
+  position: "relative",
+  zIndex: 1,
+  maxWidth: 1180,
+  margin: "0 auto",
+  padding: "28px 18px 60px",
+};
+
+const topRowStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap",
+  marginBottom: 18,
+};
+
+const backLinkStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  color: "rgba(30,41,59,0.78)",
+  textDecoration: "none",
+  fontSize: 14,
+  fontWeight: 600,
+};
+
+const eyebrowStyle: CSSProperties = {
+  fontSize: 11,
+  letterSpacing: "0.24em",
+  color: "rgba(30,41,59,0.42)",
+};
+
+const heroCardStyle: CSSProperties = {
+  background: "rgba(255,255,255,0.55)",
+  border: "1px solid rgba(255,255,255,0.75)",
+  borderRadius: 28,
+  padding: "24px 22px",
+  marginBottom: 20,
+  boxShadow: "0 18px 40px rgba(148,163,184,0.14)",
+  backdropFilter: "blur(10px)",
+};
+
+const heroLeftStyle: CSSProperties = {
+  flex: 1,
+  minWidth: 260,
+};
+
+const miniLabelStyle: CSSProperties = {
+  fontSize: 11,
+  letterSpacing: "0.24em",
+  color: "rgba(30,41,59,0.48)",
+  marginBottom: 8,
+};
+
+const titleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: "clamp(28px, 4vw, 42px)",
+  lineHeight: 1.1,
+  color: "#0f172a",
+  fontWeight: 800,
+};
+
+const descStyle: CSSProperties = {
+  margin: "12px 0 0",
+  fontSize: 14,
+  lineHeight: 1.8,
+  color: "rgba(15,23,42,0.68)",
+};
+
+const errorBoxStyle: CSSProperties = {
+  marginBottom: 20,
+  padding: "14px 16px",
+  borderRadius: 18,
+  background: "rgba(254,226,226,0.9)",
+  border: "1px solid rgba(248,113,113,0.28)",
+  color: "#b91c1c",
+  fontSize: 14,
+};
+
+const panelStyle: CSSProperties = {
+  background: "rgba(255,255,255,0.52)",
+  border: "1px solid rgba(255,255,255,0.76)",
+  borderRadius: 26,
+  padding: 20,
+  boxShadow: "0 14px 34px rgba(148,163,184,0.12)",
+  backdropFilter: "blur(10px)",
+  marginBottom: 18,
+};
+
+const panelHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 16,
+  marginBottom: 16,
+};
+
+const panelMiniStyle: CSSProperties = {
+  fontSize: 11,
+  letterSpacing: "0.22em",
+  color: "rgba(30,41,59,0.42)",
+  marginBottom: 6,
+};
+
+const panelTitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 22,
+  color: "#0f172a",
+  fontWeight: 700,
+};
+
+const formGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: 14,
+};
+
+const fieldGroupStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 8,
+};
+
+const labelStyle: CSSProperties = {
+  fontSize: 13,
+  color: "rgba(15,23,42,0.78)",
+};
+
+const inputStyle: CSSProperties = {
+  width: "100%",
+  height: 48,
+  borderRadius: 14,
+  border: "1px solid rgba(203,213,225,0.9)",
+  background: "rgba(255,255,255,0.82)",
+  color: "#0f172a",
+  padding: "0 14px",
+  outline: "none",
+  fontSize: 14,
+};
+
+const textareaStyle: CSSProperties = {
+  width: "100%",
+  borderRadius: 14,
+  border: "1px solid rgba(203,213,225,0.9)",
+  background: "rgba(255,255,255,0.82)",
+  color: "#0f172a",
+  padding: "12px 14px",
+  outline: "none",
+  fontSize: 14,
+  resize: "vertical",
+};
+
+const buttonRowStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "flex-end",
+  gap: 12,
+  marginTop: 16,
+  flexWrap: "wrap",
+};
+
+const primaryButtonStyle: CSSProperties = {
+  minWidth: 140,
+  height: 48,
+  border: "none",
+  borderRadius: 16,
+  background: "linear-gradient(135deg, #ffffff, #eaf1ff)",
+  color: "#0f172a",
+  fontWeight: 700,
+  fontSize: 14,
+  cursor: "pointer",
+  boxShadow: "0 10px 24px rgba(148,163,184,0.15)",
+  padding: "0 16px",
+};
+
+const secondaryButtonStyle: CSSProperties = {
+  minWidth: 120,
+  height: 48,
+  border: "1px solid rgba(203,213,225,0.95)",
+  borderRadius: 16,
+  background: "rgba(255,255,255,0.84)",
+  color: "#0f172a",
+  fontWeight: 700,
+  fontSize: 14,
+  cursor: "pointer",
+  padding: "0 16px",
+};
+
+const tableWrapStyle: CSSProperties = {
+  width: "100%",
+  overflowX: "auto",
+};
+
+const tableStyle: CSSProperties = {
+  width: "100%",
+  minWidth: 980,
+  borderCollapse: "separate",
+  borderSpacing: 0,
+};
+
+const thStyle: CSSProperties = {
+  textAlign: "left",
+  padding: "14px 12px",
+  fontSize: 12,
+  color: "rgba(15,23,42,0.56)",
+  borderBottom: "1px solid rgba(226,232,240,0.95)",
+  background: "rgba(255,255,255,0.55)",
+  whiteSpace: "nowrap",
+};
+
+const tdStyle: CSSProperties = {
+  padding: "14px 12px",
+  fontSize: 13,
+  color: "#0f172a",
+  borderBottom: "1px solid rgba(226,232,240,0.82)",
+  whiteSpace: "nowrap",
+  verticalAlign: "top",
+};
+
+const tdStyleStrong: CSSProperties = {
+  ...tdStyle,
+  fontWeight: 700,
+};
+
+const tdNoteStyle: CSSProperties = {
+  ...tdStyle,
+  whiteSpace: "normal",
+  minWidth: 180,
+  lineHeight: 1.6,
+};
+
+const actionButtonWrapStyle: CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+};
+
+const editButtonStyle: CSSProperties = {
+  height: 36,
+  border: "1px solid rgba(203,213,225,0.95)",
+  borderRadius: 12,
+  background: "rgba(255,255,255,0.9)",
+  color: "#0f172a",
+  fontWeight: 700,
+  fontSize: 13,
+  cursor: "pointer",
+  padding: "0 14px",
+};
+
+const deleteButtonStyle: CSSProperties = {
+  height: 36,
+  border: "1px solid rgba(254,202,202,0.95)",
+  borderRadius: 12,
+  background: "rgba(254,242,242,0.95)",
+  color: "#b91c1c",
+  fontWeight: 700,
+  fontSize: 13,
+  cursor: "pointer",
+  padding: "0 14px",
+};
+
+const loadingStyle: CSSProperties = {
+  padding: "18px 0",
+  fontSize: 14,
+  color: "rgba(15,23,42,0.62)",
+};
+
+const emptyStyle: CSSProperties = {
+  padding: "18px 0",
+  fontSize: 14,
+  color: "rgba(15,23,42,0.62)",
+};
+
+const modalOverlayStyle: CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(15,23,42,0.22)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 16,
+  zIndex: 1000,
+};
+
+const modalCardStyle: CSSProperties = {
+  width: "100%",
+  maxWidth: 760,
+  background: "rgba(255,255,255,0.95)",
+  border: "1px solid rgba(255,255,255,0.85)",
+  borderRadius: 24,
+  padding: 22,
+  boxShadow: "0 24px 60px rgba(15,23,42,0.16)",
+};
+
+const modalTitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 22,
+  color: "#0f172a",
+  fontWeight: 800,
+};
+
+const closeButtonStyle: CSSProperties = {
+  width: 40,
+  height: 40,
+  borderRadius: 9999,
+  border: "1px solid rgba(203,213,225,0.95)",
+  background: "#ffffff",
+  color: "#0f172a",
+  fontSize: 16,
+  cursor: "pointer",
+};
