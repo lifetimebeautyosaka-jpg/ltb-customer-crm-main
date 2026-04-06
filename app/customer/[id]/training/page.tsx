@@ -7,13 +7,13 @@ import { BG, CARD, BUTTON_PRIMARY } from "../../../../styles/theme";
 
 type TrainingSetRow = {
   rowId: string;
-  category: string;
-  exercise_name: string;
-  set_count: string;
-  reps: string;
-  weight: string;
-  seconds: string;
-  memo: string;
+  category: string | number;
+  exercise_name: string | number;
+  set_count: string | number;
+  reps: string | number;
+  weight: string | number;
+  seconds: string | number;
+  memo: string | number;
 };
 
 type TrainingSetDB = {
@@ -145,6 +145,15 @@ function safeArray<T>(value: T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : [];
 }
 
+function toSafeString(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  return String(value);
+}
+
+function trimmed(value: unknown): string {
+  return toSafeString(value).trim();
+}
+
 function formatDate(date?: string | null) {
   if (!date) return "—";
   const d = new Date(date);
@@ -180,9 +189,10 @@ function getExercisesByCategory(category: string) {
   return EXERCISE_MAP[category] || ["その他"];
 }
 
-function toNumberOrNull(value: string) {
-  if (!String(value || "").trim()) return null;
-  const num = Number(value);
+function toNumberOrNull(value: unknown) {
+  const s = trimmed(value);
+  if (!s) return null;
+  const num = Number(s);
   return Number.isFinite(num) ? num : null;
 }
 
@@ -440,8 +450,8 @@ export default function TrainingPage() {
         if (key === "category") {
           const nextExercises = getExercisesByCategory(value);
           const keepExercise =
-            row.exercise_name && nextExercises.includes(row.exercise_name)
-              ? row.exercise_name
+            trimmed(row.exercise_name) && nextExercises.includes(trimmed(row.exercise_name))
+              ? trimmed(row.exercise_name)
               : "";
 
           return {
@@ -534,20 +544,22 @@ export default function TrainingPage() {
     setSuccess("");
 
     try {
-      const stretchMenuArray = stretchMenu
-        .split("\n")
-        .map((item) => item.trim())
-        .filter(Boolean);
+      const stretchMenuArray = trimmed(stretchMenu)
+        ? toSafeString(stretchMenu)
+            .split("\n")
+            .map((item) => item.trim())
+            .filter(Boolean)
+        : [];
 
       const validRows = setRows.filter((row) => {
         return (
-          String(row.category || "").trim() ||
-          String(row.exercise_name || "").trim() ||
-          String(row.set_count || "").trim() ||
-          String(row.reps || "").trim() ||
-          String(row.weight || "").trim() ||
-          String(row.seconds || "").trim() ||
-          String(row.memo || "").trim()
+          trimmed(row.category) ||
+          trimmed(row.exercise_name) ||
+          trimmed(row.set_count) ||
+          trimmed(row.reps) ||
+          trimmed(row.weight) ||
+          trimmed(row.seconds) ||
+          trimmed(row.memo)
         );
       });
 
@@ -559,9 +571,9 @@ export default function TrainingPage() {
         body_fat: toNumberOrNull(bodyFat),
         muscle_mass: toNumberOrNull(muscleMass),
         visceral_fat: toNumberOrNull(visceralFat),
-        summary: summary.trim() || null,
-        next_task: nextTask.trim() || null,
-        posture_note: postureNote.trim() || null,
+        summary: trimmed(summary) || null,
+        next_task: trimmed(nextTask) || null,
+        posture_note: trimmed(postureNote) || null,
         stretch_menu: stretchMenuArray,
         posture_image_urls: postureImageUrls,
       };
@@ -598,17 +610,15 @@ export default function TrainingPage() {
       if (validRows.length > 0) {
         const rowsPayload = validRows.map((row, index) => ({
           session_id: sessionId,
-          row_id: row.rowId,
+          row_id: toSafeString(row.rowId),
           row_order: index,
-          category: String(row.category || "").trim() || null,
-          exercise_name: String(row.exercise_name || "").trim() || null,
-          set_count: String(row.set_count || "").trim()
-            ? Number(row.set_count)
-            : null,
-          reps: String(row.reps || "").trim() || null,
-          weight: String(row.weight || "").trim() || null,
-          seconds: String(row.seconds || "").trim() || null,
-          memo: String(row.memo || "").trim() || null,
+          category: trimmed(row.category) || null,
+          exercise_name: trimmed(row.exercise_name) || null,
+          set_count: trimmed(row.set_count) ? Number(trimmed(row.set_count)) : null,
+          reps: trimmed(row.reps) || null,
+          weight: trimmed(row.weight) || null,
+          seconds: trimmed(row.seconds) || null,
+          memo: trimmed(row.memo) || null,
         }));
 
         const { error: rowsError } = await supabase
@@ -666,9 +676,7 @@ export default function TrainingPage() {
   }
 
   const exerciseCount = useMemo(() => {
-    return setRows.filter(
-      (row) => String(row.exercise_name || "").trim()
-    ).length;
+    return setRows.filter((row) => trimmed(row.exercise_name)).length;
   }, [setRows]);
 
   if (!mounted) return null;
@@ -864,15 +872,15 @@ export default function TrainingPage() {
 
             <div style={{ display: "grid", gap: 12 }}>
               {setRows.map((row, index) => {
-                const exerciseOptions = getExercisesByCategory(row.category);
+                const exerciseOptions = getExercisesByCategory(trimmed(row.category));
 
                 return (
-                  <div key={row.rowId} style={exerciseCardStyle}>
+                  <div key={toSafeString(row.rowId)} style={exerciseCardStyle}>
                     <div style={exerciseCardHeaderStyle}>
                       <div style={exerciseCardIndexStyle}>種目 {index + 1}</div>
                       <button
                         type="button"
-                        onClick={() => removeRow(row.rowId)}
+                        onClick={() => removeRow(toSafeString(row.rowId))}
                         style={trainingDeleteButtonStyle}
                       >
                         削除
@@ -883,9 +891,9 @@ export default function TrainingPage() {
                       <label style={{ display: "grid", gap: 8 }}>
                         <span style={labelStyle}>カテゴリ</span>
                         <select
-                          value={row.category}
+                          value={toSafeString(row.category)}
                           onChange={(e) =>
-                            updateRow(row.rowId, "category", e.target.value)
+                            updateRow(toSafeString(row.rowId), "category", e.target.value)
                           }
                           style={tableInputStyle}
                         >
@@ -901,17 +909,17 @@ export default function TrainingPage() {
                       <label style={{ display: "grid", gap: 8 }}>
                         <span style={labelStyle}>種目名</span>
                         <select
-                          value={row.exercise_name}
+                          value={toSafeString(row.exercise_name)}
                           onChange={(e) =>
-                            updateRow(row.rowId, "exercise_name", e.target.value)
+                            updateRow(toSafeString(row.rowId), "exercise_name", e.target.value)
                           }
                           style={tableInputStyle}
                         >
                           <option value="">
-                            {row.category ? "種目を選択" : "先にカテゴリを選択"}
+                            {trimmed(row.category) ? "種目を選択" : "先にカテゴリを選択"}
                           </option>
                           {exerciseOptions.map((option) => (
-                            <option key={`${row.category}-${option}`} value={option}>
+                            <option key={`${trimmed(row.category)}-${option}`} value={option}>
                               {option}
                             </option>
                           ))}
@@ -921,9 +929,9 @@ export default function TrainingPage() {
                       <label style={{ display: "grid", gap: 8 }}>
                         <span style={labelStyle}>セット数</span>
                         <input
-                          value={row.set_count}
+                          value={toSafeString(row.set_count)}
                           onChange={(e) =>
-                            updateRow(row.rowId, "set_count", e.target.value)
+                            updateRow(toSafeString(row.rowId), "set_count", e.target.value)
                           }
                           placeholder="3"
                           style={tableInputStyle}
@@ -933,9 +941,9 @@ export default function TrainingPage() {
                       <label style={{ display: "grid", gap: 8 }}>
                         <span style={labelStyle}>回数</span>
                         <input
-                          value={row.reps}
+                          value={toSafeString(row.reps)}
                           onChange={(e) =>
-                            updateRow(row.rowId, "reps", e.target.value)
+                            updateRow(toSafeString(row.rowId), "reps", e.target.value)
                           }
                           placeholder="10回"
                           style={tableInputStyle}
@@ -945,9 +953,9 @@ export default function TrainingPage() {
                       <label style={{ display: "grid", gap: 8 }}>
                         <span style={labelStyle}>重量</span>
                         <input
-                          value={row.weight}
+                          value={toSafeString(row.weight)}
                           onChange={(e) =>
-                            updateRow(row.rowId, "weight", e.target.value)
+                            updateRow(toSafeString(row.rowId), "weight", e.target.value)
                           }
                           placeholder="40kg"
                           style={tableInputStyle}
@@ -957,9 +965,9 @@ export default function TrainingPage() {
                       <label style={{ display: "grid", gap: 8 }}>
                         <span style={labelStyle}>秒数</span>
                         <input
-                          value={row.seconds}
+                          value={toSafeString(row.seconds)}
                           onChange={(e) =>
-                            updateRow(row.rowId, "seconds", e.target.value)
+                            updateRow(toSafeString(row.rowId), "seconds", e.target.value)
                           }
                           placeholder="30秒"
                           style={tableInputStyle}
@@ -975,9 +983,9 @@ export default function TrainingPage() {
                       >
                         <span style={labelStyle}>メモ</span>
                         <textarea
-                          value={row.memo}
+                          value={toSafeString(row.memo)}
                           onChange={(e) =>
-                            updateRow(row.rowId, "memo", e.target.value)
+                            updateRow(toSafeString(row.rowId), "memo", e.target.value)
                           }
                           placeholder="フォーム意識、注意点など"
                           style={{ ...textareaStyle, minHeight: 88 }}
