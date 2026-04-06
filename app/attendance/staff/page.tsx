@@ -44,6 +44,7 @@ function formatTime(dateString?: string | null) {
   if (!dateString) return "--:--";
   const date = new Date(dateString);
   if (Number.isNaN(date.getTime())) return "--:--";
+
   return new Intl.DateTimeFormat("ja-JP", {
     timeZone: "Asia/Tokyo",
     hour: "2-digit",
@@ -56,6 +57,7 @@ function formatDateTime(dateString?: string | null) {
   if (!dateString) return "-";
   const date = new Date(dateString);
   if (Number.isNaN(date.getTime())) return "-";
+
   return new Intl.DateTimeFormat("ja-JP", {
     timeZone: "Asia/Tokyo",
     year: "numeric",
@@ -80,12 +82,15 @@ function calcTotalMinutes(
   breakMinutes = 0
 ) {
   if (!clockIn || !clockOut) return 0;
+
   const start = new Date(clockIn).getTime();
   const end = new Date(clockOut).getTime();
+
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 0;
 
   const raw = Math.floor((end - start) / 1000 / 60);
   const total = raw - Math.max(0, breakMinutes);
+
   return total > 0 ? total : 0;
 }
 
@@ -201,15 +206,22 @@ export default function AttendanceStaffPage() {
   async function ensureStaffMaster(clientStaffId: string, clientStaffName: string) {
     if (!supabase) return;
 
-    const { data: exists, error: checkError } = await supabase
+    const { data, error } = await supabase
       .from("staff_master")
       .select("staff_id, staff_name")
       .eq("staff_id", clientStaffId)
-      .maybeSingle<StaffMasterRow>();
+      .maybeSingle();
 
-    if (checkError) {
-      throw new Error(`スタッフ確認エラー: ${checkError.message}`);
+    if (error) {
+      if (error.message.includes("schema cache")) {
+        throw new Error(
+          "staff_master テーブルが未作成です。SupabaseのSQLを先に実行してください。"
+        );
+      }
+      throw new Error(`スタッフ確認エラー: ${error.message}`);
     }
+
+    const exists = (data as StaffMasterRow | null) || null;
 
     if (!exists) {
       const { error: insertError } = await supabase.from("staff_master").insert({
@@ -231,13 +243,18 @@ export default function AttendanceStaffPage() {
       .select("*")
       .eq("staff_id", clientStaffId)
       .eq("work_date", todayJst)
-      .maybeSingle<AttendanceRow>();
+      .maybeSingle();
 
     if (error) {
+      if (error.message.includes("schema cache")) {
+        throw new Error(
+          "staff_attendance テーブルが未作成です。SupabaseのSQLを先に実行してください。"
+        );
+      }
       throw new Error(`勤怠取得エラー: ${error.message}`);
     }
 
-    const row = data || null;
+    const row = (data as AttendanceRow | null) || null;
     setTodayRow(row);
     setBreakMinutes(row?.break_minutes ?? 60);
     setNote(row?.note ?? "");
@@ -280,9 +297,9 @@ export default function AttendanceStaffPage() {
   }
 
   function getStatusColor() {
-    if (!todayRow?.clock_in) return "#f6c45d";
-    if (todayRow.clock_in && !todayRow.clock_out) return "#6ee7b7";
-    return "#93c5fd";
+    if (!todayRow?.clock_in) return "#f59e0b";
+    if (todayRow.clock_in && !todayRow.clock_out) return "#10b981";
+    return "#3b82f6";
   }
 
   function getLiveWorkedMinutes() {
@@ -335,6 +352,7 @@ export default function AttendanceStaffPage() {
       setSaving(true);
       await ensureStaffMaster(generatedId, name);
       await loadTodayAttendance(generatedId);
+      alert("スタッフを保存しました。");
     } catch (error) {
       const msg =
         error instanceof Error ? error.message : "スタッフ保存に失敗しました。";
@@ -360,17 +378,18 @@ export default function AttendanceStaffPage() {
 
       await ensureStaffMaster(staffId, staffName);
 
-      const { data: existing, error: existingError } = await supabase
+      const { data, error: existingError } = await supabase
         .from("staff_attendance")
         .select("*")
         .eq("staff_id", staffId)
         .eq("work_date", todayJst)
-        .maybeSingle<AttendanceRow>();
+        .maybeSingle();
 
       if (existingError) {
         throw new Error(`出勤前チェックエラー: ${existingError.message}`);
       }
 
+      const existing = (data as AttendanceRow | null) || null;
       const nowIso = new Date().toISOString();
 
       if (!existing) {
@@ -431,16 +450,18 @@ export default function AttendanceStaffPage() {
     try {
       setSaving(true);
 
-      const { data: existing, error: fetchError } = await supabase
+      const { data, error: fetchError } = await supabase
         .from("staff_attendance")
         .select("*")
         .eq("staff_id", staffId)
         .eq("work_date", todayJst)
-        .maybeSingle<AttendanceRow>();
+        .maybeSingle();
 
       if (fetchError) {
         throw new Error(`退勤前取得エラー: ${fetchError.message}`);
       }
+
+      const existing = (data as AttendanceRow | null) || null;
 
       if (!existing || !existing.clock_in) {
         alert("先に出勤してください。");
@@ -551,7 +572,7 @@ export default function AttendanceStaffPage() {
             <div
               style={{
                 ...statusBadgeStyle,
-                borderColor: `${getStatusColor()}66`,
+                borderColor: `${getStatusColor()}55`,
                 color: getStatusColor(),
               }}
             >
@@ -735,6 +756,7 @@ export default function AttendanceStaffPage() {
                 )}
               </span>
             </div>
+
             <div style={detailRowStyle}>
               <span style={detailLabelStyle}>総勤務時間</span>
               <span style={detailValueStyle}>
@@ -745,7 +767,8 @@ export default function AttendanceStaffPage() {
                 )}
               </span>
             </div>
-            <div style={detailRowStyle}>
+
+            <div style={{ ...detailRowStyle, borderBottom: "none" }}>
               <span style={detailLabelStyle}>状態</span>
               <span style={{ ...detailValueStyle, color: getStatusColor() }}>
                 {getStatusLabel()}
@@ -763,7 +786,7 @@ export default function AttendanceStaffPage() {
 const pageStyle: CSSProperties = {
   minHeight: "100vh",
   background:
-    "linear-gradient(135deg, #0d1117 0%, #111827 35%, #161f2c 65%, #0f172a 100%)",
+    "linear-gradient(135deg, #eef4ff 0%, #f8fbff 30%, #f3f7ff 65%, #eef2ff 100%)",
   position: "relative",
   overflow: "hidden",
 };
@@ -772,23 +795,23 @@ const bgGlowA: CSSProperties = {
   position: "absolute",
   top: -140,
   left: -120,
-  width: 380,
-  height: 380,
+  width: 420,
+  height: 420,
   borderRadius: "50%",
   background:
-    "radial-gradient(circle, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0) 70%)",
+    "radial-gradient(circle, rgba(147,197,253,0.22) 0%, rgba(147,197,253,0) 72%)",
   pointerEvents: "none",
 };
 
 const bgGlowB: CSSProperties = {
   position: "absolute",
-  right: -100,
-  top: 120,
-  width: 300,
-  height: 300,
+  right: -120,
+  top: 80,
+  width: 360,
+  height: 360,
   borderRadius: "50%",
   background:
-    "radial-gradient(circle, rgba(147,197,253,0.10) 0%, rgba(147,197,253,0) 70%)",
+    "radial-gradient(circle, rgba(196,181,253,0.18) 0%, rgba(196,181,253,0) 72%)",
   pointerEvents: "none",
 };
 
@@ -812,15 +835,16 @@ const topRowStyle: CSSProperties = {
 const backLinkStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
-  color: "rgba(255,255,255,0.84)",
+  color: "rgba(30,41,59,0.78)",
   textDecoration: "none",
   fontSize: 14,
+  fontWeight: 600,
 };
 
 const eyebrowStyle: CSSProperties = {
   fontSize: 11,
   letterSpacing: "0.24em",
-  color: "rgba(255,255,255,0.52)",
+  color: "rgba(30,41,59,0.42)",
 };
 
 const heroCardStyle: CSSProperties = {
@@ -829,11 +853,13 @@ const heroCardStyle: CSSProperties = {
   alignItems: "flex-start",
   gap: 20,
   flexWrap: "wrap",
-  background: "linear-gradient(135deg, rgba(255,255,255,0.16), rgba(255,255,255,0.06))",
-  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(255,255,255,0.55)",
+  border: "1px solid rgba(255,255,255,0.75)",
   borderRadius: 28,
   padding: "24px 22px",
   marginBottom: 20,
+  boxShadow: "0 18px 40px rgba(148,163,184,0.14)",
+  backdropFilter: "blur(10px)",
 };
 
 const heroLeftStyle: CSSProperties = {
@@ -844,7 +870,7 @@ const heroLeftStyle: CSSProperties = {
 const miniLabelStyle: CSSProperties = {
   fontSize: 11,
   letterSpacing: "0.24em",
-  color: "rgba(255,255,255,0.58)",
+  color: "rgba(30,41,59,0.48)",
   marginBottom: 8,
 };
 
@@ -852,7 +878,7 @@ const titleStyle: CSSProperties = {
   margin: 0,
   fontSize: "clamp(28px, 4vw, 42px)",
   lineHeight: 1.1,
-  color: "#ffffff",
+  color: "#0f172a",
   fontWeight: 800,
 };
 
@@ -860,7 +886,7 @@ const descStyle: CSSProperties = {
   margin: "12px 0 0",
   fontSize: 14,
   lineHeight: 1.8,
-  color: "rgba(255,255,255,0.72)",
+  color: "rgba(15,23,42,0.68)",
 };
 
 const statusWrapStyle: CSSProperties = {
@@ -874,14 +900,14 @@ const statusWrapStyle: CSSProperties = {
 const statusBadgeStyle: CSSProperties = {
   padding: "10px 16px",
   borderRadius: 9999,
-  border: "1px solid rgba(255,255,255,0.20)",
-  background: "rgba(255,255,255,0.05)",
+  border: "1px solid rgba(148,163,184,0.24)",
+  background: "rgba(255,255,255,0.62)",
   fontWeight: 700,
   fontSize: 14,
 };
 
 const todayStyle: CSSProperties = {
-  color: "rgba(255,255,255,0.68)",
+  color: "rgba(15,23,42,0.56)",
   fontSize: 13,
 };
 
@@ -889,9 +915,9 @@ const errorBoxStyle: CSSProperties = {
   marginBottom: 20,
   padding: "14px 16px",
   borderRadius: 18,
-  background: "rgba(239,68,68,0.14)",
-  border: "1px solid rgba(239,68,68,0.28)",
-  color: "#fecaca",
+  background: "rgba(254,226,226,0.9)",
+  border: "1px solid rgba(248,113,113,0.28)",
+  color: "#b91c1c",
   fontSize: 14,
 };
 
@@ -903,10 +929,12 @@ const gridStyle: CSSProperties = {
 };
 
 const panelStyle: CSSProperties = {
-  background: "linear-gradient(135deg, rgba(255,255,255,0.14), rgba(255,255,255,0.06))",
-  border: "1px solid rgba(255,255,255,0.10)",
+  background: "rgba(255,255,255,0.52)",
+  border: "1px solid rgba(255,255,255,0.76)",
   borderRadius: 26,
   padding: 20,
+  boxShadow: "0 14px 34px rgba(148,163,184,0.12)",
+  backdropFilter: "blur(10px)",
 };
 
 const panelHeaderStyle: CSSProperties = {
@@ -919,14 +947,14 @@ const panelHeaderStyle: CSSProperties = {
 const panelMiniStyle: CSSProperties = {
   fontSize: 11,
   letterSpacing: "0.22em",
-  color: "rgba(255,255,255,0.52)",
+  color: "rgba(30,41,59,0.42)",
   marginBottom: 6,
 };
 
 const panelTitleStyle: CSSProperties = {
   margin: 0,
   fontSize: 22,
-  color: "#ffffff",
+  color: "#0f172a",
   fontWeight: 700,
 };
 
@@ -939,16 +967,16 @@ const fieldGroupStyle: CSSProperties = {
 
 const labelStyle: CSSProperties = {
   fontSize: 13,
-  color: "rgba(255,255,255,0.78)",
+  color: "rgba(15,23,42,0.78)",
 };
 
 const inputStyle: CSSProperties = {
   width: "100%",
   height: 48,
   borderRadius: 14,
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(255,255,255,0.06)",
-  color: "#ffffff",
+  border: "1px solid rgba(203,213,225,0.9)",
+  background: "rgba(255,255,255,0.82)",
+  color: "#0f172a",
   padding: "0 14px",
   outline: "none",
   fontSize: 14,
@@ -957,9 +985,9 @@ const inputStyle: CSSProperties = {
 const textareaStyle: CSSProperties = {
   width: "100%",
   borderRadius: 14,
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(255,255,255,0.06)",
-  color: "#ffffff",
+  border: "1px solid rgba(203,213,225,0.9)",
+  background: "rgba(255,255,255,0.82)",
+  color: "#0f172a",
   padding: "12px 14px",
   outline: "none",
   fontSize: 14,
@@ -968,8 +996,8 @@ const textareaStyle: CSSProperties = {
 
 const staffInfoBoxStyle: CSSProperties = {
   borderRadius: 18,
-  background: "rgba(255,255,255,0.05)",
-  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.7)",
+  border: "1px solid rgba(226,232,240,0.95)",
   padding: 14,
   marginBottom: 14,
 };
@@ -983,12 +1011,12 @@ const infoRowStyle: CSSProperties = {
 
 const infoLabelStyle: CSSProperties = {
   fontSize: 13,
-  color: "rgba(255,255,255,0.58)",
+  color: "rgba(15,23,42,0.52)",
 };
 
 const infoValueStyle: CSSProperties = {
   fontSize: 13,
-  color: "#ffffff",
+  color: "#0f172a",
   fontWeight: 600,
   textAlign: "right",
 };
@@ -998,20 +1026,21 @@ const primaryButtonStyle: CSSProperties = {
   height: 50,
   border: "none",
   borderRadius: 16,
-  background: "linear-gradient(135deg, rgba(255,255,255,0.92), rgba(226,232,240,0.86))",
+  background: "linear-gradient(135deg, #ffffff, #eaf1ff)",
   color: "#0f172a",
   fontWeight: 700,
   fontSize: 14,
   cursor: "pointer",
+  boxShadow: "0 10px 24px rgba(148,163,184,0.15)",
 };
 
 const secondaryButtonStyle: CSSProperties = {
   width: "100%",
   height: 48,
-  border: "1px solid rgba(255,255,255,0.14)",
+  border: "1px solid rgba(203,213,225,0.95)",
   borderRadius: 16,
-  background: "rgba(255,255,255,0.08)",
-  color: "#ffffff",
+  background: "rgba(255,255,255,0.84)",
+  color: "#0f172a",
   fontWeight: 700,
   fontSize: 14,
   cursor: "pointer",
@@ -1026,20 +1055,20 @@ const summaryGridStyle: CSSProperties = {
 
 const summaryCardStyle: CSSProperties = {
   borderRadius: 18,
-  background: "rgba(255,255,255,0.05)",
-  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(226,232,240,0.95)",
   padding: "14px 14px",
 };
 
 const summaryLabelStyle: CSSProperties = {
   fontSize: 12,
-  color: "rgba(255,255,255,0.54)",
+  color: "rgba(15,23,42,0.46)",
   marginBottom: 6,
 };
 
 const summaryValueStyle: CSSProperties = {
   fontSize: 24,
-  color: "#ffffff",
+  color: "#0f172a",
   fontWeight: 700,
 };
 
@@ -1061,19 +1090,22 @@ const actionButtonStyle: CSSProperties = {
 };
 
 const clockInButtonStyle: CSSProperties = {
-  background: "linear-gradient(135deg, #34d399, #10b981)",
-  color: "#052e25",
+  background: "linear-gradient(135deg, #86efac, #34d399)",
+  color: "#064e3b",
+  boxShadow: "0 10px 24px rgba(52,211,153,0.22)",
 };
 
 const clockOutButtonStyle: CSSProperties = {
-  background: "linear-gradient(135deg, #93c5fd, #60a5fa)",
-  color: "#0b1f3a",
+  background: "linear-gradient(135deg, #bfdbfe, #60a5fa)",
+  color: "#1e3a8a",
+  boxShadow: "0 10px 24px rgba(96,165,250,0.20)",
 };
 
 const disabledButtonStyle: CSSProperties = {
-  background: "rgba(255,255,255,0.08)",
-  color: "rgba(255,255,255,0.36)",
+  background: "rgba(226,232,240,0.78)",
+  color: "rgba(15,23,42,0.34)",
   cursor: "not-allowed",
+  boxShadow: "none",
 };
 
 const summaryGridLargeStyle: CSSProperties = {
@@ -1085,35 +1117,35 @@ const summaryGridLargeStyle: CSSProperties = {
 
 const metricCardStyle: CSSProperties = {
   borderRadius: 20,
-  background: "rgba(255,255,255,0.05)",
-  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(226,232,240,0.95)",
   padding: "16px 16px",
 };
 
 const metricLabelStyle: CSSProperties = {
   fontSize: 12,
-  color: "rgba(255,255,255,0.54)",
+  color: "rgba(15,23,42,0.46)",
   marginBottom: 8,
 };
 
 const metricValueStyle: CSSProperties = {
   fontSize: 28,
-  color: "#ffffff",
+  color: "#0f172a",
   fontWeight: 800,
   letterSpacing: "-0.03em",
 };
 
 const metricValueSmallStyle: CSSProperties = {
   fontSize: 15,
-  color: "#ffffff",
+  color: "#0f172a",
   fontWeight: 700,
   lineHeight: 1.5,
 };
 
 const detailBoxStyle: CSSProperties = {
   borderRadius: 20,
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.7)",
+  border: "1px solid rgba(226,232,240,0.95)",
   padding: 14,
 };
 
@@ -1122,17 +1154,17 @@ const detailRowStyle: CSSProperties = {
   justifyContent: "space-between",
   gap: 12,
   padding: "10px 0",
-  borderBottom: "1px solid rgba(255,255,255,0.08)",
+  borderBottom: "1px solid rgba(226,232,240,0.9)",
 };
 
 const detailLabelStyle: CSSProperties = {
   fontSize: 13,
-  color: "rgba(255,255,255,0.60)",
+  color: "rgba(15,23,42,0.56)",
 };
 
 const detailValueStyle: CSSProperties = {
   fontSize: 14,
-  color: "#ffffff",
+  color: "#0f172a",
   fontWeight: 700,
   textAlign: "right",
 };
@@ -1140,5 +1172,5 @@ const detailValueStyle: CSSProperties = {
 const loadingStyle: CSSProperties = {
   marginTop: 18,
   fontSize: 14,
-  color: "rgba(255,255,255,0.72)",
+  color: "rgba(15,23,42,0.62)",
 };
