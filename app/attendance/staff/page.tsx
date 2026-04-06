@@ -154,6 +154,52 @@ function makeStaffIdFromName(name: string) {
   return `staff_${name.trim().replace(/\s+/g, "_")}`;
 }
 
+function humanizeSupabaseError(message: string) {
+  const lower = message.toLowerCase();
+
+  if (lower.includes("schema cache") && lower.includes("staff_master")) {
+    return "staff_master テーブルが未作成です。SupabaseのSQLを先に実行してください。";
+  }
+
+  if (lower.includes("schema cache") && lower.includes("staff_attendance")) {
+    return "staff_attendance テーブルが未作成です。SupabaseのSQLを先に実行してください。";
+  }
+
+  if (lower.includes("late_night_minutes")) {
+    return "staff_attendance テーブルに late_night_minutes 列がありません。列追加SQLを実行してください。";
+  }
+
+  if (lower.includes("regular_minutes")) {
+    return "staff_attendance テーブルに regular_minutes 列がありません。列追加SQLを実行してください。";
+  }
+
+  if (lower.includes("overtime_minutes")) {
+    return "staff_attendance テーブルに overtime_minutes 列がありません。列追加SQLを実行してください。";
+  }
+
+  if (lower.includes("total_work_minutes")) {
+    return "staff_attendance テーブルに total_work_minutes 列がありません。列追加SQLを実行してください。";
+  }
+
+  if (lower.includes("break_minutes")) {
+    return "staff_attendance テーブルに break_minutes 列がありません。列追加SQLを実行してください。";
+  }
+
+  if (lower.includes("updated_at")) {
+    return "staff_attendance テーブルに updated_at 列がありません。列追加SQLを実行してください。";
+  }
+
+  if (lower.includes("created_at")) {
+    return "staff_attendance テーブルに created_at 列がありません。列追加SQLを実行してください。";
+  }
+
+  if (lower.includes("note")) {
+    return "staff_attendance テーブルに note 列がありません。列追加SQLを実行してください。";
+  }
+
+  return message;
+}
+
 export default function AttendanceStaffPage() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -166,6 +212,7 @@ export default function AttendanceStaffPage() {
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [pageError, setPageError] = useState("");
 
   const [staffId, setStaffId] = useState("");
   const [staffName, setStaffName] = useState("");
@@ -213,12 +260,7 @@ export default function AttendanceStaffPage() {
       .maybeSingle();
 
     if (error) {
-      if (error.message.includes("schema cache")) {
-        throw new Error(
-          "staff_master テーブルが未作成です。SupabaseのSQLを先に実行してください。"
-        );
-      }
-      throw new Error(`スタッフ確認エラー: ${error.message}`);
+      throw new Error(humanizeSupabaseError(error.message));
     }
 
     const exists = (data as StaffMasterRow | null) || null;
@@ -230,7 +272,7 @@ export default function AttendanceStaffPage() {
       });
 
       if (insertError) {
-        throw new Error(`スタッフ登録エラー: ${insertError.message}`);
+        throw new Error(humanizeSupabaseError(insertError.message));
       }
     }
   }
@@ -246,12 +288,7 @@ export default function AttendanceStaffPage() {
       .maybeSingle();
 
     if (error) {
-      if (error.message.includes("schema cache")) {
-        throw new Error(
-          "staff_attendance テーブルが未作成です。SupabaseのSQLを先に実行してください。"
-        );
-      }
-      throw new Error(`勤怠取得エラー: ${error.message}`);
+      throw new Error(humanizeSupabaseError(error.message));
     }
 
     const row = (data as AttendanceRow | null) || null;
@@ -276,12 +313,12 @@ export default function AttendanceStaffPage() {
 
       try {
         setLoading(true);
+        setPageError("");
         await ensureStaffMaster(staffId, staffName || inputStaffName || "スタッフ");
         await loadTodayAttendance(staffId);
       } catch (error) {
-        const msg =
-          error instanceof Error ? error.message : "初期化に失敗しました。";
-        alert(msg);
+        const msg = error instanceof Error ? error.message : "初期化に失敗しました。";
+        setPageError(msg);
       } finally {
         setLoading(false);
       }
@@ -350,12 +387,13 @@ export default function AttendanceStaffPage() {
 
     try {
       setSaving(true);
+      setPageError("");
       await ensureStaffMaster(generatedId, name);
       await loadTodayAttendance(generatedId);
       alert("スタッフを保存しました。");
     } catch (error) {
-      const msg =
-        error instanceof Error ? error.message : "スタッフ保存に失敗しました。";
+      const msg = error instanceof Error ? error.message : "スタッフ保存に失敗しました。";
+      setPageError(msg);
       alert(msg);
     } finally {
       setSaving(false);
@@ -375,6 +413,7 @@ export default function AttendanceStaffPage() {
 
     try {
       setSaving(true);
+      setPageError("");
 
       await ensureStaffMaster(staffId, staffName);
 
@@ -386,7 +425,7 @@ export default function AttendanceStaffPage() {
         .maybeSingle();
 
       if (existingError) {
-        throw new Error(`出勤前チェックエラー: ${existingError.message}`);
+        throw new Error(humanizeSupabaseError(existingError.message));
       }
 
       const existing = (data as AttendanceRow | null) || null;
@@ -407,7 +446,7 @@ export default function AttendanceStaffPage() {
         });
 
         if (insertError) {
-          throw new Error(`出勤登録エラー: ${insertError.message}`);
+          throw new Error(humanizeSupabaseError(insertError.message));
         }
       } else {
         const { error: updateError } = await supabase
@@ -421,15 +460,15 @@ export default function AttendanceStaffPage() {
           .eq("id", existing.id);
 
         if (updateError) {
-          throw new Error(`出勤更新エラー: ${updateError.message}`);
+          throw new Error(humanizeSupabaseError(updateError.message));
         }
       }
 
       await loadTodayAttendance(staffId);
       alert("出勤を記録しました。");
     } catch (error) {
-      const msg =
-        error instanceof Error ? error.message : "出勤登録に失敗しました。";
+      const msg = error instanceof Error ? error.message : "出勤登録に失敗しました。";
+      setPageError(msg);
       alert(msg);
     } finally {
       setSaving(false);
@@ -449,6 +488,7 @@ export default function AttendanceStaffPage() {
 
     try {
       setSaving(true);
+      setPageError("");
 
       const { data, error: fetchError } = await supabase
         .from("staff_attendance")
@@ -458,7 +498,7 @@ export default function AttendanceStaffPage() {
         .maybeSingle();
 
       if (fetchError) {
-        throw new Error(`退勤前取得エラー: ${fetchError.message}`);
+        throw new Error(humanizeSupabaseError(fetchError.message));
       }
 
       const existing = (data as AttendanceRow | null) || null;
@@ -494,14 +534,14 @@ export default function AttendanceStaffPage() {
         .eq("id", existing.id);
 
       if (updateError) {
-        throw new Error(`退勤更新エラー: ${updateError.message}`);
+        throw new Error(humanizeSupabaseError(updateError.message));
       }
 
       await loadTodayAttendance(staffId);
       alert("退勤を記録しました。");
     } catch (error) {
-      const msg =
-        error instanceof Error ? error.message : "退勤登録に失敗しました。";
+      const msg = error instanceof Error ? error.message : "退勤登録に失敗しました。";
+      setPageError(msg);
       alert(msg);
     } finally {
       setSaving(false);
@@ -521,6 +561,7 @@ export default function AttendanceStaffPage() {
 
     try {
       setSaving(true);
+      setPageError("");
 
       const { error } = await supabase
         .from("staff_attendance")
@@ -531,13 +572,14 @@ export default function AttendanceStaffPage() {
         .eq("id", todayRow.id);
 
       if (error) {
-        throw new Error(`保存エラー: ${error.message}`);
+        throw new Error(humanizeSupabaseError(error.message));
       }
 
       await loadTodayAttendance(staffId);
       alert("休憩・備考を保存しました。");
     } catch (error) {
       const msg = error instanceof Error ? error.message : "保存に失敗しました。";
+      setPageError(msg);
       alert(msg);
     } finally {
       setSaving(false);
@@ -587,6 +629,8 @@ export default function AttendanceStaffPage() {
             NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY が未設定です。
           </div>
         )}
+
+        {pageError && <div style={errorBoxStyle}>{pageError}</div>}
 
         <div style={gridStyle}>
           <div style={panelStyle}>
