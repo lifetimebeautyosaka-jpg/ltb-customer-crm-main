@@ -94,20 +94,20 @@ export default function Page() {
         customerId = String(insertedCustomer.id);
       }
 
-      const reservationPayload = {
-        customer_name: name,
-        date,
-        start_time: startTime,
-        store_name: storeName,
-        staff_name: staffName,
-        menu,
-        payment_method: paymentMethod,
-        memo: memoText,
-      };
-
       const { error: reservationError } = await supabase
         .from("reservations")
-        .insert([reservationPayload]);
+        .insert([
+          {
+            customer_name: name,
+            date,
+            start_time: startTime,
+            store_name: storeName,
+            staff_name: staffName,
+            menu,
+            payment_method: paymentMethod,
+            memo: memoText,
+          },
+        ]);
 
       if (reservationError) {
         alert(`予約保存エラー: ${reservationError.message}`);
