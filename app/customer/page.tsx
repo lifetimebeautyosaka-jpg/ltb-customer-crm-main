@@ -7,47 +7,42 @@ import { BG, CARD, BUTTON_PRIMARY } from "../../styles/theme";
 
 type Customer = {
   id: number | string;
-  name?: string;
-  kana?: string;
-  gender?: string;
-  age?: number | string;
-  birthday?: string;
-  phone?: string;
-  email?: string;
-  height?: number | string;
-  weight?: number | string;
-  bodyFat?: number | string;
-  muscleMass?: number | string;
-  visceralFat?: number | string;
-  goal?: string;
-  memo?: string;
-  notes?: string;
-  note?: string;
-  purpose?: string;
-  target?: string;
-  planType?: string;
-  planStyle?: string;
-  price?: number | string;
-  monthlyCount?: number | string;
-  usedCount?: number | string;
-  carryOver?: number | string;
-  remaining?: number | string;
-  status?: string;
-  nextPayment?: string;
-  lastVisitDate?: string;
-  lastVisitAt?: string;
-  ltv?: number | string;
-  created_at?: string;
-  updated_at?: string;
-  [key: string]: any;
+  name?: string | null;
+  kana?: string | null;
+  gender?: string | null;
+  age?: number | string | null;
+  birthday?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  height?: number | string | null;
+  weight?: number | string | null;
+  bodyFat?: number | string | null;
+  muscleMass?: number | string | null;
+  visceralFat?: number | string | null;
+  goal?: string | null;
+  memo?: string | null;
+  planType?: string | null;
+  planStyle?: string | null;
+  price?: number | string | null;
+  monthlyCount?: number | string | null;
+  usedCount?: number | string | null;
+  carryOver?: number | string | null;
+  remaining?: number | string | null;
+  status?: string | null;
+  nextPayment?: string | null;
+  lastVisitDate?: string | null;
+  ltv?: number | string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-
 const supabase =
-  supabaseUrl && supabaseAnonKey
-    ? createClient(supabaseUrl, supabaseAnonKey)
+  process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    ? createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      )
     : null;
 
 const emptyForm: Customer = {
@@ -79,6 +74,105 @@ const emptyForm: Customer = {
   ltv: "",
 };
 
+function toNullableNumber(value: any) {
+  if (value === "" || value === null || value === undefined) return null;
+  const num = Number(value);
+  return Number.isNaN(num) ? null : num;
+}
+
+function normalizeCustomer(item: any): Customer {
+  return {
+    ...item,
+    id: item?.id ?? "",
+    name: item?.name ?? "",
+    kana: item?.kana ?? "",
+    gender: item?.gender ?? "",
+    age: item?.age ?? "",
+    birthday: item?.birthday ?? "",
+    phone: item?.phone ?? "",
+    email: item?.email ?? "",
+    height: item?.height ?? "",
+    weight: item?.weight ?? "",
+    bodyFat: item?.bodyFat ?? item?.body_fat ?? "",
+    muscleMass: item?.muscleMass ?? item?.muscle_mass ?? "",
+    visceralFat: item?.visceralFat ?? item?.visceral_fat ?? "",
+    goal: item?.goal ?? item?.purpose ?? item?.target ?? "",
+    memo: item?.memo ?? item?.notes ?? item?.note ?? "",
+    planType: item?.planType ?? item?.plan_type ?? "",
+    planStyle: item?.planStyle ?? item?.plan_style ?? "",
+    price: item?.price ?? "",
+    monthlyCount: item?.monthlyCount ?? item?.monthly_count ?? "",
+    usedCount: item?.usedCount ?? item?.used_count ?? "",
+    carryOver: item?.carryOver ?? item?.carry_over ?? "",
+    remaining: item?.remaining ?? item?.remaining_count ?? "",
+    status: item?.status ?? "",
+    nextPayment: item?.nextPayment ?? item?.next_payment_date ?? "",
+    lastVisitDate: item?.lastVisitDate ?? item?.last_visit_date ?? "",
+    ltv: item?.ltv ?? "",
+    created_at: item?.created_at ?? null,
+    updated_at: item?.updated_at ?? null,
+  };
+}
+
+function buildDbPayload(customer: Customer) {
+  return {
+    id: Number(customer.id),
+    name: customer.name || null,
+    kana: customer.kana || null,
+    gender: customer.gender || null,
+    age: toNullableNumber(customer.age),
+    birthday: customer.birthday || null,
+    phone: customer.phone || null,
+    email: customer.email || null,
+    height: toNullableNumber(customer.height),
+    weight: toNullableNumber(customer.weight),
+    body_fat: toNullableNumber(customer.bodyFat),
+    muscle_mass: toNullableNumber(customer.muscleMass),
+    visceral_fat: toNullableNumber(customer.visceralFat),
+    goal: customer.goal || null,
+    memo: customer.memo || null,
+    plan_type: customer.planType || null,
+    plan_style: customer.planStyle || null,
+    price: toNullableNumber(customer.price),
+    monthly_count: toNullableNumber(customer.monthlyCount),
+    used_count: toNullableNumber(customer.usedCount),
+    carry_over: toNullableNumber(customer.carryOver),
+    remaining_count: toNullableNumber(customer.remaining),
+    status: customer.status || null,
+    next_payment_date: customer.nextPayment || null,
+    last_visit_date: customer.lastVisitDate || null,
+    ltv: toNullableNumber(customer.ltv),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function getNextCustomerId(list: Customer[]) {
+  const nums = list
+    .map((item) => Number(item.id))
+    .filter((num) => !Number.isNaN(num));
+
+  if (nums.length === 0) return 1;
+  return Math.max(...nums) + 1;
+}
+
+function formatDate(date?: string | null) {
+  if (!date) return "—";
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return date;
+  return new Intl.DateTimeFormat("ja-JP").format(d);
+}
+
+function yen(value: any) {
+  const num = Number(value || 0);
+  if (Number.isNaN(num) || value === "" || value === null || value === undefined) return "—";
+  return `¥${num.toLocaleString()}`;
+}
+
+function withUnit(value: any, unit: string) {
+  if (value === null || value === undefined || value === "") return "—";
+  return `${value}${unit}`;
+}
+
 export default function CustomerPage() {
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -108,44 +202,35 @@ export default function CustomerPage() {
 
   useEffect(() => {
     if (!mounted) return;
-    fetchCustomers();
+    void fetchCustomers();
   }, [mounted]);
 
-  const fetchCustomers = async () => {
+  async function fetchCustomers() {
+    if (!supabase) {
+      setErrorMessage("Supabaseの環境変数が未設定です。");
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setErrorMessage("");
-
-      const localList = getLocalCustomers();
-
-      if (!supabase) {
-        setCustomers(sortCustomers(localList));
-        return;
-      }
 
       const { data, error } = await supabase
         .from("customers")
         .select("*")
         .order("id", { ascending: true });
 
-      if (error) {
-        setCustomers(sortCustomers(localList));
-        return;
-      }
+      if (error) throw error;
 
-      const dbList = ((data || []) as Customer[]).map(normalizeCustomer);
-      const merged = mergeCustomers(dbList, localList);
-
-      setCustomers(sortCustomers(merged));
-      saveLocalCustomers(merged);
+      setCustomers(((data || []) as Customer[]).map(normalizeCustomer));
     } catch (error: any) {
       console.error(error);
-      setCustomers(sortCustomers(getLocalCustomers()));
-      setErrorMessage("顧客一覧の取得に失敗しました。");
+      setErrorMessage(error?.message || "顧客一覧の取得に失敗しました。");
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   const filteredCustomers = useMemo(() => {
     const q = keyword.trim().toLowerCase();
@@ -167,19 +252,19 @@ export default function CustomerPage() {
     });
   }, [customers, keyword]);
 
-  const resetForm = () => {
+  function resetForm() {
     setForm(emptyForm);
     setEditingId("");
-  };
+  }
 
-  const handleChange = (key: keyof Customer, value: string) => {
+  function handleChange(key: keyof Customer, value: string) {
     setForm((prev) => ({
       ...prev,
       [key]: value,
     }));
-  };
+  }
 
-  const handleEdit = (customer: Customer) => {
+  function handleEdit(customer: Customer) {
     setEditingId(String(customer.id));
     setForm({
       ...emptyForm,
@@ -188,33 +273,40 @@ export default function CustomerPage() {
     });
 
     window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+  }
 
-  const handleDelete = async (id: string) => {
+  async function handleDelete(id: string) {
     const ok = window.confirm("この顧客を削除しますか？");
     if (!ok) return;
+    if (!supabase) return;
 
     try {
-      const next = customers.filter((item) => String(item.id) !== String(id));
-      setCustomers(next);
-      saveLocalCustomers(next);
-      localStorage.removeItem(`customer-${id}`);
+      setMessage("");
+      setErrorMessage("");
 
-      if (supabase) {
-        await supabase.from("customers").delete().eq("id", Number(id));
-      }
+      const { error } = await supabase
+        .from("customers")
+        .delete()
+        .eq("id", Number(id));
 
+      if (error) throw error;
+
+      setCustomers((prev) => prev.filter((item) => String(item.id) !== String(id)));
       setMessage("削除しました。");
-      if (editingId === String(id)) {
-        resetForm();
-      }
-    } catch (error) {
-      console.error(error);
-      setErrorMessage("削除に失敗しました。");
-    }
-  };
 
-  const handleSave = async () => {
+      if (editingId === String(id)) resetForm();
+    } catch (error: any) {
+      console.error(error);
+      setErrorMessage(error?.message || "削除に失敗しました。");
+    }
+  }
+
+  async function handleSave() {
+    if (!supabase) {
+      setErrorMessage("Supabaseの環境変数が未設定です。");
+      return;
+    }
+
     try {
       setSaving(true);
       setMessage("");
@@ -225,52 +317,35 @@ export default function CustomerPage() {
         return;
       }
 
-      const nextId =
-        editingId ||
-        String(getNextCustomerId(customers));
+      const nextId = editingId || String(getNextCustomerId(customers));
 
       const payload: Customer = normalizeCustomer({
         ...form,
         id: nextId,
-        purpose: form.goal || "",
-        target: form.goal || "",
-        notes: form.memo || "",
-        note: form.memo || "",
-        lastVisitAt: form.lastVisitDate || "",
-        updated_at: new Date().toISOString(),
-        created_at:
-          editingId && form.created_at ? form.created_at : new Date().toISOString(),
       });
 
-      const nextList = upsertLocalCustomer(customers, payload);
-      setCustomers(sortCustomers(nextList));
-      saveLocalCustomers(nextList);
-      saveLocalCustomerDetail(payload);
+      const dbPayload: any = buildDbPayload(payload);
 
-      if (supabase) {
-        try {
-          const dbPayload = buildDbPayload(payload);
-          const { error } = await supabase
-            .from("customers")
-            .upsert(dbPayload, { onConflict: "id" });
-
-          if (error) {
-            console.error("Supabase save skipped:", error.message);
-          }
-        } catch (dbError) {
-          console.error("Supabase save failed:", dbError);
-        }
+      if (!editingId) {
+        dbPayload.created_at = new Date().toISOString();
       }
 
+      const { error } = await supabase
+        .from("customers")
+        .upsert(dbPayload, { onConflict: "id" });
+
+      if (error) throw error;
+
+      await fetchCustomers();
       setMessage(editingId ? "顧客情報を更新しました。" : "顧客を登録しました。");
       resetForm();
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      setErrorMessage("保存に失敗しました。");
+      setErrorMessage(error?.message || "保存に失敗しました。");
     } finally {
       setSaving(false);
     }
-  };
+  }
 
   if (!mounted) return null;
 
@@ -305,317 +380,45 @@ export default function CustomerPage() {
             </h2>
 
             <div style={styles.formGrid}>
-              <Field
-                label="氏名"
-                input={
-                  <input
-                    value={String(form.name || "")}
-                    onChange={(e) => handleChange("name", e.target.value)}
-                    placeholder="例 山崎利樹"
-                    style={styles.input}
-                  />
-                }
-              />
-
-              <Field
-                label="かな"
-                input={
-                  <input
-                    value={String(form.kana || "")}
-                    onChange={(e) => handleChange("kana", e.target.value)}
-                    placeholder="例 やまざきとしき"
-                    style={styles.input}
-                  />
-                }
-              />
-
-              <Field
-                label="電話"
-                input={
-                  <input
-                    value={String(form.phone || "")}
-                    onChange={(e) => handleChange("phone", e.target.value)}
-                    placeholder="例 09012345678"
-                    style={styles.input}
-                  />
-                }
-              />
-
-              <Field
-                label="メール"
-                input={
-                  <input
-                    value={String(form.email || "")}
-                    onChange={(e) => handleChange("email", e.target.value)}
-                    placeholder="例 sample@mail.com"
-                    style={styles.input}
-                  />
-                }
-              />
-
-              <Field
-                label="性別"
-                input={
-                  <select
-                    value={String(form.gender || "")}
-                    onChange={(e) => handleChange("gender", e.target.value)}
-                    style={styles.input}
-                  >
-                    <option value="">選択してください</option>
-                    <option value="男性">男性</option>
-                    <option value="女性">女性</option>
-                    <option value="その他">その他</option>
-                  </select>
-                }
-              />
-
-              <Field
-                label="年齢"
-                input={
-                  <input
-                    value={String(form.age || "")}
-                    onChange={(e) => handleChange("age", e.target.value)}
-                    placeholder="例 34"
-                    style={styles.input}
-                  />
-                }
-              />
-
-              <Field
-                label="誕生日"
-                input={
-                  <input
-                    type="date"
-                    value={String(form.birthday || "")}
-                    onChange={(e) => handleChange("birthday", e.target.value)}
-                    style={styles.input}
-                  />
-                }
-              />
-
-              <Field
-                label="身長(cm)"
-                input={
-                  <input
-                    value={String(form.height || "")}
-                    onChange={(e) => handleChange("height", e.target.value)}
-                    placeholder="例 170"
-                    style={styles.input}
-                  />
-                }
-              />
-
-              <Field
-                label="現在体重(kg)"
-                input={
-                  <input
-                    value={String(form.weight || "")}
-                    onChange={(e) => handleChange("weight", e.target.value)}
-                    placeholder="例 65.2"
-                    style={styles.input}
-                  />
-                }
-              />
-
-              <Field
-                label="体脂肪率(%)"
-                input={
-                  <input
-                    value={String(form.bodyFat || "")}
-                    onChange={(e) => handleChange("bodyFat", e.target.value)}
-                    placeholder="例 18.5"
-                    style={styles.input}
-                  />
-                }
-              />
-
-              <Field
-                label="筋肉量(kg)"
-                input={
-                  <input
-                    value={String(form.muscleMass || "")}
-                    onChange={(e) => handleChange("muscleMass", e.target.value)}
-                    placeholder="例 48.3"
-                    style={styles.input}
-                  />
-                }
-              />
-
-              <Field
-                label="内臓脂肪"
-                input={
-                  <input
-                    value={String(form.visceralFat || "")}
-                    onChange={(e) => handleChange("visceralFat", e.target.value)}
-                    placeholder="例 7"
-                    style={styles.input}
-                  />
-                }
-              />
-
-              <Field
-                label="プラン種別"
-                input={
-                  <input
-                    value={String(form.planType || "")}
-                    onChange={(e) => handleChange("planType", e.target.value)}
-                    placeholder="例 月4回"
-                    style={styles.input}
-                  />
-                }
-              />
-
-              <Field
-                label="利用形態"
-                input={
-                  <input
-                    value={String(form.planStyle || "")}
-                    onChange={(e) => handleChange("planStyle", e.target.value)}
-                    placeholder="例 マンツーマン"
-                    style={styles.input}
-                  />
-                }
-              />
-
-              <Field
-                label="月回数"
-                input={
-                  <input
-                    value={String(form.monthlyCount || "")}
-                    onChange={(e) => handleChange("monthlyCount", e.target.value)}
-                    placeholder="例 4"
-                    style={styles.input}
-                  />
-                }
-              />
-
-              <Field
-                label="使用回数"
-                input={
-                  <input
-                    value={String(form.usedCount || "")}
-                    onChange={(e) => handleChange("usedCount", e.target.value)}
-                    placeholder="例 1"
-                    style={styles.input}
-                  />
-                }
-              />
-
-              <Field
-                label="繰越"
-                input={
-                  <input
-                    value={String(form.carryOver || "")}
-                    onChange={(e) => handleChange("carryOver", e.target.value)}
-                    placeholder="例 0"
-                    style={styles.input}
-                  />
-                }
-              />
-
-              <Field
-                label="残回数"
-                input={
-                  <input
-                    value={String(form.remaining || "")}
-                    onChange={(e) => handleChange("remaining", e.target.value)}
-                    placeholder="例 3"
-                    style={styles.input}
-                  />
-                }
-              />
-
-              <Field
-                label="料金"
-                input={
-                  <input
-                    value={String(form.price || "")}
-                    onChange={(e) => handleChange("price", e.target.value)}
-                    placeholder="例 33880"
-                    style={styles.input}
-                  />
-                }
-              />
-
-              <Field
-                label="状態"
-                input={
-                  <select
-                    value={String(form.status || "")}
-                    onChange={(e) => handleChange("status", e.target.value)}
-                    style={styles.input}
-                  >
-                    <option value="">選択してください</option>
-                    <option value="有効">有効</option>
-                    <option value="停止">停止</option>
-                    <option value="休会">休会</option>
-                  </select>
-                }
-              />
-
-              <Field
-                label="次回支払日"
-                input={
-                  <input
-                    type="date"
-                    value={String(form.nextPayment || "")}
-                    onChange={(e) => handleChange("nextPayment", e.target.value)}
-                    style={styles.input}
-                  />
-                }
-              />
-
-              <Field
-                label="最終来店日"
-                input={
-                  <input
-                    type="date"
-                    value={String(form.lastVisitDate || "")}
-                    onChange={(e) => handleChange("lastVisitDate", e.target.value)}
-                    style={styles.input}
-                  />
-                }
-              />
-
-              <Field
-                label="LTV"
-                input={
-                  <input
-                    value={String(form.ltv || "")}
-                    onChange={(e) => handleChange("ltv", e.target.value)}
-                    placeholder="例 120000"
-                    style={styles.input}
-                  />
-                }
-              />
+              <Field label="氏名" input={<input value={String(form.name || "")} onChange={(e) => handleChange("name", e.target.value)} placeholder="例 山崎利樹" style={styles.input} />} />
+              <Field label="かな" input={<input value={String(form.kana || "")} onChange={(e) => handleChange("kana", e.target.value)} placeholder="例 やまざきとしき" style={styles.input} />} />
+              <Field label="電話" input={<input value={String(form.phone || "")} onChange={(e) => handleChange("phone", e.target.value)} placeholder="例 09012345678" style={styles.input} />} />
+              <Field label="メール" input={<input value={String(form.email || "")} onChange={(e) => handleChange("email", e.target.value)} placeholder="例 sample@mail.com" style={styles.input} />} />
+              <Field label="性別" input={<select value={String(form.gender || "")} onChange={(e) => handleChange("gender", e.target.value)} style={styles.input}><option value="">選択してください</option><option value="男性">男性</option><option value="女性">女性</option><option value="その他">その他</option></select>} />
+              <Field label="年齢" input={<input value={String(form.age || "")} onChange={(e) => handleChange("age", e.target.value)} placeholder="例 34" style={styles.input} />} />
+              <Field label="誕生日" input={<input type="date" value={String(form.birthday || "")} onChange={(e) => handleChange("birthday", e.target.value)} style={styles.input} />} />
+              <Field label="身長(cm)" input={<input value={String(form.height || "")} onChange={(e) => handleChange("height", e.target.value)} placeholder="例 170" style={styles.input} />} />
+              <Field label="現在体重(kg)" input={<input value={String(form.weight || "")} onChange={(e) => handleChange("weight", e.target.value)} placeholder="例 65.2" style={styles.input} />} />
+              <Field label="体脂肪率(%)" input={<input value={String(form.bodyFat || "")} onChange={(e) => handleChange("bodyFat", e.target.value)} placeholder="例 18.5" style={styles.input} />} />
+              <Field label="筋肉量(kg)" input={<input value={String(form.muscleMass || "")} onChange={(e) => handleChange("muscleMass", e.target.value)} placeholder="例 48.3" style={styles.input} />} />
+              <Field label="内臓脂肪" input={<input value={String(form.visceralFat || "")} onChange={(e) => handleChange("visceralFat", e.target.value)} placeholder="例 7" style={styles.input} />} />
+              <Field label="プラン種別" input={<input value={String(form.planType || "")} onChange={(e) => handleChange("planType", e.target.value)} placeholder="例 月4回" style={styles.input} />} />
+              <Field label="利用形態" input={<input value={String(form.planStyle || "")} onChange={(e) => handleChange("planStyle", e.target.value)} placeholder="例 マンツーマン" style={styles.input} />} />
+              <Field label="月回数" input={<input value={String(form.monthlyCount || "")} onChange={(e) => handleChange("monthlyCount", e.target.value)} placeholder="例 4" style={styles.input} />} />
+              <Field label="使用回数" input={<input value={String(form.usedCount || "")} onChange={(e) => handleChange("usedCount", e.target.value)} placeholder="例 1" style={styles.input} />} />
+              <Field label="繰越" input={<input value={String(form.carryOver || "")} onChange={(e) => handleChange("carryOver", e.target.value)} placeholder="例 0" style={styles.input} />} />
+              <Field label="残回数" input={<input value={String(form.remaining || "")} onChange={(e) => handleChange("remaining", e.target.value)} placeholder="例 3" style={styles.input} />} />
+              <Field label="料金" input={<input value={String(form.price || "")} onChange={(e) => handleChange("price", e.target.value)} placeholder="例 33880" style={styles.input} />} />
+              <Field label="状態" input={<select value={String(form.status || "")} onChange={(e) => handleChange("status", e.target.value)} style={styles.input}><option value="">選択してください</option><option value="有効">有効</option><option value="停止">停止</option><option value="休会">休会</option></select>} />
+              <Field label="次回支払日" input={<input type="date" value={String(form.nextPayment || "")} onChange={(e) => handleChange("nextPayment", e.target.value)} style={styles.input} />} />
+              <Field label="最終来店日" input={<input type="date" value={String(form.lastVisitDate || "")} onChange={(e) => handleChange("lastVisitDate", e.target.value)} style={styles.input} />} />
+              <Field label="LTV" input={<input value={String(form.ltv || "")} onChange={(e) => handleChange("ltv", e.target.value)} placeholder="例 120000" style={styles.input} />} />
             </div>
 
             <div style={{ marginTop: 14 }}>
               <Label>目標</Label>
-              <textarea
-                value={String(form.goal || "")}
-                onChange={(e) => handleChange("goal", e.target.value)}
-                rows={3}
-                placeholder="例 体重-5kg、姿勢改善"
-                style={styles.textarea}
-              />
+              <textarea value={String(form.goal || "")} onChange={(e) => handleChange("goal", e.target.value)} rows={3} placeholder="例 体重-5kg、姿勢改善" style={styles.textarea} />
             </div>
 
             <div style={{ marginTop: 14 }}>
               <Label>メモ</Label>
-              <textarea
-                value={String(form.memo || "")}
-                onChange={(e) => handleChange("memo", e.target.value)}
-                rows={4}
-                placeholder="備考・特徴・注意点など"
-                style={styles.textarea}
-              />
+              <textarea value={String(form.memo || "")} onChange={(e) => handleChange("memo", e.target.value)} rows={4} placeholder="備考・特徴・注意点など" style={styles.textarea} />
             </div>
 
             <div style={{ marginTop: 20, display: "flex", gap: 12, flexWrap: "wrap" }}>
               <button
                 type="button"
-                onClick={handleSave}
+                onClick={() => void handleSave()}
                 disabled={saving}
                 style={{
                   ...BUTTON_PRIMARY,
@@ -667,26 +470,15 @@ export default function CustomerPage() {
                       </div>
 
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <Link
-                          href={`/customer/${customer.id}`}
-                          style={styles.detailLink}
-                        >
+                        <Link href={`/customer/${customer.id}`} style={styles.detailLink}>
                           詳細
                         </Link>
 
-                        <button
-                          type="button"
-                          onClick={() => handleEdit(customer)}
-                          style={styles.editButton}
-                        >
+                        <button type="button" onClick={() => handleEdit(customer)} style={styles.editButton}>
                           編集
                         </button>
 
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(String(customer.id))}
-                          style={styles.deleteButton}
-                        >
+                        <button type="button" onClick={() => void handleDelete(String(customer.id))} style={styles.deleteButton}>
                           削除
                         </button>
                       </div>
@@ -741,156 +533,6 @@ function MiniInfo({
       <div style={styles.infoValue}>{value || "—"}</div>
     </div>
   );
-}
-
-function getLocalCustomers(): Customer[] {
-  try {
-    const raw = localStorage.getItem("customers");
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.map(normalizeCustomer) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveLocalCustomers(list: Customer[]) {
-  localStorage.setItem("customers", JSON.stringify(list));
-}
-
-function saveLocalCustomerDetail(customer: Customer) {
-  localStorage.setItem(`customer-${customer.id}`, JSON.stringify(customer));
-}
-
-function mergeCustomers(dbList: Customer[], localList: Customer[]) {
-  const map = new Map<string, Customer>();
-
-  dbList.forEach((item) => {
-    map.set(String(item.id), normalizeCustomer(item));
-  });
-
-  localList.forEach((item) => {
-    const key = String(item.id);
-    const prev = map.get(key) || {};
-    map.set(key, normalizeCustomer({ ...prev, ...item }));
-  });
-
-  return Array.from(map.values());
-}
-
-function upsertLocalCustomer(list: Customer[], customer: Customer) {
-  const next = [...list];
-  const index = next.findIndex((item) => String(item.id) === String(customer.id));
-
-  if (index >= 0) {
-    next[index] = normalizeCustomer({
-      ...next[index],
-      ...customer,
-    });
-  } else {
-    next.push(normalizeCustomer(customer));
-  }
-
-  return next;
-}
-
-function getNextCustomerId(list: Customer[]) {
-  const nums = list
-    .map((item) => Number(item.id))
-    .filter((num) => !Number.isNaN(num));
-
-  if (nums.length === 0) return 1;
-  return Math.max(...nums) + 1;
-}
-
-function normalizeCustomer(item: any): Customer {
-  return {
-    ...item,
-    id: item?.id ?? "",
-    name: item?.name ?? "",
-    kana: item?.kana ?? "",
-    gender: item?.gender ?? "",
-    age: item?.age ?? "",
-    birthday: item?.birthday ?? "",
-    phone: item?.phone ?? "",
-    email: item?.email ?? "",
-    height: item?.height ?? "",
-    weight: item?.weight ?? "",
-    bodyFat: item?.bodyFat ?? "",
-    muscleMass: item?.muscleMass ?? "",
-    visceralFat: item?.visceralFat ?? "",
-    goal: item?.goal ?? item?.purpose ?? item?.target ?? "",
-    memo: item?.memo ?? item?.notes ?? item?.note ?? "",
-    notes: item?.notes ?? item?.memo ?? "",
-    note: item?.note ?? item?.memo ?? "",
-    purpose: item?.purpose ?? item?.goal ?? "",
-    target: item?.target ?? item?.goal ?? "",
-    planType: item?.planType ?? "",
-    planStyle: item?.planStyle ?? "",
-    price: item?.price ?? "",
-    monthlyCount: item?.monthlyCount ?? "",
-    usedCount: item?.usedCount ?? "",
-    carryOver: item?.carryOver ?? "",
-    remaining: item?.remaining ?? "",
-    status: item?.status ?? "",
-    nextPayment: item?.nextPayment ?? "",
-    lastVisitDate: item?.lastVisitDate ?? item?.lastVisitAt ?? "",
-    lastVisitAt: item?.lastVisitAt ?? item?.lastVisitDate ?? "",
-    ltv: item?.ltv ?? "",
-  };
-}
-
-function buildDbPayload(customer: Customer) {
-  return {
-    id: Number(customer.id),
-    name: customer.name || null,
-    kana: customer.kana || null,
-    gender: customer.gender || null,
-    age: toNullableNumber(customer.age),
-    birthday: customer.birthday || null,
-    phone: customer.phone || null,
-    email: customer.email || null,
-    height: toNullableNumber(customer.height),
-    weight: toNullableNumber(customer.weight),
-    bodyFat: toNullableNumber(customer.bodyFat),
-    muscleMass: toNullableNumber(customer.muscleMass),
-    visceralFat: toNullableNumber(customer.visceralFat),
-    goal: customer.goal || null,
-    memo: customer.memo || null,
-    planType: customer.planType || null,
-    planStyle: customer.planStyle || null,
-    price: toNullableNumber(customer.price),
-    monthlyCount: toNullableNumber(customer.monthlyCount),
-    usedCount: toNullableNumber(customer.usedCount),
-    carryOver: toNullableNumber(customer.carryOver),
-    remaining: toNullableNumber(customer.remaining),
-    status: customer.status || null,
-    nextPayment: customer.nextPayment || null,
-    lastVisitDate: customer.lastVisitDate || null,
-    ltv: toNullableNumber(customer.ltv),
-    updated_at: new Date().toISOString(),
-  };
-}
-
-function toNullableNumber(value: any) {
-  if (value === "" || value === null || value === undefined) return null;
-  const num = Number(value);
-  return Number.isNaN(num) ? null : num;
-}
-
-function withUnit(value: any, unit: string) {
-  if (value === null || value === undefined || value === "") return "";
-  return `${value}${unit}`;
-}
-
-function yen(value: any) {
-  const num = Number(value || 0);
-  if (Number.isNaN(num)) return "—";
-  return `¥${num.toLocaleString()}`;
-}
-
-function sortCustomers(list: Customer[]) {
-  return [...list].sort((a, b) => Number(a.id) - Number(b.id));
 }
 
 const styles: { [key: string]: React.CSSProperties } = {
