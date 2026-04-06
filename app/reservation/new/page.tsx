@@ -63,7 +63,6 @@ export default function Page() {
     try {
       let customerId = "";
 
-      // 同姓同名で複数あっても落ちないように maybeSingle は使わない
       const { data: existingCustomers, error: customerFindError } = await supabase
         .from("customers")
         .select("id")
@@ -95,21 +94,10 @@ export default function Page() {
         customerId = String(insertedCustomer.id);
       }
 
-      const reservationPayload: {
-        customer_name: string;
-        date: string;
-        start_time: string;
-        end_time: string;
-        store_name: string;
-        staff_name: string;
-        menu: string;
-        payment_method: string;
-        memo: string;
-      } = {
+      const reservationPayload = {
         customer_name: name,
         date,
         start_time: startTime,
-        end_time: endTime,
         store_name: storeName,
         staff_name: staffName,
         menu,
