@@ -353,6 +353,15 @@ export default function TrainingPage() {
     }
   }, [history, mounted, searchParams]);
 
+  function applyLatestHeightToForm(list: TrainingSession[]) {
+    if (editingSessionId) return;
+    const latest = list.find(
+      (item) => item.body_height !== null && item.body_height !== undefined
+    );
+    if (!latest) return;
+    setBodyHeight(String(latest.body_height));
+  }
+
   async function loadHistory() {
     if (!supabase) {
       setLoading(false);
@@ -395,7 +404,10 @@ export default function TrainingPage() {
         .order("created_at", { ascending: false });
 
       if (fetchError) throw fetchError;
-      setHistory((data as TrainingSession[]) ?? []);
+
+      const list = (data as TrainingSession[]) ?? [];
+      setHistory(list);
+      applyLatestHeightToForm(list);
     } catch (e) {
       console.error(e);
       setError(`履歴取得エラー: ${extractErrorMessage(e)}`);
@@ -407,7 +419,16 @@ export default function TrainingPage() {
   function resetForm(clearMessage = false) {
     setEditingSessionId(null);
     setSessionDate(new Date().toISOString().slice(0, 10));
-    setBodyHeight("");
+
+    const latest = history.find(
+      (item) => item.body_height !== null && item.body_height !== undefined
+    );
+    setBodyHeight(
+      latest && latest.body_height !== null && latest.body_height !== undefined
+        ? String(latest.body_height)
+        : ""
+    );
+
     setBodyWeight("");
     setBodyFat("");
     setMuscleMass("");
@@ -1179,12 +1200,13 @@ export default function TrainingPage() {
                             {formatDate(session.session_date)}
                           </div>
                           <div style={historySubStyle}>
-                            体重 {session.body_weight ?? "—"}kg / 体脂肪{" "}
-                            {session.body_fat ?? "—"}%
+                            身長 {session.body_height ?? "—"}cm / 体重 {session.body_weight ?? "—"}kg
                           </div>
                           <div style={historySubStyle}>
-                            筋肉量 {session.muscle_mass ?? "—"}kg / 内臓脂肪{" "}
-                            {session.visceral_fat ?? "—"}
+                            体脂肪 {session.body_fat ?? "—"}% / 筋肉量 {session.muscle_mass ?? "—"}kg
+                          </div>
+                          <div style={historySubStyle}>
+                            内臓脂肪 {session.visceral_fat ?? "—"}
                           </div>
                           <div style={historySubStyle}>
                             更新日時 {formatDateTime(session.updated_at || session.created_at)}
