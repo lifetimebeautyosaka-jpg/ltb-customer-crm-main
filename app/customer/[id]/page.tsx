@@ -6,32 +6,54 @@ import { CSSProperties, useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 type CustomerRow = {
-  id: string | number;
+  id: number | string;
   name?: string | null;
   kana?: string | null;
   phone?: string | null;
   email?: string | null;
   gender?: string | null;
-  age?: number | null;
+  age?: number | string | null;
   birthday?: string | null;
-  height?: number | null;
-  weight?: number | null;
-  body_fat?: number | null;
-  muscle_mass?: number | null;
-  visceral_fat?: number | null;
+
+  height?: number | string | null;
+  weight?: number | string | null;
+  bodyFat?: number | string | null;
+  muscleMass?: number | string | null;
+  visceralFat?: number | string | null;
+
+  body_fat?: number | string | null;
+  muscle_mass?: number | string | null;
+  visceral_fat?: number | string | null;
+
   goal?: string | null;
   memo?: string | null;
+  notes?: string | null;
+  note?: string | null;
+  purpose?: string | null;
+  target?: string | null;
+
+  planType?: string | null;
+  planStyle?: string | null;
+  monthlyCount?: number | string | null;
+  usedCount?: number | string | null;
+  carryOver?: number | string | null;
+  remaining?: number | string | null;
+  nextPayment?: string | null;
+  lastVisitDate?: string | null;
+
   plan_type?: string | null;
   plan_style?: string | null;
-  monthly_count?: number | null;
-  used_count?: number | null;
-  carry_over?: number | null;
-  remaining_count?: number | null;
-  price?: number | null;
-  status?: string | null;
+  monthly_count?: number | string | null;
+  used_count?: number | string | null;
+  carry_over?: number | string | null;
+  remaining_count?: number | string | null;
   next_payment_date?: string | null;
   last_visit_date?: string | null;
-  ltv?: number | null;
+
+  price?: number | string | null;
+  status?: string | null;
+  ltv?: number | string | null;
+
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -90,9 +112,52 @@ function displayValue(value: unknown, suffix = "") {
   return `${value}${suffix}`;
 }
 
-function formatPrice(value?: number | null) {
-  if (value == null) return "—";
-  return `${value.toLocaleString("ja-JP")}円`;
+function toNumberOrNull(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  return Number.isNaN(n) ? null : n;
+}
+
+function formatPrice(value?: number | string | null) {
+  const n = toNumberOrNull(value);
+  if (n == null) return "—";
+  return `${n.toLocaleString("ja-JP")}円`;
+}
+
+function pickText(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim() !== "") return value;
+  }
+  return null;
+}
+
+function pickNumberLike(...values: unknown[]): number | string | null {
+  for (const value of values) {
+    if (value !== null && value !== undefined && value !== "") return value as number | string;
+  }
+  return null;
+}
+
+function normalizeCustomer(row: CustomerRow): CustomerRow {
+  return {
+    ...row,
+    goal: pickText(row.goal, row.purpose, row.target),
+    memo: pickText(row.memo, row.notes, row.note),
+
+    bodyFat: pickNumberLike(row.bodyFat, row.body_fat),
+    muscleMass: pickNumberLike(row.muscleMass, row.muscle_mass),
+    visceralFat: pickNumberLike(row.visceralFat, row.visceral_fat),
+
+    planType: pickText(row.planType, row.plan_type),
+    planStyle: pickText(row.planStyle, row.plan_style),
+    nextPayment: pickText(row.nextPayment, row.next_payment_date),
+    lastVisitDate: pickText(row.lastVisitDate, row.last_visit_date),
+
+    monthlyCount: pickNumberLike(row.monthlyCount, row.monthly_count),
+    usedCount: pickNumberLike(row.usedCount, row.used_count),
+    carryOver: pickNumberLike(row.carryOver, row.carry_over),
+    remaining: pickNumberLike(row.remaining, row.remaining_count),
+  };
 }
 
 export default function CustomerDetailPage() {
@@ -106,7 +171,6 @@ export default function CustomerDetailPage() {
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
-
   const [customer, setCustomer] = useState<CustomerRow | null>(null);
   const [latestSession, setLatestSession] = useState<TrainingSessionRow | null>(null);
 
@@ -117,7 +181,10 @@ export default function CustomerDetailPage() {
   useEffect(() => {
     if (!mounted) return;
 
-    const loggedIn = localStorage.getItem("gymup_logged_in");
+    const loggedIn =
+      localStorage.getItem("gymup_logged_in") ||
+      localStorage.getItem("isLoggedIn");
+
     if (loggedIn !== "true") {
       router.push("/login");
       return;
@@ -143,10 +210,15 @@ export default function CustomerDetailPage() {
       setLoading(true);
       setErrorMessage("");
 
+      const numericCustomerId = Number(customerId);
+      const customerIdForQuery = Number.isNaN(numericCustomerId)
+        ? customerId
+        : numericCustomerId;
+
       const { data: customerData, error: customerError } = await supabase
         .from("customers")
         .select("*")
-        .eq("id", customerId)
+        .eq("id", customerIdForQuery)
         .maybeSingle();
 
       if (customerError) {
@@ -154,10 +226,10 @@ export default function CustomerDetailPage() {
       }
 
       if (!customerData) {
-        throw new Error("顧客データが見つかりませんでした。");
+        throw new Error(`顧客データは見つかりませんでした。ID: ${customerId}`);
       }
 
-      setCustomer(customerData as CustomerRow);
+      setCustomer(normalizeCustomer(customerData as CustomerRow));
 
       const { data: sessionData, error: sessionError } = await supabase
         .from("training_sessions")
@@ -254,10 +326,10 @@ export default function CustomerDetailPage() {
                 <InfoItem label="誕生日" value={formatDate(customer.birthday)} />
                 <InfoItem label="身長" value={displayValue(customer.height, "cm")} />
                 <InfoItem label="現在の体重" value={displayValue(customer.weight, "kg")} />
-                <InfoItem label="体脂肪率" value={displayValue(customer.body_fat, "%")} />
-                <InfoItem label="筋肉量" value={displayValue(customer.muscle_mass, "kg")} />
-                <InfoItem label="内臓脂肪" value={displayValue(customer.visceral_fat)} />
-                <InfoItem label="最終来店日" value={formatDate(customer.last_visit_date)} />
+                <InfoItem label="体脂肪率" value={displayValue(customer.bodyFat, "%")} />
+                <InfoItem label="筋肉量" value={displayValue(customer.muscleMass, "kg")} />
+                <InfoItem label="内臓脂肪" value={displayValue(customer.visceralFat)} />
+                <InfoItem label="最終来店日" value={formatDate(customer.lastVisitDate)} />
                 <InfoItem label="LTV" value={formatPrice(customer.ltv)} />
               </div>
 
@@ -283,15 +355,15 @@ export default function CustomerDetailPage() {
               </div>
 
               <div style={infoGridStyle}>
-                <InfoItem label="プラン種類" value={customer.plan_type} />
-                <InfoItem label="利用形態" value={customer.plan_style} />
-                <InfoItem label="月回数" value={displayValue(customer.monthly_count, "回")} />
-                <InfoItem label="使用回数" value={displayValue(customer.used_count, "回")} />
-                <InfoItem label="繰越回数" value={displayValue(customer.carry_over, "回")} />
-                <InfoItem label="残回数" value={displayValue(customer.remaining_count, "回")} />
+                <InfoItem label="プラン種類" value={customer.planType} />
+                <InfoItem label="利用形態" value={customer.planStyle} />
+                <InfoItem label="月回数" value={displayValue(customer.monthlyCount, "回")} />
+                <InfoItem label="使用回数" value={displayValue(customer.usedCount, "回")} />
+                <InfoItem label="繰越回数" value={displayValue(customer.carryOver, "回")} />
+                <InfoItem label="残回数" value={displayValue(customer.remaining, "回")} />
                 <InfoItem label="料金" value={formatPrice(customer.price)} />
                 <InfoItem label="ステータス" value={customer.status} />
-                <InfoItem label="次回支払日" value={formatDate(customer.next_payment_date)} />
+                <InfoItem label="次回支払日" value={formatDate(customer.nextPayment)} />
               </div>
             </section>
 
