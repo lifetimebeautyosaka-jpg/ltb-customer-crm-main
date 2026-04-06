@@ -694,26 +694,23 @@ export default function TrainingPage() {
               </div>
             </div>
 
-            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 8 }}>
-              横にスクロールできます
-            </div>
+            <div style={{ display: "grid", gap: 12 }}>
+              {setRows.map((row, index) => (
+                <div key={row.rowId} style={exerciseCardStyle}>
+                  <div style={exerciseCardHeaderStyle}>
+                    <div style={exerciseCardIndexStyle}>種目 {index + 1}</div>
+                    <button
+                      type="button"
+                      onClick={() => removeRow(row.rowId)}
+                      style={trainingDeleteButtonStyle}
+                    >
+                      削除
+                    </button>
+                  </div>
 
-            <div style={trainingTableWrapStyle}>
-              <div style={trainingTableInnerStyle}>
-                <div style={trainingTableHeaderStyle}>
-                  <div>カテゴリ</div>
-                  <div>種目名</div>
-                  <div>セット数</div>
-                  <div>回数</div>
-                  <div>重量</div>
-                  <div>秒数</div>
-                  <div>メモ</div>
-                  <div>操作</div>
-                </div>
-
-                <div style={{ display: "grid", gap: 12 }}>
-                  {setRows.map((row) => (
-                    <div key={row.rowId} style={trainingRowStyle}>
+                  <div style={exerciseCardGridStyle}>
+                    <label style={{ display: "grid", gap: 8 }}>
+                      <span style={labelStyle}>カテゴリ</span>
                       <select
                         value={row.category}
                         onChange={(e) => updateRow(row.rowId, "category", e.target.value)}
@@ -726,7 +723,10 @@ export default function TrainingPage() {
                           </option>
                         ))}
                       </select>
+                    </label>
 
+                    <label style={{ display: "grid", gap: 8 }}>
+                      <span style={labelStyle}>種目名</span>
                       <select
                         value={row.exercise_name}
                         onChange={(e) =>
@@ -741,48 +741,60 @@ export default function TrainingPage() {
                           </option>
                         ))}
                       </select>
+                    </label>
 
+                    <label style={{ display: "grid", gap: 8 }}>
+                      <span style={labelStyle}>セット数</span>
                       <input
                         value={row.set_count}
                         onChange={(e) => updateRow(row.rowId, "set_count", e.target.value)}
                         placeholder="3"
                         style={tableInputStyle}
                       />
+                    </label>
+
+                    <label style={{ display: "grid", gap: 8 }}>
+                      <span style={labelStyle}>回数</span>
                       <input
                         value={row.reps}
                         onChange={(e) => updateRow(row.rowId, "reps", e.target.value)}
                         placeholder="10回"
                         style={tableInputStyle}
                       />
+                    </label>
+
+                    <label style={{ display: "grid", gap: 8 }}>
+                      <span style={labelStyle}>重量</span>
                       <input
                         value={row.weight}
                         onChange={(e) => updateRow(row.rowId, "weight", e.target.value)}
                         placeholder="40kg"
                         style={tableInputStyle}
                       />
+                    </label>
+
+                    <label style={{ display: "grid", gap: 8 }}>
+                      <span style={labelStyle}>秒数</span>
                       <input
                         value={row.seconds}
                         onChange={(e) => updateRow(row.rowId, "seconds", e.target.value)}
                         placeholder="30秒"
                         style={tableInputStyle}
                       />
-                      <input
+                    </label>
+
+                    <label style={{ display: "grid", gap: 8, gridColumn: "1 / -1" }}>
+                      <span style={labelStyle}>メモ</span>
+                      <textarea
                         value={row.memo}
                         onChange={(e) => updateRow(row.rowId, "memo", e.target.value)}
-                        placeholder="フォーム意識など"
-                        style={tableInputStyle}
+                        placeholder="フォーム意識、注意点など"
+                        style={{ ...textareaStyle, minHeight: 88 }}
                       />
-                      <button
-                        type="button"
-                        onClick={() => removeRow(row.rowId)}
-                        style={trainingDeleteButtonStyle}
-                      >
-                        削除
-                      </button>
-                    </div>
-                  ))}
+                    </label>
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
           </section>
 
@@ -1203,37 +1215,32 @@ const countBadgeStyle: CSSProperties = {
   fontSize: 13,
 };
 
-const trainingTableWrapStyle: CSSProperties = {
-  overflowX: "auto",
-  WebkitOverflowScrolling: "touch",
-  paddingBottom: 6,
-};
-
-const trainingTableInnerStyle: CSSProperties = {
-  minWidth: 980,
-};
-
-const trainingTableHeaderStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "110px 180px 72px 72px 72px 72px 160px 72px",
-  gap: 8,
-  marginBottom: 10,
-  fontSize: 12,
-  fontWeight: 800,
-  color: "#64748b",
-  padding: "0 6px",
-  alignItems: "center",
-};
-
-const trainingRowStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "110px 180px 72px 72px 72px 72px 160px 72px",
-  gap: 8,
+const exerciseCardStyle: CSSProperties = {
   background: "rgba(255,255,255,0.72)",
   border: "1px solid rgba(148,163,184,0.16)",
-  borderRadius: 18,
-  padding: 10,
+  borderRadius: 20,
+  padding: 14,
+};
+
+const exerciseCardHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
   alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap",
+  marginBottom: 12,
+};
+
+const exerciseCardIndexStyle: CSSProperties = {
+  fontSize: 13,
+  fontWeight: 800,
+  color: "#334155",
+};
+
+const exerciseCardGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: 12,
 };
 
 const tableInputStyle: CSSProperties = {
@@ -1250,9 +1257,8 @@ const tableInputStyle: CSSProperties = {
 };
 
 const trainingDeleteButtonStyle: CSSProperties = {
-  width: "100%",
-  minWidth: 0,
-  height: 42,
+  minWidth: 88,
+  height: 40,
   border: "1px solid rgba(254,202,202,0.95)",
   borderRadius: 12,
   background: "rgba(254,242,242,0.95)",
@@ -1260,7 +1266,7 @@ const trainingDeleteButtonStyle: CSSProperties = {
   fontWeight: 700,
   fontSize: 12,
   cursor: "pointer",
-  padding: "0 8px",
+  padding: "0 12px",
 };
 
 const removeImageButtonStyle: CSSProperties = {
