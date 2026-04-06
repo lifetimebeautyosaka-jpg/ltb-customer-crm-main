@@ -57,50 +57,72 @@ const CATEGORY_OPTIONS = [
   "その他",
 ];
 
-const EXERCISE_OPTIONS = [
-  "スクワット",
-  "フロントスクワット",
-  "ブルガリアンスクワット",
-  "ランジ",
-  "ステップアップ",
-  "レッグプレス",
-  "レッグエクステンション",
-  "レッグカール",
-  "ヒップスラスト",
-  "ルーマニアンデッドリフト",
-  "デッドリフト",
-  "スミススクワット",
-  "ベンチプレス",
-  "インクラインベンチプレス",
-  "ダンベルプレス",
-  "ダンベルフライ",
-  "チェストプレス",
-  "プッシュアップ",
-  "ラットプルダウン",
-  "シーテッドロー",
-  "ベントオーバーロウ",
-  "ワンハンドロウ",
-  "チンニング",
-  "ショルダープレス",
-  "サイドレイズ",
-  "リアレイズ",
-  "フロントレイズ",
-  "アップライトロウ",
-  "アームカール",
-  "ハンマーカール",
-  "トライセプスプレスダウン",
-  "フレンチプレス",
-  "クランチ",
-  "レッグレイズ",
-  "プランク",
-  "サイドプランク",
-  "ロシアンツイスト",
-  "バイク",
-  "ウォーキング",
-  "ジョギング",
-  "ストレッチ",
-  "その他",
-];
+const EXERCISE_MAP: Record<string, string[]> = {
+  胸: [
+    "ベンチプレス",
+    "インクラインベンチプレス",
+    "ダンベルプレス",
+    "ダンベルフライ",
+    "チェストプレス",
+    "プッシュアップ",
+  ],
+  背中: [
+    "ラットプルダウン",
+    "シーテッドロー",
+    "ベントオーバーロウ",
+    "ワンハンドロウ",
+    "チンニング",
+    "デッドリフト",
+    "ルーマニアンデッドリフト",
+  ],
+  脚: [
+    "スクワット",
+    "フロントスクワット",
+    "ブルガリアンスクワット",
+    "ランジ",
+    "ステップアップ",
+    "レッグプレス",
+    "レッグエクステンション",
+    "レッグカール",
+    "ヒップスラスト",
+    "スミススクワット",
+  ],
+  肩: [
+    "ショルダープレス",
+    "サイドレイズ",
+    "リアレイズ",
+    "フロントレイズ",
+    "アップライトロウ",
+  ],
+  腕: [
+    "アームカール",
+    "ハンマーカール",
+    "トライセプスプレスダウン",
+    "フレンチプレス",
+  ],
+  体幹: [
+    "クランチ",
+    "レッグレイズ",
+    "プランク",
+    "サイドプランク",
+    "ロシアンツイスト",
+  ],
+  有酸素: [
+    "バイク",
+    "ウォーキング",
+    "ジョギング",
+  ],
+  ストレッチ: [
+    "ストレッチ",
+  ],
+  その他: [
+    "その他",
+  ],
+};
+
+const ALL_EXERCISES = Array.from(
+  new Set(Object.values(EXERCISE_MAP).flat())
+);
 
 const supabase =
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
@@ -157,6 +179,11 @@ function makeRow(): TrainingSetRow {
     seconds: "",
     memo: "",
   };
+}
+
+function getExercisesByCategory(category: string) {
+  if (!category) return ALL_EXERCISES;
+  return EXERCISE_MAP[category] || ["その他"];
 }
 
 function sessionToForm(session: TrainingSession) {
@@ -365,7 +392,25 @@ export default function TrainingPage() {
 
   function updateRow(rowId: string, key: keyof TrainingSetRow, value: string) {
     setSetRows((prev) =>
-      prev.map((row) => (row.rowId === rowId ? { ...row, [key]: value } : row))
+      prev.map((row) => {
+        if (row.rowId !== rowId) return row;
+
+        if (key === "category") {
+          const nextExercises = getExercisesByCategory(value);
+          const keepExercise =
+            row.exercise_name && nextExercises.includes(row.exercise_name)
+              ? row.exercise_name
+              : "";
+
+          return {
+            ...row,
+            category: value,
+            exercise_name: keepExercise,
+          };
+        }
+
+        return { ...row, [key]: value };
+      })
     );
   }
 
@@ -695,106 +740,112 @@ export default function TrainingPage() {
             </div>
 
             <div style={{ display: "grid", gap: 12 }}>
-              {setRows.map((row, index) => (
-                <div key={row.rowId} style={exerciseCardStyle}>
-                  <div style={exerciseCardHeaderStyle}>
-                    <div style={exerciseCardIndexStyle}>種目 {index + 1}</div>
-                    <button
-                      type="button"
-                      onClick={() => removeRow(row.rowId)}
-                      style={trainingDeleteButtonStyle}
-                    >
-                      削除
-                    </button>
-                  </div>
+              {setRows.map((row, index) => {
+                const exerciseOptions = getExercisesByCategory(row.category);
 
-                  <div style={exerciseCardGridStyle}>
-                    <label style={{ display: "grid", gap: 8 }}>
-                      <span style={labelStyle}>カテゴリ</span>
-                      <select
-                        value={row.category}
-                        onChange={(e) => updateRow(row.rowId, "category", e.target.value)}
-                        style={tableInputStyle}
+                return (
+                  <div key={row.rowId} style={exerciseCardStyle}>
+                    <div style={exerciseCardHeaderStyle}>
+                      <div style={exerciseCardIndexStyle}>種目 {index + 1}</div>
+                      <button
+                        type="button"
+                        onClick={() => removeRow(row.rowId)}
+                        style={trainingDeleteButtonStyle}
                       >
-                        <option value="">選択</option>
-                        {CATEGORY_OPTIONS.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
+                        削除
+                      </button>
+                    </div>
+
+                    <div style={exerciseCardGridStyle}>
+                      <label style={{ display: "grid", gap: 8 }}>
+                        <span style={labelStyle}>カテゴリ</span>
+                        <select
+                          value={row.category}
+                          onChange={(e) => updateRow(row.rowId, "category", e.target.value)}
+                          style={tableInputStyle}
+                        >
+                          <option value="">選択</option>
+                          {CATEGORY_OPTIONS.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label style={{ display: "grid", gap: 8 }}>
+                        <span style={labelStyle}>種目名</span>
+                        <select
+                          value={row.exercise_name}
+                          onChange={(e) =>
+                            updateRow(row.rowId, "exercise_name", e.target.value)
+                          }
+                          style={tableInputStyle}
+                        >
+                          <option value="">
+                            {row.category ? "種目を選択" : "先にカテゴリを選択"}
                           </option>
-                        ))}
-                      </select>
-                    </label>
+                          {exerciseOptions.map((option) => (
+                            <option key={`${row.category}-${option}`} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
 
-                    <label style={{ display: "grid", gap: 8 }}>
-                      <span style={labelStyle}>種目名</span>
-                      <select
-                        value={row.exercise_name}
-                        onChange={(e) =>
-                          updateRow(row.rowId, "exercise_name", e.target.value)
-                        }
-                        style={tableInputStyle}
-                      >
-                        <option value="">種目を選択</option>
-                        {EXERCISE_OPTIONS.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                      <label style={{ display: "grid", gap: 8 }}>
+                        <span style={labelStyle}>セット数</span>
+                        <input
+                          value={row.set_count}
+                          onChange={(e) => updateRow(row.rowId, "set_count", e.target.value)}
+                          placeholder="3"
+                          style={tableInputStyle}
+                        />
+                      </label>
 
-                    <label style={{ display: "grid", gap: 8 }}>
-                      <span style={labelStyle}>セット数</span>
-                      <input
-                        value={row.set_count}
-                        onChange={(e) => updateRow(row.rowId, "set_count", e.target.value)}
-                        placeholder="3"
-                        style={tableInputStyle}
-                      />
-                    </label>
+                      <label style={{ display: "grid", gap: 8 }}>
+                        <span style={labelStyle}>回数</span>
+                        <input
+                          value={row.reps}
+                          onChange={(e) => updateRow(row.rowId, "reps", e.target.value)}
+                          placeholder="10回"
+                          style={tableInputStyle}
+                        />
+                      </label>
 
-                    <label style={{ display: "grid", gap: 8 }}>
-                      <span style={labelStyle}>回数</span>
-                      <input
-                        value={row.reps}
-                        onChange={(e) => updateRow(row.rowId, "reps", e.target.value)}
-                        placeholder="10回"
-                        style={tableInputStyle}
-                      />
-                    </label>
+                      <label style={{ display: "grid", gap: 8 }}>
+                        <span style={labelStyle}>重量</span>
+                        <input
+                          value={row.weight}
+                          onChange={(e) => updateRow(row.rowId, "weight", e.target.value)}
+                          placeholder="40kg"
+                          style={tableInputStyle}
+                        />
+                      </label>
 
-                    <label style={{ display: "grid", gap: 8 }}>
-                      <span style={labelStyle}>重量</span>
-                      <input
-                        value={row.weight}
-                        onChange={(e) => updateRow(row.rowId, "weight", e.target.value)}
-                        placeholder="40kg"
-                        style={tableInputStyle}
-                      />
-                    </label>
+                      <label style={{ display: "grid", gap: 8 }}>
+                        <span style={labelStyle}>秒数</span>
+                        <input
+                          value={row.seconds}
+                          onChange={(e) => updateRow(row.rowId, "seconds", e.target.value)}
+                          placeholder="30秒"
+                          style={tableInputStyle}
+                        />
+                      </label>
 
-                    <label style={{ display: "grid", gap: 8 }}>
-                      <span style={labelStyle}>秒数</span>
-                      <input
-                        value={row.seconds}
-                        onChange={(e) => updateRow(row.rowId, "seconds", e.target.value)}
-                        placeholder="30秒"
-                        style={tableInputStyle}
-                      />
-                    </label>
-
-                    <label style={{ display: "grid", gap: 8, gridColumn: "1 / -1" }}>
-                      <span style={labelStyle}>メモ</span>
-                      <textarea
-                        value={row.memo}
-                        onChange={(e) => updateRow(row.rowId, "memo", e.target.value)}
-                        placeholder="フォーム意識、注意点など"
-                        style={{ ...textareaStyle, minHeight: 88 }}
-                      />
-                    </label>
+                      <label style={{ display: "grid", gap: 8, gridColumn: "1 / -1" }}>
+                        <span style={labelStyle}>メモ</span>
+                        <textarea
+                          value={row.memo}
+                          onChange={(e) => updateRow(row.rowId, "memo", e.target.value)}
+                          placeholder="フォーム意識、注意点など"
+                          style={{ ...textareaStyle, minHeight: 88 }}
+                        />
+                      </label>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
 
