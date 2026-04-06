@@ -34,7 +34,11 @@ type TrainingSession = {
   id: string;
   customer_id: string;
   session_date: string | null;
+  body_height?: number | null;
   body_weight: number | null;
+  body_fat?: number | null;
+  muscle_mass?: number | null;
+  visceral_fat?: number | null;
   summary: string | null;
   next_task: string | null;
   posture_note: string | null;
@@ -107,22 +111,12 @@ const EXERCISE_MAP: Record<string, string[]> = {
     "サイドプランク",
     "ロシアンツイスト",
   ],
-  有酸素: [
-    "バイク",
-    "ウォーキング",
-    "ジョギング",
-  ],
-  ストレッチ: [
-    "ストレッチ",
-  ],
-  その他: [
-    "その他",
-  ],
+  有酸素: ["バイク", "ウォーキング", "ジョギング"],
+  ストレッチ: ["ストレッチ"],
+  その他: ["その他"],
 };
 
-const ALL_EXERCISES = Array.from(
-  new Set(Object.values(EXERCISE_MAP).flat())
-);
+const ALL_EXERCISES = Array.from(new Set(Object.values(EXERCISE_MAP).flat()));
 
 const supabase =
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
@@ -186,6 +180,12 @@ function getExercisesByCategory(category: string) {
   return EXERCISE_MAP[category] || ["その他"];
 }
 
+function toNumberOrNull(value: string) {
+  if (!value.trim()) return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
 function sessionToForm(session: TrainingSession) {
   const rows = safeArray(session.training_sets)
     .sort((a, b) => (a.row_order ?? 0) - (b.row_order ?? 0))
@@ -209,9 +209,25 @@ function sessionToForm(session: TrainingSession) {
 
   return {
     sessionDate: session.session_date ? session.session_date.slice(0, 10) : "",
+    bodyHeight:
+      session.body_height !== null && session.body_height !== undefined
+        ? String(session.body_height)
+        : "",
     bodyWeight:
       session.body_weight !== null && session.body_weight !== undefined
         ? String(session.body_weight)
+        : "",
+    bodyFat:
+      session.body_fat !== null && session.body_fat !== undefined
+        ? String(session.body_fat)
+        : "",
+    muscleMass:
+      session.muscle_mass !== null && session.muscle_mass !== undefined
+        ? String(session.muscle_mass)
+        : "",
+    visceralFat:
+      session.visceral_fat !== null && session.visceral_fat !== undefined
+        ? String(session.visceral_fat)
         : "",
     summary: session.summary || "",
     nextTask: session.next_task || "",
@@ -264,7 +280,12 @@ export default function TrainingPage() {
   const [sessionDate, setSessionDate] = useState(
     new Date().toISOString().slice(0, 10)
   );
+  const [bodyHeight, setBodyHeight] = useState("");
   const [bodyWeight, setBodyWeight] = useState("");
+  const [bodyFat, setBodyFat] = useState("");
+  const [muscleMass, setMuscleMass] = useState("");
+  const [visceralFat, setVisceralFat] = useState("");
+
   const [summary, setSummary] = useState("");
   const [nextTask, setNextTask] = useState("");
   const [postureNote, setPostureNote] = useState("");
@@ -288,8 +309,7 @@ export default function TrainingPage() {
     }
 
     void loadHistory();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mounted, customerId]);
+  }, [mounted, customerId, router]);
 
   useEffect(() => {
     if (!mounted || history.length === 0) return;
@@ -312,7 +332,6 @@ export default function TrainingPage() {
         setSuccess("履歴をコピーしました。内容を調整して保存できます。");
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history, mounted, searchParams]);
 
   async function loadHistory() {
@@ -363,7 +382,11 @@ export default function TrainingPage() {
   function resetForm(clearMessage = false) {
     setEditingSessionId(null);
     setSessionDate(new Date().toISOString().slice(0, 10));
+    setBodyHeight("");
     setBodyWeight("");
+    setBodyFat("");
+    setMuscleMass("");
+    setVisceralFat("");
     setSummary("");
     setNextTask("");
     setPostureNote("");
@@ -378,7 +401,11 @@ export default function TrainingPage() {
     const form = sessionToForm(session);
 
     setSessionDate(form.sessionDate || new Date().toISOString().slice(0, 10));
+    setBodyHeight(form.bodyHeight);
     setBodyWeight(form.bodyWeight);
+    setBodyFat(form.bodyFat);
+    setMuscleMass(form.muscleMass);
+    setVisceralFat(form.visceralFat);
     setSummary(form.summary);
     setNextTask(form.nextTask);
     setPostureNote(form.postureNote);
@@ -455,7 +482,10 @@ export default function TrainingPage() {
 
         if (uploadError) throw uploadError;
 
-        const { data } = supabase.storage.from("training-images").getPublicUrl(fileName);
+        const { data } = supabase.storage
+          .from("training-images")
+          .getPublicUrl(fileName);
+
         if (data.publicUrl) urls.push(data.publicUrl);
       }
 
@@ -504,7 +534,11 @@ export default function TrainingPage() {
       const sessionPayload = {
         customer_id: customerId,
         session_date: sessionDate || null,
-        body_weight: bodyWeight ? Number(bodyWeight) : null,
+        body_height: toNumberOrNull(bodyHeight),
+        body_weight: toNumberOrNull(bodyWeight),
+        body_fat: toNumberOrNull(bodyFat),
+        muscle_mass: toNumberOrNull(muscleMass),
+        visceral_fat: toNumberOrNull(visceralFat),
         summary: summary.trim() || null,
         next_task: nextTask.trim() || null,
         posture_note: postureNote.trim() || null,
@@ -566,7 +600,9 @@ export default function TrainingPage() {
 
       await loadHistory();
       resetForm(false);
-      setSuccess(editingSessionId ? "履歴を更新しました。" : "トレーニング履歴を保存しました。");
+      setSuccess(
+        editingSessionId ? "履歴を更新しました。" : "トレーニング履歴を保存しました。"
+      );
     } catch (e) {
       console.error(e);
       setError(`保存エラー: ${extractErrorMessage(e)}`);
@@ -661,15 +697,23 @@ export default function TrainingPage() {
             </div>
 
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button type="button" onClick={() => resetForm(true)} style={secondaryButtonStyle}>
+              <button
+                type="button"
+                onClick={() => resetForm(true)}
+                style={secondaryButtonStyle}
+              >
                 新規入力に戻す
               </button>
             </div>
           </div>
         </div>
 
-        {error && <div style={{ ...alertErrorStyle, marginBottom: 16 }}>{error}</div>}
-        {success && <div style={{ ...alertSuccessStyle, marginBottom: 16 }}>{success}</div>}
+        {error && (
+          <div style={{ ...alertErrorStyle, marginBottom: 16 }}>{error}</div>
+        )}
+        {success && (
+          <div style={{ ...alertSuccessStyle, marginBottom: 16 }}>{success}</div>
+        )}
 
         <div style={{ display: "grid", gap: 18 }}>
           <section style={{ ...CARD_STYLE, borderRadius: 24, padding: 20 }}>
@@ -678,16 +722,18 @@ export default function TrainingPage() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
                 gap: 14,
               }}
             >
               <label style={{ display: "grid", gap: 8 }}>
-                <span style={labelStyle}>セッション日</span>
+                <span style={labelStyle}>身長（cm）</span>
                 <input
-                  type="date"
-                  value={sessionDate}
-                  onChange={(e) => setSessionDate(e.target.value)}
+                  type="number"
+                  step="0.1"
+                  value={bodyHeight}
+                  onChange={(e) => setBodyHeight(e.target.value)}
+                  placeholder="例：170"
                   style={inputStyle}
                 />
               </label>
@@ -700,6 +746,52 @@ export default function TrainingPage() {
                   value={bodyWeight}
                   onChange={(e) => setBodyWeight(e.target.value)}
                   placeholder="例：65.4"
+                  style={inputStyle}
+                />
+              </label>
+
+              <label style={{ display: "grid", gap: 8 }}>
+                <span style={labelStyle}>体脂肪（%）</span>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={bodyFat}
+                  onChange={(e) => setBodyFat(e.target.value)}
+                  placeholder="例：18.5"
+                  style={inputStyle}
+                />
+              </label>
+
+              <label style={{ display: "grid", gap: 8 }}>
+                <span style={labelStyle}>筋肉量（kg）</span>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={muscleMass}
+                  onChange={(e) => setMuscleMass(e.target.value)}
+                  placeholder="例：48.2"
+                  style={inputStyle}
+                />
+              </label>
+
+              <label style={{ display: "grid", gap: 8 }}>
+                <span style={labelStyle}>内臓脂肪</span>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={visceralFat}
+                  onChange={(e) => setVisceralFat(e.target.value)}
+                  placeholder="例：7"
+                  style={inputStyle}
+                />
+              </label>
+
+              <label style={{ display: "grid", gap: 8 }}>
+                <span style={labelStyle}>セッション日</span>
+                <input
+                  type="date"
+                  value={sessionDate}
+                  onChange={(e) => setSessionDate(e.target.value)}
                   style={inputStyle}
                 />
               </label>
@@ -733,7 +825,11 @@ export default function TrainingPage() {
 
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 <span style={countBadgeStyle}>入力種目数：{exerciseCount}</span>
-                <button type="button" onClick={addRow} style={BUTTON_PRIMARY_STYLE}>
+                <button
+                  type="button"
+                  onClick={addRow}
+                  style={BUTTON_PRIMARY_STYLE}
+                >
                   行を追加
                 </button>
               </div>
@@ -761,7 +857,9 @@ export default function TrainingPage() {
                         <span style={labelStyle}>カテゴリ</span>
                         <select
                           value={row.category}
-                          onChange={(e) => updateRow(row.rowId, "category", e.target.value)}
+                          onChange={(e) =>
+                            updateRow(row.rowId, "category", e.target.value)
+                          }
                           style={tableInputStyle}
                         >
                           <option value="">選択</option>
@@ -797,7 +895,9 @@ export default function TrainingPage() {
                         <span style={labelStyle}>セット数</span>
                         <input
                           value={row.set_count}
-                          onChange={(e) => updateRow(row.rowId, "set_count", e.target.value)}
+                          onChange={(e) =>
+                            updateRow(row.rowId, "set_count", e.target.value)
+                          }
                           placeholder="3"
                           style={tableInputStyle}
                         />
@@ -827,13 +927,21 @@ export default function TrainingPage() {
                         <span style={labelStyle}>秒数</span>
                         <input
                           value={row.seconds}
-                          onChange={(e) => updateRow(row.rowId, "seconds", e.target.value)}
+                          onChange={(e) =>
+                            updateRow(row.rowId, "seconds", e.target.value)
+                          }
                           placeholder="30秒"
                           style={tableInputStyle}
                         />
                       </label>
 
-                      <label style={{ display: "grid", gap: 8, gridColumn: "1 / -1" }}>
+                      <label
+                        style={{
+                          display: "grid",
+                          gap: 8,
+                          gridColumn: "1 / -1",
+                        }}
+                      >
                         <span style={labelStyle}>メモ</span>
                         <textarea
                           value={row.memo}
@@ -943,7 +1051,14 @@ export default function TrainingPage() {
               )}
             </div>
 
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 20 }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 12,
+                flexWrap: "wrap",
+                marginTop: 20,
+              }}
+            >
               <button
                 type="button"
                 onClick={() => void handleSave()}
@@ -962,7 +1077,11 @@ export default function TrainingPage() {
               </button>
 
               {editingSessionId && (
-                <button type="button" onClick={() => resetForm(true)} style={secondaryButtonStyle}>
+                <button
+                  type="button"
+                  onClick={() => resetForm(true)}
+                  style={secondaryButtonStyle}
+                >
                   編集をやめる
                 </button>
               )}
@@ -1014,14 +1133,24 @@ export default function TrainingPage() {
                         }}
                       >
                         <div>
-                          <div style={historyDateStyle}>{formatDate(session.session_date)}</div>
+                          <div style={historyDateStyle}>
+                            {formatDate(session.session_date)}
+                          </div>
                           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                             <span style={historyBadgeStyle}>
-                              体重：{session.body_weight ? `${session.body_weight} kg` : "—"}
+                              身長：{session.body_height ?? "—"} cm
                             </span>
-                            <span style={historyBadgeStyle}>種目数：{sets.length}</span>
                             <span style={historyBadgeStyle}>
-                              更新：{formatDateTime(session.updated_at || session.created_at)}
+                              体重：{session.body_weight ?? "—"} kg
+                            </span>
+                            <span style={historyBadgeStyle}>
+                              体脂肪：{session.body_fat ?? "—"} %
+                            </span>
+                            <span style={historyBadgeStyle}>
+                              筋肉量：{session.muscle_mass ?? "—"} kg
+                            </span>
+                            <span style={historyBadgeStyle}>
+                              内臓脂肪：{session.visceral_fat ?? "—"}
                             </span>
                           </div>
                         </div>
@@ -1077,9 +1206,10 @@ export default function TrainingPage() {
                                   </div>
                                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                                     {set.category && <span>カテゴリ：{set.category}</span>}
-                                    {set.set_count !== null && set.set_count !== undefined && (
-                                      <span>セット：{set.set_count}</span>
-                                    )}
+                                    {set.set_count !== null &&
+                                      set.set_count !== undefined && (
+                                        <span>セット：{set.set_count}</span>
+                                      )}
                                     {set.reps && <span>回数：{set.reps}</span>}
                                     {set.weight && <span>重量：{set.weight}</span>}
                                     {set.seconds && <span>秒数：{set.seconds}</span>}
@@ -1096,12 +1226,17 @@ export default function TrainingPage() {
 
                           {safeArray(session.stretch_menu).length > 0 && (
                             <>
-                              <div style={{ ...historyBoxTitleStyle, marginTop: 12 }}>
+                              <div
+                                style={{ ...historyBoxTitleStyle, marginTop: 12 }}
+                              >
                                 ストレッチ項目
                               </div>
                               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                                 {safeArray(session.stretch_menu).map((item, idx) => (
-                                  <span key={`${session.id}-stretch-${idx}`} style={stretchBadgeStyle}>
+                                  <span
+                                    key={`${session.id}-stretch-${idx}`}
+                                    style={stretchBadgeStyle}
+                                  >
                                     {item}
                                   </span>
                                 ))}
@@ -1112,17 +1247,43 @@ export default function TrainingPage() {
 
                         <div style={historyInnerBoxStyle}>
                           <div style={historyBoxTitleStyle}>総評</div>
-                          <div style={{ whiteSpace: "pre-wrap", color: "#334155", fontSize: 14 }}>
+                          <div
+                            style={{
+                              whiteSpace: "pre-wrap",
+                              color: "#334155",
+                              fontSize: 14,
+                            }}
+                          >
                             {session.summary || "未入力"}
                           </div>
 
-                          <div style={{ ...historyBoxTitleStyle, marginTop: 14 }}>次回課題</div>
-                          <div style={{ whiteSpace: "pre-wrap", color: "#334155", fontSize: 14 }}>
+                          <div
+                            style={{ ...historyBoxTitleStyle, marginTop: 14 }}
+                          >
+                            次回課題
+                          </div>
+                          <div
+                            style={{
+                              whiteSpace: "pre-wrap",
+                              color: "#334155",
+                              fontSize: 14,
+                            }}
+                          >
                             {session.next_task || "未入力"}
                           </div>
 
-                          <div style={{ ...historyBoxTitleStyle, marginTop: 14 }}>姿勢メモ</div>
-                          <div style={{ whiteSpace: "pre-wrap", color: "#334155", fontSize: 14 }}>
+                          <div
+                            style={{ ...historyBoxTitleStyle, marginTop: 14 }}
+                          >
+                            姿勢メモ
+                          </div>
+                          <div
+                            style={{
+                              whiteSpace: "pre-wrap",
+                              color: "#334155",
+                              fontSize: 14,
+                            }}
+                          >
                             {session.posture_note || "未入力"}
                           </div>
                         </div>
@@ -1134,7 +1295,8 @@ export default function TrainingPage() {
                           <div
                             style={{
                               display: "grid",
-                              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                              gridTemplateColumns:
+                                "repeat(auto-fit, minmax(180px, 1fr))",
                               gap: 12,
                             }}
                           >
