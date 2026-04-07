@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { BG, CARD, BUTTON_PRIMARY } from "../../../../styles/theme";
@@ -307,6 +313,9 @@ export default function TrainingPage() {
   const [history, setHistory] = useState<TrainingSession[]>([]);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
 
+  const rowsBottomRef = useRef<HTMLDivElement | null>(null);
+  const lastRowRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -471,7 +480,8 @@ export default function TrainingPage() {
         if (key === "category") {
           const nextExercises = getExercisesByCategory(value);
           const keepExercise =
-            trimmed(row.exercise_name) && nextExercises.includes(trimmed(row.exercise_name))
+            trimmed(row.exercise_name) &&
+            nextExercises.includes(trimmed(row.exercise_name))
               ? trimmed(row.exercise_name)
               : "";
 
@@ -489,6 +499,17 @@ export default function TrainingPage() {
 
   function addRow() {
     setSetRows((prev) => [...prev, makeRow()]);
+  }
+
+  function addRowAndScroll() {
+    addRow();
+
+    setTimeout(() => {
+      lastRowRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 80);
   }
 
   function removeRow(rowId: string) {
@@ -635,7 +656,9 @@ export default function TrainingPage() {
           row_order: index,
           category: trimmed(row.category) || null,
           exercise_name: trimmed(row.exercise_name) || null,
-          set_count: trimmed(row.set_count) ? Number(trimmed(row.set_count)) : null,
+          set_count: trimmed(row.set_count)
+            ? Number(trimmed(row.set_count))
+            : null,
           reps: trimmed(row.reps) || null,
           weight: trimmed(row.weight) || null,
           seconds: trimmed(row.seconds) || null,
@@ -652,7 +675,9 @@ export default function TrainingPage() {
       await loadHistory();
       resetForm(false);
       setSuccess(
-        editingSessionId ? "履歴を更新しました。" : "トレーニング履歴を保存しました。"
+        editingSessionId
+          ? "履歴を更新しました。"
+          : "トレーニング履歴を保存しました。"
       );
     } catch (e) {
       console.error(e);
@@ -741,7 +766,9 @@ export default function TrainingPage() {
                 TRAINING SESSION
               </div>
               <h1 style={{ margin: 0, fontSize: 28, color: "#0f172a" }}>
-                {editingSessionId ? "トレーニング履歴を編集" : "トレーニング履歴を登録"}
+                {editingSessionId
+                  ? "トレーニング履歴を編集"
+                  : "トレーニング履歴を登録"}
               </h1>
             </div>
 
@@ -879,24 +906,39 @@ export default function TrainingPage() {
             >
               <h2 style={sectionTitleStyle}>トレーニング種目</h2>
 
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  justifyContent: "flex-start",
+                }}
+              >
                 <span style={countBadgeStyle}>入力種目数：{exerciseCount}</span>
                 <button
                   type="button"
-                  onClick={addRow}
-                  style={BUTTON_PRIMARY_STYLE}
+                  onClick={addRowAndScroll}
+                  style={addRowButtonTopStyle}
                 >
-                  行を追加
+                  ＋ 行を追加
                 </button>
               </div>
             </div>
 
             <div style={{ display: "grid", gap: 12 }}>
               {setRows.map((row, index) => {
-                const exerciseOptions = getExercisesByCategory(trimmed(row.category));
+                const exerciseOptions = getExercisesByCategory(
+                  trimmed(row.category)
+                );
+                const isLast = index === setRows.length - 1;
 
                 return (
-                  <div key={toSafeString(row.rowId)} style={exerciseCardStyle}>
+                  <div
+                    key={toSafeString(row.rowId)}
+                    style={exerciseCardStyle}
+                    ref={isLast ? lastRowRef : null}
+                  >
                     <div style={exerciseCardHeaderStyle}>
                       <div style={exerciseCardIndexStyle}>種目 {index + 1}</div>
                       <button
@@ -914,7 +956,11 @@ export default function TrainingPage() {
                         <select
                           value={toSafeString(row.category)}
                           onChange={(e) =>
-                            updateRow(toSafeString(row.rowId), "category", e.target.value)
+                            updateRow(
+                              toSafeString(row.rowId),
+                              "category",
+                              e.target.value
+                            )
                           }
                           style={tableInputStyle}
                         >
@@ -932,15 +978,24 @@ export default function TrainingPage() {
                         <select
                           value={toSafeString(row.exercise_name)}
                           onChange={(e) =>
-                            updateRow(toSafeString(row.rowId), "exercise_name", e.target.value)
+                            updateRow(
+                              toSafeString(row.rowId),
+                              "exercise_name",
+                              e.target.value
+                            )
                           }
                           style={tableInputStyle}
                         >
                           <option value="">
-                            {trimmed(row.category) ? "種目を選択" : "先にカテゴリを選択"}
+                            {trimmed(row.category)
+                              ? "種目を選択"
+                              : "先にカテゴリを選択"}
                           </option>
                           {exerciseOptions.map((option) => (
-                            <option key={`${trimmed(row.category)}-${option}`} value={option}>
+                            <option
+                              key={`${trimmed(row.category)}-${option}`}
+                              value={option}
+                            >
                               {option}
                             </option>
                           ))}
@@ -952,7 +1007,11 @@ export default function TrainingPage() {
                         <input
                           value={toSafeString(row.set_count)}
                           onChange={(e) =>
-                            updateRow(toSafeString(row.rowId), "set_count", e.target.value)
+                            updateRow(
+                              toSafeString(row.rowId),
+                              "set_count",
+                              e.target.value
+                            )
                           }
                           placeholder="3"
                           style={tableInputStyle}
@@ -964,7 +1023,11 @@ export default function TrainingPage() {
                         <input
                           value={toSafeString(row.reps)}
                           onChange={(e) =>
-                            updateRow(toSafeString(row.rowId), "reps", e.target.value)
+                            updateRow(
+                              toSafeString(row.rowId),
+                              "reps",
+                              e.target.value
+                            )
                           }
                           placeholder="10回"
                           style={tableInputStyle}
@@ -976,7 +1039,11 @@ export default function TrainingPage() {
                         <input
                           value={toSafeString(row.weight)}
                           onChange={(e) =>
-                            updateRow(toSafeString(row.rowId), "weight", e.target.value)
+                            updateRow(
+                              toSafeString(row.rowId),
+                              "weight",
+                              e.target.value
+                            )
                           }
                           placeholder="40kg"
                           style={tableInputStyle}
@@ -988,7 +1055,11 @@ export default function TrainingPage() {
                         <input
                           value={toSafeString(row.seconds)}
                           onChange={(e) =>
-                            updateRow(toSafeString(row.rowId), "seconds", e.target.value)
+                            updateRow(
+                              toSafeString(row.rowId),
+                              "seconds",
+                              e.target.value
+                            )
                           }
                           placeholder="30秒"
                           style={tableInputStyle}
@@ -1006,7 +1077,11 @@ export default function TrainingPage() {
                         <textarea
                           value={toSafeString(row.memo)}
                           onChange={(e) =>
-                            updateRow(toSafeString(row.rowId), "memo", e.target.value)
+                            updateRow(
+                              toSafeString(row.rowId),
+                              "memo",
+                              e.target.value
+                            )
                           }
                           placeholder="フォーム意識、注意点など"
                           style={{ ...textareaStyle, minHeight: 88 }}
@@ -1016,6 +1091,23 @@ export default function TrainingPage() {
                   </div>
                 );
               })}
+
+              <div
+                ref={rowsBottomRef}
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  marginTop: 8,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={addRowAndScroll}
+                  style={addRowButtonBottomStyle}
+                >
+                  ＋ 次の行を追加
+                </button>
+              </div>
             </div>
           </section>
 
@@ -1200,16 +1292,21 @@ export default function TrainingPage() {
                             {formatDate(session.session_date)}
                           </div>
                           <div style={historySubStyle}>
-                            身長 {session.body_height ?? "—"}cm / 体重 {session.body_weight ?? "—"}kg
+                            身長 {session.body_height ?? "—"}cm / 体重{" "}
+                            {session.body_weight ?? "—"}kg
                           </div>
                           <div style={historySubStyle}>
-                            体脂肪 {session.body_fat ?? "—"}% / 筋肉量 {session.muscle_mass ?? "—"}kg
+                            体脂肪 {session.body_fat ?? "—"}% / 筋肉量{" "}
+                            {session.muscle_mass ?? "—"}kg
                           </div>
                           <div style={historySubStyle}>
                             内臓脂肪 {session.visceral_fat ?? "—"}
                           </div>
                           <div style={historySubStyle}>
-                            更新日時 {formatDateTime(session.updated_at || session.created_at)}
+                            更新日時{" "}
+                            {formatDateTime(
+                              session.updated_at || session.created_at
+                            )}
                           </div>
                         </div>
 
@@ -1217,112 +1314,107 @@ export default function TrainingPage() {
                           <button
                             type="button"
                             onClick={() => applySessionToForm(session, true)}
-                            style={historyActionButtonStyle}
+                            style={smallActionButtonStyle}
                           >
                             編集
                           </button>
                           <button
                             type="button"
                             onClick={() => applySessionToForm(session, false)}
-                            style={historyActionButtonStyle}
+                            style={smallActionButtonStyle}
                           >
                             コピー
                           </button>
                           <button
                             type="button"
                             onClick={() => void handleDelete(session.id)}
-                            style={historyDeleteButtonStyle}
+                            style={smallDeleteButtonStyle}
                           >
                             削除
                           </button>
                         </div>
                       </div>
 
-                      {(session.summary || session.next_task || session.posture_note) && (
-                        <div style={historyTextBlockWrapStyle}>
-                          <div style={historyTextBlockStyle}>
-                            <div style={historyTextLabelStyle}>総評</div>
-                            <div style={historyTextValueStyle}>
-                              {session.summary || "—"}
-                            </div>
-                          </div>
-                          <div style={historyTextBlockStyle}>
-                            <div style={historyTextLabelStyle}>次回課題</div>
-                            <div style={historyTextValueStyle}>
-                              {session.next_task || "—"}
-                            </div>
-                          </div>
-                          <div style={historyTextBlockStyle}>
-                            <div style={historyTextLabelStyle}>姿勢メモ</div>
-                            <div style={historyTextValueStyle}>
-                              {session.posture_note || "—"}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {safeArray(session.stretch_menu).length > 0 && (
-                        <div style={{ marginTop: 14 }}>
-                          <div style={historyTextLabelStyle}>ストレッチ項目</div>
-                          <div style={chipWrapStyle}>
-                            {safeArray(session.stretch_menu).map((item, idx) => (
-                              <span key={`${item}-${idx}`} style={chipStyle}>
-                                {item}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
                       {sets.length > 0 && (
-                        <div style={{ marginTop: 16 }}>
-                          <div style={historyTextLabelStyle}>トレーニング種目</div>
-                          <div style={setTableWrapStyle}>
-                            <table style={setTableStyle}>
-                              <thead>
-                                <tr>
-                                  <th style={thStyle}>カテゴリ</th>
-                                  <th style={thStyle}>種目名</th>
-                                  <th style={thStyle}>セット数</th>
-                                  <th style={thStyle}>回数</th>
-                                  <th style={thStyle}>重量</th>
-                                  <th style={thStyle}>秒数</th>
-                                  <th style={thStyle}>メモ</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {sets.map((set) => (
-                                  <tr key={set.id}>
-                                    <td style={tdStyle}>{set.category || "—"}</td>
-                                    <td style={tdStyle}>{set.exercise_name || "—"}</td>
-                                    <td style={tdStyle}>{set.set_count ?? "—"}</td>
-                                    <td style={tdStyle}>{set.reps || "—"}</td>
-                                    <td style={tdStyle}>{set.weight || "—"}</td>
-                                    <td style={tdStyle}>{set.seconds || "—"}</td>
-                                    <td style={tdStyleMemo}>{set.memo || "—"}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
+                        <div style={{ display: "grid", gap: 10, marginBottom: 14 }}>
+                          {sets.map((set, idx) => (
+                            <div key={set.id || idx} style={historySetRowStyle}>
+                              <div style={historySetTitleStyle}>
+                                {idx + 1}. {set.exercise_name || "種目未設定"}
+                              </div>
+                              <div style={historySubStyle}>
+                                カテゴリ {set.category || "—"} / セット数{" "}
+                                {set.set_count ?? "—"} / 回数 {set.reps || "—"} /
+                                重量 {set.weight || "—"} / 秒数{" "}
+                                {set.seconds || "—"}
+                              </div>
+                              {set.memo ? (
+                                <div style={historyMemoStyle}>{set.memo}</div>
+                              ) : null}
+                            </div>
+                          ))}
                         </div>
                       )}
 
-                      {images.length > 0 && (
-                        <div style={{ marginTop: 16 }}>
-                          <div style={historyTextLabelStyle}>姿勢画像</div>
-                          <div style={historyImageGridStyle}>
-                            {images.map((url, idx) => (
-                              <img
-                                key={`${url}-${idx}`}
-                                src={url}
-                                alt={`history-posture-${idx + 1}`}
-                                style={historyImageStyle}
-                              />
-                            ))}
+                      {session.summary ? (
+                        <div style={{ marginTop: 10 }}>
+                          <div style={historyLabelStyle}>総評</div>
+                          <div style={historyTextBlockStyle}>{session.summary}</div>
+                        </div>
+                      ) : null}
+
+                      {session.next_task ? (
+                        <div style={{ marginTop: 10 }}>
+                          <div style={historyLabelStyle}>次回課題</div>
+                          <div style={historyTextBlockStyle}>{session.next_task}</div>
+                        </div>
+                      ) : null}
+
+                      {session.posture_note ? (
+                        <div style={{ marginTop: 10 }}>
+                          <div style={historyLabelStyle}>姿勢メモ</div>
+                          <div style={historyTextBlockStyle}>
+                            {session.posture_note}
                           </div>
                         </div>
-                      )}
+                      ) : null}
+
+                      {safeArray(session.stretch_menu).length > 0 ? (
+                        <div style={{ marginTop: 10 }}>
+                          <div style={historyLabelStyle}>ストレッチ項目</div>
+                          <div style={historyTextBlockStyle}>
+                            {safeArray(session.stretch_menu).join(" / ")}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {images.length > 0 ? (
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns:
+                              "repeat(auto-fit, minmax(140px, 1fr))",
+                            gap: 10,
+                            marginTop: 14,
+                          }}
+                        >
+                          {images.map((url, idx) => (
+                            <img
+                              key={`${url}-${idx}`}
+                              src={url}
+                              alt={`history-${idx + 1}`}
+                              style={{
+                                width: "100%",
+                                aspectRatio: "3 / 4",
+                                objectFit: "cover",
+                                borderRadius: 16,
+                                border: "1px solid rgba(226,232,240,0.95)",
+                                background: "#fff",
+                              }}
+                            />
+                          ))}
+                        </div>
+                      ) : null}
                     </article>
                   );
                 })}
@@ -1336,94 +1428,84 @@ export default function TrainingPage() {
 }
 
 const sectionTitleStyle: CSSProperties = {
-  margin: 0,
-  fontSize: 22,
-  color: "#0f172a",
+  margin: "0 0 16px",
+  fontSize: 20,
   fontWeight: 800,
+  color: "#0f172a",
 };
 
 const labelStyle: CSSProperties = {
   fontSize: 13,
-  color: "#475569",
   fontWeight: 700,
+  color: "#334155",
 };
 
 const inputStyle: CSSProperties = {
   width: "100%",
-  height: 48,
+  height: 46,
   borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.9)",
-  background: "rgba(255,255,255,0.88)",
-  color: "#0f172a",
+  border: "1px solid rgba(203,213,225,0.95)",
+  background: "rgba(255,255,255,0.96)",
   padding: "0 14px",
-  outline: "none",
   fontSize: 14,
+  color: "#0f172a",
+  outline: "none",
   boxSizing: "border-box",
+};
+
+const tableInputStyle: CSSProperties = {
+  ...inputStyle,
 };
 
 const textareaStyle: CSSProperties = {
   width: "100%",
   borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.9)",
-  background: "rgba(255,255,255,0.88)",
-  color: "#0f172a",
+  border: "1px solid rgba(203,213,225,0.95)",
+  background: "rgba(255,255,255,0.96)",
   padding: "12px 14px",
-  outline: "none",
   fontSize: 14,
+  color: "#0f172a",
+  outline: "none",
   resize: "vertical",
   boxSizing: "border-box",
 };
 
-const tableInputStyle: CSSProperties = {
-  width: "100%",
-  height: 46,
-  borderRadius: 12,
-  border: "1px solid rgba(203,213,225,0.9)",
-  background: "rgba(255,255,255,0.9)",
-  color: "#0f172a",
-  padding: "0 12px",
-  outline: "none",
-  fontSize: 14,
-  boxSizing: "border-box",
-};
-
 const secondaryButtonStyle: CSSProperties = {
-  minWidth: 140,
-  height: 46,
+  height: 42,
   borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.95)",
-  background: "rgba(255,255,255,0.88)",
+  border: "1px solid rgba(148,163,184,0.24)",
+  background: "rgba(255,255,255,0.86)",
   color: "#334155",
-  fontWeight: 700,
   fontSize: 14,
+  fontWeight: 700,
   cursor: "pointer",
   padding: "0 16px",
 };
 
 const alertErrorStyle: CSSProperties = {
-  background: "rgba(254,226,226,0.92)",
-  border: "1px solid rgba(248,113,113,0.28)",
-  color: "#b91c1c",
-  borderRadius: 16,
   padding: "14px 16px",
+  borderRadius: 16,
+  background: "rgba(254,242,242,0.98)",
+  border: "1px solid rgba(239,68,68,0.22)",
+  color: "#b91c1c",
   fontSize: 14,
-  lineHeight: 1.7,
+  fontWeight: 700,
 };
 
 const alertSuccessStyle: CSSProperties = {
-  background: "rgba(220,252,231,0.92)",
-  border: "1px solid rgba(74,222,128,0.28)",
-  color: "#166534",
-  borderRadius: 16,
   padding: "14px 16px",
+  borderRadius: 16,
+  background: "rgba(240,253,244,0.98)",
+  border: "1px solid rgba(34,197,94,0.18)",
+  color: "#15803d",
   fontSize: 14,
-  lineHeight: 1.7,
+  fontWeight: 700,
 };
 
 const countBadgeStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
-  height: 40,
+  minHeight: 40,
   borderRadius: 9999,
   background: "rgba(255,255,255,0.9)",
   border: "1px solid rgba(226,232,240,0.95)",
@@ -1431,6 +1513,28 @@ const countBadgeStyle: CSSProperties = {
   padding: "0 14px",
   fontSize: 13,
   fontWeight: 700,
+};
+
+const addRowButtonTopStyle: CSSProperties = {
+  ...BUTTON_PRIMARY_STYLE,
+  minHeight: 48,
+  padding: "12px 18px",
+  borderRadius: 14,
+  fontWeight: 800,
+  fontSize: 15,
+  minWidth: 150,
+};
+
+const addRowButtonBottomStyle: CSSProperties = {
+  ...BUTTON_PRIMARY_STYLE,
+  minHeight: 56,
+  padding: "14px 22px",
+  borderRadius: 16,
+  fontWeight: 800,
+  fontSize: 16,
+  width: "100%",
+  maxWidth: 340,
+  justifyContent: "center",
 };
 
 const exerciseCardStyle: CSSProperties = {
@@ -1457,7 +1561,7 @@ const exerciseCardIndexStyle: CSSProperties = {
 };
 
 const trainingDeleteButtonStyle: CSSProperties = {
-  height: 36,
+  minHeight: 38,
   borderRadius: 12,
   border: "1px solid rgba(239,68,68,0.22)",
   background: "rgba(254,242,242,0.95)",
@@ -1465,14 +1569,14 @@ const trainingDeleteButtonStyle: CSSProperties = {
   fontSize: 13,
   fontWeight: 700,
   cursor: "pointer",
-  padding: "0 12px",
+  padding: "0 14px",
 };
 
 const removeImageButtonStyle: CSSProperties = {
   position: "absolute",
   right: 10,
   bottom: 10,
-  height: 34,
+  minHeight: 34,
   borderRadius: 10,
   border: "1px solid rgba(239,68,68,0.25)",
   background: "rgba(255,255,255,0.95)",
@@ -1519,129 +1623,65 @@ const historySubStyle: CSSProperties = {
   lineHeight: 1.8,
 };
 
-const historyActionButtonStyle: CSSProperties = {
-  height: 38,
+const smallActionButtonStyle: CSSProperties = {
+  minHeight: 36,
   borderRadius: 12,
-  border: "1px solid rgba(203,213,225,0.95)",
-  background: "rgba(255,255,255,0.92)",
+  border: "1px solid rgba(148,163,184,0.2)",
+  background: "rgba(255,255,255,0.96)",
   color: "#334155",
   fontSize: 13,
   fontWeight: 700,
   cursor: "pointer",
-  padding: "0 14px",
+  padding: "0 12px",
 };
 
-const historyDeleteButtonStyle: CSSProperties = {
-  height: 38,
+const smallDeleteButtonStyle: CSSProperties = {
+  minHeight: 36,
   borderRadius: 12,
   border: "1px solid rgba(239,68,68,0.22)",
-  background: "rgba(254,242,242,0.95)",
+  background: "rgba(254,242,242,0.98)",
   color: "#b91c1c",
   fontSize: 13,
   fontWeight: 700,
   cursor: "pointer",
-  padding: "0 14px",
+  padding: "0 12px",
 };
 
-const historyTextBlockWrapStyle: CSSProperties = {
-  display: "grid",
-  gap: 12,
-  marginTop: 14,
-};
-
-const historyTextBlockStyle: CSSProperties = {
+const historySetRowStyle: CSSProperties = {
+  padding: "12px 14px",
+  borderRadius: 14,
   background: "rgba(248,250,252,0.9)",
   border: "1px solid rgba(226,232,240,0.95)",
-  borderRadius: 16,
-  padding: "12px 14px",
 };
 
-const historyTextLabelStyle: CSSProperties = {
-  fontSize: 12,
-  color: "#64748b",
-  fontWeight: 700,
-  marginBottom: 8,
-};
-
-const historyTextValueStyle: CSSProperties = {
+const historySetTitleStyle: CSSProperties = {
   fontSize: 14,
+  fontWeight: 800,
   color: "#0f172a",
-  lineHeight: 1.8,
-  whiteSpace: "pre-wrap",
-  wordBreak: "break-word",
+  marginBottom: 4,
 };
 
-const chipWrapStyle: CSSProperties = {
-  display: "flex",
-  gap: 8,
-  flexWrap: "wrap",
-  marginTop: 8,
-};
-
-const chipStyle: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  minHeight: 32,
-  borderRadius: 9999,
-  background: "rgba(241,245,249,0.95)",
-  border: "1px solid rgba(226,232,240,0.95)",
-  color: "#334155",
-  padding: "0 12px",
-  fontSize: 12,
-  fontWeight: 700,
-};
-
-const setTableWrapStyle: CSSProperties = {
-  marginTop: 8,
-  overflowX: "auto",
-};
-
-const setTableStyle: CSSProperties = {
-  width: "100%",
-  minWidth: 760,
-  borderCollapse: "separate",
-  borderSpacing: 0,
-};
-
-const thStyle: CSSProperties = {
-  textAlign: "left",
-  padding: "12px 10px",
-  fontSize: 12,
-  color: "#64748b",
-  fontWeight: 700,
-  background: "rgba(248,250,252,0.95)",
-  borderBottom: "1px solid rgba(226,232,240,0.95)",
-  whiteSpace: "nowrap",
-};
-
-const tdStyle: CSSProperties = {
-  padding: "12px 10px",
+const historyMemoStyle: CSSProperties = {
+  marginTop: 6,
   fontSize: 13,
-  color: "#0f172a",
-  borderBottom: "1px solid rgba(226,232,240,0.8)",
-  whiteSpace: "nowrap",
-  verticalAlign: "top",
-};
-
-const tdStyleMemo: CSSProperties = {
-  ...tdStyle,
-  whiteSpace: "normal",
-  minWidth: 180,
+  color: "#334155",
   lineHeight: 1.7,
 };
 
-const historyImageGridStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-  gap: 12,
-  marginTop: 8,
+const historyLabelStyle: CSSProperties = {
+  fontSize: 12,
+  fontWeight: 800,
+  color: "#64748b",
+  marginBottom: 6,
+  letterSpacing: "0.04em",
 };
 
-const historyImageStyle: CSSProperties = {
-  width: "100%",
-  aspectRatio: "3 / 4",
-  objectFit: "cover",
-  borderRadius: 16,
+const historyTextBlockStyle: CSSProperties = {
+  padding: "12px 14px",
+  borderRadius: 14,
+  background: "rgba(248,250,252,0.92)",
   border: "1px solid rgba(226,232,240,0.95)",
-  background: "#fff",
+  color: "#334155",
+  fontSize: 14,
+  lineHeight: 1.8,
 };
