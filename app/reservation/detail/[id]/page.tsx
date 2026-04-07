@@ -1,737 +1,650 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
+const supabase =
+  process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    ? createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      )
+    : null;
+
 type ReservationRow = {
-  id: number;
-  customer_name: string | null;
-  date: string | null;
-  start_time: string | null;
-  store_name: string | null;
-  staff_name: string | null;
-  menu: string | null;
-  payment_method: string | null;
-  memo: string | null;
+  id: string | number;
+  customer_id?: string | number | null;
+  customer_name?: string | null;
+  date?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  store_name?: string | null;
+  staff_name?: string | null;
+  menu?: string | null;
+  payment_method?: string | null;
+  memo?: string | null;
+  created_at?: string | null;
 };
 
-type Customer = {
-  id: number;
-  name: string;
+type CustomerRow = {
+  id: string | number;
+  name?: string | null;
+  kana?: string | null;
+  phone?: string | null;
 };
 
-type Ticket = {
-  id: number;
-  customer_id: number | null;
-  customer_name: string | null;
-  ticket_name: string | null;
-  service_type: "ストレッチ" | "トレーニング";
-  total_count: number | null;
-  remaining_count: number | null;
-  purchase_date: string | null;
-  expiry_date: string | null;
-  status: "利用中" | "消化済み" | string;
-  note: string | null;
-  created_at: string | null;
-};
+function trimmed(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+}
 
-type TicketUsage = {
-  id: number;
-  reservation_id: number | null;
-  ticket_id: number | null;
-  customer_id: number | null;
-  customer_name: string | null;
-  ticket_name: string | null;
-  service_type: string | null;
-  used_date: string | null;
-  before_count: number | null;
-  after_count: number | null;
-  created_at: string | null;
-};
-
-type SaleRow = {
-  id: number;
-  reservation_id: number | null;
-};
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-function formatDateJP(dateStr?: string | null) {
-  if (!dateStr) return "未設定";
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return dateStr;
+function formatJapaneseDate(dateStr?: string | null) {
+  if (!dateStr) return "—";
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return dateStr;
   const week = ["日", "月", "火", "水", "木", "金", "土"];
-  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日（${week[d.getDay()]}）`;
+  return `${date.getMonth() + 1}月${date.getDate()}日 ${week[date.getDay()]}曜日`;
 }
 
-function detectServiceType(menu?: string | null): "ストレッチ" | "トレーニング" {
-  const text = String(menu || "");
-  if (text.includes("ストレッチ")) return "ストレッチ";
-  return "トレーニング";
+function formatDateTime(dateStr?: string | null) {
+  if (!dateStr) return "—";
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return dateStr;
+  return date.toLocaleString("ja-JP");
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "140px 1fr",
-        gap: "12px",
-        padding: "14px 0",
-        borderBottom: "1px solid #e5e7eb",
-      }}
-    >
-      <div style={{ color: "#6b7280", fontSize: "14px", fontWeight: 700 }}>{label}</div>
-      <div
-        style={{
-          color: "#111827",
-          fontSize: "15px",
-          fontWeight: 600,
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-word",
-        }}
-      >
-        {value || "未設定"}
-      </div>
-    </div>
-  );
+function getStoreColor(storeName?: string | null) {
+  switch (storeName) {
+    case "江戸堀":
+      return "#22c55e";
+    case "箕面":
+      return "#38bdf8";
+    case "福島":
+      return "#f97316";
+    case "福島P":
+      return "#a855f7";
+    case "天満橋":
+      return "#ef4444";
+    case "中崎町":
+      return "#14b8a6";
+    default:
+      return "#94a3b8";
+  }
+}
+
+function extractErrorMessage(error: unknown): string {
+  if (!error) return "不明なエラーです。";
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+
+  if (typeof error === "object") {
+    const maybe = error as {
+      message?: unknown;
+      details?: unknown;
+      hint?: unknown;
+      code?: unknown;
+    };
+
+    const parts = [
+      typeof maybe.message === "string" ? maybe.message : "",
+      typeof maybe.details === "string" ? maybe.details : "",
+      typeof maybe.hint === "string" ? maybe.hint : "",
+      typeof maybe.code === "string" ? `code: ${maybe.code}` : "",
+    ].filter(Boolean);
+
+    if (parts.length > 0) return parts.join(" / ");
+  }
+
+  return "不明なエラーです。";
 }
 
 export default function ReservationDetailPage() {
   const params = useParams();
   const router = useRouter();
 
-  const rawId = Array.isArray(params?.id) ? params.id[0] : params?.id;
-  const id = Number(rawId ?? 0);
+  const rawId = params?.id;
+  const reservationId = Array.isArray(rawId) ? rawId[0] : String(rawId ?? "");
 
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [pageError, setPageError] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const [reservation, setReservation] = useState<ReservationRow | null>(null);
-  const [customer, setCustomer] = useState<Customer | null>(null);
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [usedTicket, setUsedTicket] = useState<TicketUsage | null>(null);
-  const [selectedTicketId, setSelectedTicketId] = useState("");
-  const [consuming, setConsuming] = useState(false);
-  const [isSalesRegistered, setIsSalesRegistered] = useState(false);
+  const [customer, setCustomer] = useState<CustomerRow | null>(null);
 
   useEffect(() => {
     setMounted(true);
-
-    const isLoggedIn = localStorage.getItem("gymup_logged_in");
-    if (isLoggedIn !== "true") {
-      window.location.href = "/login";
-      return;
-    }
   }, []);
-
-  const fetchAll = async () => {
-    try {
-      setLoading(true);
-      setPageError("");
-
-      if (!id || Number.isNaN(id)) {
-        setReservation(null);
-        setCustomer(null);
-        setTickets([]);
-        setUsedTicket(null);
-        setIsSalesRegistered(false);
-        setPageError("予約IDが不正です。");
-        return;
-      }
-
-      const { data: reservationData, error: reservationError } = await supabase
-        .from("reservations")
-        .select("id, customer_name, date, start_time, store_name, staff_name, menu, payment_method, memo")
-        .eq("id", id)
-        .single();
-
-      if (reservationError || !reservationData) {
-        console.error("reservation fetch error:", reservationError);
-        setReservation(null);
-        setCustomer(null);
-        setTickets([]);
-        setUsedTicket(null);
-        setIsSalesRegistered(false);
-        setPageError("予約データが見つかりませんでした。");
-        return;
-      }
-
-      setReservation(reservationData as ReservationRow);
-
-      const { data: usageData, error: usageError } = await supabase
-        .from("ticket_usages")
-        .select(
-          "id, reservation_id, ticket_id, customer_id, customer_name, ticket_name, service_type, used_date, before_count, after_count, created_at"
-        )
-        .eq("reservation_id", id)
-        .maybeSingle();
-
-      if (usageError) {
-        console.error("usage fetch error:", usageError);
-      }
-      setUsedTicket((usageData as TicketUsage | null) || null);
-
-      const { data: salesData, error: salesError } = await supabase
-        .from("sales")
-        .select("id, reservation_id")
-        .eq("reservation_id", id)
-        .limit(1);
-
-      if (salesError) {
-        console.error("sales fetch error:", salesError);
-        setIsSalesRegistered(false);
-      } else {
-        setIsSalesRegistered((((salesData as SaleRow[] | null) || []).length > 0));
-      }
-
-      if (!reservationData.customer_name) {
-        setCustomer(null);
-        setTickets([]);
-        return;
-      }
-
-      const { data: customerData, error: customerError } = await supabase
-        .from("customers")
-        .select("id, name")
-        .eq("name", reservationData.customer_name)
-        .maybeSingle();
-
-      if (customerError) {
-        console.error("customer fetch error:", customerError);
-        setCustomer(null);
-        setTickets([]);
-        return;
-      }
-
-      setCustomer((customerData as Customer | null) || null);
-
-      const serviceType = detectServiceType(reservationData.menu);
-
-      if (customerData?.id) {
-        const { data: ticketData, error: ticketError } = await supabase
-          .from("customer_tickets")
-          .select(
-            "id, customer_id, customer_name, ticket_name, service_type, total_count, remaining_count, purchase_date, expiry_date, status, note, created_at"
-          )
-          .eq("customer_id", customerData.id)
-          .eq("service_type", serviceType)
-          .gt("remaining_count", 0)
-          .order("purchase_date", { ascending: true, nullsFirst: true })
-          .order("created_at", { ascending: true });
-
-        if (ticketError) {
-          console.error("ticket fetch error:", ticketError);
-          setTickets([]);
-          return;
-        }
-
-        setTickets((ticketData as Ticket[] | null) || []);
-      } else {
-        setTickets([]);
-      }
-    } catch (error) {
-      console.error("fetchAll error:", error);
-      setReservation(null);
-      setCustomer(null);
-      setTickets([]);
-      setUsedTicket(null);
-      setIsSalesRegistered(false);
-      setPageError("データ取得中にエラーが発生しました。");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
     if (!mounted) return;
 
-    if (!id || Number.isNaN(id)) {
+    const loggedIn =
+      localStorage.getItem("gymup_logged_in") ||
+      localStorage.getItem("isLoggedIn");
+
+    if (loggedIn !== "true") {
+      router.push("/login");
+      return;
+    }
+
+    if (!reservationId) {
       setLoading(false);
-      setReservation(null);
-      setCustomer(null);
-      setTickets([]);
-      setUsedTicket(null);
-      setIsSalesRegistered(false);
-      setPageError("予約IDが不正です。");
+      setError("予約IDが取得できませんでした。");
       return;
     }
 
-    fetchAll();
-  }, [mounted, id]);
+    void loadDetail();
+  }, [mounted, reservationId, router]);
 
-  useEffect(() => {
-    if (tickets.length === 0) {
-      setSelectedTicketId("");
-      return;
-    }
-
-    const exists = tickets.some((t) => String(t.id) === selectedTicketId);
-    if (!selectedTicketId || !exists) {
-      setSelectedTicketId(String(tickets[0].id));
-    }
-  }, [tickets, selectedTicketId]);
-
-  const serviceType = useMemo(() => {
-    return detectServiceType(reservation?.menu);
-  }, [reservation]);
-
-  const handleConsumeTicket = async () => {
-    if (!reservation) {
-      alert("予約情報がありません");
-      return;
-    }
-
-    if (!customer) {
-      alert("顧客情報が見つかりません");
-      return;
-    }
-
-    if (usedTicket) {
-      alert("この予約はすでに回数券消化済みです");
-      return;
-    }
-
-    const target = tickets.find((t) => String(t.id) === selectedTicketId);
-    if (!target) {
-      alert("消化する回数券を選択してください");
-      return;
-    }
-
-    const before = Number(target.remaining_count || 0);
-    if (before <= 0) {
-      alert("残数がありません");
+  async function loadDetail() {
+    if (!supabase) {
+      setLoading(false);
+      setError("Supabaseの環境変数が設定されていません。");
       return;
     }
 
     try {
-      setConsuming(true);
+      setLoading(true);
+      setError("");
 
-      const { data: existingUsage, error: checkError } = await supabase
-        .from("ticket_usages")
-        .select("id")
-        .eq("reservation_id", reservation.id)
-        .maybeSingle();
-
-      if (checkError) {
-        alert(`消化確認エラー: ${checkError.message}`);
-        return;
-      }
-
-      if (existingUsage) {
-        alert("この予約はすでに回数券消化済みです");
-        await fetchAll();
-        return;
-      }
-
-      const { data: latestTicket, error: latestTicketError } = await supabase
-        .from("customer_tickets")
-        .select("id, remaining_count, status")
-        .eq("id", target.id)
+      const { data: reservationData, error: reservationError } = await supabase
+        .from("reservations")
+        .select(
+          "id, customer_id, customer_name, date, start_time, end_time, store_name, staff_name, menu, payment_method, memo, created_at"
+        )
+        .eq("id", reservationId)
         .single();
 
-      if (latestTicketError || !latestTicket) {
-        alert("回数券の最新情報取得に失敗しました");
-        return;
+      if (reservationError) throw reservationError;
+
+      const reservationRow = reservationData as ReservationRow;
+      setReservation(reservationRow);
+
+      if (reservationRow.customer_id) {
+        const { data: customerData, error: customerError } = await supabase
+          .from("customers")
+          .select("id, name, kana, phone")
+          .eq("id", reservationRow.customer_id)
+          .maybeSingle();
+
+        if (customerError) {
+          console.warn(customerError);
+        }
+
+        if (customerData) {
+          setCustomer(customerData as CustomerRow);
+        }
       }
-
-      const latestRemaining = Number(latestTicket.remaining_count || 0);
-      if (latestRemaining <= 0) {
-        alert("この回数券は残数がありません");
-        await fetchAll();
-        return;
-      }
-
-      const latestAfter = latestRemaining - 1;
-
-      const { error: updateError } = await supabase
-        .from("customer_tickets")
-        .update({
-          remaining_count: latestAfter,
-          status: latestAfter <= 0 ? "消化済み" : "利用中",
-        })
-        .eq("id", target.id)
-        .eq("remaining_count", latestRemaining);
-
-      if (updateError) {
-        alert(`回数券更新エラー: ${updateError.message}`);
-        return;
-      }
-
-      const { error: usageError } = await supabase
-        .from("ticket_usages")
-        .insert([
-          {
-            reservation_id: reservation.id,
-            ticket_id: target.id,
-            customer_id: customer.id,
-            customer_name: customer.name,
-            ticket_name: target.ticket_name,
-            service_type: serviceType,
-            used_date: reservation.date || null,
-            before_count: latestRemaining,
-            after_count: latestAfter,
-          },
-        ]);
-
-      if (usageError) {
-        alert(`消化履歴登録エラー: ${usageError.message}`);
-        return;
-      }
-
-      alert("回数券を1回消化しました");
-      await fetchAll();
-    } catch (error) {
-      console.error("handleConsumeTicket error:", error);
-      alert("回数券消化中にエラーが発生しました");
+    } catch (e) {
+      console.error(e);
+      setError(`予約取得エラー: ${extractErrorMessage(e)}`);
     } finally {
-      setConsuming(false);
+      setLoading(false);
     }
-  };
-
-  const handleGoToSales = () => {
-    if (!reservation) return;
-
-    const params = new URLSearchParams({
-      date: reservation.date || "",
-      customer_name: reservation.customer_name || "",
-      store_name: reservation.store_name || "",
-      staff_name: reservation.staff_name || "",
-      service_type: serviceType || "",
-      menu: reservation.menu || "",
-      reservation_id: String(reservation.id),
-    });
-
-    router.push(`/sales?${params.toString()}`);
-  };
-
-  if (!mounted || loading) {
-    return (
-      <main style={pageStyle}>
-        <div style={containerStyle}>
-          <div style={cardStyle}>読み込み中...</div>
-        </div>
-      </main>
-    );
   }
 
-  if (!reservation) {
-    return (
-      <main style={pageStyle}>
-        <div style={containerStyle}>
-          <div style={cardStyle}>
-            <h1 style={titleStyle}>予約詳細</h1>
-            <p style={{ color: "#b91c1c", fontWeight: 700 }}>
-              {pageError || "予約データが見つかりませんでした。"}
-            </p>
-            <Link href="/reservation" style={mainButtonStyle}>
-              カレンダーへ
-            </Link>
-          </div>
-        </div>
-      </main>
-    );
+  async function handleDelete() {
+    if (!supabase || !reservation) return;
+
+    const ok = window.confirm("この予約を削除しますか？");
+    if (!ok) return;
+
+    try {
+      setDeleting(true);
+      setError("");
+      setSuccess("");
+
+      const { error } = await supabase
+        .from("reservations")
+        .delete()
+        .eq("id", reservation.id);
+
+      if (error) throw error;
+
+      setSuccess("予約を削除しました。");
+
+      setTimeout(() => {
+        router.push("/reservation");
+      }, 400);
+    } catch (e) {
+      console.error(e);
+      setError(`予約削除エラー: ${extractErrorMessage(e)}`);
+    } finally {
+      setDeleting(false);
+    }
   }
 
-  const dayHref = reservation.date ? `/reservation/day?date=${reservation.date}` : "/reservation";
-  const calendarHref = reservation.date
-    ? `/reservation?month=${String(reservation.date).slice(0, 7)}`
-    : "/reservation";
+  const storeColor = useMemo(() => {
+    return getStoreColor(reservation?.store_name);
+  }, [reservation?.store_name]);
+
+  if (!mounted) return null;
 
   return (
-    <main style={pageStyle}>
-      <div style={containerStyle}>
-        <div style={headerRowStyle}>
-          <h1 style={titleStyle}>予約詳細</h1>
-
-          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-            {isSalesRegistered ? (
-              <span style={doneButtonStyle}>売上登録済み</span>
-            ) : (
-              <button onClick={handleGoToSales} style={mainButtonStyle}>
-                売上登録へ
-              </button>
-            )}
-            <Link href={calendarHref} style={subButtonStyle}>
-              カレンダーへ
-            </Link>
-            <Link href={dayHref} style={subButtonStyle}>
-              ← 日別へ戻る
-            </Link>
-          </div>
-        </div>
-
-        <div style={cardStyle}>
-          <div
-            style={{
-              marginBottom: "18px",
-              padding: "18px",
-              borderRadius: "18px",
-              background: "#111827",
-              color: "#fff",
-            }}
+    <main style={styles.page}>
+      <div style={styles.mobileWrap}>
+        <section style={styles.topCard}>
+          <button
+            type="button"
+            onClick={() => router.push("/reservation")}
+            style={styles.backBtn}
           >
-            <div style={{ fontSize: "14px", opacity: 0.8, marginBottom: "8px" }}>お客様</div>
-            <div style={{ fontSize: "28px", fontWeight: 800 }}>
-              {reservation.customer_name || "未設定"}
-            </div>
+            ←
+          </button>
+
+          <div>
+            <div style={styles.pageLabel}>RESERVATION DETAIL</div>
+            <h1 style={styles.pageTitle}>予約詳細</h1>
           </div>
+        </section>
 
-          <div
-            style={{
-              display: "flex",
-              gap: "10px",
-              flexWrap: "wrap",
-              marginBottom: "18px",
-            }}
-          >
-            {usedTicket ? (
-              <span style={successChipStyle}>回数券消化済み</span>
-            ) : (
-              <span style={warningChipStyle}>回数券未消化</span>
-            )}
+        {error ? <div style={styles.errorBox}>{error}</div> : null}
+        {success ? <div style={styles.successBox}>{success}</div> : null}
 
-            {isSalesRegistered ? (
-              <span style={salesChipStyle}>売上登録済み</span>
-            ) : (
-              <span style={neutralChipStyle}>売上未登録</span>
-            )}
-          </div>
+        {loading ? (
+          <section style={styles.card}>
+            <div style={styles.emptyText}>読み込み中...</div>
+          </section>
+        ) : !reservation ? (
+          <section style={styles.card}>
+            <div style={styles.emptyText}>予約が見つかりません。</div>
+          </section>
+        ) : (
+          <>
+            <section style={styles.heroCard}>
+              <div style={styles.heroTop}>
+                <div style={styles.timeWrap}>
+                  <div style={styles.timeMain}>{trimmed(reservation.start_time) || "—"}</div>
+                  <div style={styles.timeArrow}>〜</div>
+                  <div style={styles.timeSub}>{trimmed(reservation.end_time) || "—"}</div>
+                </div>
 
-          <DetailRow label="日付" value={formatDateJP(reservation.date)} />
-          <DetailRow label="開始時間" value={reservation.start_time || "未設定"} />
-          <DetailRow label="店舗" value={reservation.store_name || "未設定"} />
-          <DetailRow label="担当者" value={reservation.staff_name || "未設定"} />
-          <DetailRow label="メニュー" value={reservation.menu || "未設定"} />
-          <DetailRow label="支払い方法" value={reservation.payment_method || "未設定"} />
-          <DetailRow label="メモ" value={reservation.memo || "なし"} />
-
-          <div style={{ marginTop: "24px" }}>
-            <h2 style={sectionTitleStyle}>回数券消化</h2>
-
-            <div style={ticketBoxStyle}>
-              <div style={ticketSummaryStyle}>
-                <div>対象サービス：{serviceType}</div>
-                <div>対象顧客：{customer?.name || "未連携"}</div>
+                <div
+                  style={{
+                    ...styles.storeBadge,
+                    background: storeColor,
+                  }}
+                >
+                  {trimmed(reservation.store_name) || "店舗未設定"}
+                </div>
               </div>
 
-              {usedTicket ? (
-                <div style={successBoxStyle}>
-                  この予約はすでに回数券消化済みです。
-                  <br />
-                  {usedTicket.ticket_name || "回数券"} / 消化前 {usedTicket.before_count ?? "-"} → 消化後 {usedTicket.after_count ?? "-"}
-                </div>
-              ) : tickets.length === 0 ? (
-                <div style={emptyStyle}>使える回数券がありません</div>
-              ) : (
-                <>
-                  <div style={{ marginBottom: "14px" }}>
-                    <label style={labelStyle}>使う回数券</label>
-                    <select
-                      value={selectedTicketId}
-                      onChange={(e) => setSelectedTicketId(e.target.value)}
-                      style={inputStyle}
-                    >
-                      {tickets.map((ticket) => (
-                        <option key={ticket.id} value={String(ticket.id)}>
-                          {ticket.ticket_name || "回数券"} / 残{ticket.remaining_count ?? 0} / 購入日{" "}
-                          {ticket.purchase_date || "未設定"}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+              <div style={styles.heroDate}>
+                {formatJapaneseDate(reservation.date)}
+              </div>
 
-                  <button
-                    onClick={handleConsumeTicket}
-                    style={mainButtonStyle}
-                    disabled={consuming}
-                  >
-                    {consuming ? "消化中..." : "回数券を1回消化する"}
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
+              <div style={styles.mainTitle}>
+                {trimmed(reservation.customer_name) || "顧客名未設定"}
+              </div>
+
+              <div style={styles.subLine}>
+                {trimmed(reservation.menu) || "メニュー未設定"}
+              </div>
+            </section>
+
+            <section style={styles.card}>
+              <h2 style={styles.sectionTitle}>予約情報</h2>
+
+              <div style={styles.infoList}>
+                <InfoRow label="顧客名" value={trimmed(reservation.customer_name) || "—"} />
+                <InfoRow label="担当スタッフ" value={trimmed(reservation.staff_name) || "—"} />
+                <InfoRow label="メニュー" value={trimmed(reservation.menu) || "—"} />
+                <InfoRow label="支払方法" value={trimmed(reservation.payment_method) || "—"} />
+                <InfoRow label="店舗" value={trimmed(reservation.store_name) || "—"} />
+                <InfoRow label="作成日時" value={formatDateTime(reservation.created_at)} />
+              </div>
+
+              <div style={styles.memoBlock}>
+                <div style={styles.memoLabel}>メモ</div>
+                <div style={styles.memoValue}>
+                  {trimmed(reservation.memo) || "メモはありません。"}
+                </div>
+              </div>
+            </section>
+
+            <section style={styles.card}>
+              <h2 style={styles.sectionTitle}>顧客情報</h2>
+
+              <div style={styles.infoList}>
+                <InfoRow
+                  label="顧客ID"
+                  value={
+                    reservation.customer_id !== null &&
+                    reservation.customer_id !== undefined
+                      ? String(reservation.customer_id)
+                      : "未連携"
+                  }
+                />
+                <InfoRow label="氏名" value={customer?.name || trimmed(reservation.customer_name) || "—"} />
+                <InfoRow label="かな" value={customer?.kana || "—"} />
+                <InfoRow label="電話番号" value={customer?.phone || "—"} />
+              </div>
+            </section>
+
+            <section style={styles.card}>
+              <h2 style={styles.sectionTitle}>操作</h2>
+
+              <div style={styles.actionGrid}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (reservation.customer_id) {
+                      router.push(`/customer/${reservation.customer_id}`);
+                    } else {
+                      setError("この予約は顧客詳細にまだ紐づいていません。");
+                    }
+                  }}
+                  style={styles.primaryAction}
+                >
+                  顧客詳細へ
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const query = new URLSearchParams({
+                      reservationId: String(reservation.id),
+                      customerId:
+                        reservation.customer_id !== null &&
+                        reservation.customer_id !== undefined
+                          ? String(reservation.customer_id)
+                          : "",
+                      customerName: trimmed(reservation.customer_name),
+                      date: trimmed(reservation.date),
+                      menu: trimmed(reservation.menu),
+                      staffName: trimmed(reservation.staff_name),
+                      paymentMethod: trimmed(reservation.payment_method),
+                    }).toString();
+
+                    router.push(`/sales?${query}`);
+                  }}
+                  style={styles.darkAction}
+                >
+                  売上登録へ
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (reservation.customer_id) {
+                      router.push(
+                        `/customer/${reservation.customer_id}?focus=tickets`
+                      );
+                    } else {
+                      setError("この予約は回数券管理にまだ紐づいていません。");
+                    }
+                  }}
+                  style={styles.lightAction}
+                >
+                  回数券確認
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  style={{
+                    ...styles.deleteAction,
+                    opacity: deleting ? 0.7 : 1,
+                  }}
+                >
+                  {deleting ? "削除中..." : "予約を削除"}
+                </button>
+              </div>
+            </section>
+          </>
+        )}
       </div>
     </main>
   );
 }
 
-const pageStyle: React.CSSProperties = {
-  minHeight: "100vh",
-  background: "#f5f5f5",
-  padding: "20px",
-};
+function InfoRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div style={styles.infoRow}>
+      <div style={styles.infoLabel}>{label}</div>
+      <div style={styles.infoValue}>{value}</div>
+    </div>
+  );
+}
 
-const containerStyle: React.CSSProperties = {
-  maxWidth: "860px",
-  margin: "0 auto",
-};
-
-const headerRowStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "12px",
-  marginBottom: "16px",
-  flexWrap: "wrap",
-};
-
-const cardStyle: React.CSSProperties = {
-  background: "#fff",
-  borderRadius: "22px",
-  padding: "24px",
-  boxShadow: "0 10px 28px rgba(0,0,0,0.06)",
-};
-
-const titleStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: "30px",
-  fontWeight: 800,
-  color: "#111827",
-};
-
-const sectionTitleStyle: React.CSSProperties = {
-  margin: "0 0 14px 0",
-  fontSize: "22px",
-  fontWeight: 800,
-  color: "#111827",
-};
-
-const mainButtonStyle: React.CSSProperties = {
-  border: "none",
-  borderRadius: "14px",
-  padding: "13px 20px",
-  background: "#111827",
-  color: "#ffffff",
-  fontWeight: 700,
-  fontSize: "15px",
-  cursor: "pointer",
-  textDecoration: "none",
-  display: "inline-block",
-};
-
-const subButtonStyle: React.CSSProperties = {
-  textDecoration: "none",
-  background: "#fff",
-  color: "#111827",
-  border: "1px solid #d1d5db",
-  padding: "10px 16px",
-  borderRadius: "10px",
-  fontWeight: 700,
-  fontSize: "14px",
-};
-
-const doneButtonStyle: React.CSSProperties = {
-  background: "#eff6ff",
-  color: "#1d4ed8",
-  border: "1px solid #93c5fd",
-  borderRadius: "14px",
-  padding: "13px 20px",
-  fontWeight: 700,
-  fontSize: "15px",
-  display: "inline-block",
-};
-
-const ticketBoxStyle: React.CSSProperties = {
-  marginTop: "8px",
-  borderRadius: "18px",
-  border: "1px solid #e5e7eb",
-  padding: "18px",
-  background: "#fafafa",
-};
-
-const ticketSummaryStyle: React.CSSProperties = {
-  display: "grid",
-  gap: "8px",
-  marginBottom: "14px",
-  color: "#374151",
-  fontSize: "14px",
-  fontWeight: 600,
-};
-
-const labelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: "14px",
-  fontWeight: 600,
-  color: "#374151",
-  marginBottom: "8px",
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "13px 14px",
-  borderRadius: "14px",
-  border: "1px solid rgba(203,213,225,0.9)",
-  background: "rgba(255,255,255,0.88)",
-  fontSize: "15px",
-  color: "#111827",
-  outline: "none",
-  boxSizing: "border-box",
-};
-
-const emptyStyle: React.CSSProperties = {
-  borderRadius: "16px",
-  padding: "16px",
-  background: "#fff",
-  border: "1px solid #e5e7eb",
-  color: "#6b7280",
-  textAlign: "center",
-  fontWeight: 700,
-};
-
-const successBoxStyle: React.CSSProperties = {
-  borderRadius: "16px",
-  padding: "16px",
-  background: "#ecfdf5",
-  border: "1px solid #a7f3d0",
-  color: "#065f46",
-  fontWeight: 700,
-};
-
-const successChipStyle: React.CSSProperties = {
-  borderRadius: "999px",
-  padding: "8px 12px",
-  background: "#ecfdf5",
-  border: "1px solid #a7f3d0",
-  color: "#065f46",
-  fontWeight: 700,
-  fontSize: "13px",
-};
-
-const warningChipStyle: React.CSSProperties = {
-  borderRadius: "999px",
-  padding: "8px 12px",
-  background: "#fff7ed",
-  border: "1px solid #fdba74",
-  color: "#9a3412",
-  fontWeight: 700,
-  fontSize: "13px",
-};
-
-const salesChipStyle: React.CSSProperties = {
-  borderRadius: "999px",
-  padding: "8px 12px",
-  background: "#eff6ff",
-  border: "1px solid #93c5fd",
-  color: "#1d4ed8",
-  fontWeight: 700,
-  fontSize: "13px",
-};
-
-const neutralChipStyle: React.CSSProperties = {
-  borderRadius: "999px",
-  padding: "8px 12px",
-  background: "#f3f4f6",
-  border: "1px solid #d1d5db",
-  color: "#374151",
-  fontWeight: 700,
-  fontSize: "13px",
+const styles: Record<string, CSSProperties> = {
+  page: {
+    minHeight: "100vh",
+    background: "#f3f4f6",
+    padding: 0,
+  },
+  mobileWrap: {
+    maxWidth: 430,
+    margin: "0 auto",
+    minHeight: "100vh",
+    background: "#f3f4f6",
+    padding: "18px 14px 80px",
+    display: "grid",
+    gap: 14,
+  },
+  topCard: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    paddingTop: 6,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 999,
+    border: "none",
+    background: "#ffffff",
+    color: "#111827",
+    fontSize: 22,
+    fontWeight: 700,
+    boxShadow: "0 6px 16px rgba(0,0,0,0.06)",
+  },
+  pageLabel: {
+    fontSize: 11,
+    letterSpacing: "0.12em",
+    color: "#94a3b8",
+    fontWeight: 800,
+    marginBottom: 4,
+  },
+  pageTitle: {
+    margin: 0,
+    fontSize: 26,
+    fontWeight: 900,
+    color: "#111827",
+  },
+  heroCard: {
+    background: "#ffffff",
+    borderRadius: 28,
+    padding: 20,
+    boxShadow: "0 10px 30px rgba(0,0,0,0.07)",
+    display: "grid",
+    gap: 10,
+  },
+  heroTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+  },
+  timeWrap: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  },
+  timeMain: {
+    fontSize: 28,
+    fontWeight: 900,
+    color: "#111827",
+    lineHeight: 1,
+  },
+  timeArrow: {
+    fontSize: 18,
+    fontWeight: 900,
+    color: "#9ca3af",
+  },
+  timeSub: {
+    fontSize: 20,
+    fontWeight: 800,
+    color: "#6b7280",
+    lineHeight: 1,
+  },
+  storeBadge: {
+    color: "#fff",
+    borderRadius: 999,
+    padding: "8px 14px",
+    fontSize: 13,
+    fontWeight: 900,
+    whiteSpace: "nowrap",
+  },
+  heroDate: {
+    fontSize: 15,
+    fontWeight: 800,
+    color: "#6b7280",
+  },
+  mainTitle: {
+    fontSize: 30,
+    fontWeight: 900,
+    color: "#111827",
+    lineHeight: 1.2,
+  },
+  subLine: {
+    fontSize: 18,
+    fontWeight: 700,
+    color: "#374151",
+  },
+  card: {
+    background: "#ffffff",
+    borderRadius: 24,
+    padding: 18,
+    boxShadow: "0 10px 30px rgba(0,0,0,0.07)",
+    display: "grid",
+    gap: 14,
+  },
+  sectionTitle: {
+    margin: 0,
+    fontSize: 18,
+    fontWeight: 900,
+    color: "#111827",
+  },
+  infoList: {
+    display: "grid",
+    gap: 10,
+  },
+  infoRow: {
+    display: "grid",
+    gridTemplateColumns: "110px 1fr",
+    gap: 10,
+    alignItems: "start",
+    paddingBottom: 10,
+    borderBottom: "1px solid #f1f5f9",
+  },
+  infoLabel: {
+    fontSize: 13,
+    fontWeight: 800,
+    color: "#94a3b8",
+  },
+  infoValue: {
+    fontSize: 15,
+    fontWeight: 700,
+    color: "#111827",
+    lineHeight: 1.6,
+    wordBreak: "break-word",
+  },
+  memoBlock: {
+    background: "#f8fafc",
+    borderRadius: 18,
+    padding: 14,
+    display: "grid",
+    gap: 8,
+  },
+  memoLabel: {
+    fontSize: 12,
+    fontWeight: 900,
+    color: "#94a3b8",
+    letterSpacing: "0.08em",
+  },
+  memoValue: {
+    fontSize: 14,
+    lineHeight: 1.8,
+    color: "#374151",
+    fontWeight: 700,
+    whiteSpace: "pre-wrap",
+  },
+  actionGrid: {
+    display: "grid",
+    gap: 10,
+  },
+  primaryAction: {
+    height: 52,
+    borderRadius: 16,
+    border: "none",
+    background: "#111827",
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: 900,
+  },
+  darkAction: {
+    height: 52,
+    borderRadius: 16,
+    border: "none",
+    background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: 900,
+  },
+  lightAction: {
+    height: 52,
+    borderRadius: 16,
+    border: "1px solid #e5e7eb",
+    background: "#ffffff",
+    color: "#111827",
+    fontSize: 16,
+    fontWeight: 900,
+  },
+  deleteAction: {
+    height: 52,
+    borderRadius: 16,
+    border: "1px solid rgba(239,68,68,0.18)",
+    background: "#fef2f2",
+    color: "#dc2626",
+    fontSize: 16,
+    fontWeight: 900,
+  },
+  emptyText: {
+    padding: "20px 0",
+    textAlign: "center",
+    color: "#6b7280",
+    fontWeight: 800,
+  },
+  errorBox: {
+    padding: "12px 14px",
+    borderRadius: 16,
+    background: "rgba(254,242,242,0.98)",
+    border: "1px solid rgba(239,68,68,0.22)",
+    color: "#b91c1c",
+    fontSize: 13,
+    fontWeight: 800,
+  },
+  successBox: {
+    padding: "12px 14px",
+    borderRadius: 16,
+    background: "rgba(240,253,244,0.98)",
+    border: "1px solid rgba(34,197,94,0.18)",
+    color: "#15803d",
+    fontSize: 13,
+    fontWeight: 800,
+  },
 };
