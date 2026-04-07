@@ -17,7 +17,6 @@ type CustomerRow = {
   id: string | number;
   name?: string | null;
   kana?: string | null;
-  furigana?: string | null;
   phone?: string | null;
   phone_number?: string | null;
 };
@@ -65,7 +64,7 @@ function normalizeCustomer(row: CustomerRow): CustomerOption {
   return {
     id: String(row.id),
     name: row.name || "",
-    kana: row.kana || row.furigana || "",
+    kana: row.kana || "",
     phone: row.phone || row.phone_number || "",
   };
 }
@@ -163,7 +162,7 @@ export default function ReservationPage() {
 
       const { data, error } = await supabase
         .from("customers")
-        .select("id, name, kana, furigana, phone, phone_number")
+        .select("id, name, kana, phone, phone_number")
         .order("id", { ascending: false })
         .limit(300);
 
@@ -232,7 +231,7 @@ export default function ReservationPage() {
     if (phone) {
       const { data: phoneMatch, error: phoneMatchError } = await supabase
         .from("customers")
-        .select("id, name, kana, furigana, phone, phone_number")
+        .select("id, name, kana, phone, phone_number")
         .or(`phone.eq.${rawPhone},phone_number.eq.${rawPhone}`)
         .limit(1)
         .maybeSingle();
@@ -248,7 +247,7 @@ export default function ReservationPage() {
 
     const { data: nameMatch, error: nameMatchError } = await supabase
       .from("customers")
-      .select("id, name, kana, furigana, phone, phone_number")
+      .select("id, name, kana, phone, phone_number")
       .eq("name", name)
       .limit(1)
       .maybeSingle();
