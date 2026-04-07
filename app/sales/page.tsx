@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 type Customer = {
@@ -81,6 +81,21 @@ type ReservationPrefillRow = {
   memo?: string | null;
 };
 
+type TicketRow = {
+  id: number | string;
+  customer_id: number | string | null;
+  customer_name: string | null;
+  ticket_name: string | null;
+  service_type: ServiceType;
+  total_count: number | null;
+  remaining_count: number | null;
+  purchase_date: string | null;
+  expiry_date: string | null;
+  status: string | null;
+  note: string | null;
+  created_at: string | null;
+};
+
 type DailySummaryRow = {
   date: string;
   stretchCash: number;
@@ -96,6 +111,13 @@ type DailySummaryRow = {
   advanceCard: number;
   advanceTotal: number;
   grandTotal: number;
+};
+
+type TicketConsumeResult = {
+  ticketId: number | string;
+  ticketName: string;
+  beforeCount: number;
+  afterCount: number;
 };
 
 const supabase = createClient(
@@ -336,6 +358,114 @@ function buildDailySummaryRows(sales: Sale[]): DailySummaryRow[] {
       };
     })
     .sort((a, b) => (a.date > b.date ? 1 : -1));
+}
+
+async function consumeCustomerTicket(params: {
+  customerId: string;
+  customerName: string;
+  serviceType: ServiceType;
+  usedDate: string;
+  reservationId?: string;
+}): Promise<TicketConsumeResult> {
+  const { customerId, customerName, serviceType, usedDate, reservationId } = params;
+
+  const { data: ticketData, error: ticketError } = await supabase
+    .from("customer_tickets")
+    .select(
+      "id, customer_id, customer_name, ticket_name, service_type, total_count, remaining_count, purchase_date, expiry_date, status, note, created_at"
+    )
+    .eq("customer_id", Number(customerId))
+    .eq("service_type", serviceType)
+    .gt("remaining_count", 0)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (ticketError) {
+    throw new Error(`回数券取得エラー: ${ticketError.message}`);
+  }
+
+  const target = ticketData as TicketRow | null;
+  if (!target) {
+    throw new Error(`${serviceType}の利用可能な回数券がありません`);
+  }
+
+  const beforeCount = Number(target.remaining_count || 0);
+  if (beforeCount <= 0) {
+    throw new Error("回数券の残数がありません");
+  }
+
+  const afterCount = beforeCount - 1;
+
+  const { error: updateError } = await supabase
+    .from("customer_tickets")
+    .update({
+      remaining_count: afterCount,
+      status: afterCount <= 0 ? "消化済み" : "利用中",
+    })
+    .eq("id", target.id);
+
+  if (updateError) {
+    throw new Error(`回数券更新エラー: ${updateError.message}`);
+  }
+
+  const { error: usageError } = await supabase.from("ticket_usages").insert([
+    {
+      reservation_id: reservationId ? Number(reservationId) : null,
+      ticket_id: target.id,
+      customer_id: Number(customerId),
+      customer_name: customerName,
+      ticket_name: target.ticket_name || "回数券",
+      service_type: serviceType,
+      used_date: usedDate || null,
+      before_count: beforeCount,
+      after_count: afterCount,
+    },
+  ]);
+
+  if (usageError) {
+    await supabase
+      .from("customer_tickets")
+      .update({
+        remaining_count: beforeCount,
+        status: target.status || "利用中",
+      })
+      .eq("id", target.id);
+
+    throw new Error(`消化履歴登録エラー: ${usageError.message}`);
+  }
+
+  return {
+    ticketId: target.id,
+    ticketName: target.ticket_name || "回数券",
+    beforeCount,
+    afterCount,
+  };
+}
+
+async function rollbackConsumedTicket(params: {
+  ticketId: number | string;
+  beforeCount: number;
+  reservationId?: string;
+}) {
+  const { ticketId, beforeCount, reservationId } = params;
+
+  await supabase
+    .from("customer_tickets")
+    .update({
+      remaining_count: beforeCount,
+      status: "利用中",
+    })
+    .eq("id", ticketId);
+
+  if (reservationId) {
+    await supabase
+      .from("ticket_usages")
+      .delete()
+      .eq("ticket_id", ticketId)
+      .eq("reservation_id", Number(reservationId))
+      .eq("before_count", beforeCount);
+  }
 }
 
 export default function SalesPage() {
@@ -742,30 +872,60 @@ export default function SalesPage() {
     try {
       setSaving(true);
 
-      const mergedNote = [menuName.trim() ? `メニュー名: ${menuName.trim()}` : "", note.trim()]
-        .filter(Boolean)
-        .join("\n");
+      for (const row of payments) {
+        const isTicket = row.saleType === "回数券消化";
 
-      const payloads = payments.map((row) => ({
-        customer_id: Number(customer.id),
-        customer_name: customer.name,
-        sale_date: date,
-        menu_type: serviceType,
-        sale_type: row.saleType,
-        payment_method:
-          row.saleType === "回数券消化" ? "その他" : row.paymentMethod,
-        amount: row.saleType === "回数券消化" ? 0 : Number(row.amount),
-        staff_name: staff.trim() || "未設定",
-        store_name: storeName.trim() || "未設定",
-        reservation_id: reservationId ? Number(reservationId) : null,
-        memo: mergedNote || null,
-      }));
+        const baseNote = [menuName.trim() ? `メニュー名: ${menuName.trim()}` : "", note.trim()]
+          .filter(Boolean)
+          .join("\n");
 
-      const { error } = await supabase.from("sales").insert(payloads);
+        let ticketResult: TicketConsumeResult | null = null;
 
-      if (error) {
-        alert(`売上登録エラー: ${error.message}`);
-        return;
+        if (isTicket) {
+          ticketResult = await consumeCustomerTicket({
+            customerId,
+            customerName: customer.name,
+            serviceType,
+            usedDate: date,
+            reservationId,
+          });
+        }
+
+        const mergedNote = [
+          baseNote,
+          isTicket && ticketResult
+            ? `回数券消化: ${ticketResult.ticketName} / 残数 ${ticketResult.beforeCount} → ${ticketResult.afterCount}`
+            : "",
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+        const salePayload = {
+          customer_id: Number(customer.id),
+          customer_name: customer.name,
+          sale_date: date,
+          menu_type: serviceType,
+          sale_type: row.saleType,
+          payment_method: isTicket ? "その他" : row.paymentMethod,
+          amount: isTicket ? 0 : Number(row.amount),
+          staff_name: staff.trim() || "未設定",
+          store_name: storeName.trim() || "未設定",
+          reservation_id: reservationId ? Number(reservationId) : null,
+          memo: mergedNote || null,
+        };
+
+        const { error: insertError } = await supabase.from("sales").insert([salePayload]);
+
+        if (insertError) {
+          if (isTicket && ticketResult) {
+            await rollbackConsumedTicket({
+              ticketId: ticketResult.ticketId,
+              beforeCount: ticketResult.beforeCount,
+              reservationId,
+            });
+          }
+          throw new Error(`売上登録エラー: ${insertError.message}`);
+        }
       }
 
       await fetchSales();
@@ -773,7 +933,7 @@ export default function SalesPage() {
       alert("売上を登録しました");
     } catch (error) {
       console.error("handleAddSale error:", error);
-      alert("売上登録中にエラーが発生しました");
+      alert(error instanceof Error ? error.message : "売上登録中にエラーが発生しました");
     } finally {
       setSaving(false);
     }
@@ -889,7 +1049,7 @@ export default function SalesPage() {
                 fontSize: "14px",
               }}
             >
-              予約詳細からの自動入力・複数支払い・履歴確認・日別集計CSV出力ができます
+              予約詳細からの自動入力・複数支払い・履歴確認・日別集計CSV出力・回数券消化連動
             </p>
           </div>
 
@@ -1440,14 +1600,14 @@ function MetricCard({ title, value }: { title: string; value: string }) {
   );
 }
 
-const topMetricGridStyle: React.CSSProperties = {
+const topMetricGridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
   gap: "16px",
   marginBottom: "24px",
 };
 
-const metricCardStyle: React.CSSProperties = {
+const metricCardStyle: CSSProperties = {
   background: "rgba(255,255,255,0.88)",
   borderRadius: "22px",
   padding: "18px 20px",
@@ -1455,21 +1615,21 @@ const metricCardStyle: React.CSSProperties = {
   minWidth: 0,
 };
 
-const metricTitleStyle: React.CSSProperties = {
+const metricTitleStyle: CSSProperties = {
   fontSize: "13px",
   color: "#6b7280",
   marginBottom: "8px",
   fontWeight: 700,
 };
 
-const metricValueStyle: React.CSSProperties = {
+const metricValueStyle: CSSProperties = {
   fontSize: "28px",
   color: "#111827",
   fontWeight: 900,
   wordBreak: "break-word",
 };
 
-const cardStyle: React.CSSProperties = {
+const cardStyle: CSSProperties = {
   background: "rgba(255,255,255,0.9)",
   borderRadius: "26px",
   padding: "24px",
@@ -1479,7 +1639,7 @@ const cardStyle: React.CSSProperties = {
   overflow: "hidden",
 };
 
-const innerCardStyle: React.CSSProperties = {
+const innerCardStyle: CSSProperties = {
   background: "#f9fafb",
   borderRadius: "18px",
   padding: "18px",
@@ -1487,7 +1647,7 @@ const innerCardStyle: React.CSSProperties = {
   minWidth: 0,
 };
 
-const sectionTitleStyle: React.CSSProperties = {
+const sectionTitleStyle: CSSProperties = {
   margin: "0 0 18px",
   fontSize: "22px",
   fontWeight: 800,
@@ -1495,19 +1655,19 @@ const sectionTitleStyle: React.CSSProperties = {
   wordBreak: "break-word",
 };
 
-const formGridStyle: React.CSSProperties = {
+const formGridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
   gap: "16px",
 };
 
-const paymentGridStyle: React.CSSProperties = {
+const paymentGridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
   gap: "14px",
 };
 
-const labelStyle: React.CSSProperties = {
+const labelStyle: CSSProperties = {
   display: "block",
   marginBottom: "8px",
   fontSize: "13px",
@@ -1515,7 +1675,7 @@ const labelStyle: React.CSSProperties = {
   color: "#4b5563",
 };
 
-const inputStyle: React.CSSProperties = {
+const inputStyle: CSSProperties = {
   width: "100%",
   padding: "12px 14px",
   borderRadius: "14px",
@@ -1527,7 +1687,7 @@ const inputStyle: React.CSSProperties = {
   minWidth: 0,
 };
 
-const readonlyBoxStyle: React.CSSProperties = {
+const readonlyBoxStyle: CSSProperties = {
   minHeight: "48px",
   padding: "12px 14px",
   borderRadius: "14px",
@@ -1543,7 +1703,7 @@ const readonlyBoxStyle: React.CSSProperties = {
   wordBreak: "break-word",
 };
 
-const mainButtonStyle: React.CSSProperties = {
+const mainButtonStyle: CSSProperties = {
   background: "linear-gradient(135deg, #111827 0%, #1f2937 100%)",
   color: "#fff",
   border: "none",
@@ -1554,7 +1714,7 @@ const mainButtonStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const subButtonPlainStyle: React.CSSProperties = {
+const subButtonPlainStyle: CSSProperties = {
   background: "#fff",
   color: "#111827",
   border: "1px solid #d1d5db",
@@ -1565,7 +1725,7 @@ const subButtonPlainStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const deleteButtonStyle: React.CSSProperties = {
+const deleteButtonStyle: CSSProperties = {
   background: "#fee2e2",
   color: "#b91c1c",
   border: "1px solid #fecaca",
@@ -1576,7 +1736,7 @@ const deleteButtonStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const mainLinkStyle: React.CSSProperties = {
+const mainLinkStyle: CSSProperties = {
   background: "#111827",
   color: "#fff",
   borderRadius: "14px",
@@ -1585,7 +1745,7 @@ const mainLinkStyle: React.CSSProperties = {
   textDecoration: "none",
 };
 
-const subButtonStyle: React.CSSProperties = {
+const subButtonStyle: CSSProperties = {
   background: "#fff",
   color: "#111827",
   border: "1px solid #d1d5db",
@@ -1595,7 +1755,7 @@ const subButtonStyle: React.CSSProperties = {
   textDecoration: "none",
 };
 
-const summaryBoxStyle: React.CSSProperties = {
+const summaryBoxStyle: CSSProperties = {
   marginTop: "18px",
   padding: "16px 18px",
   borderRadius: "18px",
@@ -1606,7 +1766,7 @@ const summaryBoxStyle: React.CSSProperties = {
   minWidth: 0,
 };
 
-const summaryRowStyle: React.CSSProperties = {
+const summaryRowStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
@@ -1616,25 +1776,25 @@ const summaryRowStyle: React.CSSProperties = {
   minWidth: 0,
 };
 
-const detailTextStyle: React.CSSProperties = {
+const detailTextStyle: CSSProperties = {
   color: "#4b5563",
   fontSize: "14px",
   lineHeight: 1.7,
   wordBreak: "break-word",
 };
 
-const tableWrapStyle: React.CSSProperties = {
+const tableWrapStyle: CSSProperties = {
   overflowX: "auto",
   width: "100%",
 };
 
-const summaryTableStyle: React.CSSProperties = {
+const summaryTableStyle: CSSProperties = {
   width: "100%",
   borderCollapse: "collapse",
   minWidth: "1400px",
 };
 
-const thStyle: React.CSSProperties = {
+const thStyle: CSSProperties = {
   background: "#111827",
   color: "#fff",
   padding: "12px 10px",
@@ -1644,7 +1804,7 @@ const thStyle: React.CSSProperties = {
   border: "1px solid #374151",
 };
 
-const tdStyle: React.CSSProperties = {
+const tdStyle: CSSProperties = {
   padding: "12px 10px",
   fontSize: "13px",
   color: "#111827",
@@ -1653,26 +1813,26 @@ const tdStyle: React.CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-const tdStyleNumber: React.CSSProperties = {
+const tdStyleNumber: CSSProperties = {
   ...tdStyle,
   textAlign: "right",
 };
 
-const tdStyleTotal: React.CSSProperties = {
+const tdStyleTotal: CSSProperties = {
   ...tdStyle,
   textAlign: "right",
   fontWeight: 800,
   background: "#f9fafb",
 };
 
-const tdStyleGrand: React.CSSProperties = {
+const tdStyleGrand: CSSProperties = {
   ...tdStyle,
   textAlign: "right",
   fontWeight: 900,
   background: "#eef2ff",
 };
 
-const emptyBoxStyle: React.CSSProperties = {
+const emptyBoxStyle: CSSProperties = {
   padding: "22px",
   borderRadius: "18px",
   background: "#f9fafb",
@@ -1682,7 +1842,7 @@ const emptyBoxStyle: React.CSSProperties = {
   textAlign: "center",
 };
 
-const miniInfoStyle: React.CSSProperties = {
+const miniInfoStyle: CSSProperties = {
   fontSize: "13px",
   color: "#6b7280",
   fontWeight: 700,
