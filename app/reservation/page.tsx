@@ -106,7 +106,7 @@ function extractErrorMessage(error: unknown): string {
   return "不明なエラーです。";
 }
 
-export default function ReservationNewPage() {
+export default function ReservationPage() {
   const router = useRouter();
 
   const [mounted, setMounted] = useState(false);
@@ -160,6 +160,7 @@ export default function ReservationNewPage() {
 
     try {
       setLoadingCustomers(true);
+      setError("");
 
       const { data, error } = await supabase
         .from("customers")
@@ -221,8 +222,7 @@ export default function ReservationNewPage() {
 
     const localExact = customers.find((c) => {
       const sameName = trimmed(c.name) === name;
-      const samePhone =
-        phone && normalizePhone(c.phone) === phone;
+      const samePhone = phone && normalizePhone(c.phone) === phone;
       return sameName && (samePhone || !phone);
     });
 
@@ -576,7 +576,7 @@ export default function ReservationNewPage() {
 const styles: Record<string, CSSProperties> = {
   page: {
     minHeight: "100vh",
-    ...(BG_STYLE as CSSProperties),
+    background: "#0f172a",
     padding: "24px 16px 80px",
   },
   container: {
@@ -586,7 +586,7 @@ const styles: Record<string, CSSProperties> = {
     gap: 18,
   },
   headerCard: {
-    ...(CARD_STYLE as CSSProperties),
+    background: "#f8fafc",
     borderRadius: 24,
     padding: 20,
     display: "flex",
@@ -594,6 +594,7 @@ const styles: Record<string, CSSProperties> = {
     alignItems: "center",
     gap: 16,
     flexWrap: "wrap",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.12)",
   },
   eyebrow: {
     fontSize: 12,
@@ -613,16 +614,18 @@ const styles: Record<string, CSSProperties> = {
     flexWrap: "wrap",
   },
   card: {
-    ...(CARD_STYLE as CSSProperties),
+    background: "#f8fafc",
     borderRadius: 24,
     padding: 20,
     display: "grid",
     gap: 16,
+    boxShadow: "0 10px 30px rgba(0,0,0,0.12)",
   },
   footerCard: {
-    ...(CARD_STYLE as CSSProperties),
+    background: "#f8fafc",
     borderRadius: 24,
     padding: 20,
+    boxShadow: "0 10px 30px rgba(0,0,0,0.12)",
   },
   sectionTitle: {
     margin: 0,
@@ -686,12 +689,14 @@ const styles: Record<string, CSSProperties> = {
     cursor: "pointer",
   },
   primaryButton: {
-    ...(BUTTON_PRIMARY_STYLE as CSSProperties),
     width: "100%",
     minHeight: 52,
     borderRadius: 16,
     fontSize: 16,
     fontWeight: 800,
+    background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
+    color: "#fff",
+    border: "none",
   },
   errorBox: {
     padding: "14px 16px",
