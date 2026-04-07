@@ -753,56 +753,73 @@ export default function ReservationPage() {
                   <div style={styles.emptyText}>この日の予定はまだありません。</div>
                 ) : (
                   selectedDayReservations.map((item) => (
-                    <button
-                      key={String(item.id)}
-                      type="button"
-                      onClick={() => router.push(`/reservation/detail/${item.id}`)}
-                      style={styles.dayEventRow}
-                    >
-                      <div style={styles.timeCol}>
-                        <div style={styles.timeMain}>{trimmed(item.start_time) || "—"}</div>
-                        <div style={styles.timeSub}>{trimmed(item.end_time) || "—"}</div>
-                      </div>
+                    <div key={String(item.id)} style={styles.dayEventRowWrap}>
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/reservation/detail/${item.id}`)}
+                        style={styles.dayEventRow}
+                      >
+                        <div style={styles.timeCol}>
+                          <div style={styles.timeMain}>{trimmed(item.start_time) || "—"}</div>
+                          <div style={styles.timeSub}>{trimmed(item.end_time) || "—"}</div>
+                        </div>
 
-                      <div
-                        style={{
-                          ...styles.colorBar,
-                          background: getStaffColor(item.staff_name),
+                        <div
+                          style={{
+                            ...styles.colorBar,
+                            background: getStaffColor(item.staff_name),
+                          }}
+                        />
+
+                        <div style={styles.dayEventMain}>
+                          <div style={styles.dayEventTopLine}>
+                            <div style={styles.dayEventTitle}>
+                              {trimmed(item.customer_name) || "予定"}
+                            </div>
+                            <div
+                              style={{
+                                ...styles.staffMiniBadge,
+                                borderColor: getStaffColor(item.staff_name),
+                                color: getStaffColor(item.staff_name),
+                              }}
+                            >
+                              {trimmed(item.staff_name) || "その他"}
+                            </div>
+                          </div>
+
+                          <div style={styles.dayEventSub}>
+                            {trimmed(item.menu) || "—"}
+                            {trimmed(item.payment_method)
+                              ? ` / ${trimmed(item.payment_method)}`
+                              : ""}
+                          </div>
+
+                          <div style={styles.dayEventSubMuted}>
+                            {trimmed(item.store_name) || "—"}
+                          </div>
+
+                          {trimmed(item.memo) ? (
+                            <div style={styles.dayEventMemo}>{trimmed(item.memo)}</div>
+                          ) : null}
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!item.customer_id) {
+                            setError("この予約に customer_id がありません。顧客紐付けを確認してください。");
+                            return;
+                          }
+                          router.push(
+                            `/customer/${item.customer_id}/counseling?reservationId=${item.id}`
+                          );
                         }}
-                      />
-
-                      <div style={styles.dayEventMain}>
-                        <div style={styles.dayEventTopLine}>
-                          <div style={styles.dayEventTitle}>
-                            {trimmed(item.customer_name) || "予定"}
-                          </div>
-                          <div
-                            style={{
-                              ...styles.staffMiniBadge,
-                              borderColor: getStaffColor(item.staff_name),
-                              color: getStaffColor(item.staff_name),
-                            }}
-                          >
-                            {trimmed(item.staff_name) || "その他"}
-                          </div>
-                        </div>
-
-                        <div style={styles.dayEventSub}>
-                          {trimmed(item.menu) || "—"}
-                          {trimmed(item.payment_method)
-                            ? ` / ${trimmed(item.payment_method)}`
-                            : ""}
-                        </div>
-
-                        <div style={styles.dayEventSubMuted}>
-                          {trimmed(item.store_name) || "—"}
-                        </div>
-
-                        {trimmed(item.memo) ? (
-                          <div style={styles.dayEventMemo}>{trimmed(item.memo)}</div>
-                        ) : null}
-                      </div>
-                    </button>
+                        style={styles.counselingBtn}
+                      >
+                        カウンセリング
+                      </button>
+                    </div>
                   ))
                 )}
               </div>
@@ -1322,6 +1339,10 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 700,
     padding: "22px 10px",
   },
+  dayEventRowWrap: {
+    display: "grid",
+    gap: 6,
+  },
   dayEventRow: {
     width: "100%",
     border: "1px solid #e5e7eb",
@@ -1335,6 +1356,18 @@ const styles: Record<string, CSSProperties> = {
     textAlign: "left",
     cursor: "pointer",
     boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
+  },
+  counselingBtn: {
+    width: "100%",
+    border: "none",
+    background: "#111827",
+    color: "#fff",
+    borderRadius: 10,
+    padding: "8px 10px",
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: "pointer",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
   },
   timeCol: {
     textAlign: "center",
