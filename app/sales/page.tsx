@@ -340,6 +340,7 @@ function buildDailySummaryRows(sales: Sale[]): DailySummaryRow[] {
 
 export default function SalesPage() {
   const [mounted, setMounted] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(1400);
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
@@ -425,6 +426,16 @@ export default function SalesPage() {
       window.location.href = "/login";
       return;
     }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const updateWidth = () => setWindowWidth(window.innerWidth);
+    updateWidth();
+
+    window.addEventListener("resize", updateWidth);
+    return () => window.removeEventListener("resize", updateWidth);
   }, []);
 
   const fetchCustomers = async () => {
@@ -561,7 +572,6 @@ export default function SalesPage() {
   useEffect(() => {
     if (!mounted) return;
     if (!reservationId) return;
-
     void loadReservationForPrefill(reservationId);
   }, [mounted, reservationId]);
 
@@ -794,11 +804,11 @@ export default function SalesPage() {
       "ストレッチ(現金)",
       "ストレッチ(カード等)",
       "ストレッチ(受領済)",
-      "ストレッチ(回数券消化)",
+      "ストレッチ(回数券)",
       "トレーニング(現金)",
       "トレーニング(カード等)",
       "トレーニング(受領済)",
-      "トレーニング(回数券消化)",
+      "トレーニング(回数券)",
       "純売上合計",
       "前受(現金)",
       "前受(カード等)",
@@ -896,11 +906,28 @@ export default function SalesPage() {
         <div style={topMetricGridStyle}>
           <MetricCard title="本日の売上合計" value={formatCurrency(todayTotal)} />
           <MetricCard title="総売上合計" value={formatCurrency(allTotal)} />
-          <MetricCard title="売上件数" value={`${sales.length}件`} />
+          <MetricCard title="売上ブロック" value={`${payments.length}個`} />
         </div>
 
-        <div style={mainGridStyle}>
-          <div style={{ display: "grid", gap: "24px" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              windowWidth < 1280
+                ? "minmax(0, 1fr)"
+                : "minmax(0, 1.55fr) minmax(280px, 360px)",
+            gap: "24px",
+            alignItems: "start",
+          }}
+        >
+          <div
+            style={{
+              display: "grid",
+              gap: "24px",
+              minWidth: 0,
+              width: "100%",
+            }}
+          >
             <section style={cardStyle}>
               <div
                 style={{
@@ -1274,13 +1301,14 @@ export default function SalesPage() {
                           flexWrap: "wrap",
                         }}
                       >
-                        <div style={{ flex: 1, minWidth: "240px" }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
                           <div
                             style={{
                               fontSize: "18px",
                               fontWeight: 800,
                               color: "#111827",
                               marginBottom: "8px",
+                              wordBreak: "break-word",
                             }}
                           >
                             {sale.customerName}
@@ -1296,13 +1324,25 @@ export default function SalesPage() {
                           <div style={detailTextStyle}>カテゴリ：{sale.category}</div>
                           <div style={detailTextStyle}>予約ID：{sale.reservationId ?? "なし"}</div>
                           {sale.note ? (
-                            <div style={{ ...detailTextStyle, marginTop: "6px", whiteSpace: "pre-wrap" }}>
+                            <div
+                              style={{
+                                ...detailTextStyle,
+                                marginTop: "6px",
+                                whiteSpace: "pre-wrap",
+                                wordBreak: "break-word",
+                              }}
+                            >
                               メモ：{sale.note}
                             </div>
                           ) : null}
                         </div>
 
-                        <div style={{ textAlign: "right", minWidth: "160px" }}>
+                        <div
+                          style={{
+                            textAlign: "right",
+                            minWidth: windowWidth < 640 ? "100%" : "160px",
+                          }}
+                        >
                           <div
                             style={{
                               fontSize: "24px",
@@ -1329,7 +1369,14 @@ export default function SalesPage() {
             </section>
           </div>
 
-          <aside style={{ display: "grid", gap: "24px" }}>
+          <aside
+            style={{
+              display: "grid",
+              gap: "24px",
+              minWidth: 0,
+              width: "100%",
+            }}
+          >
             <section style={cardStyle}>
               <h2 style={sectionTitleStyle}>月別売上</h2>
               {monthlyTotals.length === 0 ? (
@@ -1338,7 +1385,7 @@ export default function SalesPage() {
                 <div style={{ display: "grid", gap: "10px" }}>
                   {monthlyTotals.map(([month, amount]) => (
                     <div key={month} style={summaryRowStyle}>
-                      <span>{month}</span>
+                      <span style={{ wordBreak: "break-word" }}>{month}</span>
                       <strong>{formatCurrency(amount)}</strong>
                     </div>
                   ))}
@@ -1347,14 +1394,14 @@ export default function SalesPage() {
             </section>
 
             <section style={cardStyle}>
-              <h2 style={sectionTitleStyle}>スタッフ別売上</h2>
+              <h2 style={sectionTitleStyle}>スタッフ別売上高</h2>
               {staffTotals.length === 0 ? (
                 <div style={emptyBoxStyle}>データなし</div>
               ) : (
                 <div style={{ display: "grid", gap: "10px" }}>
                   {staffTotals.map(([name, amount]) => (
                     <div key={name} style={summaryRowStyle}>
-                      <span>{name}</span>
+                      <span style={{ wordBreak: "break-word" }}>{name}</span>
                       <strong>{formatCurrency(amount)}</strong>
                     </div>
                   ))}
@@ -1370,7 +1417,7 @@ export default function SalesPage() {
                 <div style={{ display: "grid", gap: "10px" }}>
                   {paymentTotals.map(([method, amount]) => (
                     <div key={method} style={summaryRowStyle}>
-                      <span>{method}</span>
+                      <span style={{ wordBreak: "break-word" }}>{method}</span>
                       <strong>{formatCurrency(amount)}</strong>
                     </div>
                   ))}
@@ -1405,6 +1452,7 @@ const metricCardStyle: React.CSSProperties = {
   borderRadius: "22px",
   padding: "18px 20px",
   boxShadow: "0 16px 40px rgba(0,0,0,0.06)",
+  minWidth: 0,
 };
 
 const metricTitleStyle: React.CSSProperties = {
@@ -1418,13 +1466,7 @@ const metricValueStyle: React.CSSProperties = {
   fontSize: "28px",
   color: "#111827",
   fontWeight: 900,
-};
-
-const mainGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "minmax(0, 1.55fr) minmax(320px, 0.9fr)",
-  gap: "24px",
-  alignItems: "start",
+  wordBreak: "break-word",
 };
 
 const cardStyle: React.CSSProperties = {
@@ -1433,6 +1475,8 @@ const cardStyle: React.CSSProperties = {
   padding: "24px",
   boxShadow: "0 20px 50px rgba(0,0,0,0.06)",
   backdropFilter: "blur(12px)",
+  minWidth: 0,
+  overflow: "hidden",
 };
 
 const innerCardStyle: React.CSSProperties = {
@@ -1440,6 +1484,7 @@ const innerCardStyle: React.CSSProperties = {
   borderRadius: "18px",
   padding: "18px",
   border: "1px solid #e5e7eb",
+  minWidth: 0,
 };
 
 const sectionTitleStyle: React.CSSProperties = {
@@ -1447,6 +1492,7 @@ const sectionTitleStyle: React.CSSProperties = {
   fontSize: "22px",
   fontWeight: 800,
   color: "#111827",
+  wordBreak: "break-word",
 };
 
 const formGridStyle: React.CSSProperties = {
@@ -1478,6 +1524,7 @@ const inputStyle: React.CSSProperties = {
   background: "#fff",
   color: "#111827",
   boxSizing: "border-box",
+  minWidth: 0,
 };
 
 const readonlyBoxStyle: React.CSSProperties = {
@@ -1492,6 +1539,8 @@ const readonlyBoxStyle: React.CSSProperties = {
   alignItems: "center",
   fontWeight: 700,
   boxSizing: "border-box",
+  minWidth: 0,
+  wordBreak: "break-word",
 };
 
 const mainButtonStyle: React.CSSProperties = {
@@ -1554,6 +1603,7 @@ const summaryBoxStyle: React.CSSProperties = {
   border: "1px solid #e5e7eb",
   display: "grid",
   gap: "10px",
+  minWidth: 0,
 };
 
 const summaryRowStyle: React.CSSProperties = {
@@ -1563,16 +1613,19 @@ const summaryRowStyle: React.CSSProperties = {
   gap: "16px",
   color: "#111827",
   fontSize: "14px",
+  minWidth: 0,
 };
 
 const detailTextStyle: React.CSSProperties = {
   color: "#4b5563",
   fontSize: "14px",
   lineHeight: 1.7,
+  wordBreak: "break-word",
 };
 
 const tableWrapStyle: React.CSSProperties = {
   overflowX: "auto",
+  width: "100%",
 };
 
 const summaryTableStyle: React.CSSProperties = {
@@ -1633,4 +1686,5 @@ const miniInfoStyle: React.CSSProperties = {
   fontSize: "13px",
   color: "#6b7280",
   fontWeight: 700,
+  wordBreak: "break-word",
 };
