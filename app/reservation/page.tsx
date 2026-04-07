@@ -16,7 +16,6 @@ const supabase =
 type CustomerRow = {
   id: string | number;
   name?: string | null;
-  customer_name?: string | null;
   kana?: string | null;
   furigana?: string | null;
   phone?: string | null;
@@ -65,7 +64,7 @@ const PAYMENT_OPTIONS = ["現金", "カード", "銀行振込", "その他"];
 function normalizeCustomer(row: CustomerRow): CustomerOption {
   return {
     id: String(row.id),
-    name: row.name || row.customer_name || "",
+    name: row.name || "",
     kana: row.kana || row.furigana || "",
     phone: row.phone || row.phone_number || "",
   };
@@ -164,7 +163,7 @@ export default function ReservationPage() {
 
       const { data, error } = await supabase
         .from("customers")
-        .select("id, name, customer_name, kana, furigana, phone, phone_number")
+        .select("id, name, kana, furigana, phone, phone_number")
         .order("id", { ascending: false })
         .limit(300);
 
@@ -233,7 +232,7 @@ export default function ReservationPage() {
     if (phone) {
       const { data: phoneMatch, error: phoneMatchError } = await supabase
         .from("customers")
-        .select("id, name, customer_name, kana, furigana, phone, phone_number")
+        .select("id, name, kana, furigana, phone, phone_number")
         .or(`phone.eq.${rawPhone},phone_number.eq.${rawPhone}`)
         .limit(1)
         .maybeSingle();
@@ -249,8 +248,8 @@ export default function ReservationPage() {
 
     const { data: nameMatch, error: nameMatchError } = await supabase
       .from("customers")
-      .select("id, name, customer_name, kana, furigana, phone, phone_number")
-      .or(`name.eq.${name},customer_name.eq.${name}`)
+      .select("id, name, kana, furigana, phone, phone_number")
+      .eq("name", name)
       .limit(1)
       .maybeSingle();
 
@@ -576,7 +575,7 @@ export default function ReservationPage() {
 const styles: Record<string, CSSProperties> = {
   page: {
     minHeight: "100vh",
-    background: "#0f172a",
+    background: "#f1f5f9",
     padding: "24px 16px 80px",
   },
   container: {
@@ -586,7 +585,7 @@ const styles: Record<string, CSSProperties> = {
     gap: 18,
   },
   headerCard: {
-    background: "#f8fafc",
+    background: "#ffffff",
     borderRadius: 24,
     padding: 20,
     display: "flex",
@@ -594,7 +593,7 @@ const styles: Record<string, CSSProperties> = {
     alignItems: "center",
     gap: 16,
     flexWrap: "wrap",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.12)",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
   },
   eyebrow: {
     fontSize: 12,
@@ -614,18 +613,18 @@ const styles: Record<string, CSSProperties> = {
     flexWrap: "wrap",
   },
   card: {
-    background: "#f8fafc",
+    background: "#ffffff",
     borderRadius: 24,
     padding: 20,
     display: "grid",
     gap: 16,
-    boxShadow: "0 10px 30px rgba(0,0,0,0.12)",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
   },
   footerCard: {
-    background: "#f8fafc",
+    background: "#ffffff",
     borderRadius: 24,
     padding: 20,
-    boxShadow: "0 10px 30px rgba(0,0,0,0.12)",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
   },
   sectionTitle: {
     margin: 0,
@@ -657,7 +656,7 @@ const styles: Record<string, CSSProperties> = {
     height: 46,
     borderRadius: 14,
     border: "1px solid rgba(203,213,225,0.95)",
-    background: "rgba(255,255,255,0.96)",
+    background: "#ffffff",
     padding: "0 14px",
     fontSize: 14,
     color: "#0f172a",
@@ -669,7 +668,7 @@ const styles: Record<string, CSSProperties> = {
     minHeight: 110,
     borderRadius: 14,
     border: "1px solid rgba(203,213,225,0.95)",
-    background: "rgba(255,255,255,0.96)",
+    background: "#ffffff",
     padding: "12px 14px",
     fontSize: 14,
     color: "#0f172a",
@@ -681,7 +680,7 @@ const styles: Record<string, CSSProperties> = {
     height: 42,
     borderRadius: 14,
     border: "1px solid rgba(148,163,184,0.24)",
-    background: "rgba(255,255,255,0.86)",
+    background: "#ffffff",
     color: "#334155",
     fontSize: 14,
     fontWeight: 700,
