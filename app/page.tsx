@@ -1,16 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import React from "react";
+import React, { useState } from "react";
 
 const titleText = "GYMUP CRM";
-
-/**
- * 画像をコード内に埋め込み
- * public フォルダに画像を置かなくても表示される版
- */
-const embeddedVisual =
-  "data:image/jpeg;base64,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od/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Ch3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Ch3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Ch3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv+Cg3/BQ7/god/wUO/4KHf8FDv/9k=";
 
 const menuItems = [
   { href: "/customer", label: "CUSTOMER", title: "顧客管理" },
@@ -22,6 +15,8 @@ const menuItems = [
 ];
 
 export default function HomePage() {
+  const [imageError, setImageError] = useState(false);
+
   return (
     <main style={styles.page}>
       <style>{`
@@ -224,11 +219,24 @@ export default function HomePage() {
               <div style={styles.visualTextTop}>Optimize Your Metrics</div>
 
               <div style={styles.modelWrap}>
-                <img
-                  src={embeddedVisual}
-                  alt="Dashboard visual"
-                  style={styles.modelImage}
-                />
+                {!imageError ? (
+                  <img
+                    src={`/top-model.png?v=${Date.now()}`}
+                    alt="Dashboard visual"
+                    style={styles.modelImage}
+                    onError={() => setImageError(true)}
+                  />
+                ) : (
+                  <div style={styles.fallbackCard}>
+                    <div style={styles.fallbackTitle}>画像が見つかりません</div>
+                    <div style={styles.fallbackText}>
+                      public/top-model.png を入れてください
+                    </div>
+                    <div style={styles.fallbackPath}>
+                      http://localhost:3000/top-model.png
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div style={styles.visualStats}>
@@ -364,6 +372,37 @@ const styles: { [key: string]: React.CSSProperties } = {
     objectFit: "contain",
     borderRadius: "22px",
     boxShadow: "0 16px 30px rgba(0,0,0,0.35)",
+    display: "block",
+  },
+  fallbackCard: {
+    width: "100%",
+    maxWidth: "460px",
+    minHeight: "260px",
+    borderRadius: "22px",
+    border: "1px dashed rgba(255,255,255,0.28)",
+    background: "rgba(255,255,255,0.05)",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "24px",
+    textAlign: "center",
+  },
+  fallbackTitle: {
+    color: "#fff",
+    fontSize: "22px",
+    fontWeight: 800,
+    marginBottom: "10px",
+  },
+  fallbackText: {
+    color: "rgba(255,255,255,0.72)",
+    fontSize: "14px",
+    marginBottom: "10px",
+  },
+  fallbackPath: {
+    color: "#ffb37a",
+    fontSize: "13px",
+    wordBreak: "break-all",
   },
   visualStats: {
     display: "grid",
