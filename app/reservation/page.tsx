@@ -155,23 +155,19 @@ function addOneHour(time: string) {
   return `${hh}:${mm}`;
 }
 
-function getStoreColor(storeName?: string | null) {
-  switch (storeName) {
-    case "江戸堀":
-      return "#22c55e";
-    case "箕面":
-      return "#38bdf8";
-    case "福島":
-      return "#f97316";
-    case "福島P":
-      return "#a855f7";
-    case "天満橋":
-      return "#ef4444";
-    case "中崎町":
-      return "#14b8a6";
-    default:
-      return "#94a3b8";
-  }
+function getStaffColor(staffName?: string | null) {
+  const name = trimmed(staffName);
+
+  if (name.includes("山口")) return "#22c55e";
+  if (name.includes("中西")) return "#ec4899";
+  if (name.includes("池田")) return "#8b5e3c";
+  if (name.includes("石川")) return "#2563eb";
+  if (name.includes("羽田")) return "#ef4444";
+  if (name.includes("菱谷")) return "#eab308";
+  if (name.includes("井上")) return "#111827";
+  if (name.includes("林")) return "#111827";
+
+  return "#9ca3af";
 }
 
 function sortReservations(a: ReservationRow, b: ReservationRow) {
@@ -575,13 +571,23 @@ export default function ReservationPage() {
     <main style={styles.page}>
       <div style={styles.mobileWrap}>
         <section style={styles.topBar}>
-          <div style={styles.monthRow}>
-            <button type="button" onClick={goPrevMonth} style={styles.arrowBtn}>
-              ‹
-            </button>
-            <h1 style={styles.monthTitle}>{formatMonthTitle(currentMonth)}</h1>
-            <button type="button" onClick={goNextMonth} style={styles.arrowBtn}>
-              ›
+          <div style={styles.topHeaderRow}>
+            <div style={styles.monthRow}>
+              <button type="button" onClick={goPrevMonth} style={styles.arrowBtn}>
+                ‹
+              </button>
+              <h1 style={styles.monthTitle}>{formatMonthTitle(currentMonth)}</h1>
+              <button type="button" onClick={goNextMonth} style={styles.arrowBtn}>
+                ›
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => router.push("/")}
+              style={styles.topBtn}
+            >
+              TOPへ戻る
             </button>
           </div>
 
@@ -598,6 +604,30 @@ export default function ReservationPage() {
               >
                 {store}
               </button>
+            ))}
+          </div>
+
+          <div style={styles.legendBox}>
+            {[
+              "山口",
+              "中西",
+              "池田",
+              "石川",
+              "羽田",
+              "菱谷",
+              "井上",
+              "林",
+              "その他",
+            ].map((name) => (
+              <div key={name} style={styles.legendItem}>
+                <span
+                  style={{
+                    ...styles.legendDot,
+                    background: getStaffColor(name),
+                  }}
+                />
+                {name}
+              </div>
             ))}
           </div>
         </section>
@@ -663,7 +693,7 @@ export default function ReservationPage() {
                         key={String(item.id)}
                         style={{
                           ...styles.eventMini,
-                          borderLeft: `4px solid ${getStoreColor(item.store_name)}`,
+                          borderLeft: `4px solid ${getStaffColor(item.staff_name)}`,
                         }}
                       >
                         <span style={styles.eventMiniText}>
@@ -700,6 +730,9 @@ export default function ReservationPage() {
               <div style={styles.sheetHeader}>
                 <div>
                   <div style={styles.sheetDate}>{formatJapaneseDate(selectedDate)}</div>
+                  <div style={styles.sheetCount}>
+                    {selectedDayReservations.length}件
+                  </div>
                 </div>
 
                 <div style={styles.sheetHeaderBtns}>
@@ -720,7 +753,12 @@ export default function ReservationPage() {
                   <div style={styles.emptyText}>この日の予定はまだありません。</div>
                 ) : (
                   selectedDayReservations.map((item) => (
-                    <div key={String(item.id)} style={styles.dayEventRow}>
+                    <button
+                      key={String(item.id)}
+                      type="button"
+                      onClick={() => router.push(`/reservation/detail/${item.id}`)}
+                      style={styles.dayEventRow}
+                    >
                       <div style={styles.timeCol}>
                         <div style={styles.timeMain}>{trimmed(item.start_time) || "—"}</div>
                         <div style={styles.timeSub}>{trimmed(item.end_time) || "—"}</div>
@@ -729,26 +767,42 @@ export default function ReservationPage() {
                       <div
                         style={{
                           ...styles.colorBar,
-                          background: getStoreColor(item.store_name),
+                          background: getStaffColor(item.staff_name),
                         }}
                       />
 
                       <div style={styles.dayEventMain}>
-                        <div style={styles.dayEventTitle}>
-                          {trimmed(item.customer_name) || "予定"}
+                        <div style={styles.dayEventTopLine}>
+                          <div style={styles.dayEventTitle}>
+                            {trimmed(item.customer_name) || "予定"}
+                          </div>
+                          <div
+                            style={{
+                              ...styles.staffMiniBadge,
+                              borderColor: getStaffColor(item.staff_name),
+                              color: getStaffColor(item.staff_name),
+                            }}
+                          >
+                            {trimmed(item.staff_name) || "その他"}
+                          </div>
                         </div>
+
                         <div style={styles.dayEventSub}>
-                          {trimmed(item.menu) || "—"}{" "}
-                          {trimmed(item.payment_method) ? ` / ${trimmed(item.payment_method)}` : ""}
+                          {trimmed(item.menu) || "—"}
+                          {trimmed(item.payment_method)
+                            ? ` / ${trimmed(item.payment_method)}`
+                            : ""}
                         </div>
+
                         <div style={styles.dayEventSubMuted}>
-                          {trimmed(item.store_name) || "—"} / {trimmed(item.staff_name) || "—"}
+                          {trimmed(item.store_name) || "—"}
                         </div>
+
                         {trimmed(item.memo) ? (
                           <div style={styles.dayEventMemo}>{trimmed(item.memo)}</div>
                         ) : null}
                       </div>
-                    </div>
+                    </button>
                   ))
                 )}
               </div>
@@ -994,51 +1048,103 @@ const styles: Record<string, CSSProperties> = {
     zIndex: 20,
     background: "rgba(243,244,246,0.95)",
     backdropFilter: "blur(12px)",
-    padding: "20px 14px 10px",
+    padding: "16px 12px 10px",
+  },
+  topHeaderRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    marginBottom: 10,
   },
   monthRow: {
     display: "flex",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 14,
+    gap: 8,
+    minWidth: 0,
   },
   monthTitle: {
     margin: 0,
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 900,
     color: "#111827",
+    lineHeight: 1.1,
+    whiteSpace: "nowrap",
   },
   arrowBtn: {
     border: "none",
     background: "#ffffff",
-    width: 40,
-    height: 40,
+    width: 38,
+    height: 38,
     borderRadius: 999,
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 700,
     color: "#111827",
     boxShadow: "0 6px 18px rgba(0,0,0,0.08)",
+    cursor: "pointer",
+    flexShrink: 0,
+  },
+  topBtn: {
+    border: "none",
+    background: "#111827",
+    color: "#fff",
+    borderRadius: 12,
+    padding: "10px 12px",
+    fontSize: 12,
+    fontWeight: 800,
+    boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+    flexShrink: 0,
   },
   filterRow: {
     display: "flex",
     gap: 8,
     overflowX: "auto",
     paddingBottom: 4,
+    marginBottom: 8,
   },
   storeChip: {
     border: "1px solid #e5e7eb",
     background: "#fff",
     color: "#374151",
     borderRadius: 16,
-    padding: "10px 14px",
+    padding: "8px 12px",
     whiteSpace: "nowrap",
     fontWeight: 700,
-    fontSize: 13,
+    fontSize: 12,
+    cursor: "pointer",
   },
   storeChipActive: {
     background: "#111827",
     color: "#fff",
     border: "1px solid #111827",
+  },
+  legendBox: {
+    display: "flex",
+    gap: 6,
+    overflowX: "auto",
+    paddingBottom: 2,
+  },
+  legendItem: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 5,
+    padding: "5px 8px",
+    borderRadius: 999,
+    background: "#fff",
+    border: "1px solid #e5e7eb",
+    fontSize: 10,
+    fontWeight: 700,
+    color: "#374151",
+    whiteSpace: "nowrap",
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    display: "inline-block",
+    flexShrink: 0,
   },
   calendarCard: {
     padding: "8px 10px 20px",
@@ -1071,6 +1177,7 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     flexDirection: "column",
     gap: 6,
+    cursor: "pointer",
   },
   dayCellSelected: {
     outline: "2px solid #111827",
@@ -1130,6 +1237,7 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 34,
     boxShadow: "0 18px 36px rgba(0,0,0,0.22)",
     zIndex: 40,
+    cursor: "pointer",
   },
   sheetOverlay: {
     position: "fixed",
@@ -1146,8 +1254,8 @@ const styles: Record<string, CSSProperties> = {
     background: "#fff",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    padding: "10px 0 20px",
-    maxHeight: "82vh",
+    padding: "8px 0 14px",
+    maxHeight: "88vh",
     overflow: "hidden",
   },
   formModal: {
@@ -1165,105 +1273,154 @@ const styles: Record<string, CSSProperties> = {
     height: 6,
     borderRadius: 999,
     background: "#d1d5db",
-    margin: "0 auto 12px",
+    margin: "0 auto 10px",
   },
   sheetHeader: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: "0 18px 12px",
+    padding: "0 14px 8px",
   },
   sheetDate: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 900,
     color: "#111827",
+    lineHeight: 1.2,
+  },
+  sheetCount: {
+    marginTop: 3,
+    fontSize: 11,
+    fontWeight: 700,
+    color: "#6b7280",
   },
   sheetHeaderBtns: {
     display: "flex",
-    gap: 10,
+    gap: 8,
   },
   roundIconBtn: {
     border: "none",
     background: "#111827",
     color: "#fff",
-    width: 42,
-    height: 42,
+    width: 38,
+    height: 38,
     borderRadius: 999,
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 700,
+    cursor: "pointer",
   },
   sheetBody: {
     overflowY: "auto",
-    maxHeight: "68vh",
-    padding: "0 18px 6px",
+    maxHeight: "calc(88vh - 88px)",
+    padding: "0 10px 2px",
     display: "grid",
-    gap: 12,
-  },
-  dayEventRow: {
-    display: "grid",
-    gridTemplateColumns: "54px 4px 1fr",
-    gap: 12,
-    alignItems: "start",
-  },
-  timeCol: {
-    textAlign: "right",
-    paddingTop: 2,
-  },
-  timeMain: {
-    fontSize: 16,
-    fontWeight: 800,
-    color: "#111827",
-    lineHeight: 1.1,
-  },
-  timeSub: {
-    fontSize: 13,
-    fontWeight: 700,
-    color: "#9ca3af",
-    marginTop: 4,
-  },
-  colorBar: {
-    width: 4,
-    borderRadius: 999,
-    minHeight: 64,
-  },
-  dayEventMain: {
-    paddingBottom: 10,
-    borderBottom: "1px solid #f1f5f9",
-  },
-  dayEventTitle: {
-    fontSize: 18,
-    fontWeight: 900,
-    color: "#111827",
-    lineHeight: 1.3,
-    marginBottom: 4,
-  },
-  dayEventSub: {
-    fontSize: 14,
-    color: "#4b5563",
-    fontWeight: 700,
-    marginBottom: 4,
-  },
-  dayEventSubMuted: {
-    fontSize: 13,
-    color: "#6b7280",
-  },
-  dayEventMemo: {
-    marginTop: 6,
-    fontSize: 13,
-    color: "#374151",
-    lineHeight: 1.6,
+    gap: 8,
   },
   emptyText: {
-    padding: "18px 0",
     textAlign: "center",
     color: "#6b7280",
+    fontSize: 13,
     fontWeight: 700,
+    padding: "22px 10px",
+  },
+  dayEventRow: {
+    width: "100%",
+    border: "1px solid #e5e7eb",
+    background: "#ffffff",
+    borderRadius: 14,
+    padding: "8px 9px",
+    display: "grid",
+    gridTemplateColumns: "44px 5px minmax(0,1fr)",
+    gap: 8,
+    alignItems: "start",
+    textAlign: "left",
+    cursor: "pointer",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
+  },
+  timeCol: {
+    textAlign: "center",
+    paddingTop: 1,
+  },
+  timeMain: {
+    fontSize: 13,
+    fontWeight: 900,
+    color: "#111827",
+    lineHeight: 1.05,
+  },
+  timeSub: {
+    marginTop: 2,
+    fontSize: 10,
+    fontWeight: 700,
+    color: "#6b7280",
+    lineHeight: 1.1,
+  },
+  colorBar: {
+    width: 5,
+    borderRadius: 999,
+    alignSelf: "stretch",
+    minHeight: 46,
+  },
+  dayEventMain: {
+    minWidth: 0,
+  },
+  dayEventTopLine: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 6,
+    marginBottom: 2,
+  },
+  dayEventTitle: {
+    fontSize: 13,
+    fontWeight: 800,
+    color: "#111827",
+    lineHeight: 1.25,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    minWidth: 0,
+    flex: 1,
+  },
+  staffMiniBadge: {
+    flexShrink: 0,
+    fontSize: 10,
+    fontWeight: 800,
+    border: "1px solid",
+    borderRadius: 999,
+    padding: "2px 6px",
+    background: "#fff",
+    lineHeight: 1.1,
+  },
+  dayEventSub: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: "#374151",
+    lineHeight: 1.35,
+  },
+  dayEventSubMuted: {
+    fontSize: 10,
+    fontWeight: 700,
+    color: "#6b7280",
+    lineHeight: 1.35,
+    marginTop: 1,
+  },
+  dayEventMemo: {
+    marginTop: 4,
+    fontSize: 10,
+    lineHeight: 1.35,
+    color: "#6b7280",
+    background: "#f8fafc",
+    borderRadius: 8,
+    padding: "4px 6px",
+    overflow: "hidden",
+    display: "-webkit-box",
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical",
   },
   formHeader: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: "0 18px 10px",
+    padding: "0 18px 12px",
   },
   formTitle: {
     fontSize: 18,
@@ -1274,96 +1431,96 @@ const styles: Record<string, CSSProperties> = {
     border: "none",
     background: "#f3f4f6",
     color: "#111827",
-    width: 38,
-    height: 38,
+    width: 36,
+    height: 36,
     borderRadius: 999,
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: 700,
+    cursor: "pointer",
   },
   formBody: {
-    padding: "0 18px 8px",
-    display: "grid",
-    gap: 12,
     overflowY: "auto",
-    maxHeight: "78vh",
-  },
-  formGrid2: {
+    maxHeight: "calc(90vh - 68px)",
+    padding: "0 18px 10px",
     display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 10,
+    gap: 14,
   },
   field: {
     display: "grid",
     gap: 6,
   },
   label: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: 800,
-    color: "#475569",
+    color: "#374151",
   },
   input: {
     width: "100%",
-    height: 46,
+    height: 44,
     borderRadius: 14,
-    border: "1px solid #e5e7eb",
+    border: "1px solid #d1d5db",
     background: "#fff",
     padding: "0 14px",
     fontSize: 14,
     color: "#111827",
     outline: "none",
-    boxSizing: "border-box",
   },
   textarea: {
     width: "100%",
-    minHeight: 96,
+    minHeight: 110,
     borderRadius: 14,
-    border: "1px solid #e5e7eb",
+    border: "1px solid #d1d5db",
     background: "#fff",
     padding: "12px 14px",
     fontSize: 14,
     color: "#111827",
     outline: "none",
     resize: "vertical",
-    boxSizing: "border-box",
+  },
+  formGrid2: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 12,
   },
   autoHelp: {
-    fontSize: 12,
-    lineHeight: 1.6,
-    color: "#64748b",
-    fontWeight: 700,
+    fontSize: 11,
+    lineHeight: 1.5,
+    color: "#6b7280",
     background: "#f8fafc",
     borderRadius: 12,
     padding: "10px 12px",
   },
   saveBtn: {
-    width: "100%",
-    height: 52,
-    borderRadius: 16,
+    height: 48,
     border: "none",
-    background: "linear-gradient(135deg, #111827 0%, #1f2937 100%)",
+    borderRadius: 14,
+    background: "#111827",
     color: "#fff",
-    fontSize: 16,
-    fontWeight: 900,
+    fontSize: 15,
+    fontWeight: 800,
+    cursor: "pointer",
     marginTop: 4,
   },
   errorBox: {
-    margin: "8px 14px 0",
-    padding: "12px 14px",
-    borderRadius: 16,
-    background: "rgba(254,242,242,0.98)",
-    border: "1px solid rgba(239,68,68,0.22)",
+    margin: "8px 12px 0",
+    background: "#fef2f2",
     color: "#b91c1c",
-    fontSize: 13,
-    fontWeight: 800,
+    border: "1px solid #fecaca",
+    borderRadius: 14,
+    padding: "10px 12px",
+    fontSize: 12,
+    fontWeight: 700,
+    lineHeight: 1.5,
   },
   successBox: {
-    margin: "8px 14px 0",
-    padding: "12px 14px",
-    borderRadius: 16,
-    background: "rgba(240,253,244,0.98)",
-    border: "1px solid rgba(34,197,94,0.18)",
+    margin: "8px 12px 0",
+    background: "#f0fdf4",
     color: "#15803d",
-    fontSize: 13,
-    fontWeight: 800,
+    border: "1px solid #bbf7d0",
+    borderRadius: 14,
+    padding: "10px 12px",
+    fontSize: 12,
+    fontWeight: 700,
+    lineHeight: 1.5,
   },
 };
