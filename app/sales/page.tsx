@@ -11,7 +11,7 @@ type Customer = {
 };
 
 type ServiceType = "ストレッチ" | "トレーニング";
-type AccountingType = "通常売上" | "前受金";
+type AccountingType = "通常売上" | "前受金" | "回数券消化";
 type PaymentMethod = "現金" | "カード" | "銀行振込" | "その他";
 
 type SaleCategory =
@@ -20,11 +20,13 @@ type SaleCategory =
   | "ストレッチ銀行振込"
   | "ストレッチその他"
   | "ストレッチ前受金"
+  | "ストレッチ回数券消化"
   | "トレーニング現金"
   | "トレーニングカード"
   | "トレーニング銀行振込"
   | "トレーニングその他"
-  | "トレーニング前受金";
+  | "トレーニング前受金"
+  | "トレーニング回数券消化";
 
 type PaymentRow = {
   id: string;
@@ -67,14 +69,28 @@ type SupabaseSaleRow = {
   created_at: string | null;
 };
 
+type ReservationPrefillRow = {
+  id: number | string;
+  customer_id?: number | string | null;
+  customer_name?: string | null;
+  date?: string | null;
+  menu?: string | null;
+  staff_name?: string | null;
+  store_name?: string | null;
+  payment_method?: string | null;
+  memo?: string | null;
+};
+
 type DailySummaryRow = {
   date: string;
   stretchCash: number;
   stretchCard: number;
   stretchReceived: number;
+  stretchTicket: number;
   trainingCash: number;
   trainingCard: number;
   trainingReceived: number;
+  trainingTicket: number;
   netSalesTotal: number;
   advanceCash: number;
   advanceCard: number;
@@ -87,8 +103,28 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-const STAFF_OPTIONS = ["山口", "スタッフ", "未設定"];
-const STORE_OPTIONS = ["江戸堀", "箕面", "福島", "福島P", "天満橋", "中崎町", "未設定"];
+const STAFF_OPTIONS = [
+  "山口",
+  "中西",
+  "池田",
+  "羽田",
+  "石川",
+  "菱谷",
+  "林",
+  "井上",
+  "その他",
+  "未設定",
+];
+
+const STORE_OPTIONS = [
+  "江戸堀",
+  "箕面",
+  "福島",
+  "福島P",
+  "天満橋",
+  "中崎町",
+  "未設定",
+];
 
 function formatCurrency(value: number) {
   return `¥${Number(value || 0).toLocaleString()}`;
@@ -115,7 +151,15 @@ function buildCategory(
   paymentMethod: PaymentMethod
 ): SaleCategory {
   if (accountingType === "前受金") {
-    return serviceType === "ストレッチ" ? "ストレッチ前受金" : "トレーニング前受金";
+    return serviceType === "ストレッチ"
+      ? "ストレッチ前受金"
+      : "トレーニング前受金";
+  }
+
+  if (accountingType === "回数券消化") {
+    return serviceType === "ストレッチ"
+      ? "ストレッチ回数券消化"
+      : "トレーニング回数券消化";
   }
 
   if (serviceType === "ストレッチ") {
@@ -136,7 +180,9 @@ function normalizeServiceType(value?: string | null): ServiceType {
 }
 
 function normalizeAccountingType(value?: string | null): AccountingType {
-  return value === "前受金" ? "前受金" : "通常売上";
+  if (value === "前受金") return "前受金";
+  if (value === "回数券消化") return "回数券消化";
+  return "通常売上";
 }
 
 function normalizePaymentMethod(value?: string | null): PaymentMethod {
@@ -213,9 +259,11 @@ function buildDailySummaryRows(sales: Sale[]): DailySummaryRow[] {
         stretchCash: 0,
         stretchCard: 0,
         stretchReceived: 0,
+        stretchTicket: 0,
         trainingCash: 0,
         trainingCard: 0,
         trainingReceived: 0,
+        trainingTicket: 0,
         netSalesTotal: 0,
         advanceCash: 0,
         advanceCard: 0,
@@ -226,6 +274,7 @@ function buildDailySummaryRows(sales: Sale[]): DailySummaryRow[] {
 
     const amount = Number(sale.amount || 0);
     const isAdvance = sale.accountingType === "前受金";
+    const isTicket = sale.accountingType === "回数券消化";
 
     if (isAdvance) {
       if (sale.paymentMethod === "現金") {
@@ -233,23 +282,33 @@ function buildDailySummaryRows(sales: Sale[]): DailySummaryRow[] {
       } else {
         grouped[date].advanceCard += amount;
       }
-    } else {
+      return;
+    }
+
+    if (isTicket) {
       if (sale.serviceType === "ストレッチ") {
-        if (sale.paymentMethod === "現金") {
-          grouped[date].stretchCash += amount;
-        } else if (sale.paymentMethod === "その他") {
-          grouped[date].stretchReceived += amount;
-        } else {
-          grouped[date].stretchCard += amount;
-        }
+        grouped[date].stretchTicket += amount;
       } else {
-        if (sale.paymentMethod === "現金") {
-          grouped[date].trainingCash += amount;
-        } else if (sale.paymentMethod === "その他") {
-          grouped[date].trainingReceived += amount;
-        } else {
-          grouped[date].trainingCard += amount;
-        }
+        grouped[date].trainingTicket += amount;
+      }
+      return;
+    }
+
+    if (sale.serviceType === "ストレッチ") {
+      if (sale.paymentMethod === "現金") {
+        grouped[date].stretchCash += amount;
+      } else if (sale.paymentMethod === "その他") {
+        grouped[date].stretchReceived += amount;
+      } else {
+        grouped[date].stretchCard += amount;
+      }
+    } else {
+      if (sale.paymentMethod === "現金") {
+        grouped[date].trainingCash += amount;
+      } else if (sale.paymentMethod === "その他") {
+        grouped[date].trainingReceived += amount;
+      } else {
+        grouped[date].trainingCard += amount;
       }
     }
   });
@@ -260,9 +319,11 @@ function buildDailySummaryRows(sales: Sale[]): DailySummaryRow[] {
         row.stretchCash +
         row.stretchCard +
         row.stretchReceived +
+        row.stretchTicket +
         row.trainingCash +
         row.trainingCard +
-        row.trainingReceived;
+        row.trainingReceived +
+        row.trainingTicket;
 
       const advanceTotal = row.advanceCash + row.advanceCard;
       const grandTotal = netSalesTotal + advanceTotal;
@@ -298,15 +359,32 @@ export default function SalesPage() {
   const [loading, setLoading] = useState(true);
   const [customerLoading, setCustomerLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [prefillLoading, setPrefillLoading] = useState(false);
 
   const applyQueryParams = (customerList: Customer[]) => {
     const queryDate = getQueryParam("date");
-    const queryCustomerName = getQueryParam("customer_name") || getQueryParam("customer");
-    const queryStore = getQueryParam("store_name") || getQueryParam("store");
-    const queryStaff = getQueryParam("staff_name") || getQueryParam("staff");
-    const queryService = getQueryParam("service_type") || getQueryParam("service");
+    const queryCustomerId = getQueryParam("customerId") || getQueryParam("customer_id");
+    const queryCustomerName =
+      getQueryParam("customerName") ||
+      getQueryParam("customer_name") ||
+      getQueryParam("customer");
+    const queryStore =
+      getQueryParam("storeName") ||
+      getQueryParam("store_name") ||
+      getQueryParam("store");
+    const queryStaff =
+      getQueryParam("staffName") ||
+      getQueryParam("staff_name") ||
+      getQueryParam("staff");
+    const queryService =
+      getQueryParam("serviceType") ||
+      getQueryParam("service_type") ||
+      getQueryParam("service");
     const queryMenu = getQueryParam("menu");
-    const queryReservationId = getQueryParam("reservation_id");
+    const queryPaymentMethod =
+      getQueryParam("paymentMethod") || getQueryParam("payment_method");
+    const queryReservationId =
+      getQueryParam("reservationId") || getQueryParam("reservation_id");
 
     if (queryDate) setDate(queryDate);
     if (queryStore) setStoreName(queryStore);
@@ -314,13 +392,24 @@ export default function SalesPage() {
     if (queryMenu) setMenuName(queryMenu);
     if (queryReservationId) setReservationId(queryReservationId);
 
+    if (queryPaymentMethod) {
+      const normalized = normalizePaymentMethod(queryPaymentMethod);
+      setPayments((prev) =>
+        prev.map((row, index) =>
+          index === 0 ? { ...row, paymentMethod: normalized } : row
+        )
+      );
+    }
+
     if (queryService === "ストレッチ" || queryService === "トレーニング") {
       setServiceType(queryService);
     } else if (queryMenu) {
       setServiceType(detectServiceTypeFromMenu(queryMenu));
     }
 
-    if (queryCustomerName) {
+    if (queryCustomerId) {
+      setCustomerId(String(queryCustomerId));
+    } else if (queryCustomerName) {
       const found = customerList.find((c) => c.name === queryCustomerName);
       if (found) {
         setCustomerId(String(found.id));
@@ -397,18 +486,94 @@ export default function SalesPage() {
     }
   };
 
+  const loadReservationForPrefill = async (id: string) => {
+    if (!id) return;
+
+    try {
+      setPrefillLoading(true);
+
+      const { data, error } = await supabase
+        .from("reservations")
+        .select(
+          "id, customer_id, customer_name, date, menu, staff_name, store_name, payment_method, memo"
+        )
+        .eq("id", id)
+        .maybeSingle();
+
+      if (error) {
+        console.warn("reservation prefill error:", error.message);
+        return;
+      }
+
+      const row = data as ReservationPrefillRow | null;
+      if (!row) return;
+
+      if (row.date) setDate(row.date);
+
+      if (row.customer_id !== null && row.customer_id !== undefined) {
+        setCustomerId(String(row.customer_id));
+      }
+
+      if (row.menu) {
+        setMenuName(row.menu);
+        setServiceType(detectServiceTypeFromMenu(row.menu));
+      }
+
+      if (row.staff_name) setStaff(row.staff_name);
+      if (row.store_name) setStoreName(row.store_name);
+
+      if (row.payment_method) {
+        const normalized = normalizePaymentMethod(row.payment_method);
+        setPayments((prev) =>
+          prev.map((payment, index) =>
+            index === 0 ? { ...payment, paymentMethod: normalized } : payment
+          )
+        );
+      }
+
+      const noteLines = [
+        row.customer_name ? `予約顧客: ${row.customer_name}` : "",
+        row.memo ? `予約メモ: ${row.memo}` : "",
+      ].filter(Boolean);
+
+      if (noteLines.length > 0) {
+        setNote((prev) => {
+          const base = prev.trim();
+          const add = noteLines.join("\n");
+          if (!base) return add;
+          if (base.includes(add)) return base;
+          return `${add}\n${base}`;
+        });
+      }
+    } catch (error) {
+      console.error("loadReservationForPrefill error:", error);
+    } finally {
+      setPrefillLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!mounted) return;
     void fetchCustomers();
     void fetchSales();
   }, [mounted]);
 
+  useEffect(() => {
+    if (!mounted) return;
+    if (!reservationId) return;
+
+    void loadReservationForPrefill(reservationId);
+  }, [mounted, reservationId]);
+
   const selectedCustomer = useMemo(() => {
     return customers.find((c) => String(c.id) === customerId);
   }, [customers, customerId]);
 
   const totalAmount = useMemo(() => {
-    return payments.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    return payments.reduce((sum, row) => {
+      if (row.saleType === "回数券消化") return sum;
+      return sum + Number(row.amount || 0);
+    }, 0);
   }, [payments]);
 
   const filteredSales = useMemo(() => {
@@ -495,8 +660,14 @@ export default function SalesPage() {
 
         const next = { ...row, [key]: value };
 
-        if (key === "saleType" && value === "前受金") {
-          next.paymentMethod = "その他";
+        if (key === "saleType") {
+          if (value === "前受金") {
+            next.paymentMethod = "その他";
+          }
+          if (value === "回数券消化") {
+            next.amount = "0";
+            next.paymentMethod = "その他";
+          }
         }
 
         return next;
@@ -524,6 +695,7 @@ export default function SalesPage() {
     setStoreName(STORE_OPTIONS[0]);
     setServiceType("トレーニング");
     setNote("");
+    setSearch("");
     setReservationId("");
     setPayments([createPaymentRow()]);
   };
@@ -551,7 +723,7 @@ export default function SalesPage() {
     }
 
     for (const row of payments) {
-      if (!row.amount || Number(row.amount) <= 0) {
+      if (row.saleType !== "回数券消化" && (!row.amount || Number(row.amount) <= 0)) {
         alert("支払い金額を入力してください");
         return;
       }
@@ -570,8 +742,9 @@ export default function SalesPage() {
         sale_date: date,
         menu_type: serviceType,
         sale_type: row.saleType,
-        payment_method: row.paymentMethod,
-        amount: Number(row.amount),
+        payment_method:
+          row.saleType === "回数券消化" ? "その他" : row.paymentMethod,
+        amount: row.saleType === "回数券消化" ? 0 : Number(row.amount),
         staff_name: staff.trim() || "未設定",
         store_name: storeName.trim() || "未設定",
         reservation_id: reservationId ? Number(reservationId) : null,
@@ -621,9 +794,11 @@ export default function SalesPage() {
       "ストレッチ(現金)",
       "ストレッチ(カード等)",
       "ストレッチ(受領済)",
+      "ストレッチ(回数券消化)",
       "トレーニング(現金)",
       "トレーニング(カード等)",
       "トレーニング(受領済)",
+      "トレーニング(回数券消化)",
       "純売上合計",
       "前受(現金)",
       "前受(カード等)",
@@ -636,9 +811,11 @@ export default function SalesPage() {
       row.stretchCash,
       row.stretchCard,
       row.stretchReceived,
+      row.stretchTicket,
       row.trainingCash,
       row.trainingCard,
       row.trainingReceived,
+      row.trainingTicket,
       row.netSalesTotal,
       row.advanceCash,
       row.advanceCard,
@@ -650,7 +827,9 @@ export default function SalesPage() {
       .map((row) => row.map((cell) => toCsvValue(cell)).join(","))
       .join("\n");
 
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob(["\uFEFF" + csv], {
+      type: "text/csv;charset=utf-8;",
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -665,7 +844,8 @@ export default function SalesPage() {
     <div
       style={{
         minHeight: "100vh",
-        background: "linear-gradient(135deg, #f7f7f8 0%, #ececef 45%, #dfe3e8 100%)",
+        background:
+          "linear-gradient(135deg, #f7f7f8 0%, #ececef 45%, #dfe3e8 100%)",
         padding: "24px",
         fontFamily: "system-ui, sans-serif",
       }}
@@ -699,7 +879,7 @@ export default function SalesPage() {
                 fontSize: "14px",
               }}
             >
-              予約詳細からの連動・支払い追加・履歴確認・日別集計CSV出力ができます
+              予約詳細からの自動入力・複数支払い・履歴確認・日別集計CSV出力ができます
             </p>
           </div>
 
@@ -722,7 +902,22 @@ export default function SalesPage() {
         <div style={mainGridStyle}>
           <div style={{ display: "grid", gap: "24px" }}>
             <section style={cardStyle}>
-              <h2 style={sectionTitleStyle}>売上登録</h2>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: "12px",
+                  flexWrap: "wrap",
+                }}
+              >
+                <h2 style={sectionTitleStyle}>売上登録</h2>
+                {prefillLoading ? (
+                  <span style={miniInfoStyle}>予約情報を反映中...</span>
+                ) : reservationId ? (
+                  <span style={miniInfoStyle}>予約ID: {reservationId}</span>
+                ) : null}
+              </div>
 
               <div style={formGridStyle}>
                 <div>
@@ -899,6 +1094,7 @@ export default function SalesPage() {
                           >
                             <option value="通常売上">通常売上</option>
                             <option value="前受金">前受金</option>
+                            <option value="回数券消化">回数券消化</option>
                           </select>
                         </div>
 
@@ -914,6 +1110,7 @@ export default function SalesPage() {
                               )
                             }
                             style={inputStyle}
+                            disabled={row.saleType === "回数券消化"}
                           >
                             <option value="現金">現金</option>
                             <option value="カード">カード</option>
@@ -928,8 +1125,9 @@ export default function SalesPage() {
                             type="number"
                             value={row.amount}
                             onChange={(e) => updatePayment(row.id, "amount", e.target.value)}
-                            placeholder="例：8000"
+                            placeholder={row.saleType === "回数券消化" ? "0" : "例：8000"}
                             style={inputStyle}
+                            disabled={row.saleType === "回数券消化"}
                           />
                         </div>
 
@@ -1000,9 +1198,11 @@ export default function SalesPage() {
                         <th style={thStyle}>ストレッチ(現金)</th>
                         <th style={thStyle}>ストレッチ(カード等)</th>
                         <th style={thStyle}>ストレッチ(受領済)</th>
+                        <th style={thStyle}>ストレッチ(回数券)</th>
                         <th style={thStyle}>トレーニング(現金)</th>
                         <th style={thStyle}>トレーニング(カード等)</th>
                         <th style={thStyle}>トレーニング(受領済)</th>
+                        <th style={thStyle}>トレーニング(回数券)</th>
                         <th style={thStyle}>純売上合計</th>
                         <th style={thStyle}>前受(現金)</th>
                         <th style={thStyle}>前受(カード等)</th>
@@ -1017,9 +1217,11 @@ export default function SalesPage() {
                           <td style={tdStyleNumber}>{formatCurrency(row.stretchCash)}</td>
                           <td style={tdStyleNumber}>{formatCurrency(row.stretchCard)}</td>
                           <td style={tdStyleNumber}>{formatCurrency(row.stretchReceived)}</td>
+                          <td style={tdStyleNumber}>{formatCurrency(row.stretchTicket)}</td>
                           <td style={tdStyleNumber}>{formatCurrency(row.trainingCash)}</td>
                           <td style={tdStyleNumber}>{formatCurrency(row.trainingCard)}</td>
                           <td style={tdStyleNumber}>{formatCurrency(row.trainingReceived)}</td>
+                          <td style={tdStyleNumber}>{formatCurrency(row.trainingTicket)}</td>
                           <td style={tdStyleTotal}>{formatCurrency(row.netSalesTotal)}</td>
                           <td style={tdStyleNumber}>{formatCurrency(row.advanceCash)}</td>
                           <td style={tdStyleNumber}>{formatCurrency(row.advanceCard)}</td>
@@ -1085,43 +1287,32 @@ export default function SalesPage() {
                           </div>
 
                           <div style={detailTextStyle}>顧客ID：{sale.customerId ?? "なし"}</div>
-                          <div style={detailTextStyle}>日付：{sale.date}</div>
+                          <div style={detailTextStyle}>日付：{formatDateJP(sale.date)}</div>
                           <div style={detailTextStyle}>店舗：{sale.storeName}</div>
-                          <div style={detailTextStyle}>メニュー：{sale.menuName}</div>
-                          <div style={detailTextStyle}>担当者：{sale.staff}</div>
-                          <div style={detailTextStyle}>カテゴリ：{sale.category}</div>
-                          <div style={detailTextStyle}>会計区分：{sale.accountingType}</div>
+                          <div style={detailTextStyle}>担当：{sale.staff}</div>
+                          <div style={detailTextStyle}>サービス：{sale.serviceType}</div>
+                          <div style={detailTextStyle}>区分：{sale.accountingType}</div>
                           <div style={detailTextStyle}>支払方法：{sale.paymentMethod}</div>
+                          <div style={detailTextStyle}>カテゴリ：{sale.category}</div>
                           <div style={detailTextStyle}>予約ID：{sale.reservationId ?? "なし"}</div>
-                          <div
-                            style={{
-                              fontSize: "15px",
-                              fontWeight: 800,
-                              color: "#111827",
-                              marginTop: "8px",
-                            }}
-                          >
-                            金額：{formatCurrency(sale.amount)}
-                          </div>
                           {sale.note ? (
-                            <div
-                              style={{
-                                ...detailTextStyle,
-                                marginTop: "6px",
-                                whiteSpace: "pre-wrap",
-                              }}
-                            >
+                            <div style={{ ...detailTextStyle, marginTop: "6px", whiteSpace: "pre-wrap" }}>
                               メモ：{sale.note}
                             </div>
                           ) : null}
                         </div>
 
-                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                          {sale.customerId ? (
-                            <Link href={`/customer/${sale.customerId}`} style={subButtonStyle}>
-                              顧客詳細
-                            </Link>
-                          ) : null}
+                        <div style={{ textAlign: "right", minWidth: "160px" }}>
+                          <div
+                            style={{
+                              fontSize: "24px",
+                              fontWeight: 900,
+                              color: "#111827",
+                              marginBottom: "12px",
+                            }}
+                          >
+                            {formatCurrency(sale.amount)}
+                          </div>
 
                           <button
                             onClick={() => handleDeleteSale(sale.id)}
@@ -1138,49 +1329,55 @@ export default function SalesPage() {
             </section>
           </div>
 
-          <div style={{ display: "grid", gap: "24px" }}>
+          <aside style={{ display: "grid", gap: "24px" }}>
             <section style={cardStyle}>
-              <h2 style={sectionTitleStyle}>月別合計</h2>
-
+              <h2 style={sectionTitleStyle}>月別売上</h2>
               {monthlyTotals.length === 0 ? (
-                <div style={emptyBoxStyle}>データがありません</div>
+                <div style={emptyBoxStyle}>データなし</div>
               ) : (
                 <div style={{ display: "grid", gap: "10px" }}>
                   {monthlyTotals.map(([month, amount]) => (
-                    <SoftRow key={month} label={month} value={formatCurrency(amount)} />
+                    <div key={month} style={summaryRowStyle}>
+                      <span>{month}</span>
+                      <strong>{formatCurrency(amount)}</strong>
+                    </div>
                   ))}
                 </div>
               )}
             </section>
 
             <section style={cardStyle}>
-              <h2 style={sectionTitleStyle}>担当者別合計</h2>
-
+              <h2 style={sectionTitleStyle}>スタッフ別売上</h2>
               {staffTotals.length === 0 ? (
-                <div style={emptyBoxStyle}>データがありません</div>
+                <div style={emptyBoxStyle}>データなし</div>
               ) : (
                 <div style={{ display: "grid", gap: "10px" }}>
                   {staffTotals.map(([name, amount]) => (
-                    <SoftRow key={name} label={name} value={formatCurrency(amount)} />
+                    <div key={name} style={summaryRowStyle}>
+                      <span>{name}</span>
+                      <strong>{formatCurrency(amount)}</strong>
+                    </div>
                   ))}
                 </div>
               )}
             </section>
 
             <section style={cardStyle}>
-              <h2 style={sectionTitleStyle}>支払方法別合計</h2>
-
+              <h2 style={sectionTitleStyle}>支払方法別売上</h2>
               {paymentTotals.length === 0 ? (
-                <div style={emptyBoxStyle}>データがありません</div>
+                <div style={emptyBoxStyle}>データなし</div>
               ) : (
                 <div style={{ display: "grid", gap: "10px" }}>
-                  {paymentTotals.map(([name, amount]) => (
-                    <SoftRow key={name} label={name} value={formatCurrency(amount)} />
+                  {paymentTotals.map(([method, amount]) => (
+                    <div key={method} style={summaryRowStyle}>
+                      <span>{method}</span>
+                      <strong>{formatCurrency(amount)}</strong>
+                    </div>
                   ))}
                 </div>
               )}
             </section>
-          </div>
+          </aside>
         </div>
       </div>
     </div>
@@ -1190,29 +1387,8 @@ export default function SalesPage() {
 function MetricCard({ title, value }: { title: string; value: string }) {
   return (
     <div style={metricCardStyle}>
-      <div style={{ fontSize: "13px", color: "#6b7280", marginBottom: "8px" }}>
-        {title}
-      </div>
-      <div style={{ fontSize: "28px", fontWeight: 800, color: "#111827" }}>
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function SoftRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div
-      style={{
-        ...innerCardStyle,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: "12px",
-      }}
-    >
-      <span style={{ fontWeight: 700 }}>{label}</span>
-      <span>{value}</span>
+      <div style={metricTitleStyle}>{title}</div>
+      <div style={metricValueStyle}>{value}</div>
     </div>
   );
 }
@@ -1224,50 +1400,46 @@ const topMetricGridStyle: React.CSSProperties = {
   marginBottom: "24px",
 };
 
+const metricCardStyle: React.CSSProperties = {
+  background: "rgba(255,255,255,0.88)",
+  borderRadius: "22px",
+  padding: "18px 20px",
+  boxShadow: "0 16px 40px rgba(0,0,0,0.06)",
+};
+
+const metricTitleStyle: React.CSSProperties = {
+  fontSize: "13px",
+  color: "#6b7280",
+  marginBottom: "8px",
+  fontWeight: 700,
+};
+
+const metricValueStyle: React.CSSProperties = {
+  fontSize: "28px",
+  color: "#111827",
+  fontWeight: 900,
+};
+
 const mainGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "1.35fr 0.65fr",
+  gridTemplateColumns: "minmax(0, 1.55fr) minmax(320px, 0.9fr)",
   gap: "24px",
   alignItems: "start",
 };
 
-const paymentGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-  gap: "16px",
-};
-
-const formGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-  gap: "16px",
-};
-
 const cardStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.55)",
-  backdropFilter: "blur(14px)",
-  WebkitBackdropFilter: "blur(14px)",
-  border: "1px solid rgba(255,255,255,0.65)",
-  borderRadius: "24px",
+  background: "rgba(255,255,255,0.9)",
+  borderRadius: "26px",
   padding: "24px",
-  boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
-};
-
-const metricCardStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.55)",
-  backdropFilter: "blur(14px)",
-  WebkitBackdropFilter: "blur(14px)",
-  border: "1px solid rgba(255,255,255,0.65)",
-  borderRadius: "22px",
-  padding: "22px",
-  boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
+  boxShadow: "0 20px 50px rgba(0,0,0,0.06)",
+  backdropFilter: "blur(12px)",
 };
 
 const innerCardStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.68)",
-  border: "1px solid rgba(229,231,235,0.95)",
+  background: "#f9fafb",
   borderRadius: "18px",
-  padding: "16px",
+  padding: "18px",
+  border: "1px solid #e5e7eb",
 };
 
 const sectionTitleStyle: React.CSSProperties = {
@@ -1277,45 +1449,108 @@ const sectionTitleStyle: React.CSSProperties = {
   color: "#111827",
 };
 
+const formGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: "16px",
+};
+
+const paymentGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: "14px",
+};
+
 const labelStyle: React.CSSProperties = {
   display: "block",
+  marginBottom: "8px",
   fontSize: "13px",
   fontWeight: 700,
   color: "#4b5563",
-  marginBottom: "8px",
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  height: "48px",
+  padding: "12px 14px",
   borderRadius: "14px",
   border: "1px solid #d1d5db",
-  background: "rgba(255,255,255,0.88)",
-  padding: "0 14px",
   fontSize: "14px",
+  background: "#fff",
   color: "#111827",
-  outline: "none",
   boxSizing: "border-box",
 };
 
 const readonlyBoxStyle: React.CSSProperties = {
   minHeight: "48px",
-  borderRadius: "14px",
-  border: "1px solid #d1d5db",
-  background: "rgba(248,250,252,0.9)",
   padding: "12px 14px",
+  borderRadius: "14px",
+  border: "1px solid #e5e7eb",
   fontSize: "14px",
+  background: "#f3f4f6",
   color: "#111827",
-  fontWeight: 700,
   display: "flex",
   alignItems: "center",
+  fontWeight: 700,
+  boxSizing: "border-box",
+};
+
+const mainButtonStyle: React.CSSProperties = {
+  background: "linear-gradient(135deg, #111827 0%, #1f2937 100%)",
+  color: "#fff",
+  border: "none",
+  borderRadius: "14px",
+  padding: "14px 22px",
+  fontWeight: 800,
+  fontSize: "15px",
+  cursor: "pointer",
+};
+
+const subButtonPlainStyle: React.CSSProperties = {
+  background: "#fff",
+  color: "#111827",
+  border: "1px solid #d1d5db",
+  borderRadius: "14px",
+  padding: "12px 16px",
+  fontWeight: 700,
+  fontSize: "14px",
+  cursor: "pointer",
+};
+
+const deleteButtonStyle: React.CSSProperties = {
+  background: "#fee2e2",
+  color: "#b91c1c",
+  border: "1px solid #fecaca",
+  borderRadius: "12px",
+  padding: "10px 14px",
+  fontWeight: 700,
+  fontSize: "13px",
+  cursor: "pointer",
+};
+
+const mainLinkStyle: React.CSSProperties = {
+  background: "#111827",
+  color: "#fff",
+  borderRadius: "14px",
+  padding: "12px 16px",
+  fontWeight: 700,
+  textDecoration: "none",
+};
+
+const subButtonStyle: React.CSSProperties = {
+  background: "#fff",
+  color: "#111827",
+  border: "1px solid #d1d5db",
+  borderRadius: "14px",
+  padding: "12px 16px",
+  fontWeight: 700,
+  textDecoration: "none",
 };
 
 const summaryBoxStyle: React.CSSProperties = {
-  marginTop: "20px",
-  padding: "16px",
+  marginTop: "18px",
+  padding: "16px 18px",
   borderRadius: "18px",
-  background: "rgba(248,250,252,0.9)",
+  background: "#f9fafb",
   border: "1px solid #e5e7eb",
   display: "grid",
   gap: "10px",
@@ -1324,43 +1559,10 @@ const summaryBoxStyle: React.CSSProperties = {
 const summaryRowStyle: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  gap: "12px",
+  alignItems: "center",
+  gap: "16px",
   color: "#111827",
   fontSize: "14px",
-};
-
-const mainButtonStyle: React.CSSProperties = {
-  border: "none",
-  borderRadius: "14px",
-  background: "linear-gradient(135deg, #111827 0%, #374151 100%)",
-  color: "#fff",
-  fontWeight: 800,
-  fontSize: "14px",
-  padding: "14px 18px",
-  cursor: "pointer",
-  boxShadow: "0 10px 24px rgba(17,24,39,0.16)",
-};
-
-const subButtonPlainStyle: React.CSSProperties = {
-  border: "1px solid #d1d5db",
-  borderRadius: "14px",
-  background: "rgba(255,255,255,0.88)",
-  color: "#111827",
-  fontWeight: 700,
-  fontSize: "14px",
-  padding: "14px 18px",
-  cursor: "pointer",
-};
-
-const deleteButtonStyle: React.CSSProperties = {
-  border: "none",
-  borderRadius: "12px",
-  background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
-  color: "#fff",
-  fontWeight: 700,
-  fontSize: "13px",
-  padding: "10px 14px",
-  cursor: "pointer",
 };
 
 const detailTextStyle: React.CSSProperties = {
@@ -1369,89 +1571,66 @@ const detailTextStyle: React.CSSProperties = {
   lineHeight: 1.7,
 };
 
-const emptyBoxStyle: React.CSSProperties = {
-  padding: "18px",
-  borderRadius: "18px",
-  background: "rgba(248,250,252,0.92)",
-  border: "1px solid #e5e7eb",
-  color: "#6b7280",
-};
-
-const subButtonStyle: React.CSSProperties = {
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "12px 16px",
-  borderRadius: "14px",
-  border: "1px solid #d1d5db",
-  background: "rgba(255,255,255,0.88)",
-  color: "#111827",
-  fontWeight: 700,
-  fontSize: "14px",
-};
-
-const mainLinkStyle: React.CSSProperties = {
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: "12px 16px",
-  borderRadius: "14px",
-  border: "none",
-  background: "linear-gradient(135deg, #111827 0%, #374151 100%)",
-  color: "#fff",
-  fontWeight: 800,
-  fontSize: "14px",
-  boxShadow: "0 10px 24px rgba(17,24,39,0.16)",
-};
-
 const tableWrapStyle: React.CSSProperties = {
   overflowX: "auto",
-  borderRadius: "18px",
-  border: "1px solid #d1d5db",
-  background: "#fff",
 };
 
 const summaryTableStyle: React.CSSProperties = {
   width: "100%",
-  minWidth: "1280px",
   borderCollapse: "collapse",
-  fontSize: "13px",
+  minWidth: "1400px",
 };
 
 const thStyle: React.CSSProperties = {
-  border: "1px solid #d1d5db",
-  background: "#f3f4f6",
-  color: "#111827",
-  padding: "10px 8px",
-  textAlign: "center",
-  fontWeight: 800,
+  background: "#111827",
+  color: "#fff",
+  padding: "12px 10px",
+  fontSize: "13px",
+  fontWeight: 700,
   whiteSpace: "nowrap",
+  border: "1px solid #374151",
 };
 
 const tdStyle: React.CSSProperties = {
-  border: "1px solid #e5e7eb",
-  padding: "10px 8px",
-  textAlign: "center",
-  whiteSpace: "nowrap",
+  padding: "12px 10px",
+  fontSize: "13px",
   color: "#111827",
+  background: "#fff",
+  border: "1px solid #e5e7eb",
+  whiteSpace: "nowrap",
 };
 
 const tdStyleNumber: React.CSSProperties = {
   ...tdStyle,
   textAlign: "right",
-  fontVariantNumeric: "tabular-nums",
 };
 
 const tdStyleTotal: React.CSSProperties = {
-  ...tdStyleNumber,
-  background: "#f9fafb",
+  ...tdStyle,
+  textAlign: "right",
   fontWeight: 800,
+  background: "#f9fafb",
 };
 
 const tdStyleGrand: React.CSSProperties = {
-  ...tdStyleNumber,
+  ...tdStyle,
+  textAlign: "right",
+  fontWeight: 900,
   background: "#eef2ff",
-  fontWeight: 800,
+};
+
+const emptyBoxStyle: React.CSSProperties = {
+  padding: "22px",
+  borderRadius: "18px",
+  background: "#f9fafb",
+  border: "1px solid #e5e7eb",
+  color: "#6b7280",
+  fontSize: "14px",
+  textAlign: "center",
+};
+
+const miniInfoStyle: React.CSSProperties = {
+  fontSize: "13px",
+  color: "#6b7280",
+  fontWeight: 700,
 };
