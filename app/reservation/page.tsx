@@ -1,624 +1,714 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
-type ReservationRow = {
-  id: number;
-  date: string;
-  customer_name: string | null;
-  store_name: string | null;
-  staff_name: string | null;
-  menu: string | null;
+const supabase =
+  process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    ? createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      )
+    : null;
+
+type CustomerRow = {
+  id: string | number;
+  name?: string | null;
+  customer_name?: string | null;
+  kana?: string | null;
+  furigana?: string | null;
+  phone?: string | null;
+  phone_number?: string | null;
 };
 
-type TicketUsageRow = {
-  id: number;
-  reservation_id: number | null;
+type CustomerOption = {
+  id: string;
+  name: string;
+  kana: string;
+  phone: string;
 };
 
-type SaleRow = {
-  id: number;
-  reservation_id: number | null;
-};
+const STORE_OPTIONS = [
+  "江戸堀",
+  "箕面",
+  "福島",
+  "福島P",
+  "天満橋",
+  "中崎町",
+];
 
-type CalendarItem = {
-  id: number;
-  date: string;
-  title: string;
-  color: string;
-  store: string;
-  staff: string;
-  isTicketUsed: boolean;
-  isSalesRegistered: boolean;
-};
+const STAFF_OPTIONS = [
+  "山口",
+  "中西",
+  "池田",
+  "羽田",
+  "石川",
+  "菱谷",
+  "林",
+  "井上",
+  "その他",
+];
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const MENU_OPTIONS = [
+  "ストレッチ",
+  "トレーニング",
+  "ペアトレ",
+  "ヘッドスパ",
+  "アロマ",
+  "その他",
+];
 
-const STORE_TABS = ["すべて", "江戸堀", "箕面", "福島", "福島P", "天満橋", "中崎町"];
-const STAFF_TABS = ["すべて", "山口", "中西", "池田", "石川", "菱谷", "林", "井上", "その他"];
+const PAYMENT_OPTIONS = ["現金", "カード", "銀行振込", "その他"];
 
-const STAFF_COLORS: Record<string, string> = {
-  山口: "#16a34a",
-  中西: "#ec4899",
-  池田: "#8b5cf6",
-  石川: "#3b82f6",
-  菱谷: "#f59e0b",
-  林: "#111827",
-  井上: "#6b7280",
-  その他: "#9ca3af",
-};
-
-function pad(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function toMonthString(date: Date) {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
-}
-
-function toDateString(date: Date) {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-function getMonthDate(month: string) {
-  const [y, m] = month.split("-").map(Number);
-  return new Date(y, m - 1, 1);
-}
-
-function shiftMonth(month: string, offset: number) {
-  const d = getMonthDate(month);
-  d.setMonth(d.getMonth() + offset);
-  return toMonthString(d);
-}
-
-function formatMonthLabel(month: string) {
-  const d = getMonthDate(month);
-  return `${d.getFullYear()}年${d.getMonth() + 1}月`;
-}
-
-function weekdayLabel(index: number) {
-  return ["月", "火", "水", "木", "金", "土", "日"][index];
-}
-
-function buildCalendarDays(month: string) {
-  const firstDay = getMonthDate(month);
-  const year = firstDay.getFullYear();
-  const monthIndex = firstDay.getMonth();
-  const firstWeekday = (firstDay.getDay() + 6) % 7;
-  const startDate = new Date(year, monthIndex, 1 - firstWeekday);
-
-  return Array.from({ length: 42 }).map((_, i) => {
-    const d = new Date(startDate);
-    d.setDate(startDate.getDate() + i);
-
-    return {
-      date: toDateString(d),
-      day: d.getDate(),
-      isCurrentMonth: d.getMonth() === monthIndex,
-      isToday: toDateString(d) === toDateString(new Date()),
-    };
-  });
-}
-
-function getDisplayTitle(row: ReservationRow) {
-  if (row.customer_name?.trim()) return row.customer_name.trim();
-  if (row.menu?.trim()) return row.menu.trim();
-  return "予約";
-}
-
-function mapReservationToCalendarItem(
-  row: ReservationRow,
-  usedReservationIds: Set<number>,
-  salesReservationIds: Set<number>
-): CalendarItem {
-  const staff = row.staff_name || "その他";
-
+function normalizeCustomer(row: CustomerRow): CustomerOption {
   return {
-    id: row.id,
-    date: row.date,
-    title: getDisplayTitle(row),
-    color: STAFF_COLORS[staff] || "#9ca3af",
-    store: row.store_name || "未設定",
-    staff,
-    isTicketUsed: usedReservationIds.has(row.id),
-    isSalesRegistered: salesReservationIds.has(row.id),
+    id: String(row.id),
+    name: row.name || row.customer_name || "",
+    kana: row.kana || row.furigana || "",
+    phone: row.phone || row.phone_number || "",
   };
 }
 
-function getDayItems(items: CalendarItem[], date: string, store: string, staff: string) {
-  return items
-    .filter((item) => {
-      const matchDate = item.date === date;
-      const matchStore = store === "すべて" || item.store === store;
-      const matchStaff = staff === "すべて" || item.staff === staff;
-      return matchDate && matchStore && matchStaff;
-    })
-    .slice(0, 3);
+function trimmed(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
 }
 
-export default function ReservationPage() {
-  const [month, setMonth] = useState(toMonthString(new Date()));
-  const [store, setStore] = useState("すべて");
-  const [staff, setStaff] = useState("すべて");
-  const [reservations, setReservations] = useState<CalendarItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
+function normalizePhone(value: string): string {
+  return value.replace(/[^\d]/g, "");
+}
 
-  const days = useMemo(() => buildCalendarDays(month), [month]);
+function extractErrorMessage(error: unknown): string {
+  if (!error) return "不明なエラーです。";
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
 
-  useEffect(() => {
-    const firstDay = getMonthDate(month);
-    const startDate = toDateString(new Date(firstDay.getFullYear(), firstDay.getMonth(), 1));
-    const endDate = toDateString(new Date(firstDay.getFullYear(), firstDay.getMonth() + 1, 0));
-
-    const fetchReservations = async () => {
-      try {
-        setLoading(true);
-        setErrorMessage("");
-
-        let query = supabase
-          .from("reservations")
-          .select("id, date, customer_name, store_name, staff_name, menu")
-          .gte("date", startDate)
-          .lte("date", endDate)
-          .order("date", { ascending: true });
-
-        if (store !== "すべて") {
-          query = query.eq("store_name", store);
-        }
-
-        if (staff !== "すべて") {
-          query = query.eq("staff_name", staff);
-        }
-
-        const { data, error } = await query;
-
-        if (error) {
-          setReservations([]);
-          setErrorMessage("予約データの取得に失敗しました。");
-          return;
-        }
-
-        const reservationRows = (data as ReservationRow[] | null) || [];
-        const reservationIds = reservationRows.map((row) => row.id).filter(Boolean);
-
-        let usedReservationIds = new Set<number>();
-        let salesReservationIds = new Set<number>();
-
-        if (reservationIds.length > 0) {
-          const { data: usageData, error: usageError } = await supabase
-            .from("ticket_usages")
-            .select("id, reservation_id")
-            .in("reservation_id", reservationIds);
-
-          if (!usageError) {
-            usedReservationIds = new Set(
-              ((usageData as TicketUsageRow[] | null) || [])
-                .map((row) => Number(row.reservation_id))
-                .filter((id) => !Number.isNaN(id) && id > 0)
-            );
-          }
-
-          const { data: salesData, error: salesError } = await supabase
-            .from("sales")
-            .select("id, reservation_id")
-            .in("reservation_id", reservationIds);
-
-          if (!salesError) {
-            salesReservationIds = new Set(
-              ((salesData as SaleRow[] | null) || [])
-                .map((row) => Number(row.reservation_id))
-                .filter((id) => !Number.isNaN(id) && id > 0)
-            );
-          }
-        }
-
-        const mapped = reservationRows.map((row) =>
-          mapReservationToCalendarItem(row, usedReservationIds, salesReservationIds)
-        );
-
-        setReservations(mapped);
-      } catch (error) {
-        console.error("fetchReservations error:", error);
-        setReservations([]);
-        setErrorMessage("予約データの取得中にエラーが発生しました。");
-      } finally {
-        setLoading(false);
-      }
+  if (typeof error === "object") {
+    const maybe = error as {
+      message?: unknown;
+      details?: unknown;
+      hint?: unknown;
+      code?: unknown;
     };
 
-    fetchReservations();
-  }, [month, store, staff]);
+    const parts = [
+      typeof maybe.message === "string" ? maybe.message : "",
+      typeof maybe.details === "string" ? maybe.details : "",
+      typeof maybe.hint === "string" ? maybe.hint : "",
+      typeof maybe.code === "string" ? `code: ${maybe.code}` : "",
+    ].filter(Boolean);
+
+    if (parts.length > 0) return parts.join(" / ");
+  }
+
+  return "不明なエラーです。";
+}
+
+export default function ReservationNewPage() {
+  const router = useRouter();
+
+  const [mounted, setMounted] = useState(false);
+  const [loadingCustomers, setLoadingCustomers] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const [customers, setCustomers] = useState<CustomerOption[]>([]);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [selectedCustomerId, setSelectedCustomerId] = useState("");
+
+  const [customerName, setCustomerName] = useState("");
+  const [customerKana, setCustomerKana] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [startTime, setStartTime] = useState("10:00");
+  const [storeName, setStoreName] = useState(STORE_OPTIONS[0]);
+  const [staffName, setStaffName] = useState(STAFF_OPTIONS[0]);
+  const [menu, setMenu] = useState(MENU_OPTIONS[0]);
+  const [paymentMethod, setPaymentMethod] = useState(PAYMENT_OPTIONS[0]);
+  const [memo, setMemo] = useState("");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+
+    const loggedIn =
+      localStorage.getItem("gymup_logged_in") ||
+      localStorage.getItem("isLoggedIn");
+
+    if (loggedIn !== "true") {
+      router.push("/login");
+      return;
+    }
+
+    void loadCustomers();
+  }, [mounted, router]);
+
+  async function loadCustomers() {
+    if (!supabase) {
+      setLoadingCustomers(false);
+      setError("Supabaseの環境変数が設定されていません。");
+      return;
+    }
+
+    try {
+      setLoadingCustomers(true);
+
+      const { data, error } = await supabase
+        .from("customers")
+        .select("id, name, customer_name, kana, furigana, phone, phone_number")
+        .order("id", { ascending: false })
+        .limit(300);
+
+      if (error) throw error;
+
+      setCustomers(((data as CustomerRow[]) || []).map(normalizeCustomer));
+    } catch (e) {
+      console.error(e);
+      setError(`顧客取得エラー: ${extractErrorMessage(e)}`);
+    } finally {
+      setLoadingCustomers(false);
+    }
+  }
+
+  const filteredCustomers = useMemo(() => {
+    const q = trimmed(customerSearch).toLowerCase();
+    if (!q) return customers.slice(0, 30);
+
+    return customers
+      .filter((c) => {
+        return (
+          c.name.toLowerCase().includes(q) ||
+          c.kana.toLowerCase().includes(q) ||
+          c.phone.includes(q)
+        );
+      })
+      .slice(0, 30);
+  }, [customerSearch, customers]);
+
+  function handleSelectCustomer(customerId: string) {
+    setSelectedCustomerId(customerId);
+
+    const found = customers.find((c) => c.id === customerId);
+    if (!found) return;
+
+    setCustomerName(found.name);
+    setCustomerKana(found.kana);
+    setCustomerPhone(found.phone);
+    setCustomerSearch(found.name);
+  }
+
+  async function findOrCreateCustomerId(): Promise<string | null> {
+    if (!supabase) throw new Error("Supabase未設定です。");
+
+    const name = trimmed(customerName);
+    const kana = trimmed(customerKana);
+    const rawPhone = trimmed(customerPhone);
+    const phone = normalizePhone(rawPhone);
+
+    if (!name) return null;
+
+    if (selectedCustomerId) {
+      return selectedCustomerId;
+    }
+
+    const localExact = customers.find((c) => {
+      const sameName = trimmed(c.name) === name;
+      const samePhone =
+        phone && normalizePhone(c.phone) === phone;
+      return sameName && (samePhone || !phone);
+    });
+
+    if (localExact) {
+      return localExact.id;
+    }
+
+    if (phone) {
+      const { data: phoneMatch, error: phoneMatchError } = await supabase
+        .from("customers")
+        .select("id, name, customer_name, kana, furigana, phone, phone_number")
+        .or(`phone.eq.${rawPhone},phone_number.eq.${rawPhone}`)
+        .limit(1)
+        .maybeSingle();
+
+      if (phoneMatchError) {
+        console.warn(phoneMatchError);
+      }
+
+      if (phoneMatch) {
+        return String((phoneMatch as CustomerRow).id);
+      }
+    }
+
+    const { data: nameMatch, error: nameMatchError } = await supabase
+      .from("customers")
+      .select("id, name, customer_name, kana, furigana, phone, phone_number")
+      .or(`name.eq.${name},customer_name.eq.${name}`)
+      .limit(1)
+      .maybeSingle();
+
+    if (nameMatchError) {
+      console.warn(nameMatchError);
+    }
+
+    if (nameMatch) {
+      return String((nameMatch as CustomerRow).id);
+    }
+
+    const insertPayload = {
+      name,
+      kana: kana || null,
+      phone: rawPhone || null,
+    };
+
+    const { data: inserted, error: insertError } = await supabase
+      .from("customers")
+      .insert(insertPayload)
+      .select("id")
+      .single();
+
+    if (insertError) {
+      throw insertError;
+    }
+
+    return String(inserted.id);
+  }
+
+  async function handleSave() {
+    if (!supabase) {
+      setError("Supabaseの環境変数が設定されていません。");
+      return;
+    }
+
+    const name = trimmed(customerName);
+
+    if (!name) {
+      setError("顧客名を入力してください。");
+      return;
+    }
+
+    if (!trimmed(date)) {
+      setError("予約日を入力してください。");
+      return;
+    }
+
+    if (!trimmed(startTime)) {
+      setError("開始時間を入力してください。");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError("");
+      setSuccess("");
+
+      const customerId = await findOrCreateCustomerId();
+
+      const reservationPayload = {
+        customer_id: customerId ? Number(customerId) : null,
+        customer_name: name,
+        date,
+        start_time: startTime,
+        store_name: storeName,
+        staff_name: staffName,
+        menu,
+        payment_method: paymentMethod,
+        memo: trimmed(memo) || null,
+      };
+
+      const { error: reservationError } = await supabase
+        .from("reservations")
+        .insert(reservationPayload);
+
+      if (reservationError) {
+        throw reservationError;
+      }
+
+      setSuccess("予約を保存しました。");
+      await loadCustomers();
+
+      setTimeout(() => {
+        if (customerId) {
+          router.push(`/customer/${customerId}`);
+        } else {
+          router.push("/reservation");
+        }
+      }, 400);
+    } catch (e) {
+      console.error(e);
+      setError(`予約保存エラー: ${extractErrorMessage(e)}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!mounted) return null;
 
   return (
-    <main style={{ minHeight: "100vh", background: "#f5f5f5", paddingBottom: "100px" }}>
-      <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "20px 12px 40px" }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "12px",
-            marginBottom: "18px",
-            flexWrap: "wrap",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+    <main style={styles.page}>
+      <div style={styles.container}>
+        <section style={styles.headerCard}>
+          <div>
+            <div style={styles.eyebrow}>NEW RESERVATION</div>
+            <h1 style={styles.title}>新規予約</h1>
+          </div>
+
+          <div style={styles.headerButtons}>
             <button
-              onClick={() => setMonth(shiftMonth(month, -1))}
-              style={{
-                background: "#ffffff",
-                color: "#111827",
-                border: "1px solid #e5e7eb",
-                borderRadius: "12px",
-                padding: "10px 14px",
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
+              type="button"
+              onClick={() => router.push("/reservation")}
+              style={styles.secondaryButton}
             >
-              ←
+              予約一覧へ戻る
             </button>
-
-            <div style={{ fontSize: "36px", fontWeight: 800, color: "#111827", letterSpacing: "-0.03em" }}>
-              {formatMonthLabel(month)}
-            </div>
-
             <button
-              onClick={() => setMonth(shiftMonth(month, 1))}
-              style={{
-                background: "#ffffff",
-                color: "#111827",
-                border: "1px solid #e5e7eb",
-                borderRadius: "12px",
-                padding: "10px 14px",
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
+              type="button"
+              onClick={() => router.push("/customer")}
+              style={styles.secondaryButton}
             >
-              →
+              顧客一覧へ
             </button>
           </div>
+        </section>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-            <Link
-              href="/"
-              style={{
-                textDecoration: "none",
-                background: "#ffffff",
-                color: "#111827",
-                border: "1px solid #d1d5db",
-                borderRadius: "12px",
-                padding: "10px 14px",
-                fontWeight: 700,
-                fontSize: "14px",
-              }}
-            >
-              トップへ
-            </Link>
+        {error ? <div style={styles.errorBox}>{error}</div> : null}
+        {success ? <div style={styles.successBox}>{success}</div> : null}
 
-            <Link
-              href={`/reservation/new?month=${month}&store=${encodeURIComponent(store)}&staff=${encodeURIComponent(staff)}`}
-              style={{
-                textDecoration: "none",
-                background: "#111827",
-                color: "#ffffff",
-                borderRadius: "999px",
-                width: "56px",
-                height: "56px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "34px",
-                lineHeight: 1,
-                boxShadow: "0 10px 20px rgba(0,0,0,0.12)",
-                flexShrink: 0,
-              }}
-            >
-              +
-            </Link>
-          </div>
-        </div>
+        <section style={styles.card}>
+          <h2 style={styles.sectionTitle}>顧客選択 / 顧客入力</h2>
 
-        <div
-          style={{
-            background: "#ffffff",
-            borderRadius: "18px",
-            padding: "14px",
-            boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
-            marginBottom: "16px",
-          }}
-        >
-          <div style={{ display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "6px", marginBottom: "12px" }}>
-            {STORE_TABS.map((tab) => {
-              const active = store === tab;
-              return (
-                <button
-                  key={tab}
-                  onClick={() => setStore(tab)}
-                  style={{
-                    whiteSpace: "nowrap",
-                    padding: "12px 18px",
-                    borderRadius: "16px",
-                    border: active ? "2px solid #111827" : "1px solid #d1d5db",
-                    background: active ? "#111827" : "#ffffff",
-                    color: active ? "#ffffff" : "#111827",
-                    fontWeight: 700,
-                    fontSize: "15px",
-                    cursor: "pointer",
-                  }}
-                >
-                  {tab}
-                </button>
-              );
-            })}
-          </div>
-
-          <div style={{ display: "flex", gap: "10px", overflowX: "auto", paddingBottom: "4px" }}>
-            {STAFF_TABS.map((tab) => {
-              const active = staff === tab;
-              return (
-                <button
-                  key={tab}
-                  onClick={() => setStaff(tab)}
-                  style={{
-                    whiteSpace: "nowrap",
-                    padding: "10px 16px",
-                    borderRadius: "999px",
-                    border: active ? "2px solid #111827" : "1px solid #d1d5db",
-                    background: active ? "#f3f4f6" : "#ffffff",
-                    color: "#111827",
-                    fontWeight: 700,
-                    fontSize: "14px",
-                    cursor: "pointer",
-                  }}
-                >
-                  {tab}
-                </button>
-              );
-            })}
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              gap: "14px",
-              flexWrap: "wrap",
-              marginTop: "14px",
-              paddingTop: "12px",
-              borderTop: "1px solid #e5e7eb",
-              fontSize: "13px",
-              fontWeight: 700,
-              color: "#4b5563",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <span
-                style={{
-                  width: "10px",
-                  height: "10px",
-                  borderRadius: "999px",
-                  background: "#16a34a",
-                  display: "inline-block",
-                }}
+          <div style={styles.grid2}>
+            <label style={styles.field}>
+              <span style={styles.label}>顧客検索</span>
+              <input
+                value={customerSearch}
+                onChange={(e) => setCustomerSearch(e.target.value)}
+                placeholder="氏名・かな・電話番号で検索"
+                style={styles.input}
               />
-              回数券消化済み
-            </div>
+            </label>
 
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <span
-                style={{
-                  width: "10px",
-                  height: "10px",
-                  borderRadius: "999px",
-                  background: "#2563eb",
-                  display: "inline-block",
-                }}
-              />
-              売上登録済み
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <span
-                style={{
-                  width: "10px",
-                  height: "10px",
-                  borderRadius: "999px",
-                  background: "#fb923c",
-                  display: "inline-block",
-                }}
-              />
-              未消化
-            </div>
-          </div>
-        </div>
-
-        {errorMessage ? (
-          <div
-            style={{
-              background: "#ffffff",
-              borderRadius: "18px",
-              padding: "20px",
-              color: "#991b1b",
-              fontWeight: 700,
-              boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
-              marginBottom: "16px",
-            }}
-          >
-            {errorMessage}
-          </div>
-        ) : null}
-
-        <div
-          style={{
-            background: "#ffffff",
-            borderRadius: "18px",
-            overflow: "hidden",
-            boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
-          }}
-        >
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
-              borderBottom: "1px solid #e5e7eb",
-              background: "#fafafa",
-            }}
-          >
-            {Array.from({ length: 7 }).map((_, i) => (
-              <div
-                key={i}
-                style={{
-                  textAlign: "center",
-                  padding: "12px 4px",
-                  fontWeight: 700,
-                  color: i === 5 ? "#2563eb" : i === 6 ? "#ef4444" : "#6b7280",
-                  fontSize: "14px",
-                }}
+            <label style={styles.field}>
+              <span style={styles.label}>既存顧客を選択</span>
+              <select
+                value={selectedCustomerId}
+                onChange={(e) => handleSelectCustomer(e.target.value)}
+                style={styles.input}
+                disabled={loadingCustomers}
               >
-                {weekdayLabel(i)}
-              </div>
-            ))}
+                <option value="">
+                  {loadingCustomers ? "顧客を読み込み中..." : "選択しない（新規/手入力）"}
+                </option>
+                {filteredCustomers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>
+                    {customer.name}
+                    {customer.phone ? ` / ${customer.phone}` : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
 
-          {loading ? (
-            <div style={{ padding: "24px", textAlign: "center", color: "#6b7280", fontWeight: 700 }}>
-              読み込み中...
-            </div>
-          ) : (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
-              }}
-            >
-              {days.map((day) => {
-                const items = getDayItems(reservations, day.date, store, staff);
+          <div style={styles.grid3}>
+            <label style={styles.field}>
+              <span style={styles.label}>顧客名</span>
+              <input
+                value={customerName}
+                onChange={(e) => {
+                  setCustomerName(e.target.value);
+                  setSelectedCustomerId("");
+                }}
+                placeholder="例：山田太郎"
+                style={styles.input}
+              />
+            </label>
 
-                return (
-                  <Link
-                    key={day.date}
-                    href={`/reservation/day?date=${day.date}&store=${encodeURIComponent(store)}&staff=${encodeURIComponent(staff)}`}
-                    style={{
-                      textDecoration: "none",
-                      color: "#111827",
-                      minHeight: "96px",
-                      borderRight: "1px solid #e5e7eb",
-                      borderBottom: "1px solid #e5e7eb",
-                      padding: "6px",
-                      background: day.isCurrentMonth ? "#ffffff" : "#fafafa",
-                      display: "block",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginBottom: "6px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: "24px",
-                          height: "24px",
-                          borderRadius: "999px",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontWeight: 800,
-                          fontSize: "13px",
-                          background: day.isToday ? "#111827" : "transparent",
-                          color: day.isToday ? "#ffffff" : day.isCurrentMonth ? "#111827" : "#9ca3af",
-                        }}
-                      >
-                        {day.day}
-                      </div>
-                    </div>
+            <label style={styles.field}>
+              <span style={styles.label}>かな</span>
+              <input
+                value={customerKana}
+                onChange={(e) => {
+                  setCustomerKana(e.target.value);
+                  setSelectedCustomerId("");
+                }}
+                placeholder="例：やまだたろう"
+                style={styles.input}
+              />
+            </label>
 
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                      {items.map((item) => (
-                        <div
-                          key={item.id}
-                          style={{
-                            background: item.color,
-                            color: "#ffffff",
-                            borderRadius: "5px",
-                            padding: "2px 5px",
-                            fontSize: "10px",
-                            fontWeight: 700,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "4px",
-                          }}
-                        >
-                          <span
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "3px",
-                              flexShrink: 0,
-                            }}
-                          >
-                            <span
-                              style={{
-                                width: "6px",
-                                height: "6px",
-                                borderRadius: "999px",
-                                background: item.isTicketUsed ? "#16a34a" : "#fb923c",
-                                boxShadow: "0 0 0 1px rgba(255,255,255,0.65)",
-                              }}
-                            />
-                            {item.isSalesRegistered ? (
-                              <span
-                                style={{
-                                  width: "6px",
-                                  height: "6px",
-                                  borderRadius: "999px",
-                                  background: "#2563eb",
-                                  boxShadow: "0 0 0 1px rgba(255,255,255,0.65)",
-                                }}
-                              />
-                            ) : null}
-                          </span>
+            <label style={styles.field}>
+              <span style={styles.label}>電話番号</span>
+              <input
+                value={customerPhone}
+                onChange={(e) => {
+                  setCustomerPhone(e.target.value);
+                  setSelectedCustomerId("");
+                }}
+                placeholder="例：09012345678"
+                style={styles.input}
+              />
+            </label>
+          </div>
+        </section>
 
-                          <span
-                            style={{
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {item.title}
-                          </span>
-                        </div>
-                      ))}
+        <section style={styles.card}>
+          <h2 style={styles.sectionTitle}>予約情報</h2>
 
-                      {items.length === 0 ? (
-                        <div
-                          style={{
-                            fontSize: "10px",
-                            color: "#d1d5db",
-                            paddingTop: "2px",
-                          }}
-                        >
-                          予約なし
-                        </div>
-                      ) : null}
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </div>
+          <div style={styles.grid3}>
+            <label style={styles.field}>
+              <span style={styles.label}>予約日</span>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                style={styles.input}
+              />
+            </label>
+
+            <label style={styles.field}>
+              <span style={styles.label}>開始時間</span>
+              <input
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                style={styles.input}
+              />
+            </label>
+
+            <label style={styles.field}>
+              <span style={styles.label}>店舗</span>
+              <select
+                value={storeName}
+                onChange={(e) => setStoreName(e.target.value)}
+                style={styles.input}
+              >
+                {STORE_OPTIONS.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label style={styles.field}>
+              <span style={styles.label}>担当スタッフ</span>
+              <select
+                value={staffName}
+                onChange={(e) => setStaffName(e.target.value)}
+                style={styles.input}
+              >
+                {STAFF_OPTIONS.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label style={styles.field}>
+              <span style={styles.label}>メニュー</span>
+              <select
+                value={menu}
+                onChange={(e) => setMenu(e.target.value)}
+                style={styles.input}
+              >
+                {MENU_OPTIONS.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label style={styles.field}>
+              <span style={styles.label}>支払方法</span>
+              <select
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+                style={styles.input}
+              >
+                {PAYMENT_OPTIONS.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <label style={styles.field}>
+            <span style={styles.label}>メモ</span>
+            <textarea
+              value={memo}
+              onChange={(e) => setMemo(e.target.value)}
+              placeholder="備考・注意点など"
+              style={styles.textarea}
+            />
+          </label>
+        </section>
+
+        <section style={styles.footerCard}>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            style={{
+              ...styles.primaryButton,
+              opacity: saving ? 0.7 : 1,
+              cursor: saving ? "not-allowed" : "pointer",
+            }}
+          >
+            {saving ? "保存中..." : "予約を保存"}
+          </button>
+        </section>
       </div>
     </main>
   );
 }
+
+const styles: Record<string, CSSProperties> = {
+  page: {
+    minHeight: "100vh",
+    ...(BG_STYLE as CSSProperties),
+    padding: "24px 16px 80px",
+  },
+  container: {
+    maxWidth: 1100,
+    margin: "0 auto",
+    display: "grid",
+    gap: 18,
+  },
+  headerCard: {
+    ...(CARD_STYLE as CSSProperties),
+    borderRadius: 24,
+    padding: 20,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 16,
+    flexWrap: "wrap",
+  },
+  eyebrow: {
+    fontSize: 12,
+    letterSpacing: "0.12em",
+    color: "#64748b",
+    marginBottom: 6,
+    fontWeight: 700,
+  },
+  title: {
+    margin: 0,
+    fontSize: 28,
+    color: "#0f172a",
+  },
+  headerButtons: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  card: {
+    ...(CARD_STYLE as CSSProperties),
+    borderRadius: 24,
+    padding: 20,
+    display: "grid",
+    gap: 16,
+  },
+  footerCard: {
+    ...(CARD_STYLE as CSSProperties),
+    borderRadius: 24,
+    padding: 20,
+  },
+  sectionTitle: {
+    margin: 0,
+    fontSize: 20,
+    fontWeight: 800,
+    color: "#0f172a",
+  },
+  grid2: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+    gap: 14,
+  },
+  grid3: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: 14,
+  },
+  field: {
+    display: "grid",
+    gap: 8,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: 700,
+    color: "#334155",
+  },
+  input: {
+    width: "100%",
+    height: 46,
+    borderRadius: 14,
+    border: "1px solid rgba(203,213,225,0.95)",
+    background: "rgba(255,255,255,0.96)",
+    padding: "0 14px",
+    fontSize: 14,
+    color: "#0f172a",
+    outline: "none",
+    boxSizing: "border-box",
+  },
+  textarea: {
+    width: "100%",
+    minHeight: 110,
+    borderRadius: 14,
+    border: "1px solid rgba(203,213,225,0.95)",
+    background: "rgba(255,255,255,0.96)",
+    padding: "12px 14px",
+    fontSize: 14,
+    color: "#0f172a",
+    outline: "none",
+    resize: "vertical",
+    boxSizing: "border-box",
+  },
+  secondaryButton: {
+    height: 42,
+    borderRadius: 14,
+    border: "1px solid rgba(148,163,184,0.24)",
+    background: "rgba(255,255,255,0.86)",
+    color: "#334155",
+    fontSize: 14,
+    fontWeight: 700,
+    padding: "0 16px",
+    cursor: "pointer",
+  },
+  primaryButton: {
+    ...(BUTTON_PRIMARY_STYLE as CSSProperties),
+    width: "100%",
+    minHeight: 52,
+    borderRadius: 16,
+    fontSize: 16,
+    fontWeight: 800,
+  },
+  errorBox: {
+    padding: "14px 16px",
+    borderRadius: 16,
+    background: "rgba(254,242,242,0.98)",
+    border: "1px solid rgba(239,68,68,0.22)",
+    color: "#b91c1c",
+    fontSize: 14,
+    fontWeight: 700,
+  },
+  successBox: {
+    padding: "14px 16px",
+    borderRadius: 16,
+    background: "rgba(240,253,244,0.98)",
+    border: "1px solid rgba(34,197,94,0.18)",
+    color: "#15803d",
+    fontSize: 14,
+    fontWeight: 700,
+  },
+};
