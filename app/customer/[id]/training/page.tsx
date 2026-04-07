@@ -71,7 +71,8 @@ const EXERCISE_MAP: Record<string, string[]> = {
   胸: [
     "ベンチプレス",
     "インクラインベンチプレス",
-    "ダンベルプレス",
+    "Dベンチプレス",
+    "Dインクラインベンチプレス",
     "ダンベルフライ",
     "チェストプレス",
     "プッシュアップ",
@@ -89,12 +90,15 @@ const EXERCISE_MAP: Record<string, string[]> = {
     "スクワット",
     "フロントスクワット",
     "ブルガリアンスクワット",
-    "ランジ",
-    "ステップアップ",
+    "Dブルガリアン",
+    "バックランジ",
+    "Dバックランジ",
     "レッグプレス",
     "レッグエクステンション",
     "レッグカール",
     "ヒップスラスト",
+    "デッドリフト",
+    "ルーマニアンデッドリフト",
     "スミススクワット",
   ],
   肩: [
@@ -313,7 +317,6 @@ export default function TrainingPage() {
   const [history, setHistory] = useState<TrainingSession[]>([]);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
 
-  const rowsBottomRef = useRef<HTMLDivElement | null>(null);
   const lastRowRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -478,17 +481,10 @@ export default function TrainingPage() {
         if (row.rowId !== rowId) return row;
 
         if (key === "category") {
-          const nextExercises = getExercisesByCategory(value);
-          const keepExercise =
-            trimmed(row.exercise_name) &&
-            nextExercises.includes(trimmed(row.exercise_name))
-              ? trimmed(row.exercise_name)
-              : "";
-
           return {
             ...row,
             category: value,
-            exercise_name: keepExercise,
+            exercise_name: "",
           };
         }
 
@@ -1093,7 +1089,6 @@ export default function TrainingPage() {
               })}
 
               <div
-                ref={rowsBottomRef}
                 style={{
                   display: "flex",
                   justifyContent: "center",
