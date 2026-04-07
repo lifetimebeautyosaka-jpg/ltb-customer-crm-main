@@ -42,6 +42,21 @@ type TrainingSessionRow = {
   updated_at?: string | null;
 };
 
+type SaleRow = {
+  id: string;
+  customer_id?: string | null;
+  amount?: number | null;
+  sale_date?: string | null;
+};
+
+type TicketRow = {
+  id: string;
+  customer_id?: string | null;
+  total?: number | null;
+  used?: number | null;
+  created_at?: string | null;
+};
+
 type NormalizedCustomer = {
   id: string;
   name: string;
@@ -80,11 +95,6 @@ function toStyle(value: unknown): CSSProperties {
 const BG_STYLE = toStyle(BG);
 const CARD_STYLE = toStyle(CARD);
 const BUTTON_PRIMARY_STYLE = toStyle(BUTTON_PRIMARY);
-
-function toSafeString(value: unknown): string {
-  if (value === null || value === undefined) return "";
-  return String(value);
-}
 
 function formatDate(value?: string | null) {
   if (!value) return "—";
@@ -184,6 +194,8 @@ export default function CustomerDetailPage() {
 
   const [customer, setCustomer] = useState<NormalizedCustomer | null>(null);
   const [sessions, setSessions] = useState<TrainingSessionRow[]>([]);
+  const [sales, setSales] = useState<SaleRow[]>([]);
+  const [tickets, setTickets] = useState<TicketRow[]>([]);
 
   useEffect(() => {
     setMounted(true);
@@ -254,8 +266,28 @@ export default function CustomerDetailPage() {
 
       if (sessionError) throw sessionError;
 
+      const { data: salesData, error: salesError } = await supabase
+        .from("sales")
+        .select("id, customer_id, amount, sale_date")
+        .eq("customer_id", String(customerId));
+
+      if (salesError) {
+        console.warn("sales取得エラー:", salesError.message);
+      }
+
+      const { data: ticketData, error: ticketError } = await supabase
+        .from("tickets")
+        .select("id, customer_id, total, used, created_at")
+        .eq("customer_id", String(customerId));
+
+      if (ticketError) {
+        console.warn("tickets取得エラー:", ticketError.message);
+      }
+
       setCustomer(normalizeCustomer(customerData as CustomerRow));
       setSessions((sessionData as TrainingSessionRow[]) || []);
+      setSales((salesData as SaleRow[]) || []);
+      setTickets((ticketData as TicketRow[]) || []);
     } catch (e: any) {
       setError(e?.message || "データ取得に失敗しました。");
     } finally {
@@ -283,7 +315,21 @@ export default function CustomerDetailPage() {
     previousSession?.muscle_mass
   );
 
-  const chartSessions = useMemo(() => {
+  const visitCount = sessions.length;
+
+  const ltv = useMemo(() => {
+    return sales.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  }, [sales]);
+
+  const remainingTickets = useMemo(() => {
+    return tickets.reduce((sum, item) => {
+      const total = Number(item.total || 0);
+      const used = Number(item.used || 0);
+      return sum + Math.max(total - used, 0);
+    }, 0);
+  }, [tickets]);
+
+  const weightChartSessions = useMemo(() => {
     return sessions.filter(
       (item) =>
         item.body_weight !== null &&
@@ -292,11 +338,25 @@ export default function CustomerDetailPage() {
     );
   }, [sessions]);
 
-  const chartValues = chartSessions
+  const bodyFatChartSessions = useMemo(() => {
+    return sessions.filter(
+      (item) =>
+        item.body_fat !== null &&
+        item.body_fat !== undefined &&
+        item.session_date
+    );
+  }, [sessions]);
+
+  const weightValues = weightChartSessions
     .map((item) => item.body_weight)
     .filter((v): v is number => v !== null && v !== undefined);
 
-  const chartPoints = buildChartPoints(chartValues, 520, 180);
+  const bodyFatValues = bodyFatChartSessions
+    .map((item) => item.body_fat)
+    .filter((v): v is number => v !== null && v !== undefined);
+
+  const weightChartPoints = buildChartPoints(weightValues, 520, 180);
+  const bodyFatChartPoints = buildChartPoints(bodyFatValues, 520, 180);
 
   if (!mounted) return null;
 
@@ -403,13 +463,33 @@ export default function CustomerDetailPage() {
             </div>
 
             <div style={{ display: "grid", gap: 14, marginTop: 16 }}>
+              <TextBlock label="目標" value={customer?.goal || "未設定"} />
+              <TextBlock label="メモ" value={customer?.memo || "未設定"} />
               <TextBlock
-                label="目標"
-                value={customer?.goal || "未設定"}
+                label="登録日"
+                value={formatDateTime(customer?.createdAt)}
               />
-              <TextBlock
-                label="メモ"
-                value={customer?.memo || "未設定"}
+            </div>
+          </section>
+
+          <section style={{ ...CARD_STYLE, borderRadius: 24, padding: 20 }}>
+            <h2 style={sectionTitleStyle}>KPI</h2>
+
+            <div style={metricsGridStyle}>
+              <MetricCard
+                label="来店回数"
+                value={`${visitCount}回`}
+                sub="training_sessions件数"
+              />
+              <MetricCard
+                label="LTV"
+                value={`¥${ltv.toLocaleString()}`}
+                sub={`${sales.length}件の売上`}
+              />
+              <MetricCard
+                label="回数券残数"
+                value={`${remainingTickets}回`}
+                sub={`${tickets.length}件の回数券`}
               />
             </div>
           </section>
@@ -488,99 +568,29 @@ export default function CustomerDetailPage() {
             </div>
           </section>
 
-          <section style={{ ...CARD_STYLE, borderRadius: 24, padding: 20 }}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 12,
-                flexWrap: "wrap",
-                marginBottom: 16,
-              }}
-            >
-              <h2 style={sectionTitleStyle}>体重推移グラフ</h2>
-              <div style={{ fontSize: 13, color: "#64748b", fontWeight: 700 }}>
-                データ {chartSessions.length}件
-              </div>
-            </div>
+          <ChartSection
+            title="体重推移グラフ"
+            sessions={weightChartSessions}
+            values={weightValues}
+            points={weightChartPoints}
+            unit="kg"
+            lineId="weightLine"
+            startColor="#2563eb"
+            endColor="#06b6d4"
+            emptyLabel="体重データがまだありません。"
+          />
 
-            {chartSessions.length === 0 ? (
-              <div style={emptyBoxStyle}>体重データがまだありません。</div>
-            ) : chartSessions.length === 1 ? (
-              <div style={singleChartBoxStyle}>
-                <div style={singleChartValueStyle}>
-                  {formatMetric(chartSessions[0].body_weight, "kg")}
-                </div>
-                <div style={singleChartDateStyle}>
-                  {formatDate(chartSessions[0].session_date)}
-                </div>
-              </div>
-            ) : (
-              <div style={chartWrapStyle}>
-                <svg
-                  viewBox="0 0 560 220"
-                  style={{ width: "100%", height: "auto", display: "block" }}
-                >
-                  <defs>
-                    <linearGradient id="weightLine" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#2563eb" />
-                      <stop offset="100%" stopColor="#06b6d4" />
-                    </linearGradient>
-                  </defs>
-
-                  <line x1="20" y1="190" x2="540" y2="190" stroke="#cbd5e1" />
-                  <line x1="20" y1="20" x2="20" y2="190" stroke="#cbd5e1" />
-
-                  <polyline
-                    fill="none"
-                    stroke="url(#weightLine)"
-                    strokeWidth="4"
-                    points={chartPoints
-                      .split(" ")
-                      .map((point) => {
-                        const [x, y] = point.split(",").map(Number);
-                        return `${x + 20},${y + 10}`;
-                      })
-                      .join(" ")}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-
-                  {chartValues.map((value, index) => {
-                    const points = chartPoints.split(" ");
-                    const [rawX, rawY] = points[index].split(",").map(Number);
-                    const cx = rawX + 20;
-                    const cy = rawY + 10;
-
-                    return (
-                      <g key={`${value}-${index}`}>
-                        <circle cx={cx} cy={cy} r="5" fill="#2563eb" />
-                        <text
-                          x={cx}
-                          y={cy - 12}
-                          textAnchor="middle"
-                          fontSize="11"
-                          fill="#334155"
-                          fontWeight="700"
-                        >
-                          {value}
-                        </text>
-                      </g>
-                    );
-                  })}
-                </svg>
-
-                <div style={chartLabelRowStyle}>
-                  {chartSessions.map((item, index) => (
-                    <div key={`${item.session_date}-${index}`} style={chartDateStyle}>
-                      {formatDate(item.session_date)}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </section>
+          <ChartSection
+            title="体脂肪推移グラフ"
+            sessions={bodyFatChartSessions}
+            values={bodyFatValues}
+            points={bodyFatChartPoints}
+            unit="%"
+            lineId="bodyFatLine"
+            startColor="#f97316"
+            endColor="#f59e0b"
+            emptyLabel="体脂肪データがまだありません。"
+          />
 
           <section style={{ ...CARD_STYLE, borderRadius: 24, padding: 20 }}>
             <div
@@ -696,6 +706,131 @@ function MetricCard({
       <div style={metricValueStyle}>{value}</div>
       <div style={{ ...metricSubStyle, color: subColor || "#64748b" }}>{sub}</div>
     </div>
+  );
+}
+
+function ChartSection({
+  title,
+  sessions,
+  values,
+  points,
+  unit,
+  lineId,
+  startColor,
+  endColor,
+  emptyLabel,
+}: {
+  title: string;
+  sessions: TrainingSessionRow[];
+  values: number[];
+  points: string;
+  unit: string;
+  lineId: string;
+  startColor: string;
+  endColor: string;
+  emptyLabel: string;
+}) {
+  return (
+    <section style={{ ...CARD_STYLE, borderRadius: 24, padding: 20 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+          marginBottom: 16,
+        }}
+      >
+        <h2 style={sectionTitleStyle}>{title}</h2>
+        <div style={{ fontSize: 13, color: "#64748b", fontWeight: 700 }}>
+          データ {sessions.length}件
+        </div>
+      </div>
+
+      {sessions.length === 0 ? (
+        <div style={emptyBoxStyle}>{emptyLabel}</div>
+      ) : sessions.length === 1 ? (
+        <div style={singleChartBoxStyle}>
+          <div style={singleChartValueStyle}>
+            {formatMetric(values[0], unit)}
+          </div>
+          <div style={singleChartDateStyle}>
+            {formatDate(sessions[0].session_date)}
+          </div>
+        </div>
+      ) : (
+        <div style={chartWrapStyle}>
+          <svg
+            viewBox="0 0 560 220"
+            style={{ width: "100%", height: "auto", display: "block" }}
+          >
+            <defs>
+              <linearGradient id={lineId} x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor={startColor} />
+                <stop offset="100%" stopColor={endColor} />
+              </linearGradient>
+            </defs>
+
+            <line x1="20" y1="190" x2="540" y2="190" stroke="#cbd5e1" />
+            <line x1="20" y1="20" x2="20" y2="190" stroke="#cbd5e1" />
+
+            <polyline
+              fill="none"
+              stroke={`url(#${lineId})`}
+              strokeWidth="4"
+              points={points
+                .split(" ")
+                .map((point) => {
+                  const [x, y] = point.split(",").map(Number);
+                  return `${x + 20},${y + 10}`;
+                })
+                .join(" ")}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+
+            {values.map((value, index) => {
+              const pointList = points.split(" ");
+              const [rawX, rawY] = pointList[index].split(",").map(Number);
+              const cx = rawX + 20;
+              const cy = rawY + 10;
+
+              return (
+                <g key={`${value}-${index}`}>
+                  <circle cx={cx} cy={cy} r="5" fill={startColor} />
+                  <text
+                    x={cx}
+                    y={cy - 12}
+                    textAnchor="middle"
+                    fontSize="11"
+                    fill="#334155"
+                    fontWeight="700"
+                  >
+                    {value}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: `repeat(${sessions.length}, minmax(0, 1fr))`,
+              gap: 8,
+              marginTop: 8,
+            }}
+          >
+            {sessions.map((item, index) => (
+              <div key={`${item.session_date}-${index}`} style={chartDateStyle}>
+                {formatDate(item.session_date)}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -834,13 +969,6 @@ const chartWrapStyle: CSSProperties = {
   borderRadius: 20,
   background: "rgba(255,255,255,0.82)",
   border: "1px solid rgba(226,232,240,0.95)",
-};
-
-const chartLabelRowStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: `repeat(${Math.max(1, 1)}, minmax(0, 1fr))`,
-  gap: 8,
-  marginTop: 8,
 };
 
 const chartDateStyle: CSSProperties = {
