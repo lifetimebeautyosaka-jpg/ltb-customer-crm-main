@@ -116,6 +116,22 @@ type NormalizedCustomer = {
   updatedAt: string;
 };
 
+type TicketForm = {
+  ticket_name: string;
+  service_type: "ストレッチ" | "トレーニング";
+  total_count: string;
+  expiry_date: string;
+  note: string;
+};
+
+const initialTicketForm: TicketForm = {
+  ticket_name: "",
+  service_type: "ストレッチ",
+  total_count: "",
+  expiry_date: "",
+  note: "",
+};
+
 const supabase =
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -284,29 +300,21 @@ function summarizeCounseling(sheet: CounselingSheetRow | null) {
     };
   }
 
-  const purposes =
-    sheet.visit_purposes && sheet.visit_purposes.length > 0
-      ? sheet.visit_purposes.slice(0, 3).join(" / ")
-      : "未登録";
-
-  const symptoms =
-    sheet.symptoms && sheet.symptoms.length > 0
-      ? sheet.symptoms.slice(0, 3).join(" / ")
-      : "未登録";
-
-  const bodyAreas =
-    sheet.body_areas && sheet.body_areas.length > 0
-      ? sheet.body_areas.slice(0, 4).join(" / ")
-      : "未登録";
-
-  const notes = sheet.notes?.trim() ? sheet.notes : "未登録";
-
   return {
-    purposes,
-    symptoms,
-    bodyAreas,
+    purposes:
+      sheet.visit_purposes && sheet.visit_purposes.length > 0
+        ? sheet.visit_purposes.slice(0, 3).join(" / ")
+        : "未登録",
+    symptoms:
+      sheet.symptoms && sheet.symptoms.length > 0
+        ? sheet.symptoms.slice(0, 3).join(" / ")
+        : "未登録",
+    bodyAreas:
+      sheet.body_areas && sheet.body_areas.length > 0
+        ? sheet.body_areas.slice(0, 4).join(" / ")
+        : "未登録",
     occupation: sheet.occupation || "未登録",
-    notes,
+    notes: sheet.notes?.trim() ? sheet.notes : "未登録",
     updatedAt: formatDateTime(sheet.updated_at || sheet.created_at),
   };
 }
@@ -327,6 +335,12 @@ export default function CustomerDetailPage() {
   const [sales, setSales] = useState<SaleRow[]>([]);
   const [tickets, setTickets] = useState<CustomerTicketRow[]>([]);
   const [counselingSheet, setCounselingSheet] = useState<CounselingSheetRow | null>(null);
+
+  const [showTicketForm, setShowTicketForm] = useState(false);
+  const [ticketForm, setTicketForm] = useState<TicketForm>(initialTicketForm);
+  const [ticketSaving, setTicketSaving] = useState(false);
+  const [ticketError, setTicketError] = useState("");
+  const [ticketSuccess, setTicketSuccess] = useState("");
 
   useEffect(() => {
     setMounted(true);
@@ -379,8 +393,7 @@ export default function CustomerDetailPage() {
 
       const { data: sessionData, error: sessionError } = await supabase
         .from("training_sessions")
-        .select(
-          `
+        .select(`
           id,
           customer_id,
           session_date,
@@ -394,8 +407,7 @@ export default function CustomerDetailPage() {
           posture_note,
           created_at,
           updated_at
-        `
-        )
+        `)
         .eq("customer_id", String(customerId))
         .order("session_date", { ascending: true })
         .order("created_at", { ascending: true });
@@ -442,6 +454,66 @@ export default function CustomerDetailPage() {
       setError(e?.message || "データ取得に失敗しました。");
     } finally {
       setLoading(false);
+    }
+  }
+
+  function updateTicketForm<K extends keyof TicketForm>(
+    key: K,
+    value: TicketForm[K]
+  ) {
+    setTicketForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function handleSaveTicket() {
+    if (!supabase || !customer) return;
+
+    setTicketError("");
+    setTicketSuccess("");
+
+    const totalCount = Number(ticketForm.total_count);
+
+    if (!ticketForm.ticket_name.trim()) {
+      setTicketError("回数券名を入力してください。");
+      return;
+    }
+
+    if (!ticketForm.total_count || Number.isNaN(totalCount) || totalCount <= 0) {
+      setTicketError("回数は1以上で入力してください。");
+      return;
+    }
+
+    setTicketSaving(true);
+
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+
+      const payload = {
+        customer_id: customer.id,
+        customer_name: customer.name || "",
+        ticket_name: ticketForm.ticket_name.trim(),
+        service_type: ticketForm.service_type,
+        total_count: totalCount,
+        remaining_count: totalCount,
+        purchase_date: today,
+        expiry_date: ticketForm.expiry_date || null,
+        status: "有効",
+        note: ticketForm.note.trim() || null,
+      };
+
+      const { error: insertError } = await supabase
+        .from("customer_tickets")
+        .insert(payload);
+
+      if (insertError) throw insertError;
+
+      setTicketSuccess("回数券を追加しました。");
+      setTicketForm(initialTicketForm);
+      setShowTicketForm(false);
+      await loadData();
+    } catch (e: any) {
+      setTicketError(e?.message || "回数券の追加に失敗しました。");
+    } finally {
+      setTicketSaving(false);
     }
   }
 
@@ -516,13 +588,7 @@ export default function CustomerDetailPage() {
 
   if (loading) {
     return (
-      <main
-        style={{
-          ...BG_STYLE,
-          minHeight: "100vh",
-          padding: "24px 16px 80px",
-        }}
-      >
+      <main style={{ ...BG_STYLE, minHeight: "100vh", padding: "24px 16px 80px" }}>
         <div style={{ maxWidth: 1180, margin: "0 auto" }}>
           <div style={{ ...CARD_STYLE, borderRadius: 24, padding: 24 }}>
             読み込み中...
@@ -533,22 +599,9 @@ export default function CustomerDetailPage() {
   }
 
   return (
-    <main
-      style={{
-        ...BG_STYLE,
-        minHeight: "100vh",
-        padding: "24px 16px 80px",
-      }}
-    >
+    <main style={{ ...BG_STYLE, minHeight: "100vh", padding: "24px 16px 80px" }}>
       <div style={{ maxWidth: 1180, margin: "0 auto" }}>
-        <div
-          style={{
-            ...CARD_STYLE,
-            borderRadius: 24,
-            padding: 20,
-            marginBottom: 18,
-          }}
-        >
+        <div style={{ ...CARD_STYLE, borderRadius: 24, padding: 20, marginBottom: 18 }}>
           <div
             style={{
               display: "flex",
@@ -559,20 +612,8 @@ export default function CustomerDetailPage() {
             }}
           >
             <div>
-              <div
-                style={{
-                  fontSize: 12,
-                  letterSpacing: "0.12em",
-                  color: "#64748b",
-                  marginBottom: 6,
-                  fontWeight: 700,
-                }}
-              >
-                CUSTOMER DETAIL
-              </div>
-              <h1 style={{ margin: 0, fontSize: 28, color: "#0f172a" }}>
-                顧客詳細
-              </h1>
+              <div style={eyebrowStyle}>CUSTOMER DETAIL</div>
+              <h1 style={pageTitleStyle}>顧客詳細</h1>
             </div>
 
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -582,6 +623,23 @@ export default function CustomerDetailPage() {
                 style={secondaryButtonStyle}
               >
                 顧客一覧へ戻る
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTicketForm((prev) => !prev);
+                  setTicketError("");
+                  setTicketSuccess("");
+                }}
+                style={{
+                  ...buttonLinkStyle,
+                  ...BUTTON_PRIMARY_STYLE,
+                  border: "none",
+                  cursor: "pointer",
+                }}
+              >
+                ＋ 回数券追加
               </button>
 
               <Link
@@ -611,6 +669,16 @@ export default function CustomerDetailPage() {
           <div style={{ ...alertErrorStyle, marginBottom: 16 }}>{error}</div>
         ) : null}
 
+        {ticketError ? (
+          <div style={{ ...alertErrorStyle, marginBottom: 16 }}>{ticketError}</div>
+        ) : null}
+
+        {ticketSuccess ? (
+          <div style={{ ...alertSuccessStyle, marginBottom: 16 }}>
+            {ticketSuccess}
+          </div>
+        ) : null}
+
         <div style={{ display: "grid", gap: 18 }}>
           <section style={{ ...CARD_STYLE, borderRadius: 24, padding: 20 }}>
             <h2 style={sectionTitleStyle}>基本情報</h2>
@@ -629,10 +697,7 @@ export default function CustomerDetailPage() {
             <div style={{ display: "grid", gap: 14, marginTop: 16 }}>
               <TextBlock label="目標" value={customer?.goal || "未設定"} />
               <TextBlock label="メモ" value={customer?.memo || "未設定"} />
-              <TextBlock
-                label="登録日"
-                value={formatDateTime(customer?.createdAt)}
-              />
+              <TextBlock label="登録日" value={formatDateTime(customer?.createdAt)} />
             </div>
           </section>
 
@@ -693,30 +758,109 @@ export default function CustomerDetailPage() {
             )}
           </section>
 
+          {showTicketForm ? (
+            <section style={{ ...CARD_STYLE, borderRadius: 24, padding: 20 }}>
+              <h2 style={sectionTitleStyle}>回数券追加</h2>
+
+              <div style={ticketFormGridStyle}>
+                <div>
+                  <div style={historyLabelStyle}>回数券名</div>
+                  <input
+                    value={ticketForm.ticket_name}
+                    onChange={(e) => updateTicketForm("ticket_name", e.target.value)}
+                    placeholder="例：ストレッチ4回券"
+                    style={inputStyle}
+                  />
+                </div>
+
+                <div>
+                  <div style={historyLabelStyle}>サービス種別</div>
+                  <select
+                    value={ticketForm.service_type}
+                    onChange={(e) =>
+                      updateTicketForm(
+                        "service_type",
+                        e.target.value as "ストレッチ" | "トレーニング"
+                      )
+                    }
+                    style={inputStyle}
+                  >
+                    <option value="ストレッチ">ストレッチ</option>
+                    <option value="トレーニング">トレーニング</option>
+                  </select>
+                </div>
+
+                <div>
+                  <div style={historyLabelStyle}>回数</div>
+                  <input
+                    type="number"
+                    min="1"
+                    value={ticketForm.total_count}
+                    onChange={(e) => updateTicketForm("total_count", e.target.value)}
+                    placeholder="例：4"
+                    style={inputStyle}
+                  />
+                </div>
+
+                <div>
+                  <div style={historyLabelStyle}>有効期限</div>
+                  <input
+                    type="date"
+                    value={ticketForm.expiry_date}
+                    onChange={(e) => updateTicketForm("expiry_date", e.target.value)}
+                    style={inputStyle}
+                  />
+                </div>
+
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <div style={historyLabelStyle}>メモ</div>
+                  <textarea
+                    value={ticketForm.note}
+                    onChange={(e) => updateTicketForm("note", e.target.value)}
+                    placeholder="補足があれば入力"
+                    style={textareaStyle}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 16 }}>
+                <button
+                  type="button"
+                  onClick={handleSaveTicket}
+                  disabled={ticketSaving}
+                  style={{
+                    ...buttonLinkStyle,
+                    ...BUTTON_PRIMARY_STYLE,
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  {ticketSaving ? "保存中..." : "回数券を保存"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowTicketForm(false);
+                    setTicketForm(initialTicketForm);
+                    setTicketError("");
+                  }}
+                  style={secondaryButtonStyle}
+                >
+                  キャンセル
+                </button>
+              </div>
+            </section>
+          ) : null}
+
           <section style={{ ...CARD_STYLE, borderRadius: 24, padding: 20 }}>
             <h2 style={sectionTitleStyle}>KPI</h2>
 
             <div style={metricsGridStyle}>
-              <MetricCard
-                label="来店回数"
-                value={`${visitCount}回`}
-                sub="training_sessions件数"
-              />
-              <MetricCard
-                label="LTV"
-                value={`¥${ltv.toLocaleString()}`}
-                sub={`${sales.length}件の売上`}
-              />
-              <MetricCard
-                label="回数券残数"
-                value={`${remainingTickets}回`}
-                sub={`${tickets.length}件の回数券`}
-              />
-              <MetricCard
-                label="有効回数券"
-                value={`${activeTickets.length}件`}
-                sub="現在利用可能"
-              />
+              <MetricCard label="来店回数" value={`${visitCount}回`} sub="training_sessions件数" />
+              <MetricCard label="LTV" value={`¥${ltv.toLocaleString()}`} sub={`${sales.length}件の売上`} />
+              <MetricCard label="回数券残数" value={`${remainingTickets}回`} sub={`${tickets.length}件の回数券`} />
+              <MetricCard label="有効回数券" value={`${activeTickets.length}件`} sub="現在利用可能" />
             </div>
           </section>
 
@@ -782,12 +926,10 @@ export default function CustomerDetailPage() {
                             サービス種別 {ticket.service_type || "—"}
                           </div>
                           <div style={historySubStyle}>
-                            残数 {Number(ticket.remaining_count || 0)} /{" "}
-                            {Number(ticket.total_count || 0)}
+                            残数 {Number(ticket.remaining_count || 0)} / {Number(ticket.total_count || 0)}
                           </div>
                           <div style={historySubStyle}>
-                            購入日 {formatDate(ticket.purchase_date)} / 有効期限{" "}
-                            {formatDate(ticket.expiry_date)}
+                            購入日 {formatDate(ticket.purchase_date)} / 有効期限 {formatDate(ticket.expiry_date)}
                           </div>
                           <div style={historySubStyle}>
                             メモ {ticket.note || "—"}
@@ -808,49 +950,29 @@ export default function CustomerDetailPage() {
               <MetricCard
                 label="身長"
                 value={formatMetric(latestSession?.body_height, "cm")}
-                sub={
-                  latestSession?.session_date
-                    ? `最新日: ${formatDate(latestSession.session_date)}`
-                    : "未登録"
-                }
+                sub={latestSession?.session_date ? `最新日: ${formatDate(latestSession.session_date)}` : "未登録"}
               />
               <MetricCard
                 label="体重"
                 value={formatMetric(latestSession?.body_weight, "kg")}
-                sub={
-                  weightDiff !== null
-                    ? `前回比 ${diffLabel(weightDiff, "kg")}`
-                    : "比較データなし"
-                }
+                sub={weightDiff !== null ? `前回比 ${diffLabel(weightDiff, "kg")}` : "比較データなし"}
                 subColor={diffColor(weightDiff)}
               />
               <MetricCard
                 label="体脂肪"
                 value={formatMetric(latestSession?.body_fat, "%")}
-                sub={
-                  latestSession?.session_date
-                    ? `更新日: ${formatDate(latestSession.session_date)}`
-                    : "未登録"
-                }
+                sub={latestSession?.session_date ? `更新日: ${formatDate(latestSession.session_date)}` : "未登録"}
               />
               <MetricCard
                 label="筋肉量"
                 value={formatMetric(latestSession?.muscle_mass, "kg")}
-                sub={
-                  muscleDiff !== null
-                    ? `前回比 ${diffLabel(muscleDiff, "kg")}`
-                    : "比較データなし"
-                }
+                sub={muscleDiff !== null ? `前回比 ${diffLabel(muscleDiff, "kg")}` : "比較データなし"}
                 subColor={diffColor(muscleDiff)}
               />
               <MetricCard
                 label="内臓脂肪"
                 value={formatMetric(latestSession?.visceral_fat)}
-                sub={
-                  latestSession?.session_date
-                    ? `更新日: ${formatDate(latestSession.session_date)}`
-                    : "未登録"
-                }
+                sub={latestSession?.session_date ? `更新日: ${formatDate(latestSession.session_date)}` : "未登録"}
               />
               <MetricCard
                 label="履歴件数"
@@ -860,18 +982,9 @@ export default function CustomerDetailPage() {
             </div>
 
             <div style={{ display: "grid", gap: 14, marginTop: 18 }}>
-              <TextBlock
-                label="最新総評"
-                value={latestSession?.summary || "未登録"}
-              />
-              <TextBlock
-                label="最新の次回課題"
-                value={latestSession?.next_task || "未登録"}
-              />
-              <TextBlock
-                label="最新の姿勢メモ"
-                value={latestSession?.posture_note || "未登録"}
-              />
+              <TextBlock label="最新総評" value={latestSession?.summary || "未登録"} />
+              <TextBlock label="最新の次回課題" value={latestSession?.next_task || "未登録"} />
+              <TextBlock label="最新の姿勢メモ" value={latestSession?.posture_note || "未登録"} />
             </div>
           </section>
 
@@ -934,17 +1047,12 @@ export default function CustomerDetailPage() {
                         }}
                       >
                         <div>
-                          <div style={historyDateStyle}>
-                            {formatDate(session.session_date)}
+                          <div style={historyDateStyle}>{formatDate(session.session_date)}</div>
+                          <div style={historySubStyle}>
+                            体重 {formatMetric(session.body_weight, "kg")} / 筋肉量 {formatMetric(session.muscle_mass, "kg")} / 体脂肪 {formatMetric(session.body_fat, "%")}
                           </div>
                           <div style={historySubStyle}>
-                            体重 {formatMetric(session.body_weight, "kg")} / 筋肉量{" "}
-                            {formatMetric(session.muscle_mass, "kg")} / 体脂肪{" "}
-                            {formatMetric(session.body_fat, "%")}
-                          </div>
-                          <div style={historySubStyle}>
-                            内臓脂肪 {formatMetric(session.visceral_fat)} / 身長{" "}
-                            {formatMetric(session.body_height, "cm")}
+                            内臓脂肪 {formatMetric(session.visceral_fat)} / 身長 {formatMetric(session.body_height, "cm")}
                           </div>
                         </div>
 
@@ -1061,19 +1169,12 @@ function ChartSection({
         <div style={emptyBoxStyle}>{emptyLabel}</div>
       ) : sessions.length === 1 ? (
         <div style={singleChartBoxStyle}>
-          <div style={singleChartValueStyle}>
-            {formatMetric(values[0], unit)}
-          </div>
-          <div style={singleChartDateStyle}>
-            {formatDate(sessions[0].session_date)}
-          </div>
+          <div style={singleChartValueStyle}>{formatMetric(values[0], unit)}</div>
+          <div style={singleChartDateStyle}>{formatDate(sessions[0].session_date)}</div>
         </div>
       ) : (
         <div style={chartWrapStyle}>
-          <svg
-            viewBox="0 0 560 220"
-            style={{ width: "100%", height: "auto", display: "block" }}
-          >
+          <svg viewBox="0 0 560 220" style={{ width: "100%", height: "auto", display: "block" }}>
             <defs>
               <linearGradient id={lineId} x1="0" y1="0" x2="1" y2="0">
                 <stop offset="0%" stopColor={startColor} />
@@ -1143,6 +1244,21 @@ function ChartSection({
   );
 }
 
+const pageTitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 28,
+  fontWeight: 900,
+  color: "#0f172a",
+};
+
+const eyebrowStyle: CSSProperties = {
+  fontSize: 12,
+  letterSpacing: "0.12em",
+  color: "#64748b",
+  marginBottom: 6,
+  fontWeight: 700,
+};
+
 const sectionTitleStyle: CSSProperties = {
   margin: "0 0 16px",
   fontSize: 20,
@@ -1196,6 +1312,16 @@ const alertErrorStyle: CSSProperties = {
   background: "rgba(254,242,242,0.98)",
   border: "1px solid rgba(239,68,68,0.22)",
   color: "#b91c1c",
+  fontSize: 14,
+  fontWeight: 700,
+};
+
+const alertSuccessStyle: CSSProperties = {
+  padding: "14px 16px",
+  borderRadius: 16,
+  background: "rgba(240,253,244,0.98)",
+  border: "1px solid rgba(22,163,74,0.22)",
+  color: "#15803d",
   fontSize: 14,
   fontWeight: 700,
 };
@@ -1276,6 +1402,7 @@ const metricValueSmallStyle: CSSProperties = {
 const metricSubStyle: CSSProperties = {
   fontSize: 13,
   fontWeight: 700,
+  color: "#64748b",
 };
 
 const counselingNoteStyle: CSSProperties = {
@@ -1377,4 +1504,35 @@ const ticketBadgeStyle: CSSProperties = {
   borderRadius: 999,
   fontSize: 12,
   fontWeight: 800,
+};
+
+const ticketFormGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: 14,
+};
+
+const inputStyle: CSSProperties = {
+  width: "100%",
+  minHeight: 46,
+  padding: "0 14px",
+  borderRadius: 14,
+  border: "1px solid rgba(203,213,225,0.95)",
+  background: "rgba(255,255,255,0.92)",
+  color: "#0f172a",
+  fontSize: 14,
+  outline: "none",
+};
+
+const textareaStyle: CSSProperties = {
+  width: "100%",
+  minHeight: 120,
+  padding: "12px 14px",
+  borderRadius: 14,
+  border: "1px solid rgba(203,213,225,0.95)",
+  background: "rgba(255,255,255,0.92)",
+  color: "#0f172a",
+  fontSize: 14,
+  outline: "none",
+  resize: "vertical",
 };
