@@ -64,6 +64,42 @@ type CustomerTicketRow = {
   created_at?: string | null;
 };
 
+type CounselingSheetRow = {
+  id?: string;
+  customer_id: string;
+  furigana?: string | null;
+  full_name?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_relation?: string | null;
+  occupation?: string | null;
+  referral_sources?: string[] | null;
+  referral_source_other?: string | null;
+  visit_purposes?: string[] | null;
+  visit_purpose_other?: string | null;
+  symptoms?: string[] | null;
+  symptom_other?: string | null;
+  body_areas?: string[] | null;
+  concern_since?: string | null;
+  preferred_pressure?: string | null;
+  session_preferences?: string[] | null;
+  session_preference_other?: string | null;
+  medical_histories?: string[] | null;
+  medical_history_other?: string | null;
+  major_history_status?: string | null;
+  major_history_details?: string | null;
+  surgery_history_status?: string | null;
+  surgery_history_details?: string | null;
+  pacemaker_status?: string | null;
+  pregnancy_status?: string | null;
+  pregnancy_months?: string | null;
+  breastfeeding_status?: string | null;
+  notes?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
 type NormalizedCustomer = {
   id: string;
   name: string;
@@ -78,22 +114,6 @@ type NormalizedCustomer = {
   memo: string;
   createdAt: string;
   updatedAt: string;
-};
-
-type TicketForm = {
-  ticket_name: string;
-  service_type: "ストレッチ" | "トレーニング";
-  total_count: string;
-  expiry_date: string;
-  note: string;
-};
-
-const initialTicketForm: TicketForm = {
-  ticket_name: "",
-  service_type: "ストレッチ",
-  total_count: "",
-  expiry_date: "",
-  note: "",
 };
 
 const supabase =
@@ -187,9 +207,7 @@ function diffColor(value: number | null) {
 
 function buildChartPoints(values: number[], width: number, height: number) {
   if (values.length === 0) return "";
-  if (values.length === 1) {
-    return `${width / 2},${height / 2}`;
-  }
+  if (values.length === 1) return `${width / 2},${height / 2}`;
 
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -254,6 +272,45 @@ function ticketStatusStyle(status: string): CSSProperties {
   }
 }
 
+function summarizeCounseling(sheet: CounselingSheetRow | null) {
+  if (!sheet) {
+    return {
+      purposes: "未登録",
+      symptoms: "未登録",
+      bodyAreas: "未登録",
+      occupation: "未登録",
+      notes: "未登録",
+      updatedAt: "—",
+    };
+  }
+
+  const purposes =
+    sheet.visit_purposes && sheet.visit_purposes.length > 0
+      ? sheet.visit_purposes.slice(0, 3).join(" / ")
+      : "未登録";
+
+  const symptoms =
+    sheet.symptoms && sheet.symptoms.length > 0
+      ? sheet.symptoms.slice(0, 3).join(" / ")
+      : "未登録";
+
+  const bodyAreas =
+    sheet.body_areas && sheet.body_areas.length > 0
+      ? sheet.body_areas.slice(0, 4).join(" / ")
+      : "未登録";
+
+  const notes = sheet.notes?.trim() ? sheet.notes : "未登録";
+
+  return {
+    purposes,
+    symptoms,
+    bodyAreas,
+    occupation: sheet.occupation || "未登録",
+    notes,
+    updatedAt: formatDateTime(sheet.updated_at || sheet.created_at),
+  };
+}
+
 export default function CustomerDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -269,12 +326,7 @@ export default function CustomerDetailPage() {
   const [sessions, setSessions] = useState<TrainingSessionRow[]>([]);
   const [sales, setSales] = useState<SaleRow[]>([]);
   const [tickets, setTickets] = useState<CustomerTicketRow[]>([]);
-
-  const [showTicketForm, setShowTicketForm] = useState(false);
-  const [ticketForm, setTicketForm] = useState<TicketForm>(initialTicketForm);
-  const [ticketSaving, setTicketSaving] = useState(false);
-  const [ticketError, setTicketError] = useState("");
-  const [ticketSuccess, setTicketSuccess] = useState("");
+  const [counselingSheet, setCounselingSheet] = useState<CounselingSheetRow | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -312,10 +364,15 @@ export default function CustomerDetailPage() {
       setLoading(true);
       setError("");
 
+      const numericCustomerId = Number(customerId);
+      const customerIdForQuery = Number.isNaN(numericCustomerId)
+        ? customerId
+        : numericCustomerId;
+
       const { data: customerData, error: customerError } = await supabase
         .from("customers")
         .select("*")
-        .eq("id", customerId)
+        .eq("id", customerIdForQuery)
         .single();
 
       if (customerError) throw customerError;
@@ -366,74 +423,25 @@ export default function CustomerDetailPage() {
         console.warn("customer_tickets取得エラー:", ticketError.message);
       }
 
+      const { data: counselingData, error: counselingError } = await supabase
+        .from("counseling_sheets")
+        .select("*")
+        .eq("customer_id", String(customerId))
+        .maybeSingle();
+
+      if (counselingError && counselingError.code !== "PGRST116") {
+        console.warn("counseling_sheets取得エラー:", counselingError.message);
+      }
+
       setCustomer(normalizeCustomer(customerData as CustomerRow));
       setSessions((sessionData as TrainingSessionRow[]) || []);
       setSales((salesData as SaleRow[]) || []);
       setTickets((ticketData as CustomerTicketRow[]) || []);
+      setCounselingSheet((counselingData as CounselingSheetRow) || null);
     } catch (e: any) {
       setError(e?.message || "データ取得に失敗しました。");
     } finally {
       setLoading(false);
-    }
-  }
-
-  function updateTicketForm<K extends keyof TicketForm>(
-    key: K,
-    value: TicketForm[K]
-  ) {
-    setTicketForm((prev) => ({ ...prev, [key]: value }));
-  }
-
-  async function handleSaveTicket() {
-    if (!supabase || !customer) return;
-
-    setTicketError("");
-    setTicketSuccess("");
-
-    const totalCount = Number(ticketForm.total_count);
-
-    if (!ticketForm.ticket_name.trim()) {
-      setTicketError("回数券名を入力してください。");
-      return;
-    }
-
-    if (!ticketForm.total_count || Number.isNaN(totalCount) || totalCount <= 0) {
-      setTicketError("回数は1以上で入力してください。");
-      return;
-    }
-
-    setTicketSaving(true);
-
-    try {
-      const today = new Date().toISOString().slice(0, 10);
-
-      const payload = {
-        customer_id: customer.id,
-        customer_name: customer.name || "",
-        ticket_name: ticketForm.ticket_name.trim(),
-        service_type: ticketForm.service_type,
-        total_count: totalCount,
-        remaining_count: totalCount,
-        purchase_date: today,
-        expiry_date: ticketForm.expiry_date || null,
-        status: "有効",
-        note: ticketForm.note.trim() || null,
-      };
-
-      const { error: insertError } = await supabase
-        .from("customer_tickets")
-        .insert(payload);
-
-      if (insertError) throw insertError;
-
-      setTicketSuccess("回数券を追加しました。");
-      setTicketForm(initialTicketForm);
-      setShowTicketForm(false);
-      await loadData();
-    } catch (e: any) {
-      setTicketError(e?.message || "回数券の追加に失敗しました。");
-    } finally {
-      setTicketSaving(false);
     }
   }
 
@@ -501,6 +509,8 @@ export default function CustomerDetailPage() {
 
   const weightChartPoints = buildChartPoints(weightValues, 520, 180);
   const bodyFatChartPoints = buildChartPoints(bodyFatValues, 520, 180);
+
+  const counselingSummary = summarizeCounseling(counselingSheet);
 
   if (!mounted) return null;
 
@@ -574,22 +584,15 @@ export default function CustomerDetailPage() {
                 顧客一覧へ戻る
               </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setShowTicketForm((prev) => !prev);
-                  setTicketError("");
-                  setTicketSuccess("");
-                }}
+              <Link
+                href={`/customer/${customerId}/counseling`}
                 style={{
                   ...buttonLinkStyle,
                   ...BUTTON_PRIMARY_STYLE,
-                  border: "none",
-                  cursor: "pointer",
                 }}
               >
-                ＋ 回数券追加
-              </button>
+                カウンセリングシート
+              </Link>
 
               <Link
                 href={`/customer/${customerId}/training`}
@@ -606,16 +609,6 @@ export default function CustomerDetailPage() {
 
         {error ? (
           <div style={{ ...alertErrorStyle, marginBottom: 16 }}>{error}</div>
-        ) : null}
-
-        {ticketError ? (
-          <div style={{ ...alertErrorStyle, marginBottom: 16 }}>{ticketError}</div>
-        ) : null}
-
-        {ticketSuccess ? (
-          <div style={{ ...alertSuccessStyle, marginBottom: 16 }}>
-            {ticketSuccess}
-          </div>
         ) : null}
 
         <div style={{ display: "grid", gap: 18 }}>
@@ -643,113 +636,62 @@ export default function CustomerDetailPage() {
             </div>
           </section>
 
-          {showTicketForm ? (
-            <section style={{ ...CARD_STYLE, borderRadius: 24, padding: 20 }}>
-              <h2 style={sectionTitleStyle}>回数券追加</h2>
+          <section style={{ ...CARD_STYLE, borderRadius: 24, padding: 20 }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+                flexWrap: "wrap",
+                marginBottom: 16,
+              }}
+            >
+              <h2 style={sectionTitleStyle}>カウンセリング要約</h2>
 
-              <div style={ticketFormGridStyle}>
-                <div>
-                  <div style={historyLabelStyle}>回数券名</div>
-                  <input
-                    value={ticketForm.ticket_name}
-                    onChange={(e) =>
-                      updateTicketForm("ticket_name", e.target.value)
-                    }
-                    placeholder="例：ストレッチ4回券"
-                    style={inputStyle}
-                  />
-                </div>
-
-                <div>
-                  <div style={historyLabelStyle}>サービス種別</div>
-                  <select
-                    value={ticketForm.service_type}
-                    onChange={(e) =>
-                      updateTicketForm(
-                        "service_type",
-                        e.target.value as "ストレッチ" | "トレーニング"
-                      )
-                    }
-                    style={inputStyle}
-                  >
-                    <option value="ストレッチ">ストレッチ</option>
-                    <option value="トレーニング">トレーニング</option>
-                  </select>
-                </div>
-
-                <div>
-                  <div style={historyLabelStyle}>回数</div>
-                  <input
-                    type="number"
-                    min="1"
-                    value={ticketForm.total_count}
-                    onChange={(e) =>
-                      updateTicketForm("total_count", e.target.value)
-                    }
-                    placeholder="例：4"
-                    style={inputStyle}
-                  />
-                </div>
-
-                <div>
-                  <div style={historyLabelStyle}>有効期限</div>
-                  <input
-                    type="date"
-                    value={ticketForm.expiry_date}
-                    onChange={(e) =>
-                      updateTicketForm("expiry_date", e.target.value)
-                    }
-                    style={inputStyle}
-                  />
-                </div>
-
-                <div style={{ gridColumn: "1 / -1" }}>
-                  <div style={historyLabelStyle}>メモ</div>
-                  <textarea
-                    value={ticketForm.note}
-                    onChange={(e) => updateTicketForm("note", e.target.value)}
-                    placeholder="補足があれば入力"
-                    style={textareaStyle}
-                  />
-                </div>
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  flexWrap: "wrap",
-                  marginTop: 16,
-                }}
+              <Link
+                href={`/customer/${customerId}/counseling`}
+                style={miniButtonLinkStyle}
               >
-                <button
-                  type="button"
-                  onClick={handleSaveTicket}
-                  disabled={ticketSaving}
-                  style={{
-                    ...buttonLinkStyle,
-                    ...BUTTON_PRIMARY_STYLE,
-                    border: "none",
-                    cursor: "pointer",
-                  }}
-                >
-                  {ticketSaving ? "保存中..." : "回数券を保存"}
-                </button>
+                {counselingSheet ? "詳細を見る / 編集" : "新規入力"}
+              </Link>
+            </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowTicketForm(false);
-                    setTicketForm(initialTicketForm);
-                    setTicketError("");
-                  }}
-                  style={secondaryButtonStyle}
-                >
-                  キャンセル
-                </button>
+            {!counselingSheet ? (
+              <div style={emptyBoxStyle}>まだカウンセリングシートは登録されていません。</div>
+            ) : (
+              <div style={counselingSummaryGridStyle}>
+                <div style={metricCardStyle}>
+                  <div style={metricLabelStyle}>職業</div>
+                  <div style={metricValueSmallStyle}>{counselingSummary.occupation}</div>
+                  <div style={metricSubStyle}>最終更新 {counselingSummary.updatedAt}</div>
+                </div>
+
+                <div style={metricCardStyle}>
+                  <div style={metricLabelStyle}>来店目的</div>
+                  <div style={metricValueSmallStyle}>{counselingSummary.purposes}</div>
+                  <div style={metricSubStyle}>visit_purposes</div>
+                </div>
+
+                <div style={metricCardStyle}>
+                  <div style={metricLabelStyle}>主な症状</div>
+                  <div style={metricValueSmallStyle}>{counselingSummary.symptoms}</div>
+                  <div style={metricSubStyle}>symptoms</div>
+                </div>
+
+                <div style={metricCardStyle}>
+                  <div style={metricLabelStyle}>気になる部位</div>
+                  <div style={metricValueSmallStyle}>{counselingSummary.bodyAreas}</div>
+                  <div style={metricSubStyle}>body_areas</div>
+                </div>
+
+                <div style={{ ...metricCardStyle, gridColumn: "1 / -1" }}>
+                  <div style={metricLabelStyle}>メモ・配慮事項</div>
+                  <div style={counselingNoteStyle}>{counselingSummary.notes}</div>
+                </div>
               </div>
-            </section>
-          ) : null}
+            )}
+          </section>
 
           <section style={{ ...CARD_STYLE, borderRadius: 24, padding: 20 }}>
             <h2 style={sectionTitleStyle}>KPI</h2>
@@ -1258,16 +1200,6 @@ const alertErrorStyle: CSSProperties = {
   fontWeight: 700,
 };
 
-const alertSuccessStyle: CSSProperties = {
-  padding: "14px 16px",
-  borderRadius: 16,
-  background: "rgba(240,253,244,0.98)",
-  border: "1px solid rgba(22,163,74,0.22)",
-  color: "#15803d",
-  fontSize: 14,
-  fontWeight: 700,
-};
-
 const infoGridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
@@ -1302,6 +1234,12 @@ const metricsGridStyle: CSSProperties = {
   gap: 12,
 };
 
+const counselingSummaryGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: 12,
+};
+
 const metricCardStyle: CSSProperties = {
   padding: "16px 16px 14px",
   borderRadius: 18,
@@ -1326,9 +1264,26 @@ const metricValueStyle: CSSProperties = {
   marginBottom: 8,
 };
 
+const metricValueSmallStyle: CSSProperties = {
+  fontSize: 16,
+  fontWeight: 800,
+  color: "#0f172a",
+  lineHeight: 1.5,
+  marginBottom: 8,
+  wordBreak: "break-word",
+};
+
 const metricSubStyle: CSSProperties = {
   fontSize: 13,
   fontWeight: 700,
+};
+
+const counselingNoteStyle: CSSProperties = {
+  fontSize: 14,
+  color: "#334155",
+  lineHeight: 1.8,
+  whiteSpace: "pre-wrap",
+  wordBreak: "break-word",
 };
 
 const textBlockStyle: CSSProperties = {
@@ -1422,35 +1377,4 @@ const ticketBadgeStyle: CSSProperties = {
   borderRadius: 999,
   fontSize: 12,
   fontWeight: 800,
-};
-
-const ticketFormGridStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: 14,
-};
-
-const inputStyle: CSSProperties = {
-  width: "100%",
-  minHeight: 46,
-  padding: "0 14px",
-  borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.95)",
-  background: "rgba(255,255,255,0.92)",
-  color: "#0f172a",
-  fontSize: 14,
-  outline: "none",
-};
-
-const textareaStyle: CSSProperties = {
-  width: "100%",
-  minHeight: 120,
-  padding: "12px 14px",
-  borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.95)",
-  background: "rgba(255,255,255,0.92)",
-  color: "#0f172a",
-  fontSize: 14,
-  outline: "none",
-  resize: "vertical",
 };
