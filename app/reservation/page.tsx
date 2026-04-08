@@ -83,7 +83,6 @@ const MENU_OPTIONS = [
 ];
 
 const PAYMENT_OPTIONS = ["現金", "カード", "銀行振込", "その他"];
-
 const WEEK_LABELS = ["月", "火", "水", "木", "金", "土", "日"];
 
 function trimmed(value: unknown): string {
@@ -108,6 +107,7 @@ function formatMonthTitle(date: Date) {
 
 function formatJapaneseDate(dateStr: string) {
   const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return dateStr;
   const week = ["日", "月", "火", "水", "木", "金", "土"];
   return `${date.getMonth() + 1}月${date.getDate()}日 ${week[date.getDay()]}曜日`;
 }
@@ -223,6 +223,7 @@ export default function ReservationPage() {
   const [selectedDate, setSelectedDate] = useState(toYmd(new Date()));
   const [daySheetOpen, setDaySheetOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
+  const [counselingPickerOpen, setCounselingPickerOpen] = useState(false);
 
   const [reservations, setReservations] = useState<ReservationRow[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
@@ -261,7 +262,7 @@ export default function ReservationPage() {
     }
 
     void loadAll();
-  }, [mounted]);
+  }, [mounted, router]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -378,6 +379,15 @@ export default function ReservationPage() {
   const selectedDayReservations = useMemo(() => {
     return [...(reservationsByDate.get(selectedDate) || [])].sort(sortReservations);
   }, [reservationsByDate, selectedDate]);
+
+  const counselingCandidates = useMemo(() => {
+    return selectedDayReservations.filter(
+      (item) =>
+        item.customer_id !== null &&
+        item.customer_id !== undefined &&
+        String(item.customer_id) !== ""
+    );
+  }, [selectedDayReservations]);
 
   function openDay(dateStr: string) {
     setSelectedDate(dateStr);
@@ -565,15 +575,26 @@ export default function ReservationPage() {
     );
   }
 
-  function handleTopCounseling() {
-    const firstReservation = selectedDayReservations[0];
+  function handleOpenCounselingPicker() {
+    setError("");
+    setSuccess("");
 
-    if (!firstReservation?.customer_id) {
+    if (counselingCandidates.length === 0) {
       setError("この日に顧客付き予約がありません。日付を選ぶか予約を確認してください。");
       return;
     }
 
-    router.push(`/customer/${firstReservation.customer_id}/counseling`);
+    setCounselingPickerOpen(true);
+  }
+
+  function handleGoCounseling(item: ReservationRow) {
+    if (!item.customer_id) {
+      setError("この予約に customer_id がありません。");
+      return;
+    }
+
+    setCounselingPickerOpen(false);
+    router.push(`/customer/${item.customer_id}/counseling?reservationId=${item.id}`);
   }
 
   if (!mounted) return null;
@@ -596,7 +617,7 @@ export default function ReservationPage() {
             <div style={styles.topRightBtns}>
               <button
                 type="button"
-                onClick={handleTopCounseling}
+                onClick={handleOpenCounselingPicker}
                 style={styles.counselingTopBtn}
               >
                 カウンセリング
@@ -743,17 +764,12 @@ export default function ReservationPage() {
 
         {daySheetOpen ? (
           <div style={styles.sheetOverlay} onClick={() => setDaySheetOpen(false)}>
-            <div
-              style={styles.sheet}
-              onClick={(e) => e.stopPropagation()}
-            >
+            <div style={styles.sheet} onClick={(e) => e.stopPropagation()}>
               <div style={styles.sheetHandle} />
               <div style={styles.sheetHeader}>
                 <div>
                   <div style={styles.sheetDate}>{formatJapaneseDate(selectedDate)}</div>
-                  <div style={styles.sheetCount}>
-                    {selectedDayReservations.length}件
-                  </div>
+                  <div style={styles.sheetCount}>{selectedDayReservations.length}件</div>
                 </div>
 
                 <div style={styles.sheetHeaderBtns}>
@@ -797,6 +813,7 @@ export default function ReservationPage() {
                           <div style={styles.dayEventTitle}>
                             {trimmed(item.customer_name) || "予定"}
                           </div>
+
                           <div
                             style={{
                               ...styles.staffMiniBadge,
@@ -833,10 +850,7 @@ export default function ReservationPage() {
 
         {formOpen ? (
           <div style={styles.sheetOverlay} onClick={() => setFormOpen(false)}>
-            <div
-              style={styles.formModal}
-              onClick={(e) => e.stopPropagation()}
-            >
+            <div style={styles.formModal} onClick={(e) => e.stopPropagation()}>
               <div style={styles.sheetHandle} />
 
               <div style={styles.formHeader}>
@@ -1040,6 +1054,76 @@ export default function ReservationPage() {
                 >
                   {saving ? "保存中..." : "予約を保存"}
                 </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {counselingPickerOpen ? (
+          <div
+            style={styles.sheetOverlay}
+            onClick={() => setCounselingPickerOpen(false)}
+          >
+            <div
+              style={styles.counselingPickerModal}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={styles.sheetHandle} />
+
+              <div style={styles.formHeader}>
+                <div style={styles.formTitle}>カウンセリング対象を選択</div>
+                <button
+                  type="button"
+                  onClick={() => setCounselingPickerOpen(false)}
+                  style={styles.closeBtn}
+                >
+                  ×
+                </button>
+              </div>
+
+              <div style={styles.counselingPickerBody}>
+                <div style={styles.counselingPickerHelp}>
+                  {formatJapaneseDate(selectedDate)} の予約から選んでください
+                </div>
+
+                {counselingCandidates.length === 0 ? (
+                  <div style={styles.emptyText}>対象の顧客付き予約がありません。</div>
+                ) : (
+                  <div style={styles.counselingCandidateList}>
+                    {counselingCandidates.map((item) => (
+                      <button
+                        key={String(item.id)}
+                        type="button"
+                        onClick={() => handleGoCounseling(item)}
+                        style={styles.counselingCandidateButton}
+                      >
+                        <div style={styles.counselingCandidateTop}>
+                          <div style={styles.counselingCandidateName}>
+                            {trimmed(item.customer_name) || "顧客名未設定"}
+                          </div>
+                          <div
+                            style={{
+                              ...styles.staffMiniBadge,
+                              borderColor: getStaffColor(item.staff_name),
+                              color: getStaffColor(item.staff_name),
+                            }}
+                          >
+                            {trimmed(item.staff_name) || "その他"}
+                          </div>
+                        </div>
+
+                        <div style={styles.counselingCandidateSub}>
+                          {trimmed(item.start_time) || "—"}〜{trimmed(item.end_time) || "—"} /{" "}
+                          {trimmed(item.menu) || "—"}
+                        </div>
+
+                        <div style={styles.counselingCandidateSub}>
+                          店舗 {trimmed(item.store_name) || "—"}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1307,6 +1391,16 @@ const styles: Record<string, CSSProperties> = {
     maxHeight: "90vh",
     overflow: "hidden",
   },
+  counselingPickerModal: {
+    width: "100%",
+    maxWidth: 430,
+    background: "#fff",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: "10px 0 20px",
+    maxHeight: "88vh",
+    overflow: "hidden",
+  },
   sheetHandle: {
     width: 56,
     height: 6,
@@ -1539,6 +1633,55 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 800,
     cursor: "pointer",
     marginTop: 4,
+  },
+  counselingPickerBody: {
+    overflowY: "auto",
+    maxHeight: "calc(88vh - 68px)",
+    padding: "0 18px 10px",
+    display: "grid",
+    gap: 12,
+  },
+  counselingPickerHelp: {
+    fontSize: 12,
+    lineHeight: 1.6,
+    color: "#64748b",
+    fontWeight: 700,
+    background: "#f8fafc",
+    borderRadius: 12,
+    padding: "10px 12px",
+  },
+  counselingCandidateList: {
+    display: "grid",
+    gap: 10,
+  },
+  counselingCandidateButton: {
+    width: "100%",
+    textAlign: "left",
+    border: "1px solid #e5e7eb",
+    background: "#fff",
+    borderRadius: 16,
+    padding: "12px 12px",
+    cursor: "pointer",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
+  },
+  counselingCandidateTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 8,
+    marginBottom: 6,
+  },
+  counselingCandidateName: {
+    fontSize: 15,
+    fontWeight: 900,
+    color: "#111827",
+    lineHeight: 1.3,
+  },
+  counselingCandidateSub: {
+    fontSize: 12,
+    color: "#6b7280",
+    lineHeight: 1.6,
+    fontWeight: 700,
   },
   errorBox: {
     margin: "8px 12px 0",
