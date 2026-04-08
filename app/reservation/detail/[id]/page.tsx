@@ -305,17 +305,9 @@ export default function ReservationDetailPage() {
   const reservationStatusList = useMemo(() => {
     const result: string[] = [];
 
-    if (sales.length > 0) {
-      result.push("売上登録済み");
-    }
-
-    if (usages.length > 0) {
-      result.push("回数券消化済み");
-    }
-
-    if (result.length === 0) {
-      result.push("未処理");
-    }
+    if (sales.length > 0) result.push("売上登録済み");
+    if (usages.length > 0) result.push("回数券消化済み");
+    if (result.length === 0) result.push("未処理");
 
     return result;
   }, [sales, usages]);
@@ -324,8 +316,15 @@ export default function ReservationDetailPage() {
     return tickets.filter((ticket) => calcTicketStatus(ticket) === "有効");
   }, [tickets]);
 
+  const isAlreadyConsumed = usages.length > 0;
+
   async function handleConsumeTicket() {
     if (!supabase || !reservation) return;
+
+    if (isAlreadyConsumed) {
+      setError("この予約はすでに回数券消化済みです。");
+      return;
+    }
 
     if (!selectedTicketId) {
       setError("消化する回数券を選択してください。");
@@ -478,19 +477,21 @@ export default function ReservationDetailPage() {
               </Link>
             ) : null}
 
-            <button
-              type="button"
-              onClick={() => {
-                setError("");
-                setSuccess("");
-                setSelectedTicketId("");
-                setShowConsumeModal(true);
-              }}
-              style={styles.consumeButton}
-              disabled={!reservation?.customer_id}
-            >
-              回数券消化
-            </button>
+            {!isAlreadyConsumed ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setError("");
+                  setSuccess("");
+                  setSelectedTicketId("");
+                  setShowConsumeModal(true);
+                }}
+                style={styles.consumeButton}
+                disabled={!reservation?.customer_id || availableTickets.length === 0}
+              >
+                回数券消化
+              </button>
+            ) : null}
           </div>
         </section>
 
