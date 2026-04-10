@@ -790,57 +790,66 @@ export default function ReservationPage() {
                   <div style={styles.emptyText}>この日の予定はまだありません。</div>
                 ) : (
                   selectedDayReservations.map((item) => (
-                    <button
-                      key={String(item.id)}
-                      type="button"
-                      onClick={() => router.push(`/reservation/detail/${item.id}`)}
-                      style={styles.dayEventRow}
-                    >
-                      <div style={styles.timeCol}>
-                        <div style={styles.timeMain}>{trimmed(item.start_time) || "—"}</div>
-                        <div style={styles.timeSub}>{trimmed(item.end_time) || "—"}</div>
-                      </div>
+                    <div key={String(item.id)} style={styles.dayEventCardWrap}>
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/reservation/detail/${item.id}`)}
+                        style={styles.dayEventRow}
+                      >
+                        <div style={styles.timeCol}>
+                          <div style={styles.timeMain}>{trimmed(item.start_time) || "—"}</div>
+                          <div style={styles.timeSub}>{trimmed(item.end_time) || "—"}</div>
+                        </div>
 
-                      <div
-                        style={{
-                          ...styles.colorBar,
-                          background: getStaffColor(item.staff_name),
-                        }}
-                      />
+                        <div
+                          style={{
+                            ...styles.colorBar,
+                            background: getStaffColor(item.staff_name),
+                          }}
+                        />
 
-                      <div style={styles.dayEventMain}>
-                        <div style={styles.dayEventTopLine}>
-                          <div style={styles.dayEventTitle}>
-                            {trimmed(item.customer_name) || "予定"}
+                        <div style={styles.dayEventMain}>
+                          <div style={styles.dayEventTopLine}>
+                            <div style={styles.dayEventTitle}>
+                              {trimmed(item.customer_name) || "予定"}
+                            </div>
+
+                            <div
+                              style={{
+                                ...styles.staffMiniBadge,
+                                borderColor: getStaffColor(item.staff_name),
+                                color: getStaffColor(item.staff_name),
+                              }}
+                            >
+                              {trimmed(item.staff_name) || "その他"}
+                            </div>
                           </div>
 
-                          <div
-                            style={{
-                              ...styles.staffMiniBadge,
-                              borderColor: getStaffColor(item.staff_name),
-                              color: getStaffColor(item.staff_name),
-                            }}
-                          >
-                            {trimmed(item.staff_name) || "その他"}
+                          <div style={styles.dayEventSub}>
+                            {trimmed(item.menu) || "—"}
+                            {trimmed(item.payment_method)
+                              ? ` / ${trimmed(item.payment_method)}`
+                              : ""}
                           </div>
-                        </div>
 
-                        <div style={styles.dayEventSub}>
-                          {trimmed(item.menu) || "—"}
-                          {trimmed(item.payment_method)
-                            ? ` / ${trimmed(item.payment_method)}`
-                            : ""}
-                        </div>
+                          <div style={styles.dayEventSubMuted}>
+                            {trimmed(item.store_name) || "—"}
+                          </div>
 
-                        <div style={styles.dayEventSubMuted}>
-                          {trimmed(item.store_name) || "—"}
+                          {trimmed(item.memo) ? (
+                            <div style={styles.dayEventMemo}>{trimmed(item.memo)}</div>
+                          ) : null}
                         </div>
+                      </button>
 
-                        {trimmed(item.memo) ? (
-                          <div style={styles.dayEventMemo}>{trimmed(item.memo)}</div>
-                        ) : null}
-                      </div>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => handleGoCounseling(item)}
+                        style={styles.dayEventCounselingBtn}
+                      >
+                        カウンセリング
+                      </button>
+                    </div>
                   ))
                 )}
               </div>
@@ -1455,6 +1464,10 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 700,
     padding: "22px 10px",
   },
+  dayEventCardWrap: {
+    display: "grid",
+    gap: 6,
+  },
   dayEventRow: {
     width: "100%",
     border: "1px solid #e5e7eb",
@@ -1468,6 +1481,18 @@ const styles: Record<string, CSSProperties> = {
     textAlign: "left",
     cursor: "pointer",
     boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
+  },
+  dayEventCounselingBtn: {
+    width: "100%",
+    height: 38,
+    borderRadius: 12,
+    border: "none",
+    background: "#2563eb",
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: "pointer",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
   },
   timeCol: {
     textAlign: "center",
