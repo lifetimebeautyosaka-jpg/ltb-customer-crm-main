@@ -174,6 +174,18 @@ function getStaffColor(staffName?: string | null) {
   return "#9ca3af";
 }
 
+function getStoreColor(storeName?: string | null) {
+  const store = trimmed(storeName);
+
+  if (store.includes("江戸堀")) return "#0ea5e9";
+  if (store.includes("箕面")) return "#8b5cf6";
+  if (store.includes("福島P")) return "#f97316";
+  if (store.includes("福島")) return "#ef4444";
+  if (store.includes("天満橋")) return "#14b8a6";
+  if (store.includes("中崎町")) return "#eab308";
+  return "#6b7280";
+}
+
 function sortReservations(a: ReservationRow, b: ReservationRow) {
   const aTime = trimmed(a.start_time);
   const bTime = trimmed(b.start_time);
@@ -552,27 +564,27 @@ export default function ReservationPage() {
       .limit(1)
       .maybeSingle();
 
-      if (nameMatchError) {
-        console.warn(nameMatchError);
-      }
+    if (nameMatchError) {
+      console.warn(nameMatchError);
+    }
 
-      if (nameMatch) {
-        return String((nameMatch as CustomerRow).id);
-      }
+    if (nameMatch) {
+      return String((nameMatch as CustomerRow).id);
+    }
 
-      const { data: inserted, error: insertError } = await supabase
-        .from("customers")
-        .insert({
-          name,
-          kana: kana || null,
-          phone: rawPhone || null,
-        })
-        .select("id")
-        .single();
+    const { data: inserted, error: insertError } = await supabase
+      .from("customers")
+      .insert({
+        name,
+        kana: kana || null,
+        phone: rawPhone || null,
+      })
+      .select("id")
+      .single();
 
-      if (insertError) throw insertError;
+    if (insertError) throw insertError;
 
-      return String(inserted.id);
+    return String(inserted.id);
   }
 
   async function handleSaveReservation() {
@@ -761,6 +773,20 @@ export default function ReservationPage() {
               </div>
             ))}
           </div>
+
+          <div style={styles.legendBoxStore}>
+            {["江戸堀", "箕面", "福島", "福島P", "天満橋", "中崎町"].map((name) => (
+              <div key={name} style={styles.legendItem}>
+                <span
+                  style={{
+                    ...styles.legendDot,
+                    background: getStoreColor(name),
+                  }}
+                />
+                {name}
+              </div>
+            ))}
+          </div>
         </section>
 
         {error ? <div style={styles.errorBox}>{error}</div> : null}
@@ -855,6 +881,7 @@ export default function ReservationPage() {
           <div style={styles.sheetOverlay} onClick={() => setDaySheetOpen(false)}>
             <div style={styles.sheet} onClick={(e) => e.stopPropagation()}>
               <div style={styles.sheetHandle} />
+
               <div style={styles.sheetHeader}>
                 <div>
                   <div style={styles.sheetDate}>{formatJapaneseDate(selectedDate)}</div>
@@ -862,6 +889,14 @@ export default function ReservationPage() {
                 </div>
 
                 <div style={styles.sheetHeaderBtns}>
+                  <button
+                    type="button"
+                    onClick={() => setDaySheetOpen(false)}
+                    style={styles.calendarBackBtn}
+                  >
+                    カレンダーへ
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => openCreateModal(selectedDate)}
@@ -889,87 +924,106 @@ export default function ReservationPage() {
                         <button
                           type="button"
                           onClick={() => router.push(`/reservation/detail/${item.id}`)}
-                          style={styles.dayEventRow}
+                          style={styles.dayEventRowCompact}
                         >
-                          <div style={styles.timeCol}>
-                            <div style={styles.timeMain}>{trimmed(item.start_time) || "—"}</div>
-                            <div style={styles.timeSub}>{trimmed(item.end_time) || "—"}</div>
+                          <div style={styles.timeColCompact}>
+                            <div style={styles.timeMainCompact}>{trimmed(item.start_time) || "—"}</div>
+                            <div style={styles.timeSubCompact}>{trimmed(item.end_time) || "—"}</div>
                           </div>
 
                           <div
                             style={{
-                              ...styles.colorBar,
+                              ...styles.colorBarCompact,
                               background: getStaffColor(item.staff_name),
                             }}
                           />
 
-                          <div style={styles.dayEventMain}>
-                            <div style={styles.dayEventTopLine}>
-                              <div style={styles.dayEventTitle}>
+                          <div style={styles.dayEventMainCompact}>
+                            <div style={styles.dayEventTopLineCompact}>
+                              <div style={styles.dayEventTitleCompact}>
                                 {trimmed(item.customer_name) || "予定"}
                               </div>
 
-                              <div
-                                style={{
-                                  ...styles.staffMiniBadge,
-                                  borderColor: getStaffColor(item.staff_name),
-                                  color: getStaffColor(item.staff_name),
-                                }}
-                              >
-                                {trimmed(item.staff_name) || "その他"}
+                              <div style={styles.rightMiniBadges}>
+                                <span
+                                  style={{
+                                    ...styles.storeColorDot,
+                                    background: getStoreColor(item.store_name),
+                                  }}
+                                />
+                                <div
+                                  style={{
+                                    ...styles.staffMiniBadgeCompact,
+                                    borderColor: getStaffColor(item.staff_name),
+                                    color: getStaffColor(item.staff_name),
+                                  }}
+                                >
+                                  {trimmed(item.staff_name) || "その他"}
+                                </div>
                               </div>
                             </div>
 
-                            <div style={styles.dayEventBadgeRow}>
+                            <div style={styles.dayEventBadgeRowCompact}>
                               <span
                                 style={{
-                                  ...styles.statusChip,
+                                  ...styles.statusChipCompact,
                                   ...(newVisit ? styles.statusChipNew : styles.statusChipRepeat),
                                 }}
                               >
                                 {getVisitTypeLabel(item)}
                               </span>
 
+                              <span
+                                style={{
+                                  ...styles.statusChipCompact,
+                                  background: `${getStoreColor(item.store_name)}20`,
+                                  color: getStoreColor(item.store_name),
+                                }}
+                              >
+                                {trimmed(item.store_name) || "店舗未設定"}
+                              </span>
+
                               {isSold ? (
-                                <span style={{ ...styles.statusChip, ...styles.statusChipDone }}>
+                                <span style={{ ...styles.statusChipCompact, ...styles.statusChipDone }}>
                                   売上済
                                 </span>
                               ) : null}
 
                               {isCounseled ? (
-                                <span style={{ ...styles.statusChip, ...styles.statusChipDone }}>
+                                <span style={{ ...styles.statusChipCompact, ...styles.statusChipDone }}>
                                   カウンセリング済
                                 </span>
                               ) : null}
                             </div>
 
-                            <div style={styles.dayEventSub}>
+                            <div style={styles.dayEventSubCompact}>
                               {trimmed(item.menu) || "—"}
                               {trimmed(item.payment_method)
                                 ? ` / ${trimmed(item.payment_method)}`
                                 : ""}
                             </div>
 
-                            <div style={styles.dayEventSubMuted}>
-                              {trimmed(item.store_name) || "—"}
-                            </div>
-
                             {trimmed(item.memo) ? (
-                              <div style={styles.dayEventMemo}>{trimmed(item.memo)}</div>
+                              <div style={styles.dayEventMemoCompact}>{trimmed(item.memo)}</div>
                             ) : null}
                           </div>
                         </button>
 
-                        <div style={styles.dayEventActionRow}>
+                        <div
+                          style={{
+                            ...styles.dayEventActionRowCompact,
+                            gridTemplateColumns: newVisit ? "1fr 1fr" : "1fr",
+                          }}
+                        >
                           {isSold ? (
-                            <div style={{ ...styles.dayEventSalesBtn, ...styles.dayEventSalesBtnDone }}>
+                            <div style={{ ...styles.dayEventSalesBtnCompact, ...styles.dayEventSalesBtnDone }}>
                               売上済
                             </div>
                           ) : (
                             <button
                               type="button"
                               onClick={() => router.push(`/sales?reservationId=${item.id}`)}
-                              style={styles.dayEventSalesBtn}
+                              style={styles.dayEventSalesBtnCompact}
                             >
                               売上登録
                             </button>
@@ -981,8 +1035,11 @@ export default function ReservationPage() {
                               onClick={() => handleGoCounseling(item)}
                               style={
                                 isCounseled
-                                  ? { ...styles.dayEventCounselingBtn, ...styles.dayEventCounselingBtnDone }
-                                  : styles.dayEventCounselingBtn
+                                  ? {
+                                      ...styles.dayEventCounselingBtnCompact,
+                                      ...styles.dayEventCounselingBtnDone,
+                                    }
+                                  : styles.dayEventCounselingBtnCompact
                               }
                             >
                               {isCounseled ? "カウンセリング済" : "カウンセリング"}
@@ -1326,14 +1383,14 @@ const styles: Record<string, CSSProperties> = {
     zIndex: 20,
     background: "rgba(243,244,246,0.95)",
     backdropFilter: "blur(12px)",
-    padding: "16px 12px 10px",
+    padding: "14px 10px 8px",
   },
   topHeaderRow: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 8,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   monthRow: {
     display: "flex",
@@ -1343,7 +1400,7 @@ const styles: Record<string, CSSProperties> = {
   },
   monthTitle: {
     margin: 0,
-    fontSize: 22,
+    fontSize: 21,
     fontWeight: 900,
     color: "#111827",
     lineHeight: 1.1,
@@ -1352,8 +1409,8 @@ const styles: Record<string, CSSProperties> = {
   arrowBtn: {
     border: "none",
     background: "#ffffff",
-    width: 38,
-    height: 38,
+    width: 36,
+    height: 36,
     borderRadius: 999,
     fontSize: 22,
     fontWeight: 700,
@@ -1364,7 +1421,7 @@ const styles: Record<string, CSSProperties> = {
   },
   topRightBtns: {
     display: "flex",
-    gap: 8,
+    gap: 6,
     alignItems: "center",
     flexShrink: 0,
   },
@@ -1372,9 +1429,9 @@ const styles: Record<string, CSSProperties> = {
     border: "none",
     background: "#2563eb",
     color: "#fff",
-    borderRadius: 12,
-    padding: "10px 12px",
-    fontSize: 12,
+    borderRadius: 10,
+    padding: "9px 10px",
+    fontSize: 11,
     fontWeight: 800,
     boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
     cursor: "pointer",
@@ -1384,9 +1441,9 @@ const styles: Record<string, CSSProperties> = {
     border: "none",
     background: "#111827",
     color: "#fff",
-    borderRadius: 12,
-    padding: "10px 12px",
-    fontSize: 12,
+    borderRadius: 10,
+    padding: "9px 10px",
+    fontSize: 11,
     fontWeight: 800,
     boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
     cursor: "pointer",
@@ -1395,20 +1452,20 @@ const styles: Record<string, CSSProperties> = {
   },
   filterRow: {
     display: "flex",
-    gap: 8,
+    gap: 6,
     overflowX: "auto",
     paddingBottom: 4,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   storeChip: {
     border: "1px solid #e5e7eb",
     background: "#fff",
     color: "#374151",
-    borderRadius: 16,
-    padding: "8px 12px",
+    borderRadius: 14,
+    padding: "7px 10px",
     whiteSpace: "nowrap",
     fontWeight: 700,
-    fontSize: 12,
+    fontSize: 11,
     cursor: "pointer",
   },
   storeChipActive: {
@@ -1421,12 +1478,19 @@ const styles: Record<string, CSSProperties> = {
     gap: 6,
     overflowX: "auto",
     paddingBottom: 2,
+    marginBottom: 4,
+  },
+  legendBoxStore: {
+    display: "flex",
+    gap: 6,
+    overflowX: "auto",
+    paddingBottom: 2,
   },
   legendItem: {
     display: "inline-flex",
     alignItems: "center",
     gap: 5,
-    padding: "5px 8px",
+    padding: "4px 7px",
     borderRadius: 999,
     background: "#fff",
     border: "1px solid #e5e7eb",
@@ -1443,36 +1507,36 @@ const styles: Record<string, CSSProperties> = {
     flexShrink: 0,
   },
   calendarCard: {
-    padding: "8px 10px 20px",
+    padding: "6px 8px 18px",
   },
   weekHeader: {
     display: "grid",
     gridTemplateColumns: "repeat(7, 1fr)",
-    gap: 6,
-    marginBottom: 8,
-    padding: "0 4px",
+    gap: 5,
+    marginBottom: 7,
+    padding: "0 3px",
   },
   weekLabel: {
     textAlign: "center",
     fontWeight: 700,
-    fontSize: 12,
+    fontSize: 11,
   },
   calendarGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(7, 1fr)",
-    gap: 6,
+    gap: 5,
   },
   dayCell: {
     border: "none",
     background: "#ffffff",
-    borderRadius: 18,
-    minHeight: 108,
-    padding: "8px 6px",
+    borderRadius: 16,
+    minHeight: 100,
+    padding: "7px 5px",
     textAlign: "left",
     boxShadow: "0 6px 16px rgba(0,0,0,0.05)",
     display: "flex",
     flexDirection: "column",
-    gap: 6,
+    gap: 5,
     cursor: "pointer",
   },
   dayCellSelected: {
@@ -1484,7 +1548,7 @@ const styles: Record<string, CSSProperties> = {
     alignItems: "center",
   },
   dayNumber: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: 900,
     minWidth: 24,
     textAlign: "center",
@@ -1502,12 +1566,12 @@ const styles: Record<string, CSSProperties> = {
   eventMini: {
     background: "#f8fafc",
     borderRadius: 8,
-    padding: "4px 4px 4px 6px",
+    padding: "3px 4px 3px 6px",
     overflow: "hidden",
   },
   eventMiniText: {
     display: "block",
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: 700,
     color: "#334155",
     whiteSpace: "nowrap",
@@ -1515,7 +1579,7 @@ const styles: Record<string, CSSProperties> = {
     textOverflow: "ellipsis",
   },
   moreText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: 700,
     color: "#64748b",
     paddingLeft: 2,
@@ -1524,13 +1588,13 @@ const styles: Record<string, CSSProperties> = {
     position: "fixed",
     right: "max(calc(50% - 200px), 18px)",
     bottom: 22,
-    width: 62,
-    height: 62,
+    width: 60,
+    height: 60,
     borderRadius: 999,
     border: "none",
     background: "#111827",
     color: "#fff",
-    fontSize: 34,
+    fontSize: 32,
     boxShadow: "0 18px 36px rgba(0,0,0,0.22)",
     zIndex: 40,
     cursor: "pointer",
@@ -1550,7 +1614,7 @@ const styles: Record<string, CSSProperties> = {
     background: "#fff",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    padding: "8px 0 14px",
+    padding: "8px 0 10px",
     maxHeight: "88vh",
     overflow: "hidden",
   },
@@ -1579,47 +1643,59 @@ const styles: Record<string, CSSProperties> = {
     height: 6,
     borderRadius: 999,
     background: "#d1d5db",
-    margin: "0 auto 10px",
+    margin: "0 auto 8px",
   },
   sheetHeader: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: "0 14px 8px",
+    padding: "0 10px 6px",
+  },
+  calendarBackBtn: {
+    border: "none",
+    background: "#e5e7eb",
+    color: "#111827",
+    borderRadius: 10,
+    padding: "8px 10px",
+    fontSize: 11,
+    fontWeight: 800,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
   },
   sheetDate: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 900,
     color: "#111827",
     lineHeight: 1.2,
   },
   sheetCount: {
-    marginTop: 3,
-    fontSize: 11,
+    marginTop: 2,
+    fontSize: 10,
     fontWeight: 700,
     color: "#6b7280",
   },
   sheetHeaderBtns: {
     display: "flex",
-    gap: 8,
+    gap: 6,
+    alignItems: "center",
   },
   roundIconBtn: {
     border: "none",
     background: "#111827",
     color: "#fff",
-    width: 38,
-    height: 38,
+    width: 36,
+    height: 36,
     borderRadius: 999,
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: 700,
     cursor: "pointer",
   },
   sheetBody: {
     overflowY: "auto",
-    maxHeight: "calc(88vh - 88px)",
-    padding: "0 10px 2px",
+    maxHeight: "calc(88vh - 78px)",
+    padding: "0 8px 2px",
     display: "grid",
-    gap: 8,
+    gap: 6,
   },
   emptyText: {
     textAlign: "center",
@@ -1630,117 +1706,92 @@ const styles: Record<string, CSSProperties> = {
   },
   dayEventCardWrap: {
     display: "grid",
-    gap: 6,
+    gap: 4,
   },
-  dayEventRow: {
+  dayEventRowCompact: {
     width: "100%",
     border: "1px solid #e5e7eb",
     background: "#ffffff",
-    borderRadius: 14,
-    padding: "8px 9px",
+    borderRadius: 12,
+    padding: "7px 8px",
     display: "grid",
-    gridTemplateColumns: "44px 5px minmax(0,1fr)",
-    gap: 8,
+    gridTemplateColumns: "42px 5px minmax(0,1fr)",
+    gap: 7,
     alignItems: "start",
     textAlign: "left",
     cursor: "pointer",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
+    boxShadow: "0 3px 10px rgba(0,0,0,0.04)",
   },
-  dayEventActionRow: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 6,
-  },
-  dayEventCounselingBtn: {
-    width: "100%",
-    height: 38,
-    borderRadius: 12,
-    border: "none",
-    background: "#2563eb",
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: 800,
-    cursor: "pointer",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-  },
-  dayEventCounselingBtnDone: {
-    background: "#9ca3af",
-  },
-  dayEventSalesBtn: {
-    width: "100%",
-    height: 38,
-    borderRadius: 12,
-    border: "none",
-    background: "#111827",
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: 800,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-  },
-  dayEventSalesBtnDone: {
-    background: "#9ca3af",
-  },
-  timeCol: {
+  timeColCompact: {
     textAlign: "center",
     paddingTop: 1,
   },
-  timeMain: {
-    fontSize: 13,
+  timeMainCompact: {
+    fontSize: 12,
     fontWeight: 900,
     color: "#111827",
     lineHeight: 1.05,
   },
-  timeSub: {
-    marginTop: 2,
-    fontSize: 10,
+  timeSubCompact: {
+    marginTop: 1,
+    fontSize: 9,
     fontWeight: 700,
     color: "#6b7280",
     lineHeight: 1.1,
   },
-  colorBar: {
+  colorBarCompact: {
     width: 5,
     borderRadius: 999,
     alignSelf: "stretch",
-    minHeight: 46,
+    minHeight: 42,
   },
-  dayEventMain: {
+  dayEventMainCompact: {
     minWidth: 0,
   },
-  dayEventTopLine: {
+  dayEventTopLineCompact: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "flex-start",
     gap: 6,
     marginBottom: 2,
   },
-  dayEventTitle: {
-    fontSize: 13,
+  dayEventTitleCompact: {
+    fontSize: 12,
     fontWeight: 800,
     color: "#111827",
-    lineHeight: 1.25,
+    lineHeight: 1.2,
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
     minWidth: 0,
     flex: 1,
   },
-  dayEventBadgeRow: {
+  rightMiniBadges: {
+    display: "flex",
+    alignItems: "center",
+    gap: 5,
+    flexShrink: 0,
+  },
+  storeColorDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    display: "inline-block",
+    flexShrink: 0,
+  },
+  dayEventBadgeRowCompact: {
     display: "flex",
     flexWrap: "wrap",
-    gap: 5,
-    marginBottom: 5,
+    gap: 4,
+    marginBottom: 4,
   },
-  statusChip: {
+  statusChipCompact: {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 999,
-    padding: "3px 8px",
-    fontSize: 10,
+    padding: "2px 7px",
+    fontSize: 9,
     fontWeight: 800,
     lineHeight: 1,
   },
@@ -1756,6 +1807,72 @@ const styles: Record<string, CSSProperties> = {
     background: "#e5e7eb",
     color: "#374151",
   },
+  staffMiniBadgeCompact: {
+    flexShrink: 0,
+    fontSize: 9,
+    fontWeight: 800,
+    border: "1px solid",
+    borderRadius: 999,
+    padding: "2px 5px",
+    background: "#fff",
+    lineHeight: 1.05,
+  },
+  dayEventSubCompact: {
+    fontSize: 10,
+    fontWeight: 700,
+    color: "#374151",
+    lineHeight: 1.25,
+  },
+  dayEventMemoCompact: {
+    marginTop: 3,
+    fontSize: 9,
+    lineHeight: 1.3,
+    color: "#6b7280",
+    background: "#f8fafc",
+    borderRadius: 7,
+    padding: "4px 5px",
+    overflow: "hidden",
+    display: "-webkit-box",
+    WebkitLineClamp: 1,
+    WebkitBoxOrient: "vertical",
+  },
+  dayEventActionRowCompact: {
+    display: "grid",
+    gap: 4,
+  },
+  dayEventSalesBtnCompact: {
+    width: "100%",
+    height: 32,
+    borderRadius: 10,
+    border: "none",
+    background: "#111827",
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: 800,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    boxShadow: "0 3px 10px rgba(0,0,0,0.08)",
+  },
+  dayEventSalesBtnDone: {
+    background: "#9ca3af",
+  },
+  dayEventCounselingBtnCompact: {
+    width: "100%",
+    height: 32,
+    borderRadius: 10,
+    border: "none",
+    background: "#2563eb",
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: 800,
+    cursor: "pointer",
+    boxShadow: "0 3px 10px rgba(0,0,0,0.08)",
+  },
+  dayEventCounselingBtnDone: {
+    background: "#9ca3af",
+  },
   staffMiniBadge: {
     flexShrink: 0,
     fontSize: 10,
@@ -1765,32 +1882,6 @@ const styles: Record<string, CSSProperties> = {
     padding: "2px 6px",
     background: "#fff",
     lineHeight: 1.1,
-  },
-  dayEventSub: {
-    fontSize: 11,
-    fontWeight: 700,
-    color: "#374151",
-    lineHeight: 1.35,
-  },
-  dayEventSubMuted: {
-    fontSize: 10,
-    fontWeight: 700,
-    color: "#6b7280",
-    lineHeight: 1.35,
-    marginTop: 1,
-  },
-  dayEventMemo: {
-    marginTop: 4,
-    fontSize: 10,
-    lineHeight: 1.35,
-    color: "#6b7280",
-    background: "#f8fafc",
-    borderRadius: 8,
-    padding: "4px 6px",
-    overflow: "hidden",
-    display: "-webkit-box",
-    WebkitLineClamp: 2,
-    WebkitBoxOrient: "vertical",
   },
   formHeader: {
     display: "flex",
