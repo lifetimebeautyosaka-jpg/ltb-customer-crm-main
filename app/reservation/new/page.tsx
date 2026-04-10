@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -27,19 +27,46 @@ function todayStr() {
 }
 
 export default function ReservationNewPage() {
+  return (
+    <Suspense fallback={<ReservationNewPageFallback />}>
+      <ReservationNewPageInner />
+    </Suspense>
+  );
+}
+
+function ReservationNewPageFallback() {
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "linear-gradient(135deg, #f8f8f8 0%, #efefef 45%, #f9f9f9 100%)",
+        padding: "20px",
+      }}
+    >
+      <div style={{ maxWidth: 900, margin: "0 auto" }}>
+        <div style={cardStyle}>
+          <div style={{ fontSize: 18, fontWeight: 800 }}>読み込み中...</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReservationNewPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const customerIdFromQuery = searchParams.get("customerId");
+  const dateFromQuery = searchParams.get("date");
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loadingCustomers, setLoadingCustomers] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>(customerIdFromQuery ?? "");
+  const [selectedCustomerId, setSelectedCustomerId] = useState(customerIdFromQuery ?? "");
   const [customerName, setCustomerName] = useState("");
 
-  const [date, setDate] = useState(todayStr());
+  const [date, setDate] = useState(dateFromQuery || todayStr());
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [storeName, setStoreName] = useState("江戸堀");
@@ -62,11 +89,13 @@ export default function ReservationNewPage() {
   useEffect(() => {
     if (selectedCustomer) {
       setCustomerName(selectedCustomer.name || "");
+      setVisitType("再来");
     }
   }, [selectedCustomer]);
 
   async function fetchCustomers() {
     setLoadingCustomers(true);
+
     const { data, error } = await supabase
       .from("customers")
       .select("id, name, kana, phone")
@@ -95,6 +124,10 @@ export default function ReservationNewPage() {
       alert("開始時間を入力してください");
       return;
     }
+    if (!endTime) {
+      alert("終了時間を入力してください");
+      return;
+    }
     if (!storeName) {
       alert("店舗を選択してください");
       return;
@@ -115,7 +148,7 @@ export default function ReservationNewPage() {
       customer_name: customerName,
       date,
       start_time: startTime,
-      end_time: endTime || "",
+      end_time: endTime,
       store_name: storeName,
       staff_name: staffName,
       menu,
@@ -143,8 +176,7 @@ export default function ReservationNewPage() {
     <div
       style={{
         minHeight: "100vh",
-        background:
-          "linear-gradient(135deg, #f8f8f8 0%, #efefef 45%, #f9f9f9 100%)",
+        background: "linear-gradient(135deg, #f8f8f8 0%, #efefef 45%, #f9f9f9 100%)",
         padding: "20px",
       }}
     >
