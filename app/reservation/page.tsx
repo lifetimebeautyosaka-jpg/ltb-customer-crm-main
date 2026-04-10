@@ -25,6 +25,9 @@ type ReservationRow = {
   menu?: string | null;
   payment_method?: string | null;
   memo?: string | null;
+  visit_type?: string | null;
+  reservation_status?: string | null;
+  is_first_visit?: boolean | null;
   created_at?: string | null;
 };
 
@@ -83,6 +86,7 @@ const MENU_OPTIONS = [
 ];
 
 const PAYMENT_OPTIONS = ["現金", "カード", "銀行振込", "その他"];
+const VISIT_TYPE_OPTIONS = ["新規", "再来"];
 const WEEK_LABELS = ["月", "火", "水", "木", "金", "土", "日"];
 
 function trimmed(value: unknown): string {
@@ -204,6 +208,22 @@ function extractErrorMessage(error: unknown): string {
   return "不明なエラーです。";
 }
 
+function getVisitTypeLabel(item: ReservationRow) {
+  const visitType = trimmed(item.visit_type);
+  if (visitType) return visitType;
+  return item.is_first_visit ? "新規" : "再来";
+}
+
+function isNewVisit(item: ReservationRow) {
+  return getVisitTypeLabel(item) === "新規" || item.is_first_visit === true;
+}
+
+function toIdNumber(value: string | number | null | undefined) {
+  if (value === null || value === undefined || value === "") return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
 export default function ReservationPage() {
   const router = useRouter();
 
@@ -243,7 +263,11 @@ export default function ReservationPage() {
   const [staffName, setStaffName] = useState("山口");
   const [menu, setMenu] = useState("ストレッチ");
   const [paymentMethod, setPaymentMethod] = useState("現金");
+  const [visitType, setVisitType] = useState("再来");
   const [memo, setMemo] = useState("");
+
+  const [salesReservationIds, setSalesReservationIds] = useState<number[]>([]);
+  const [counseledReservationIds, setCounseledReservationIds] = useState<number[]>([]);
 
   useEffect(() => {
     setMounted(true);
@@ -319,7 +343,7 @@ export default function ReservationPage() {
       const { data, error } = await supabase
         .from("reservations")
         .select(
-          "id, customer_id, customer_name, date, start_time, end_time, store_name, staff_name, menu, payment_method, memo, created_at"
+          "id, customer_id, customer_name, date, start_time, end_time, store_name, staff_name, menu, payment_method, memo, visit_type, reservation_status, is_first_visit, created_at"
         )
         .gte("date", start)
         .lte("date", end)
@@ -380,14 +404,69 @@ export default function ReservationPage() {
     return [...(reservationsByDate.get(selectedDate) || [])].sort(sortReservations);
   }, [reservationsByDate, selectedDate]);
 
+  const salesReservationIdSet = useMemo(
+    () => new Set(salesReservationIds.map((id) => Number(id)).filter((id) => Number.isFinite(id))),
+    [salesReservationIds]
+  );
+
+  const counseledReservationIdSet = useMemo(
+    () => new Set(counseledReservationIds.map((id) => Number(id)).filter((id) => Number.isFinite(id))),
+    [counseledReservationIds]
+  );
+
+  useEffect(() => {
+    void loadReservationFlags();
+  }, [selectedDayReservations]);
+
   const counselingCandidates = useMemo(() => {
     return selectedDayReservations.filter(
       (item) =>
+        isNewVisit(item) &&
         item.customer_id !== null &&
         item.customer_id !== undefined &&
         String(item.customer_id) !== ""
     );
   }, [selectedDayReservations]);
+
+  async function loadReservationFlags() {
+    if (!supabase) return;
+
+    const reservationIds = selectedDayReservations
+      .map((item) => toIdNumber(item.id))
+      .filter((id): id is number => id !== null);
+
+    if (reservationIds.length === 0) {
+      setSalesReservationIds([]);
+      setCounseledReservationIds([]);
+      return;
+    }
+
+    try {
+      const [{ data: salesData, error: salesError }, { data: counselingData, error: counselingError }] =
+        await Promise.all([
+          supabase.from("sales").select("reservation_id").in("reservation_id", reservationIds),
+          supabase.from("counselings").select("reservation_id").in("reservation_id", reservationIds),
+        ]);
+
+      if (salesError) throw salesError;
+      if (counselingError) throw counselingError;
+
+      setSalesReservationIds(
+        ((salesData as Array<{ reservation_id?: number | null }>) || [])
+          .map((row) => toIdNumber(row.reservation_id))
+          .filter((id): id is number => id !== null)
+      );
+
+      setCounseledReservationIds(
+        ((counselingData as Array<{ reservation_id?: number | null }>) || [])
+          .map((row) => toIdNumber(row.reservation_id))
+          .filter((id): id is number => id !== null)
+      );
+    } catch (e) {
+      console.error(e);
+      setError(`状態取得エラー: ${extractErrorMessage(e)}`);
+    }
+  }
 
   function openDay(dateStr: string) {
     setSelectedDate(dateStr);
@@ -409,6 +488,7 @@ export default function ReservationPage() {
     setStaffName("山口");
     setMenu("ストレッチ");
     setPaymentMethod("現金");
+    setVisitType("再来");
     setMemo("");
     setError("");
     setSuccess("");
@@ -423,6 +503,7 @@ export default function ReservationPage() {
     setCustomerKana(found.kana);
     setCustomerPhone(found.phone);
     setCustomerSearch(found.name);
+    setVisitType("再来");
   }
 
   async function findOrCreateCustomerId(): Promise<string | null> {
@@ -471,27 +552,27 @@ export default function ReservationPage() {
       .limit(1)
       .maybeSingle();
 
-    if (nameMatchError) {
-      console.warn(nameMatchError);
-    }
+      if (nameMatchError) {
+        console.warn(nameMatchError);
+      }
 
-    if (nameMatch) {
-      return String((nameMatch as CustomerRow).id);
-    }
+      if (nameMatch) {
+        return String((nameMatch as CustomerRow).id);
+      }
 
-    const { data: inserted, error: insertError } = await supabase
-      .from("customers")
-      .insert({
-        name,
-        kana: kana || null,
-        phone: rawPhone || null,
-      })
-      .select("id")
-      .single();
+      const { data: inserted, error: insertError } = await supabase
+        .from("customers")
+        .insert({
+          name,
+          kana: kana || null,
+          phone: rawPhone || null,
+        })
+        .select("id")
+        .single();
 
-    if (insertError) throw insertError;
+      if (insertError) throw insertError;
 
-    return String(inserted.id);
+      return String(inserted.id);
   }
 
   async function handleSaveReservation() {
@@ -520,6 +601,11 @@ export default function ReservationPage() {
       return;
     }
 
+    if (!trimmed(visitType)) {
+      setError("来店区分を選択してください。");
+      return;
+    }
+
     try {
       setSaving(true);
       setError("");
@@ -537,6 +623,9 @@ export default function ReservationPage() {
         staff_name: staffName,
         menu,
         payment_method: paymentMethod,
+        visit_type: visitType,
+        reservation_status: "予約済",
+        is_first_visit: visitType === "新規",
         memo: trimmed(memo) || null,
       };
 
@@ -580,7 +669,7 @@ export default function ReservationPage() {
     setSuccess("");
 
     if (counselingCandidates.length === 0) {
-      setError("この日に顧客付き予約がありません。日付を選ぶか予約を確認してください。");
+      setError("この日に新規の顧客付き予約がありません。日付を選ぶか予約を確認してください。");
       return;
     }
 
@@ -789,68 +878,120 @@ export default function ReservationPage() {
                 ) : selectedDayReservations.length === 0 ? (
                   <div style={styles.emptyText}>この日の予定はまだありません。</div>
                 ) : (
-                  selectedDayReservations.map((item) => (
-                    <div key={String(item.id)} style={styles.dayEventCardWrap}>
-                      <button
-                        type="button"
-                        onClick={() => router.push(`/reservation/detail/${item.id}`)}
-                        style={styles.dayEventRow}
-                      >
-                        <div style={styles.timeCol}>
-                          <div style={styles.timeMain}>{trimmed(item.start_time) || "—"}</div>
-                          <div style={styles.timeSub}>{trimmed(item.end_time) || "—"}</div>
-                        </div>
+                  selectedDayReservations.map((item) => {
+                    const reservationId = toIdNumber(item.id) ?? 0;
+                    const newVisit = isNewVisit(item);
+                    const isSold = salesReservationIdSet.has(reservationId);
+                    const isCounseled = counseledReservationIdSet.has(reservationId);
 
-                        <div
-                          style={{
-                            ...styles.colorBar,
-                            background: getStaffColor(item.staff_name),
-                          }}
-                        />
+                    return (
+                      <div key={String(item.id)} style={styles.dayEventCardWrap}>
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/reservation/detail/${item.id}`)}
+                          style={styles.dayEventRow}
+                        >
+                          <div style={styles.timeCol}>
+                            <div style={styles.timeMain}>{trimmed(item.start_time) || "—"}</div>
+                            <div style={styles.timeSub}>{trimmed(item.end_time) || "—"}</div>
+                          </div>
 
-                        <div style={styles.dayEventMain}>
-                          <div style={styles.dayEventTopLine}>
-                            <div style={styles.dayEventTitle}>
-                              {trimmed(item.customer_name) || "予定"}
+                          <div
+                            style={{
+                              ...styles.colorBar,
+                              background: getStaffColor(item.staff_name),
+                            }}
+                          />
+
+                          <div style={styles.dayEventMain}>
+                            <div style={styles.dayEventTopLine}>
+                              <div style={styles.dayEventTitle}>
+                                {trimmed(item.customer_name) || "予定"}
+                              </div>
+
+                              <div
+                                style={{
+                                  ...styles.staffMiniBadge,
+                                  borderColor: getStaffColor(item.staff_name),
+                                  color: getStaffColor(item.staff_name),
+                                }}
+                              >
+                                {trimmed(item.staff_name) || "その他"}
+                              </div>
                             </div>
 
-                            <div
-                              style={{
-                                ...styles.staffMiniBadge,
-                                borderColor: getStaffColor(item.staff_name),
-                                color: getStaffColor(item.staff_name),
-                              }}
+                            <div style={styles.dayEventBadgeRow}>
+                              <span
+                                style={{
+                                  ...styles.statusChip,
+                                  ...(newVisit ? styles.statusChipNew : styles.statusChipRepeat),
+                                }}
+                              >
+                                {getVisitTypeLabel(item)}
+                              </span>
+
+                              {isSold ? (
+                                <span style={{ ...styles.statusChip, ...styles.statusChipDone }}>
+                                  売上済
+                                </span>
+                              ) : null}
+
+                              {isCounseled ? (
+                                <span style={{ ...styles.statusChip, ...styles.statusChipDone }}>
+                                  カウンセリング済
+                                </span>
+                              ) : null}
+                            </div>
+
+                            <div style={styles.dayEventSub}>
+                              {trimmed(item.menu) || "—"}
+                              {trimmed(item.payment_method)
+                                ? ` / ${trimmed(item.payment_method)}`
+                                : ""}
+                            </div>
+
+                            <div style={styles.dayEventSubMuted}>
+                              {trimmed(item.store_name) || "—"}
+                            </div>
+
+                            {trimmed(item.memo) ? (
+                              <div style={styles.dayEventMemo}>{trimmed(item.memo)}</div>
+                            ) : null}
+                          </div>
+                        </button>
+
+                        <div style={styles.dayEventActionRow}>
+                          {isSold ? (
+                            <div style={{ ...styles.dayEventSalesBtn, ...styles.dayEventSalesBtnDone }}>
+                              売上済
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/sales?reservationId=${item.id}`)}
+                              style={styles.dayEventSalesBtn}
                             >
-                              {trimmed(item.staff_name) || "その他"}
-                            </div>
-                          </div>
+                              売上登録
+                            </button>
+                          )}
 
-                          <div style={styles.dayEventSub}>
-                            {trimmed(item.menu) || "—"}
-                            {trimmed(item.payment_method)
-                              ? ` / ${trimmed(item.payment_method)}`
-                              : ""}
-                          </div>
-
-                          <div style={styles.dayEventSubMuted}>
-                            {trimmed(item.store_name) || "—"}
-                          </div>
-
-                          {trimmed(item.memo) ? (
-                            <div style={styles.dayEventMemo}>{trimmed(item.memo)}</div>
+                          {newVisit ? (
+                            <button
+                              type="button"
+                              onClick={() => handleGoCounseling(item)}
+                              style={
+                                isCounseled
+                                  ? { ...styles.dayEventCounselingBtn, ...styles.dayEventCounselingBtnDone }
+                                  : styles.dayEventCounselingBtn
+                              }
+                            >
+                              {isCounseled ? "カウンセリング済" : "カウンセリング"}
+                            </button>
                           ) : null}
                         </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleGoCounseling(item)}
-                        style={styles.dayEventCounselingBtn}
-                      >
-                        カウンセリング
-                      </button>
-                    </div>
-                  ))
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -1028,6 +1169,29 @@ export default function ReservationPage() {
                 </div>
 
                 <label style={styles.field}>
+                  <span style={styles.label}>来店区分</span>
+                  <div style={styles.visitTypeRow}>
+                    {VISIT_TYPE_OPTIONS.map((item) => {
+                      const active = visitType === item;
+                      return (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => setVisitType(item)}
+                          style={{
+                            ...styles.visitTypeBtn,
+                            ...(active ? styles.visitTypeBtnActive : {}),
+                            background: active ? (item === "新規" ? "#2563eb" : "#4b5563") : "#fff",
+                          }}
+                        >
+                          {item}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </label>
+
+                <label style={styles.field}>
                   <span style={styles.label}>支払方法</span>
                   <select
                     value={paymentMethod}
@@ -1092,11 +1256,11 @@ export default function ReservationPage() {
 
               <div style={styles.counselingPickerBody}>
                 <div style={styles.counselingPickerHelp}>
-                  {formatJapaneseDate(selectedDate)} の予約から選んでください
+                  {formatJapaneseDate(selectedDate)} の新規予約から選んでください
                 </div>
 
                 {counselingCandidates.length === 0 ? (
-                  <div style={styles.emptyText}>対象の顧客付き予約がありません。</div>
+                  <div style={styles.emptyText}>対象の新規・顧客付き予約がありません。</div>
                 ) : (
                   <div style={styles.counselingCandidateList}>
                     {counselingCandidates.map((item) => (
@@ -1482,6 +1646,11 @@ const styles: Record<string, CSSProperties> = {
     cursor: "pointer",
     boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
   },
+  dayEventActionRow: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 6,
+  },
   dayEventCounselingBtn: {
     width: "100%",
     height: 38,
@@ -1493,6 +1662,27 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 800,
     cursor: "pointer",
     boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+  },
+  dayEventCounselingBtnDone: {
+    background: "#9ca3af",
+  },
+  dayEventSalesBtn: {
+    width: "100%",
+    height: 38,
+    borderRadius: 12,
+    border: "none",
+    background: "#111827",
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: 800,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+  },
+  dayEventSalesBtnDone: {
+    background: "#9ca3af",
   },
   timeCol: {
     textAlign: "center",
@@ -1537,6 +1727,34 @@ const styles: Record<string, CSSProperties> = {
     whiteSpace: "nowrap",
     minWidth: 0,
     flex: 1,
+  },
+  dayEventBadgeRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 5,
+    marginBottom: 5,
+  },
+  statusChip: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 999,
+    padding: "3px 8px",
+    fontSize: 10,
+    fontWeight: 800,
+    lineHeight: 1,
+  },
+  statusChipNew: {
+    background: "#dbeafe",
+    color: "#1d4ed8",
+  },
+  statusChipRepeat: {
+    background: "#f3f4f6",
+    color: "#4b5563",
+  },
+  statusChipDone: {
+    background: "#e5e7eb",
+    color: "#374151",
   },
   staffMiniBadge: {
     flexShrink: 0,
@@ -1647,6 +1865,24 @@ const styles: Record<string, CSSProperties> = {
     background: "#f8fafc",
     borderRadius: 12,
     padding: "10px 12px",
+  },
+  visitTypeRow: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 8,
+  },
+  visitTypeBtn: {
+    height: 44,
+    borderRadius: 14,
+    border: "1px solid #d1d5db",
+    color: "#111827",
+    fontSize: 14,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  visitTypeBtnActive: {
+    border: "1px solid transparent",
+    color: "#fff",
   },
   saveBtn: {
     height: 48,
