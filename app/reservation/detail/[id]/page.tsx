@@ -1,14 +1,9 @@
 "use client";
 
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type CSSProperties,
-} from "react";
-import { createClient } from "@supabase/supabase-js";
 import { useParams, useRouter } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
 
 const supabase =
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
@@ -134,9 +129,7 @@ function isNewVisit(item?: ReservationRow | null) {
 
 function isTicketMenu(menu?: string | null) {
   const text = trimmed(menu);
-  return (
-    text === "ストレッチ回数券" || text === "トレーニング回数券"
-  );
+  return text === "ストレッチ回数券" || text === "トレーニング回数券";
 }
 
 function detectServiceTypeFromMenu(menu?: string | null) {
@@ -183,16 +176,38 @@ function buildSalesHref(item: ReservationRow) {
   const storeName = encodeURIComponent(trimmed(item.store_name));
 
   const isTicket = isTicketMenu(menu);
-  const serviceType = encodeURIComponent(
-    detectServiceTypeFromMenu(menu)
-  );
-  const saleType = encodeURIComponent(
-    isTicket ? "回数券消化" : "通常売上"
-  );
+  const serviceType = encodeURIComponent(detectServiceTypeFromMenu(menu));
+  const saleType = encodeURIComponent(isTicket ? "回数券消化" : "通常売上");
 
   return `/sales?reservationId=${reservationId}&customerId=${customerId}&customerName=${customerName}&date=${date}&menu=${encodeURIComponent(
     menu
   )}&staffName=${staffName}&paymentMethod=${paymentMethod}&storeName=${storeName}&serviceType=${serviceType}&saleType=${saleType}`;
+}
+
+function extractErrorMessage(error: unknown): string {
+  if (!error) return "不明なエラーです。";
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+
+  if (typeof error === "object") {
+    const maybe = error as {
+      message?: unknown;
+      details?: unknown;
+      hint?: unknown;
+      code?: unknown;
+    };
+
+    const parts = [
+      typeof maybe.message === "string" ? maybe.message : "",
+      typeof maybe.details === "string" ? maybe.details : "",
+      typeof maybe.hint === "string" ? maybe.hint : "",
+      typeof maybe.code === "string" ? `code: ${maybe.code}` : "",
+    ].filter(Boolean);
+
+    if (parts.length > 0) return parts.join(" / ");
+  }
+
+  return "不明なエラーです。";
 }
 
 export default function ReservationDetailPage() {
@@ -203,8 +218,10 @@ export default function ReservationDetailPage() {
 
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
 
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [reservation, setReservation] = useState<ReservationRow | null>(null);
   const [sales, setSales] = useState<SaleRow[]>([]);
   const [counselings, setCounselings] = useState<CounselingRow[]>([]);
@@ -247,6 +264,7 @@ export default function ReservationDetailPage() {
     try {
       setLoading(true);
       setError("");
+      setSuccess("");
 
       const { data: reservationData, error: reservationError } = await supabase
         .from("reservations")
@@ -257,9 +275,7 @@ export default function ReservationDetailPage() {
         .maybeSingle();
 
       if (reservationError) throw reservationError;
-      if (!reservationData) {
-        throw new Error("予約データが見つかりません。");
-      }
+      if (!reservationData) throw new Error("予約データが見つかりません。");
 
       const reservationRow = reservationData as ReservationRow;
       setReservation(reservationRow);
@@ -326,34 +342,61 @@ export default function ReservationDetailPage() {
     }
   }
 
+  async function handleDeleteReservation() {
+    if (!supabase || !reservation) return;
+
+    const warnings: string[] = [];
+    if (sales.length > 0) warnings.push(`売上 ${sales.length}件`);
+    if (counselings.length > 0) warnings.push(`カウンセリング ${counselings.length}件`);
+    if (ticketUsages.length > 0) warnings.push(`回数券消化履歴 ${ticketUsages.length}件`);
+
+    const warningText =
+      warnings.length > 0
+        ? `この予約には関連データがあります。\n${warnings.join("\n")}\n\n先に関連データを確認してください。\n本当に削除しますか？`
+        : "この予約を削除しますか？";
+
+    const ok = window.confirm(warningText);
+    if (!ok) return;
+
+    try {
+      setDeleting(true);
+      setError("");
+      setSuccess("");
+
+      const reservationIdNum = Number(reservation.id);
+      const reservationIdQuery = Number.isFinite(reservationIdNum)
+        ? reservationIdNum
+        : reservation.id;
+
+      const { error: deleteError } = await supabase
+        .from("reservations")
+        .delete()
+        .eq("id", reservationIdQuery);
+
+      if (deleteError) throw deleteError;
+
+      alert("予約を削除しました");
+      router.push("/reservation");
+    } catch (e) {
+      console.error(e);
+      setError(`予約削除エラー: ${extractErrorMessage(e)}`);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   const isSold = useMemo(() => {
     if (!reservation) return false;
-    return (
-      trimmed(reservation.reservation_status) === "売上済" ||
-      sales.length > 0
-    );
+    return trimmed(reservation.reservation_status) === "売上済" || sales.length > 0;
   }, [reservation, sales]);
 
-  const isCounseled = useMemo(() => {
-    return counselings.length > 0;
-  }, [counselings]);
-
-  const isTicketReservation = useMemo(() => {
-    return isTicketMenu(reservation?.menu);
-  }, [reservation]);
-
-  const isTicketUsed = useMemo(() => {
-    return ticketUsages.length > 0;
-  }, [ticketUsages]);
-
-  const serviceType = useMemo(() => {
-    return detectServiceTypeFromMenu(reservation?.menu);
-  }, [reservation]);
+  const isCounseled = useMemo(() => counselings.length > 0, [counselings]);
+  const isTicketReservation = useMemo(() => isTicketMenu(reservation?.menu), [reservation]);
+  const isTicketUsed = useMemo(() => ticketUsages.length > 0, [ticketUsages]);
+  const serviceType = useMemo(() => detectServiceTypeFromMenu(reservation?.menu), [reservation]);
 
   const activeTicket = useMemo(() => {
-    return customerTickets.find(
-      (ticket) => Number(ticket.remaining_count || 0) > 0
-    );
+    return customerTickets.find((ticket) => Number(ticket.remaining_count || 0) > 0);
   }, [customerTickets]);
 
   const pendingFlags = useMemo(() => {
@@ -387,6 +430,7 @@ export default function ReservationDetailPage() {
               >
                 予約一覧へ
               </button>
+
               <button
                 type="button"
                 onClick={() => router.back()}
@@ -394,10 +438,33 @@ export default function ReservationDetailPage() {
               >
                 戻る
               </button>
+
+              {reservation ? (
+                <Link
+                  href={`/reservation/edit/${reservation.id}`}
+                  style={styles.editLink}
+                >
+                  編集
+                </Link>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={handleDeleteReservation}
+                disabled={deleting || !reservation}
+                style={{
+                  ...styles.deleteBtn,
+                  opacity: deleting ? 0.7 : 1,
+                  cursor: deleting ? "not-allowed" : "pointer",
+                }}
+              >
+                {deleting ? "削除中..." : "削除"}
+              </button>
             </div>
           </div>
 
           {error ? <div style={styles.errorBox}>{error}</div> : null}
+          {success ? <div style={styles.successBox}>{success}</div> : null}
         </section>
 
         {loading ? (
@@ -522,12 +589,24 @@ export default function ReservationDetailPage() {
                   </button>
                 )}
 
+                <Link
+                  href={`/reservation/edit/${reservation.id}`}
+                  style={styles.actionEdit}
+                >
+                  予約編集
+                </Link>
+
                 <button
                   type="button"
-                  onClick={() => router.push("/reservation")}
-                  style={styles.actionDark}
+                  onClick={handleDeleteReservation}
+                  disabled={deleting}
+                  style={{
+                    ...styles.actionDelete,
+                    opacity: deleting ? 0.7 : 1,
+                    cursor: deleting ? "not-allowed" : "pointer",
+                  }}
                 >
-                  予約一覧へ戻る
+                  {deleting ? "削除中..." : "予約削除"}
                 </button>
               </div>
             </section>
@@ -545,18 +624,14 @@ export default function ReservationDetailPage() {
 
                 <div style={styles.infoItem}>
                   <span style={styles.infoLabel}>日付</span>
-                  <span style={styles.infoValue}>
-                    {formatDateJP(reservation.date)}
-                  </span>
+                  <span style={styles.infoValue}>{formatDateJP(reservation.date)}</span>
                 </div>
 
                 <div style={styles.infoItem}>
                   <span style={styles.infoLabel}>時間</span>
                   <span style={styles.infoValue}>
                     {trimmed(reservation.start_time) || "--:--"}
-                    {trimmed(reservation.end_time)
-                      ? ` 〜 ${trimmed(reservation.end_time)}`
-                      : ""}
+                    {trimmed(reservation.end_time) ? ` 〜 ${trimmed(reservation.end_time)}` : ""}
                   </span>
                 </div>
 
@@ -569,9 +644,7 @@ export default function ReservationDetailPage() {
 
                 <div style={styles.infoItem}>
                   <span style={styles.infoLabel}>来店区分</span>
-                  <span style={styles.infoValue}>
-                    {getVisitTypeLabel(reservation)}
-                  </span>
+                  <span style={styles.infoValue}>{getVisitTypeLabel(reservation)}</span>
                 </div>
 
                 <div style={styles.infoItem}>
@@ -658,14 +731,11 @@ export default function ReservationDetailPage() {
                             {trimmed(sale.customer_name) || "未設定"}
                           </div>
                           <div style={styles.listSub}>
-                            {formatDateJP(sale.sale_date)} /{" "}
-                            {trimmed(sale.sale_type) || "未設定"}
+                            {formatDateJP(sale.sale_date)} / {trimmed(sale.sale_type) || "未設定"}
                           </div>
                         </div>
 
-                        <div style={styles.amountText}>
-                          {formatCurrency(sale.amount)}
-                        </div>
+                        <div style={styles.amountText}>{formatCurrency(sale.amount)}</div>
                       </div>
 
                       <div style={styles.metaWrap}>
@@ -693,9 +763,7 @@ export default function ReservationDetailPage() {
               style={{
                 ...styles.card,
                 border:
-                  pendingFlags.counselingPending
-                    ? "2px solid #f59e0b"
-                    : "1px solid #e2e8f0",
+                  pendingFlags.counselingPending ? "2px solid #f59e0b" : "1px solid #e2e8f0",
               }}
             >
               <div style={styles.sectionHeader}>
@@ -742,9 +810,7 @@ export default function ReservationDetailPage() {
               style={{
                 ...styles.card,
                 border:
-                  pendingFlags.ticketPending
-                    ? "2px solid #7c3aed"
-                    : "1px solid #e2e8f0",
+                  pendingFlags.ticketPending ? "2px solid #7c3aed" : "1px solid #e2e8f0",
               }}
             >
               <div style={styles.sectionHeader}>
@@ -848,14 +914,12 @@ export default function ReservationDetailPage() {
                                 {trimmed(usage.ticket_name) || "回数券"}
                               </div>
                               <div style={styles.listSub}>
-                                {trimmed(usage.service_type) || "未設定"} /{" "}
-                                {formatDateJP(usage.used_date)}
+                                {trimmed(usage.service_type) || "未設定"} / {formatDateJP(usage.used_date)}
                               </div>
                             </div>
 
                             <div style={styles.usageCountText}>
-                              {Number(usage.before_count ?? 0)} →{" "}
-                              {Number(usage.after_count ?? 0)}
+                              {Number(usage.before_count ?? 0)} → {Number(usage.after_count ?? 0)}
                             </div>
                           </div>
                         </div>
@@ -944,10 +1008,41 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 800,
     cursor: "pointer",
   },
+  editLink: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    textDecoration: "none",
+    border: "none",
+    background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+    color: "#fff",
+    borderRadius: 14,
+    padding: "10px 14px",
+    fontSize: 13,
+    fontWeight: 800,
+  },
+  deleteBtn: {
+    border: "none",
+    background: "linear-gradient(135deg, #ef4444, #dc2626)",
+    color: "#fff",
+    borderRadius: 14,
+    padding: "10px 14px",
+    fontSize: 13,
+    fontWeight: 800,
+  },
   errorBox: {
     marginTop: 14,
     background: "#fee2e2",
     color: "#991b1b",
+    borderRadius: 14,
+    padding: "12px 14px",
+    fontWeight: 700,
+    fontSize: 13,
+  },
+  successBox: {
+    marginTop: 14,
+    background: "#dcfce7",
+    color: "#166534",
     borderRadius: 14,
     padding: "12px 14px",
     fontWeight: 700,
@@ -1112,6 +1207,28 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 900,
     fontSize: 13,
     cursor: "not-allowed",
+  },
+  actionEdit: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    textDecoration: "none",
+    border: "none",
+    background: "linear-gradient(135deg, #0f766e, #0d9488)",
+    color: "#fff",
+    borderRadius: 14,
+    padding: "11px 16px",
+    fontWeight: 900,
+    fontSize: 13,
+  },
+  actionDelete: {
+    border: "none",
+    background: "linear-gradient(135deg, #ef4444, #dc2626)",
+    color: "#fff",
+    borderRadius: 14,
+    padding: "11px 16px",
+    fontWeight: 900,
+    fontSize: 13,
   },
   card: {
     background: "#fff",
