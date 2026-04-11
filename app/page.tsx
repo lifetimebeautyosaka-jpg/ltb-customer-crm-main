@@ -16,7 +16,6 @@ const menuItems = [
 
 export default function HomePage() {
   const [imageError, setImageError] = useState(false);
-
   const titleChars = useMemo(() => titleText.split(""), []);
 
   return (
@@ -229,12 +228,6 @@ export default function HomePage() {
             grid-template-columns: 1fr !important;
           }
         }
-
-        @media (max-width: 640px) {
-          .title-break-mobile {
-            display: block;
-          }
-        }
       `}</style>
 
       <div style={styles.bgOverlay} />
@@ -298,9 +291,9 @@ export default function HomePage() {
 
             <div style={styles.visualInner}>
               <div>
-                <div style={styles.visualTextTop}>Today&apos;s Status</div>
+                <div style={styles.visualTextTop}>Luxury Management</div>
                 <div style={styles.visualTextSub}>
-                  Luxury dashboard for gym operators
+                  Elegant control panel for premium studios
                 </div>
               </div>
 
@@ -325,18 +318,10 @@ export default function HomePage() {
                 )}
               </div>
 
-              <div style={styles.visualStats}>
-                <div style={styles.statBox}>
-                  <div style={styles.statLabel}>Members</div>
-                  <div style={styles.statValue}>76k</div>
-                </div>
-                <div style={styles.statBox}>
-                  <div style={styles.statLabel}>Revenue</div>
-                  <div style={styles.statValue}>¥3.6m</div>
-                </div>
-                <div style={styles.statBox}>
-                  <div style={styles.statLabel}>Visits</div>
-                  <div style={styles.statValue}>47</div>
+              <div style={styles.visualBottomNote}>
+                <div style={styles.bottomLine} />
+                <div style={styles.visualBottomText}>
+                  Refined workflow for gym, pilates and stretch operation
                 </div>
               </div>
             </div>
@@ -551,29 +536,23 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: "13px",
     wordBreak: "break-all",
   },
-  visualStats: {
-    display: "grid",
-    gridTemplateColumns: "repeat(3, 1fr)",
-    gap: "10px",
+  visualBottomNote: {
     marginTop: "14px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "10px",
   },
-  statBox: {
-    borderRadius: "18px",
-    background: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(255,255,255,0.08)",
-    padding: "12px 10px",
-    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
+  bottomLine: {
+    width: "100%",
+    height: "1px",
+    background:
+      "linear-gradient(90deg, rgba(255,255,255,0.0) 0%, rgba(212,175,55,0.28) 50%, rgba(255,255,255,0.0) 100%)",
   },
-  statLabel: {
-    color: "rgba(255,255,255,0.55)",
-    fontSize: "11px",
-    marginBottom: "6px",
-  },
-  statValue: {
-    color: "#fff",
-    fontSize: "22px",
-    fontWeight: 800,
-    textShadow: "0 0 14px rgba(255,255,255,0.08)",
+  visualBottomText: {
+    color: "rgba(255,255,255,0.58)",
+    fontSize: "13px",
+    letterSpacing: "0.04em",
+    textAlign: "center",
   },
   eyebrow: {
     fontSize: "11px",
