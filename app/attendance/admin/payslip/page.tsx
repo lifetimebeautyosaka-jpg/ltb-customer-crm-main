@@ -1,464 +1,483 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { CSSProperties, useEffect, useMemo, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
 
-type Payslip = {
-  id: string;
-  staffName: string;
-  year: number;
-  month: number;
-  baseSalary: number;
-  overtimePay: number;
-  lateNightPay: number;
-  holidayPay: number;
-  transportation: number;
-  bonus: number;
-  otherAllowance: number;
-  grossPay: number;
-  healthInsurance: number;
-  pension: number;
-  employmentInsurance: number;
-  incomeTax: number;
-  residentTax: number;
-  otherDeduction: number;
-  totalDeduction: number;
-  netPay: number;
-  workDays: number;
-  workHours: number;
-  overtimeHours: number;
-  lateNightHours: number;
-  note?: string;
+type AttendanceRow = {
+  id: number;
+  staff_id: string;
+  staff_name: string;
+  work_date: string;
+  clock_in: string | null;
+  clock_out: string | null;
+  break_minutes: number | null;
+  regular_minutes: number | null;
+  overtime_minutes: number | null;
+  late_night_minutes: number | null;
+  total_work_minutes: number | null;
+  note: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
-type AttendanceRecord = {
-  id?: string | number;
-  staffName?: string;
-  name?: string;
-  employeeName?: string;
-  userName?: string;
-  date?: string;
-  workDate?: string;
-  normalMinutes?: number | string;
-  overtimeMinutes?: number | string;
-  lateNightMinutes?: number | string;
-  overtimeLateNightMinutes?: number | string;
-  regularMinutes?: number | string;
-  nightMinutes?: number | string;
-  normalWorkMinutes?: number | string;
-  overtimeNightMinutes?: number | string;
-  workingHours?: number | string;
-  regularHours?: number | string;
-  overtimeHours?: number | string;
-  lateNightHours?: number | string;
-  overtimeLateNightHours?: number | string;
-};
-
-function toNumber(value: unknown): number {
-  const num = Number(value);
-  return Number.isFinite(num) ? num : 0;
-}
-
-function hoursToMinutes(value: unknown): number {
-  return Math.round(toNumber(value) * 60);
-}
-
-function formatYen(value: number) {
-  return `¥${value.toLocaleString("ja-JP")}`;
-}
-
-function getCurrentYearMonth() {
+function getCurrentMonth() {
   const now = new Date();
-  return {
-    year: now.getFullYear(),
-    month: now.getMonth() + 1,
-  };
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function getMonthString(year: number, month: number) {
-  return `${year}-${String(month).padStart(2, "0")}`;
+function monthLabel(month: string) {
+  if (!month) return "—";
+  const [y, m] = month.split("-");
+  return `${y}年${Number(m)}月`;
 }
 
-function extractStaffName(record: AttendanceRecord) {
-  return (
-    record.staffName ||
-    record.name ||
-    record.employeeName ||
-    record.userName ||
-    "スタッフ未設定"
-  );
+function formatDateJP(value?: string | null) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return new Intl.DateTimeFormat("ja-JP").format(d);
 }
 
-function extractDate(record: AttendanceRecord) {
-  return record.date || record.workDate || "";
+function formatTimeJP(value?: string | null) {
+  if (!value) return "--:--";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "--:--";
+  return new Intl.DateTimeFormat("ja-JP", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
 }
 
-function extractMonth(record: AttendanceRecord) {
-  const rawDate = extractDate(record);
-  if (!rawDate) return "";
-
-  if (/^\d{4}-\d{2}/.test(rawDate)) {
-    return rawDate.slice(0, 7);
-  }
-
-  const parsed = new Date(rawDate);
-  if (Number.isNaN(parsed.getTime())) return "";
-
-  return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}`;
+function minutesToText(minutes: number) {
+  const safe = Math.max(0, Math.floor(minutes || 0));
+  const h = Math.floor(safe / 60);
+  const m = safe % 60;
+  return `${h}時間${m}分`;
 }
 
-function calcMinutes(record: AttendanceRecord) {
-  const normalMinutes =
-    toNumber(record.normalMinutes ?? record.regularMinutes ?? record.normalWorkMinutes) ||
-    hoursToMinutes(record.regularHours);
-
-  const overtimeMinutes =
-    toNumber(record.overtimeMinutes) || hoursToMinutes(record.overtimeHours);
-
-  const lateNightMinutes =
-    toNumber(record.lateNightMinutes ?? record.nightMinutes) ||
-    hoursToMinutes(record.lateNightHours);
-
-  const overtimeLateNightMinutes =
-    toNumber(record.overtimeLateNightMinutes ?? record.overtimeNightMinutes) ||
-    hoursToMinutes(record.overtimeLateNightHours);
-
-  return {
-    normalMinutes,
-    overtimeMinutes,
-    lateNightMinutes,
-    overtimeLateNightMinutes,
-    totalMinutes:
-      normalMinutes + overtimeMinutes + lateNightMinutes + overtimeLateNightMinutes,
-  };
+function formatCurrency(value: number) {
+  return `¥${Math.round(value || 0).toLocaleString()}`;
 }
 
-function buildPayslipsFromAttendance(records: AttendanceRecord[]): Payslip[] {
-  const grouped = new Map<string, AttendanceRecord[]>();
+export default function AttendancePayslipPage() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
-  records.forEach((record) => {
-    const month = extractMonth(record);
-    const staffName = extractStaffName(record);
-    if (!month || !staffName) return;
+  const supabase = useMemo(() => {
+    if (!supabaseUrl || !supabaseAnonKey) return null;
+    return createClient(supabaseUrl, supabaseAnonKey);
+  }, [supabaseUrl, supabaseAnonKey]);
 
-    const key = `${staffName}__${month}`;
-    if (!grouped.has(key)) grouped.set(key, []);
-    grouped.get(key)!.push(record);
-  });
+  const [mounted, setMounted] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(1400);
 
-  const HOURLY = 1200;
-  const OVERTIME_RATE = 1.25;
-  const LATENIGHT_RATE = 0.25;
-  const OVERTIME_LATENIGHT_RATE = 1.5;
-  const TRANSPORT = 10000;
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const payslips: Payslip[] = [];
-
-  grouped.forEach((items, key) => {
-    const [staffName, ym] = key.split("__");
-    const [yearStr, monthStr] = ym.split("-");
-    const year = Number(yearStr);
-    const month = Number(monthStr);
-
-    let workDays = 0;
-    let totalMinutes = 0;
-    let overtimeMinutes = 0;
-    let lateNightMinutes = 0;
-
-    items.forEach((record) => {
-      const mins = calcMinutes(record);
-      workDays += 1;
-      totalMinutes += mins.totalMinutes;
-      overtimeMinutes += mins.overtimeMinutes;
-      lateNightMinutes += mins.lateNightMinutes + mins.overtimeLateNightMinutes;
-    });
-
-    const normalHours = totalMinutes / 60;
-    const overtimeHours = overtimeMinutes / 60;
-    const lateNightHours = lateNightMinutes / 60;
-
-    const baseSalary = Math.round(normalHours * HOURLY);
-    const overtimePay = Math.round(overtimeHours * HOURLY * (OVERTIME_RATE - 1));
-    const lateNightPay = Math.round(lateNightHours * HOURLY * LATENIGHT_RATE);
-    const holidayPay = 0;
-    const transportation = TRANSPORT;
-    const bonus = 0;
-    const otherAllowance = 0;
-
-    const grossPay =
-      baseSalary +
-      overtimePay +
-      lateNightPay +
-      holidayPay +
-      transportation +
-      bonus +
-      otherAllowance;
-
-    const healthInsurance = Math.round(grossPay * 0.05);
-    const pension = Math.round(grossPay * 0.09);
-    const employmentInsurance = Math.round(grossPay * 0.006);
-    const incomeTax = Math.round(grossPay * 0.02);
-    const residentTax = 8000;
-    const otherDeduction = 0;
-
-    const totalDeduction =
-      healthInsurance +
-      pension +
-      employmentInsurance +
-      incomeTax +
-      residentTax +
-      otherDeduction;
-
-    const netPay = grossPay - totalDeduction;
-
-    payslips.push({
-      id: `${staffName}-${year}-${month}`,
-      staffName,
-      year,
-      month,
-      baseSalary,
-      overtimePay,
-      lateNightPay,
-      holidayPay,
-      transportation,
-      bonus,
-      otherAllowance,
-      grossPay,
-      healthInsurance,
-      pension,
-      employmentInsurance,
-      incomeTax,
-      residentTax,
-      otherDeduction,
-      totalDeduction,
-      netPay,
-      workDays,
-      workHours: Number(normalHours.toFixed(1)),
-      overtimeHours: Number(overtimeHours.toFixed(1)),
-      lateNightHours: Number(lateNightHours.toFixed(1)),
-      note: "勤怠データから自動集計",
-    });
-  });
-
-  return payslips.sort((a, b) => {
-    if (a.staffName !== b.staffName) {
-      return a.staffName.localeCompare(b.staffName, "ja");
-    }
-    return b.year * 100 + b.month - (a.year * 100 + a.month);
-  });
-}
-
-export default function AdminPayslipPage() {
-  const now = getCurrentYearMonth();
-  const [allPayslips, setAllPayslips] = useState<Payslip[]>([]);
-  const [selectedMonth, setSelectedMonth] = useState(
-    getMonthString(now.year, now.month)
-  );
-  const [searchText, setSearchText] = useState("");
+  const [rows, setRows] = useState<AttendanceRow[]>([]);
+  const [monthFilter, setMonthFilter] = useState(getCurrentMonth());
+  const [staffFilter, setStaffFilter] = useState("");
+  const [hourlyWage, setHourlyWage] = useState("1200");
+  const [overtimeRate, setOvertimeRate] = useState("1.25");
+  const [lateNightRate, setLateNightRate] = useState("1.25");
+  const [transportation, setTransportation] = useState("0");
+  const [adjustment, setAdjustment] = useState("0");
+  const [deduction, setDeduction] = useState("0");
 
   useEffect(() => {
-    try {
-      const rawPayslips = localStorage.getItem("gymup_payslips");
-      if (rawPayslips) {
-        const parsed = JSON.parse(rawPayslips);
-        if (Array.isArray(parsed)) {
-          setAllPayslips(parsed);
-          return;
-        }
-      }
-
-      const rawAttendance = localStorage.getItem("attendanceRecords");
-      if (rawAttendance) {
-        const parsed = JSON.parse(rawAttendance);
-        if (Array.isArray(parsed)) {
-          const built = buildPayslipsFromAttendance(parsed);
-          setAllPayslips(built);
-          localStorage.setItem("gymup_payslips", JSON.stringify(built));
-          return;
-        }
-      }
-
-      setAllPayslips([]);
-    } catch (error) {
-      console.error("給与明細データ読み込みエラー:", error);
-      setAllPayslips([]);
-    }
+    setMounted(true);
   }, []);
 
-  const filteredPayslips = useMemo(() => {
-    return allPayslips.filter((item) => {
-      const monthMatch = getMonthString(item.year, item.month) === selectedMonth;
-      const nameMatch = item.staffName
-        .toLowerCase()
-        .includes(searchText.trim().toLowerCase());
-      return monthMatch && nameMatch;
-    });
-  }, [allPayslips, selectedMonth, searchText]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onResize = () => setWindowWidth(window.innerWidth);
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+
+    const loggedIn =
+      localStorage.getItem("gymup_logged_in") ||
+      localStorage.getItem("isLoggedIn");
+
+    if (loggedIn !== "true") {
+      window.location.href = "/login";
+      return;
+    }
+
+    void fetchAttendance();
+  }, [mounted]);
+
+  const mobile = windowWidth < 768;
+  const tablet = windowWidth < 1100;
+
+  async function fetchAttendance() {
+    if (!supabase) {
+      setLoading(false);
+      setError("Supabaseの環境変数が未設定です。");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError("");
+
+      const { data, error } = await supabase
+        .from("staff_attendance")
+        .select("*")
+        .order("work_date", { ascending: false })
+        .order("staff_name", { ascending: true });
+
+      if (error) throw error;
+
+      setRows(((data as AttendanceRow[]) || []).map((row) => ({
+        ...row,
+        break_minutes: row.break_minutes ?? 0,
+        regular_minutes: row.regular_minutes ?? 0,
+        overtime_minutes: row.overtime_minutes ?? 0,
+        late_night_minutes: row.late_night_minutes ?? 0,
+        total_work_minutes: row.total_work_minutes ?? 0,
+      })));
+    } catch (e: any) {
+      console.error(e);
+      setError(e?.message || "勤怠データの取得に失敗しました。");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const staffNames = useMemo(() => {
+    return Array.from(new Set(rows.map((r) => r.staff_name).filter(Boolean))).sort((a, b) =>
+      a.localeCompare(b, "ja")
+    );
+  }, [rows]);
+
+  useEffect(() => {
+    if (!staffFilter && staffNames.length > 0) {
+      setStaffFilter(staffNames[0]);
+    }
+  }, [staffNames, staffFilter]);
+
+  const filteredRows = useMemo(() => {
+    return rows
+      .filter((row) => {
+        const matchMonth = monthFilter
+          ? String(row.work_date || "").startsWith(monthFilter)
+          : true;
+        const matchStaff = staffFilter ? row.staff_name === staffFilter : true;
+        return matchMonth && matchStaff;
+      })
+      .sort((a, b) => String(a.work_date).localeCompare(String(b.work_date)));
+  }, [rows, monthFilter, staffFilter]);
+
+  const wage = Number(hourlyWage || 0);
+  const overtimeMultiplier = Number(overtimeRate || 1.25);
+  const lateNightMultiplier = Number(lateNightRate || 1.25);
+  const transportationNum = Number(transportation || 0);
+  const adjustmentNum = Number(adjustment || 0);
+  const deductionNum = Number(deduction || 0);
 
   const totals = useMemo(() => {
-    return filteredPayslips.reduce(
-      (acc, item) => {
-        acc.count += 1;
-        acc.grossPay += item.grossPay;
-        acc.totalDeduction += item.totalDeduction;
-        acc.netPay += item.netPay;
-        return acc;
-      },
-      {
-        count: 0,
-        grossPay: 0,
-        totalDeduction: 0,
-        netPay: 0,
-      }
-    );
-  }, [filteredPayslips]);
+    const workDays = filteredRows.filter((r) => r.clock_in).length;
+    const regularMinutes = filteredRows.reduce((sum, row) => sum + Number(row.regular_minutes || 0), 0);
+    const overtimeMinutes = filteredRows.reduce((sum, row) => sum + Number(row.overtime_minutes || 0), 0);
+    const lateNightMinutes = filteredRows.reduce((sum, row) => sum + Number(row.late_night_minutes || 0), 0);
+    const totalWorkMinutes = filteredRows.reduce((sum, row) => sum + Number(row.total_work_minutes || 0), 0);
+
+    const regularPay = (regularMinutes / 60) * wage;
+    const overtimePay = (overtimeMinutes / 60) * wage * overtimeMultiplier;
+    const lateNightPay = (lateNightMinutes / 60) * wage * lateNightMultiplier;
+
+    const grossPay = regularPay + overtimePay + lateNightPay;
+    const paymentTotal = grossPay + transportationNum + adjustmentNum - deductionNum;
+
+    return {
+      workDays,
+      regularMinutes,
+      overtimeMinutes,
+      lateNightMinutes,
+      totalWorkMinutes,
+      regularPay,
+      overtimePay,
+      lateNightPay,
+      grossPay,
+      paymentTotal,
+    };
+  }, [
+    filteredRows,
+    wage,
+    overtimeMultiplier,
+    lateNightMultiplier,
+    transportationNum,
+    adjustmentNum,
+    deductionNum,
+  ]);
+
+  if (!mounted) return null;
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[linear-gradient(135deg,#e5e7eb_0%,#d1d5db_42%,#9ca3af_100%)] text-gray-900">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-44 -left-36 h-[560px] w-[560px] rounded-full bg-white/70 blur-[140px]" />
-        <div className="absolute bottom-[-140px] right-[-80px] h-[460px] w-[460px] rounded-full bg-white/50 blur-[120px]" />
-      </div>
+    <div style={pageStyle}>
+      <div style={bgGlowA} />
+      <div style={bgGlowB} />
 
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.10]"
-        style={{
-          backgroundImage:
-            "repeating-linear-gradient(135deg, rgba(255,255,255,0.55) 0px, rgba(255,255,255,0.55) 1px, transparent 1px, transparent 24px)",
-        }}
-      />
+      <div style={containerStyle}>
+        <div style={topRowStyle}>
+          <Link href="/attendance/admin" style={backLinkStyle}>
+            ← 管理者勤怠へ戻る
+          </Link>
+          <div style={eyebrowStyle}>PAYSLIP</div>
+        </div>
 
-      <header className="relative border-b border-white/35 bg-white/35 backdrop-blur-2xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-4">
-            <img
-              src="/gymup-logo.png"
-              alt="GYMUP"
-              className="h-11 w-auto object-contain"
+        <div style={heroCardStyle}>
+          <div style={heroLeftStyle}>
+            <div style={miniLabelStyle}>GYMUP PAYROLL</div>
+            <h1 style={titleStyle}>給与明細ページ</h1>
+            <p style={descStyle}>
+              スタッフ1名・1ヶ月分の勤務実績と給与概算を確認できます。
+            </p>
+          </div>
+        </div>
+
+        {!supabase && (
+          <div style={errorBoxStyle}>
+            NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY が未設定です。
+          </div>
+        )}
+
+        {error && <div style={errorBoxStyle}>{error}</div>}
+
+        <div
+          style={{
+            ...filterGridStyle,
+            gridTemplateColumns: mobile
+              ? "1fr"
+              : tablet
+              ? "repeat(2, minmax(0, 1fr))"
+              : "repeat(6, minmax(0, 1fr))",
+          }}
+        >
+          <FilterCard label="対象月">
+            <input
+              type="month"
+              value={monthFilter}
+              onChange={(e) => setMonthFilter(e.target.value)}
+              style={inputStyle}
             />
+          </FilterCard>
+
+          <FilterCard label="スタッフ">
+            <select
+              value={staffFilter}
+              onChange={(e) => setStaffFilter(e.target.value)}
+              style={inputStyle}
+            >
+              <option value="">選択してください</option>
+              {staffNames.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </FilterCard>
+
+          <FilterCard label="時給">
+            <input
+              type="number"
+              value={hourlyWage}
+              onChange={(e) => setHourlyWage(e.target.value)}
+              style={inputStyle}
+            />
+          </FilterCard>
+
+          <FilterCard label="残業倍率">
+            <input
+              type="number"
+              step="0.01"
+              value={overtimeRate}
+              onChange={(e) => setOvertimeRate(e.target.value)}
+              style={inputStyle}
+            />
+          </FilterCard>
+
+          <FilterCard label="深夜倍率">
+            <input
+              type="number"
+              step="0.01"
+              value={lateNightRate}
+              onChange={(e) => setLateNightRate(e.target.value)}
+              style={inputStyle}
+            />
+          </FilterCard>
+
+          <FilterCard label="交通費">
+            <input
+              type="number"
+              value={transportation}
+              onChange={(e) => setTransportation(e.target.value)}
+              style={inputStyle}
+            />
+          </FilterCard>
+        </div>
+
+        <div
+          style={{
+            ...filterGridStyle,
+            gridTemplateColumns: mobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
+          }}
+        >
+          <FilterCard label="手当">
+            <input
+              type="number"
+              value={adjustment}
+              onChange={(e) => setAdjustment(e.target.value)}
+              style={inputStyle}
+            />
+          </FilterCard>
+
+          <FilterCard label="控除">
+            <input
+              type="number"
+              value={deduction}
+              onChange={(e) => setDeduction(e.target.value)}
+              style={inputStyle}
+            />
+          </FilterCard>
+        </div>
+
+        <div
+          style={{
+            ...summaryGridLargeStyle,
+            gridTemplateColumns: mobile
+              ? "1fr"
+              : tablet
+              ? "repeat(2, minmax(0, 1fr))"
+              : "repeat(5, minmax(0, 1fr))",
+          }}
+        >
+          <MetricCard label="対象月" value={monthLabel(monthFilter)} />
+          <MetricCard label="スタッフ" value={staffFilter || "未選択"} />
+          <MetricCard label="出勤日数" value={`${totals.workDays}日`} />
+          <MetricCard label="総勤務時間" value={minutesToText(totals.totalWorkMinutes)} />
+          <MetricCard label="支給額合計" value={formatCurrency(totals.paymentTotal)} />
+        </div>
+
+        <div
+          style={{
+            ...summaryGridLargeStyle,
+            gridTemplateColumns: mobile
+              ? "1fr"
+              : tablet
+              ? "repeat(2, minmax(0, 1fr))"
+              : "repeat(4, minmax(0, 1fr))",
+          }}
+        >
+          <MetricCard label="通常賃金" value={formatCurrency(totals.regularPay)} />
+          <MetricCard label="残業賃金" value={formatCurrency(totals.overtimePay)} />
+          <MetricCard label="深夜賃金" value={formatCurrency(totals.lateNightPay)} />
+          <MetricCard label="総支給前" value={formatCurrency(totals.grossPay)} />
+        </div>
+
+        <div style={panelStyle}>
+          <div style={panelHeaderStyle}>
             <div>
-              <div className="text-lg font-bold tracking-[0.08em] text-gray-900">
-                GYMUP CRM
-              </div>
-              <div className="text-xs text-gray-600">給与明細管理</div>
+              <div style={panelMiniStyle}>PAYSLIP SUMMARY</div>
+              <h2 style={panelTitleStyle}>給与明細サマリー</h2>
             </div>
           </div>
 
-          <div className="flex gap-3">
-            <Link
-              href="/attendance/admin"
-              className="rounded-xl border border-white/45 bg-white/30 px-4 py-2.5 text-sm font-semibold text-gray-800 backdrop-blur-xl transition hover:bg-white/45"
-            >
-              管理者トップ
-            </Link>
-            <Link
-              href="/attendance"
-              className="rounded-xl border border-white/45 bg-white/30 px-4 py-2.5 text-sm font-semibold text-gray-800 backdrop-blur-xl transition hover:bg-white/45"
-            >
-              勤怠トップ
-            </Link>
+          <div style={detailBoxStyle}>
+            <DetailRow label="氏名" value={staffFilter || "未選択"} />
+            <DetailRow label="対象月" value={monthLabel(monthFilter)} />
+            <DetailRow label="出勤日数" value={`${totals.workDays}日`} />
+            <DetailRow label="通常勤務時間" value={minutesToText(totals.regularMinutes)} />
+            <DetailRow label="残業時間" value={minutesToText(totals.overtimeMinutes)} />
+            <DetailRow label="深夜時間" value={minutesToText(totals.lateNightMinutes)} />
+            <DetailRow label="通常賃金" value={formatCurrency(totals.regularPay)} />
+            <DetailRow label="残業賃金" value={formatCurrency(totals.overtimePay)} />
+            <DetailRow label="深夜賃金" value={formatCurrency(totals.lateNightPay)} />
+            <DetailRow label="小計" value={formatCurrency(totals.grossPay)} />
+            <DetailRow label="交通費" value={formatCurrency(transportationNum)} />
+            <DetailRow label="手当" value={formatCurrency(adjustmentNum)} />
+            <DetailRow label="控除" value={`- ${formatCurrency(deductionNum)}`} />
+            <DetailRowStrong label="支給額合計" value={formatCurrency(totals.paymentTotal)} />
           </div>
         </div>
-      </header>
 
-      <div className="relative mx-auto max-w-7xl p-6 md:p-10">
-        <section className={glassCardLgClass + " mb-8"}>
-          <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/50 bg-white/45 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-gray-600 backdrop-blur-xl">
-            <span className="inline-block h-2 w-2 rounded-full bg-black/70" />
-            Payslip Management
+        <div style={panelStyle}>
+          <div style={panelHeaderStyle}>
+            <div>
+              <div style={panelMiniStyle}>ATTENDANCE DETAILS</div>
+              <h2 style={panelTitleStyle}>月内勤怠詳細</h2>
+            </div>
           </div>
 
-          <h1 className="text-3xl font-bold text-gray-900 md:text-5xl">
-            給与明細管理
-          </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-7 text-gray-700 md:text-base">
-            スタッフ別の給与明細を確認・管理します。対象月ごとの総支給額、控除額、差引支給額を一覧で見られます。
-          </p>
-        </section>
-
-        <section className={glassCardClass + " mb-8"}>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <Metric title="対象人数" value={`${totals.count}人`} />
-            <Metric title="総支給額" value={formatYen(totals.grossPay)} />
-            <Metric title="控除合計" value={formatYen(totals.totalDeduction)} />
-            <Metric title="差引支給額" value={formatYen(totals.netPay)} />
-          </div>
-        </section>
-
-        <section className={glassCardClass + " mb-8"}>
-          <div className="grid gap-4 md:grid-cols-2">
-            <Field label="対象月">
-              <input
-                type="month"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className={glassInputClass}
-              />
-            </Field>
-
-            <Field label="スタッフ検索">
-              <input
-                type="text"
-                placeholder="スタッフ名で検索"
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                className={glassInputClass}
-              />
-            </Field>
-          </div>
-        </section>
-
-        <section className={glassCardClass}>
-          <div className="overflow-x-auto rounded-[24px] border border-white/30 bg-white/25 backdrop-blur-xl">
-            <table className="w-full min-w-[1200px]">
-              <thead className="bg-white/35">
-                <tr>
-                  <th className="p-4 text-left text-sm font-semibold text-gray-800">スタッフ名</th>
-                  <th className="p-4 text-left text-sm font-semibold text-gray-800">対象月</th>
-                  <th className="p-4 text-left text-sm font-semibold text-gray-800">出勤日数</th>
-                  <th className="p-4 text-left text-sm font-semibold text-gray-800">総支給額</th>
-                  <th className="p-4 text-left text-sm font-semibold text-gray-800">控除額</th>
-                  <th className="p-4 text-left text-sm font-semibold text-gray-800">差引支給額</th>
-                  <th className="p-4 text-left text-sm font-semibold text-gray-800">詳細</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPayslips.length === 0 ? (
+          {loading ? (
+            <div style={loadingStyle}>読み込み中...</div>
+          ) : filteredRows.length === 0 ? (
+            <div style={emptyBoxStyle}>該当する勤怠データがありません。</div>
+          ) : mobile ? (
+            <div style={{ display: "grid", gap: 12 }}>
+              {filteredRows.map((row) => (
+                <div key={row.id} style={recordCardStyle}>
+                  <div style={recordDateStyle}>{formatDateJP(row.work_date)}</div>
+                  <div style={recordInfoGridStyle}>
+                    <MiniInfo label="出勤" value={formatTimeJP(row.clock_in)} />
+                    <MiniInfo label="退勤" value={formatTimeJP(row.clock_out)} />
+                    <MiniInfo label="休憩" value={`${row.break_minutes ?? 0}分`} />
+                    <MiniInfo label="通常" value={minutesToText(row.regular_minutes ?? 0)} />
+                    <MiniInfo label="残業" value={minutesToText(row.overtime_minutes ?? 0)} />
+                    <MiniInfo label="深夜" value={minutesToText(row.late_night_minutes ?? 0)} />
+                    <MiniInfo label="総勤務" value={minutesToText(row.total_work_minutes ?? 0)} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-gray-600">
-                      給与明細データがありません
-                    </td>
+                    <th style={thStyle}>日付</th>
+                    <th style={thStyle}>出勤</th>
+                    <th style={thStyle}>退勤</th>
+                    <th style={thStyle}>休憩</th>
+                    <th style={thStyle}>通常</th>
+                    <th style={thStyle}>残業</th>
+                    <th style={thStyle}>深夜</th>
+                    <th style={thStyle}>総勤務</th>
+                    <th style={thStyle}>備考</th>
                   </tr>
-                ) : (
-                  filteredPayslips.map((item) => (
-                    <tr key={item.id} className="border-t border-white/30">
-                      <td className="p-4 font-semibold text-gray-900">{item.staffName}</td>
-                      <td className="p-4 text-gray-700">{item.year}年{item.month}月</td>
-                      <td className="p-4 text-gray-700">{item.workDays}日</td>
-                      <td className="p-4 text-gray-700">{formatYen(item.grossPay)}</td>
-                      <td className="p-4 text-gray-700">{formatYen(item.totalDeduction)}</td>
-                      <td className="p-4 font-bold text-gray-900">{formatYen(item.netPay)}</td>
-                      <td className="p-4">
-                        <Link
-                          href="/attendance/staff/payslip"
-                          className="inline-flex rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
-                        >
-                          開く
-                        </Link>
-                      </td>
+                </thead>
+                <tbody>
+                  {filteredRows.map((row) => (
+                    <tr key={row.id}>
+                      <td style={tdStyle}>{formatDateJP(row.work_date)}</td>
+                      <td style={tdStyle}>{formatTimeJP(row.clock_in)}</td>
+                      <td style={tdStyle}>{formatTimeJP(row.clock_out)}</td>
+                      <td style={tdStyle}>{row.break_minutes ?? 0}分</td>
+                      <td style={tdStyle}>{minutesToText(row.regular_minutes ?? 0)}</td>
+                      <td style={tdStyle}>{minutesToText(row.overtime_minutes ?? 0)}</td>
+                      <td style={tdStyle}>{minutesToText(row.late_night_minutes ?? 0)}</td>
+                      <td style={tdStyleStrong}>{minutesToText(row.total_work_minutes ?? 0)}</td>
+                      <td style={tdNoteStyle}>{row.note || "—"}</td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
-    </main>
+    </div>
   );
 }
 
-function Field({
+function FilterCard({
   label,
   children,
 }: {
@@ -466,30 +485,407 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div>
-      <label className="mb-2 block text-sm font-medium text-gray-700">{label}</label>
+    <div style={filterCardStyle}>
+      <div style={labelStyle}>{label}</div>
       {children}
     </div>
   );
 }
 
-function Metric({ title, value }: { title: string; value: string }) {
+function MetricCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
   return (
-    <div className={glassInnerClass}>
-      <div className="mb-1 text-sm text-gray-600">{title}</div>
-      <div className="text-2xl font-bold text-gray-900">{value}</div>
+    <div style={metricCardStyle}>
+      <div style={metricLabelStyle}>{label}</div>
+      <div style={metricValueStyle}>{value}</div>
     </div>
   );
 }
 
-const glassCardClass =
-  "relative overflow-hidden rounded-[30px] border border-white/35 bg-white/40 p-6 shadow-[0_24px_70px_rgba(0,0,0,0.10)] backdrop-blur-2xl";
+function MiniInfo({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div style={miniInfoCardStyle}>
+      <div style={miniInfoLabelStyle}>{label}</div>
+      <div style={miniInfoValueStyle}>{value}</div>
+    </div>
+  );
+}
 
-const glassCardLgClass =
-  "relative overflow-hidden rounded-[34px] border border-white/35 bg-white/40 p-8 shadow-[0_28px_80px_rgba(0,0,0,0.12)] backdrop-blur-2xl";
+function DetailRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div style={detailRowStyle}>
+      <span style={detailLabelStyle}>{label}</span>
+      <span style={detailValueStyle}>{value}</span>
+    </div>
+  );
+}
 
-const glassInnerClass =
-  "rounded-2xl border border-white/35 bg-white/35 px-4 py-4 backdrop-blur-xl";
+function DetailRowStrong({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div style={{ ...detailRowStyle, borderBottom: "none" }}>
+      <span style={{ ...detailLabelStyle, fontWeight: 800, color: "#0f172a" }}>{label}</span>
+      <span style={{ ...detailValueStyle, fontWeight: 900, color: "#2563eb" }}>{value}</span>
+    </div>
+  );
+}
 
-const glassInputClass =
-  "w-full rounded-2xl border border-white/45 bg-white/45 px-4 py-3 text-gray-900 outline-none backdrop-blur-xl placeholder:text-gray-400";
+const pageStyle: CSSProperties = {
+  minHeight: "100vh",
+  background:
+    "linear-gradient(135deg, #eef4ff 0%, #f8fbff 30%, #f3f7ff 65%, #eef2ff 100%)",
+  position: "relative",
+  overflow: "hidden",
+};
+
+const bgGlowA: CSSProperties = {
+  position: "absolute",
+  top: -140,
+  left: -120,
+  width: 420,
+  height: 420,
+  borderRadius: "50%",
+  background:
+    "radial-gradient(circle, rgba(147,197,253,0.22) 0%, rgba(147,197,253,0) 72%)",
+  pointerEvents: "none",
+};
+
+const bgGlowB: CSSProperties = {
+  position: "absolute",
+  right: -120,
+  top: 80,
+  width: 360,
+  height: 360,
+  borderRadius: "50%",
+  background:
+    "radial-gradient(circle, rgba(196,181,253,0.18) 0%, rgba(196,181,253,0) 72%)",
+  pointerEvents: "none",
+};
+
+const containerStyle: CSSProperties = {
+  position: "relative",
+  zIndex: 1,
+  maxWidth: 1280,
+  margin: "0 auto",
+  padding: "28px 18px 60px",
+  display: "grid",
+  gap: 18,
+};
+
+const topRowStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap",
+};
+
+const backLinkStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  color: "rgba(30,41,59,0.78)",
+  textDecoration: "none",
+  fontSize: 14,
+  fontWeight: 600,
+};
+
+const eyebrowStyle: CSSProperties = {
+  fontSize: 11,
+  letterSpacing: "0.24em",
+  color: "rgba(30,41,59,0.42)",
+};
+
+const heroCardStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: 20,
+  flexWrap: "wrap",
+  background: "rgba(255,255,255,0.55)",
+  border: "1px solid rgba(255,255,255,0.75)",
+  borderRadius: 28,
+  padding: "24px 22px",
+  boxShadow: "0 18px 40px rgba(148,163,184,0.14)",
+  backdropFilter: "blur(10px)",
+};
+
+const heroLeftStyle: CSSProperties = {
+  flex: 1,
+  minWidth: 260,
+};
+
+const miniLabelStyle: CSSProperties = {
+  fontSize: 11,
+  letterSpacing: "0.24em",
+  color: "rgba(30,41,59,0.48)",
+  marginBottom: 8,
+};
+
+const titleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: "clamp(28px, 4vw, 42px)",
+  lineHeight: 1.1,
+  color: "#0f172a",
+  fontWeight: 800,
+};
+
+const descStyle: CSSProperties = {
+  margin: "12px 0 0",
+  fontSize: 14,
+  lineHeight: 1.8,
+  color: "rgba(15,23,42,0.68)",
+};
+
+const errorBoxStyle: CSSProperties = {
+  padding: "14px 16px",
+  borderRadius: 18,
+  background: "rgba(254,226,226,0.9)",
+  border: "1px solid rgba(248,113,113,0.28)",
+  color: "#b91c1c",
+  fontSize: 14,
+};
+
+const filterGridStyle: CSSProperties = {
+  display: "grid",
+  gap: 14,
+};
+
+const filterCardStyle: CSSProperties = {
+  background: "rgba(255,255,255,0.52)",
+  border: "1px solid rgba(255,255,255,0.76)",
+  borderRadius: 22,
+  padding: 16,
+  boxShadow: "0 14px 34px rgba(148,163,184,0.12)",
+  backdropFilter: "blur(10px)",
+};
+
+const labelStyle: CSSProperties = {
+  fontSize: 13,
+  color: "rgba(15,23,42,0.78)",
+  marginBottom: 8,
+};
+
+const inputStyle: CSSProperties = {
+  width: "100%",
+  height: 48,
+  borderRadius: 14,
+  border: "1px solid rgba(203,213,225,0.9)",
+  background: "rgba(255,255,255,0.82)",
+  color: "#0f172a",
+  padding: "0 14px",
+  outline: "none",
+  fontSize: 14,
+  boxSizing: "border-box",
+};
+
+const summaryGridLargeStyle: CSSProperties = {
+  display: "grid",
+  gap: 14,
+};
+
+const metricCardStyle: CSSProperties = {
+  borderRadius: 20,
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  padding: 16,
+};
+
+const metricLabelStyle: CSSProperties = {
+  fontSize: 12,
+  color: "rgba(15,23,42,0.46)",
+  marginBottom: 8,
+};
+
+const metricValueStyle: CSSProperties = {
+  fontSize: 24,
+  fontWeight: 800,
+  color: "#0f172a",
+  lineHeight: 1.2,
+};
+
+const panelStyle: CSSProperties = {
+  background: "rgba(255,255,255,0.52)",
+  border: "1px solid rgba(255,255,255,0.76)",
+  borderRadius: 26,
+  padding: 20,
+  boxShadow: "0 14px 34px rgba(148,163,184,0.12)",
+  backdropFilter: "blur(10px)",
+};
+
+const panelHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap",
+  marginBottom: 16,
+};
+
+const panelMiniStyle: CSSProperties = {
+  fontSize: 11,
+  letterSpacing: "0.22em",
+  color: "rgba(30,41,59,0.42)",
+  marginBottom: 6,
+};
+
+const panelTitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 22,
+  color: "#0f172a",
+  fontWeight: 700,
+};
+
+const detailBoxStyle: CSSProperties = {
+  borderRadius: 20,
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  padding: 16,
+};
+
+const detailRowStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  padding: "10px 0",
+  borderBottom: "1px solid rgba(226,232,240,0.9)",
+};
+
+const detailLabelStyle: CSSProperties = {
+  fontSize: 14,
+  color: "rgba(15,23,42,0.62)",
+};
+
+const detailValueStyle: CSSProperties = {
+  fontSize: 14,
+  fontWeight: 700,
+  color: "#0f172a",
+};
+
+const emptyBoxStyle: CSSProperties = {
+  minHeight: 120,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  textAlign: "center",
+  borderRadius: 20,
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  color: "rgba(15,23,42,0.54)",
+  fontSize: 14,
+  padding: 20,
+};
+
+const miniInfoCardStyle: CSSProperties = {
+  borderRadius: 16,
+  background: "rgba(248,250,252,0.92)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  padding: 12,
+};
+
+const miniInfoLabelStyle: CSSProperties = {
+  fontSize: 11,
+  color: "rgba(15,23,42,0.46)",
+  marginBottom: 6,
+};
+
+const miniInfoValueStyle: CSSProperties = {
+  fontSize: 14,
+  fontWeight: 700,
+  color: "#0f172a",
+  lineHeight: 1.5,
+};
+
+const tableWrapStyle: CSSProperties = {
+  width: "100%",
+  overflowX: "auto",
+  borderRadius: 20,
+  border: "1px solid rgba(226,232,240,0.95)",
+  background: "rgba(255,255,255,0.72)",
+};
+
+const tableStyle: CSSProperties = {
+  width: "100%",
+  minWidth: 900,
+  borderCollapse: "collapse",
+};
+
+const thStyle: CSSProperties = {
+  padding: "12px 10px",
+  textAlign: "left",
+  fontSize: 12,
+  fontWeight: 800,
+  color: "rgba(15,23,42,0.56)",
+  borderBottom: "1px solid rgba(226,232,240,0.95)",
+  background: "rgba(248,250,252,0.95)",
+  whiteSpace: "nowrap",
+};
+
+const tdStyle: CSSProperties = {
+  padding: "12px 10px",
+  fontSize: 13,
+  color: "#0f172a",
+  borderBottom: "1px solid rgba(226,232,240,0.7)",
+  verticalAlign: "top",
+  whiteSpace: "nowrap",
+};
+
+const tdStyleStrong: CSSProperties = {
+  ...tdStyle,
+  fontWeight: 800,
+};
+
+const tdNoteStyle: CSSProperties = {
+  ...tdStyle,
+  whiteSpace: "normal",
+  minWidth: 180,
+};
+
+const recordCardStyle: CSSProperties = {
+  borderRadius: 20,
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  padding: 16,
+};
+
+const recordDateStyle: CSSProperties = {
+  fontSize: 14,
+  color: "rgba(15,23,42,0.56)",
+  marginBottom: 10,
+  fontWeight: 700,
+};
+
+const recordInfoGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: 10,
+};
+
+const loadingStyle: CSSProperties = {
+  textAlign: "center",
+  color: "rgba(15,23,42,0.56)",
+  fontSize: 14,
+  padding: "16px 0",
+};

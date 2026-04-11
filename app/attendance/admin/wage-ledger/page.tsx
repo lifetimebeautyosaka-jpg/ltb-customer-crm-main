@@ -1,706 +1,500 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { CSSProperties, useEffect, useMemo, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 
-type AttendanceRecord = {
-  id?: string | number;
-  staffId?: string;
-  staffName?: string;
-  name?: string;
-  employeeName?: string;
-  userName?: string;
-  date?: string;
-  workDate?: string;
-  clockIn?: string;
-  clockOut?: string;
-  startTime?: string;
-  endTime?: string;
-  normalMinutes?: number | string;
-  overtimeMinutes?: number | string;
-  lateNightMinutes?: number | string;
-  overtimeLateNightMinutes?: number | string;
-  regularMinutes?: number | string;
-  nightMinutes?: number | string;
-  normalWorkMinutes?: number | string;
-  overtimeNightMinutes?: number | string;
-  workingHours?: number | string;
-  regularHours?: number | string;
-  overtimeHours?: number | string;
-  lateNightHours?: number | string;
-  overtimeLateNightHours?: number | string;
-  status?: string;
+type AttendanceRow = {
+  id: number;
+  staff_id: string;
+  staff_name: string;
+  work_date: string;
+  clock_in: string | null;
+  clock_out: string | null;
+  break_minutes: number | null;
+  regular_minutes: number | null;
+  overtime_minutes: number | null;
+  late_night_minutes: number | null;
+  total_work_minutes: number | null;
+  note: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
-type WageInput = {
-  hourlyRate: number;
-  incentive: number;
-  adjustment: number;
-};
-
-type WageSettings = {
-  [month: string]: {
-    [staffName: string]: WageInput;
-  };
-};
-
-type StaffSummary = {
+type LedgerRow = {
   staffName: string;
+  month: string;
   workDays: number;
-  normalMinutes: number;
+  totalMinutes: number;
+  regularMinutes: number;
   overtimeMinutes: number;
   lateNightMinutes: number;
-  overtimeLateNightMinutes: number;
-  totalMinutes: number;
+  regularPay: number;
+  overtimePay: number;
+  lateNightPay: number;
+  grossPay: number;
 };
 
-type ExportRow = {
-  スタッフ名: string;
-  出勤日数: number;
-  通常勤務時間: string;
-  残業時間: string;
-  深夜時間: string;
-  残業深夜時間: string;
-  総勤務時間: string;
-  時給: number;
-  通常支給額: number;
-  残業支給額: number;
-  深夜支給額: number;
-  残業深夜支給額: number;
-  インセンティブ: number;
-  調整額: number;
-  総支給額: number;
-};
-
-const ATTENDANCE_STORAGE_KEY = "attendanceRecords";
-const WAGE_SETTINGS_STORAGE_KEY = "wageSettings";
-
-const OVERTIME_RATE = 1.25;
-const LATE_NIGHT_RATE = 1.25;
-const OVERTIME_LATE_NIGHT_RATE = 1.5;
-
-function toNumber(value: unknown): number {
-  const num = Number(value);
-  return Number.isFinite(num) ? num : 0;
+function getCurrentMonth() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function hoursToMinutes(value: unknown): number {
-  return Math.round(toNumber(value) * 60);
+function monthLabel(month: string) {
+  if (!month) return "—";
+  const [y, m] = month.split("-");
+  return `${y}年${Number(m)}月`;
 }
 
-function formatMinutes(minutes: number) {
-  const safe = Math.max(0, Math.floor(minutes));
+function minutesToText(minutes: number) {
+  const safe = Math.max(0, Math.floor(minutes || 0));
   const h = Math.floor(safe / 60);
   const m = safe % 60;
   return `${h}時間${m}分`;
 }
 
-function formatHours(minutes: number) {
-  return (minutes / 60).toFixed(2);
+function formatCurrency(value: number) {
+  return `¥${Math.round(value || 0).toLocaleString()}`;
 }
 
-function formatYen(value: number) {
-  return `¥${Math.round(value).toLocaleString("ja-JP")}`;
+function downloadCsv(filename: string, rows: (string | number)[][]) {
+  const csv = rows
+    .map((row) =>
+      row
+        .map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`)
+        .join(",")
+    )
+    .join("\n");
+
+  const blob = new Blob(["\uFEFF" + csv], {
+    type: "text/csv;charset=utf-8;",
+  });
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
-function getMonthString(date = new Date()) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  return `${y}-${m}`;
-}
+export default function WageLedgerPage() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
-function extractStaffName(record: AttendanceRecord) {
-  return (
-    record.staffName ||
-    record.name ||
-    record.employeeName ||
-    record.userName ||
-    "スタッフ未設定"
-  );
-}
+  const supabase = useMemo(() => {
+    if (!supabaseUrl || !supabaseAnonKey) return null;
+    return createClient(supabaseUrl, supabaseAnonKey);
+  }, [supabaseUrl, supabaseAnonKey]);
 
-function extractDate(record: AttendanceRecord) {
-  return record.date || record.workDate || "";
-}
+  const [mounted, setMounted] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(1400);
 
-function extractMonth(record: AttendanceRecord) {
-  const rawDate = extractDate(record);
-  if (!rawDate) return "";
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  if (/^\d{4}-\d{2}/.test(rawDate)) {
-    return rawDate.slice(0, 7);
-  }
-
-  const parsed = new Date(rawDate);
-  if (Number.isNaN(parsed.getTime())) return "";
-
-  const y = parsed.getFullYear();
-  const m = String(parsed.getMonth() + 1).padStart(2, "0");
-  return `${y}-${m}`;
-}
-
-function calcTotalMinutes(record: AttendanceRecord) {
-  const minutesBasedTotal =
-    toNumber(record.normalMinutes ?? record.regularMinutes ?? record.normalWorkMinutes) +
-    toNumber(record.overtimeMinutes) +
-    toNumber(record.lateNightMinutes ?? record.nightMinutes) +
-    toNumber(record.overtimeLateNightMinutes ?? record.overtimeNightMinutes);
-
-  if (minutesBasedTotal > 0) return minutesBasedTotal;
-
-  const hoursBasedTotal =
-    hoursToMinutes(record.workingHours) ||
-    hoursToMinutes(record.regularHours) +
-      hoursToMinutes(record.overtimeHours) +
-      hoursToMinutes(record.lateNightHours) +
-      hoursToMinutes(record.overtimeLateNightHours);
-
-  if (hoursBasedTotal > 0) return hoursBasedTotal;
-
-  const clockIn = record.clockIn || record.startTime;
-  const clockOut = record.clockOut || record.endTime;
-
-  if (!clockIn || !clockOut) return 0;
-
-  const [inH, inM] = clockIn.split(":").map(Number);
-  const [outH, outM] = clockOut.split(":").map(Number);
-
-  if ([inH, inM, outH, outM].some((v) => Number.isNaN(v))) {
-    return 0;
-  }
-
-  let start = inH * 60 + inM;
-  let end = outH * 60 + outM;
-
-  if (end < start) {
-    end += 24 * 60;
-  }
-
-  return Math.max(0, end - start);
-}
-
-function getNormalMinutes(record: AttendanceRecord) {
-  return (
-    toNumber(record.normalMinutes ?? record.regularMinutes ?? record.normalWorkMinutes) ||
-    hoursToMinutes(record.regularHours)
-  );
-}
-
-function getOvertimeMinutes(record: AttendanceRecord) {
-  return toNumber(record.overtimeMinutes) || hoursToMinutes(record.overtimeHours);
-}
-
-function getLateNightMinutes(record: AttendanceRecord) {
-  return (
-    toNumber(record.lateNightMinutes ?? record.nightMinutes) ||
-    hoursToMinutes(record.lateNightHours)
-  );
-}
-
-function getOvertimeLateNightMinutes(record: AttendanceRecord) {
-  return (
-    toNumber(record.overtimeLateNightMinutes ?? record.overtimeNightMinutes) ||
-    hoursToMinutes(record.overtimeLateNightHours)
-  );
-}
-
-function getEmptyWageInput(): WageInput {
-  return {
-    hourlyRate: 0,
-    incentive: 0,
-    adjustment: 0,
-  };
-}
-
-function escapeCSV(value: string | number) {
-  const text = String(value ?? "");
-  if (/[",\n]/.test(text)) {
-    return `"${text.replace(/"/g, '""')}"`;
-  }
-  return text;
-}
-
-export default function AdminWageLedgerPage() {
-  const [records, setRecords] = useState<AttendanceRecord[]>([]);
-  const [selectedMonth, setSelectedMonth] = useState(getMonthString());
-  const [searchText, setSearchText] = useState("");
-  const [wageSettings, setWageSettings] = useState<WageSettings>({});
+  const [rows, setRows] = useState<AttendanceRow[]>([]);
+  const [monthFilter, setMonthFilter] = useState(getCurrentMonth());
+  const [hourlyWage, setHourlyWage] = useState("1200");
+  const [overtimeRate, setOvertimeRate] = useState("1.25");
+  const [lateNightRate, setLateNightRate] = useState("1.25");
 
   useEffect(() => {
-    try {
-      const rawAttendance = localStorage.getItem(ATTENDANCE_STORAGE_KEY);
-      if (rawAttendance) {
-        const parsed = JSON.parse(rawAttendance);
-        setRecords(Array.isArray(parsed) ? parsed : []);
-      }
-
-      const rawWageSettings = localStorage.getItem(WAGE_SETTINGS_STORAGE_KEY);
-      if (rawWageSettings) {
-        const parsed = JSON.parse(rawWageSettings);
-        setWageSettings(parsed && typeof parsed === "object" ? parsed : {});
-      }
-    } catch (error) {
-      console.error("データ読み込みエラー:", error);
-      setRecords([]);
-      setWageSettings({});
-    }
+    setMounted(true);
   }, []);
 
-  const filteredRecords = useMemo(() => {
-    return records.filter((record) => {
-      const month = extractMonth(record);
-      const staffName = extractStaffName(record);
-      const monthMatch = month === selectedMonth;
-      const nameMatch = staffName
-        .toLowerCase()
-        .includes(searchText.trim().toLowerCase());
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onResize = () => setWindowWidth(window.innerWidth);
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
-      return monthMatch && nameMatch;
-    });
-  }, [records, selectedMonth, searchText]);
+  useEffect(() => {
+    if (!mounted) return;
 
-  const summaryList = useMemo<StaffSummary[]>(() => {
-    const map = new Map<string, StaffSummary>();
+    const loggedIn =
+      localStorage.getItem("gymup_logged_in") ||
+      localStorage.getItem("isLoggedIn");
 
-    filteredRecords.forEach((record) => {
-      const staffName = extractStaffName(record);
+    if (loggedIn !== "true") {
+      window.location.href = "/login";
+      return;
+    }
 
-      const normalMinutes = getNormalMinutes(record);
-      const overtimeMinutes = getOvertimeMinutes(record);
-      const lateNightMinutes = getLateNightMinutes(record);
-      const overtimeLateNightMinutes = getOvertimeLateNightMinutes(record);
+    void fetchAttendance();
+  }, [mounted]);
 
-      const totalMinutes =
-        normalMinutes + overtimeMinutes + lateNightMinutes + overtimeLateNightMinutes ||
-        calcTotalMinutes(record);
+  const mobile = windowWidth < 768;
+  const tablet = windowWidth < 1100;
 
-      if (!map.has(staffName)) {
-        map.set(staffName, {
-          staffName,
-          workDays: 0,
-          normalMinutes: 0,
-          overtimeMinutes: 0,
-          lateNightMinutes: 0,
-          overtimeLateNightMinutes: 0,
-          totalMinutes: 0,
-        });
-      }
+  async function fetchAttendance() {
+    if (!supabase) {
+      setLoading(false);
+      setError("Supabaseの環境変数が未設定です。");
+      return;
+    }
 
-      const current = map.get(staffName)!;
-      current.workDays += 1;
-      current.normalMinutes += normalMinutes;
-      current.overtimeMinutes += overtimeMinutes;
-      current.lateNightMinutes += lateNightMinutes;
-      current.overtimeLateNightMinutes += overtimeLateNightMinutes;
-      current.totalMinutes += totalMinutes;
-    });
+    try {
+      setLoading(true);
+      setError("");
 
-    return Array.from(map.values()).sort((a, b) =>
-      a.staffName.localeCompare(b.staffName, "ja")
+      const { data, error } = await supabase
+        .from("staff_attendance")
+        .select("*")
+        .order("work_date", { ascending: false })
+        .order("staff_name", { ascending: true });
+
+      if (error) throw error;
+
+      setRows(((data as AttendanceRow[]) || []).map((row) => ({
+        ...row,
+        break_minutes: row.break_minutes ?? 0,
+        regular_minutes: row.regular_minutes ?? 0,
+        overtime_minutes: row.overtime_minutes ?? 0,
+        late_night_minutes: row.late_night_minutes ?? 0,
+        total_work_minutes: row.total_work_minutes ?? 0,
+      })));
+    } catch (e: any) {
+      console.error(e);
+      setError(e?.message || "勤怠データの取得に失敗しました。");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const wage = Number(hourlyWage || 0);
+  const overtimeMultiplier = Number(overtimeRate || 1.25);
+  const lateNightMultiplier = Number(lateNightRate || 1.25);
+
+  const ledgerRows = useMemo<LedgerRow[]>(() => {
+    const filtered = rows.filter((row) =>
+      monthFilter ? String(row.work_date || "").startsWith(monthFilter) : true
     );
-  }, [filteredRecords]);
 
-  const updateWageSetting = (
-    staffName: string,
-    key: keyof WageInput,
-    value: string
-  ) => {
-    const numericValue = Number(value) || 0;
+    const grouped = new Map<string, LedgerRow>();
 
-    setWageSettings((prev) => {
-      const next: WageSettings = {
-        ...prev,
-        [selectedMonth]: {
-          ...(prev[selectedMonth] || {}),
-          [staffName]: {
-            ...(prev[selectedMonth]?.[staffName] || getEmptyWageInput()),
-            [key]: numericValue,
-          },
-        },
-      };
-
-      localStorage.setItem(WAGE_SETTINGS_STORAGE_KEY, JSON.stringify(next));
-      return next;
-    });
-  };
-
-  const rows = useMemo(() => {
-    return summaryList.map((staff) => {
-      const saved = wageSettings[selectedMonth]?.[staff.staffName] || getEmptyWageInput();
-
-      const hourlyRate = toNumber(saved.hourlyRate);
-      const incentive = toNumber(saved.incentive);
-      const adjustment = toNumber(saved.adjustment);
-
-      const normalPay = (staff.normalMinutes / 60) * hourlyRate;
-      const overtimePay = (staff.overtimeMinutes / 60) * hourlyRate * OVERTIME_RATE;
-      const lateNightPay = (staff.lateNightMinutes / 60) * hourlyRate * LATE_NIGHT_RATE;
-      const overtimeLateNightPay =
-        (staff.overtimeLateNightMinutes / 60) * hourlyRate * OVERTIME_LATE_NIGHT_RATE;
-
-      const totalPay =
-        normalPay +
-        overtimePay +
-        lateNightPay +
-        overtimeLateNightPay +
-        incentive +
-        adjustment;
-
-      return {
-        ...staff,
-        hourlyRate,
-        incentive,
-        adjustment,
-        normalPay,
-        overtimePay,
-        lateNightPay,
-        overtimeLateNightPay,
-        totalPay,
-      };
-    });
-  }, [summaryList, wageSettings, selectedMonth]);
-
-  const grandTotal = useMemo(() => {
-    return rows.reduce(
-      (acc, row) => {
-        acc.staffCount += 1;
-        acc.workDays += row.workDays;
-        acc.normalMinutes += row.normalMinutes;
-        acc.overtimeMinutes += row.overtimeMinutes;
-        acc.lateNightMinutes += row.lateNightMinutes;
-        acc.overtimeLateNightMinutes += row.overtimeLateNightMinutes;
-        acc.totalMinutes += row.totalMinutes;
-        acc.normalPay += row.normalPay;
-        acc.overtimePay += row.overtimePay;
-        acc.lateNightPay += row.lateNightPay;
-        acc.overtimeLateNightPay += row.overtimeLateNightPay;
-        acc.incentive += row.incentive;
-        acc.adjustment += row.adjustment;
-        acc.totalPay += row.totalPay;
-        return acc;
-      },
-      {
-        staffCount: 0,
+    filtered.forEach((row) => {
+      const key = `${row.staff_name}__${monthFilter}`;
+      const current = grouped.get(key) || {
+        staffName: row.staff_name || "未設定",
+        month: monthFilter,
         workDays: 0,
-        normalMinutes: 0,
+        totalMinutes: 0,
+        regularMinutes: 0,
         overtimeMinutes: 0,
         lateNightMinutes: 0,
-        overtimeLateNightMinutes: 0,
-        totalMinutes: 0,
-        normalPay: 0,
+        regularPay: 0,
         overtimePay: 0,
         lateNightPay: 0,
-        overtimeLateNightPay: 0,
-        incentive: 0,
-        adjustment: 0,
-        totalPay: 0,
-      }
-    );
-  }, [rows]);
+        grossPay: 0,
+      };
 
-  const exportRows = useMemo<ExportRow[]>(() => {
-    return rows.map((row) => ({
-      スタッフ名: row.staffName,
-      出勤日数: row.workDays,
-      通常勤務時間: formatHours(row.normalMinutes),
-      残業時間: formatHours(row.overtimeMinutes),
-      深夜時間: formatHours(row.lateNightMinutes),
-      残業深夜時間: formatHours(row.overtimeLateNightMinutes),
-      総勤務時間: formatHours(row.totalMinutes),
-      時給: Math.round(row.hourlyRate),
-      通常支給額: Math.round(row.normalPay),
-      残業支給額: Math.round(row.overtimePay),
-      深夜支給額: Math.round(row.lateNightPay),
-      残業深夜支給額: Math.round(row.overtimeLateNightPay),
-      インセンティブ: Math.round(row.incentive),
-      調整額: Math.round(row.adjustment),
-      総支給額: Math.round(row.totalPay),
-    }));
-  }, [rows]);
+      current.workDays += row.clock_in ? 1 : 0;
+      current.totalMinutes += Number(row.total_work_minutes || 0);
+      current.regularMinutes += Number(row.regular_minutes || 0);
+      current.overtimeMinutes += Number(row.overtime_minutes || 0);
+      current.lateNightMinutes += Number(row.late_night_minutes || 0);
 
-  const handleExportCSV = () => {
-    if (exportRows.length === 0) {
-      alert("出力するデータがありません");
-      return;
-    }
+      grouped.set(key, current);
+    });
 
-    const headers = Object.keys(exportRows[0]);
-    const lines = [
-      headers.join(","),
-      ...exportRows.map((row) =>
-        headers.map((header) => escapeCSV(row[header as keyof ExportRow])).join(",")
-      ),
+    const list = Array.from(grouped.values()).map((item) => {
+      const regularPay = (item.regularMinutes / 60) * wage;
+      const overtimePay = (item.overtimeMinutes / 60) * wage * overtimeMultiplier;
+      const lateNightPay = (item.lateNightMinutes / 60) * wage * lateNightMultiplier;
+      const grossPay = regularPay + overtimePay + lateNightPay;
+
+      return {
+        ...item,
+        regularPay,
+        overtimePay,
+        lateNightPay,
+        grossPay,
+      };
+    });
+
+    return list.sort((a, b) => a.staffName.localeCompare(b.staffName, "ja"));
+  }, [rows, monthFilter, wage, overtimeMultiplier, lateNightMultiplier]);
+
+  const totalGrossPay = useMemo(() => {
+    return ledgerRows.reduce((sum, row) => sum + row.grossPay, 0);
+  }, [ledgerRows]);
+
+  const totalWorkDays = useMemo(() => {
+    return ledgerRows.reduce((sum, row) => sum + row.workDays, 0);
+  }, [ledgerRows]);
+
+  function handleCsvExport() {
+    const header = [
+      "対象月",
+      "スタッフ名",
+      "出勤日数",
+      "総勤務時間(分)",
+      "通常勤務(分)",
+      "残業(分)",
+      "深夜(分)",
+      "通常賃金",
+      "残業賃金",
+      "深夜賃金",
+      "総支給概算",
     ];
 
-    const csv = "\uFEFF" + lines.join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `wage-ledger-${selectedMonth}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-  };
+    const body = ledgerRows.map((row) => [
+      monthLabel(row.month),
+      row.staffName,
+      row.workDays,
+      row.totalMinutes,
+      row.regularMinutes,
+      row.overtimeMinutes,
+      row.lateNightMinutes,
+      Math.round(row.regularPay),
+      Math.round(row.overtimePay),
+      Math.round(row.lateNightPay),
+      Math.round(row.grossPay),
+    ]);
 
-  const handleExportExcel = () => {
-    if (exportRows.length === 0) {
-      alert("出力するデータがありません");
-      return;
-    }
+    downloadCsv(`wage-ledger-${monthFilter}.csv`, [header, ...body]);
+  }
 
-    const ws = XLSX.utils.json_to_sheet(exportRows);
+  function handleExcelExport() {
+    const sheetData = ledgerRows.map((row) => ({
+      対象月: monthLabel(row.month),
+      スタッフ名: row.staffName,
+      出勤日数: row.workDays,
+      総勤務時間_分: row.totalMinutes,
+      通常勤務_分: row.regularMinutes,
+      残業_分: row.overtimeMinutes,
+      深夜_分: row.lateNightMinutes,
+      通常賃金: Math.round(row.regularPay),
+      残業賃金: Math.round(row.overtimePay),
+      深夜賃金: Math.round(row.lateNightPay),
+      総支給概算: Math.round(row.grossPay),
+    }));
+
     const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(sheetData);
+
     XLSX.utils.book_append_sheet(wb, ws, "賃金台帳");
-    XLSX.writeFile(wb, `wage-ledger-${selectedMonth}.xlsx`);
-  };
+    XLSX.writeFile(wb, `wage-ledger-${monthFilter}.xlsx`);
+  }
+
+  if (!mounted) return null;
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[linear-gradient(135deg,#e5e7eb_0%,#d1d5db_42%,#9ca3af_100%)] text-gray-900">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-44 -left-36 h-[560px] w-[560px] rounded-full bg-white/70 blur-[140px]" />
-        <div className="absolute bottom-[-140px] right-[-80px] h-[460px] w-[460px] rounded-full bg-white/50 blur-[120px]" />
-      </div>
+    <div style={pageStyle}>
+      <div style={bgGlowA} />
+      <div style={bgGlowB} />
 
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.10]"
-        style={{
-          backgroundImage:
-            "repeating-linear-gradient(135deg, rgba(255,255,255,0.55) 0px, rgba(255,255,255,0.55) 1px, transparent 1px, transparent 24px)",
-        }}
-      />
+      <div style={containerStyle}>
+        <div style={topRowStyle}>
+          <Link href="/attendance/admin" style={backLinkStyle}>
+            ← 管理者勤怠へ戻る
+          </Link>
+          <div style={eyebrowStyle}>WAGE LEDGER</div>
+        </div>
 
-      <header className="relative border-b border-white/35 bg-white/35 backdrop-blur-2xl">
-        <div className="mx-auto flex max-w-[1500px] items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-4">
-            <img
-              src="/gymup-logo.png"
-              alt="GYMUP"
-              className="h-11 w-auto object-contain"
-            />
-            <div>
-              <div className="text-lg font-bold tracking-[0.08em] text-gray-900">
-                GYMUP CRM
-              </div>
-              <div className="text-xs text-gray-600">管理者用賃金台帳</div>
-            </div>
+        <div style={heroCardStyle}>
+          <div style={heroLeftStyle}>
+            <div style={miniLabelStyle}>GYMUP PAYROLL</div>
+            <h1 style={titleStyle}>賃金台帳</h1>
+            <p style={descStyle}>
+              月別のスタッフごとの賃金台帳を一覧で確認し、CSV / Excel で出力できます。
+            </p>
           </div>
 
-          <div className="flex gap-3">
-            <Link
-              href="/"
-              className="rounded-xl border border-white/45 bg-white/30 px-4 py-2.5 text-sm font-semibold text-gray-800 backdrop-blur-xl transition hover:bg-white/45"
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              flexWrap: "wrap",
+              width: mobile ? "100%" : "auto",
+              flexDirection: mobile ? "column" : "row",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => void fetchAttendance()}
+              style={{
+                ...topActionButtonStyle,
+                width: mobile ? "100%" : "auto",
+              }}
             >
-              管理メニュー
-            </Link>
-            <Link
-              href="/attendance"
-              className="rounded-xl border border-white/45 bg-white/30 px-4 py-2.5 text-sm font-semibold text-gray-800 backdrop-blur-xl transition hover:bg-white/45"
+              再読み込み
+            </button>
+            <button
+              type="button"
+              onClick={handleCsvExport}
+              style={{
+                ...topActionButtonStyle,
+                width: mobile ? "100%" : "auto",
+              }}
             >
-              勤怠トップ
-            </Link>
-            <Link
-              href="/attendance/admin/timecard"
-              className="rounded-xl border border-white/45 bg-white/30 px-4 py-2.5 text-sm font-semibold text-gray-800 backdrop-blur-xl transition hover:bg-white/45"
+              CSV出力
+            </button>
+            <button
+              type="button"
+              onClick={handleExcelExport}
+              style={{
+                ...topActionButtonStyle,
+                width: mobile ? "100%" : "auto",
+              }}
             >
-              管理者タイムカード
-            </Link>
+              Excel出力
+            </button>
           </div>
         </div>
-      </header>
 
-      <div className="relative mx-auto max-w-[1500px] p-6 md:p-10">
-        <section className={`${glassCardLgClass} mb-8`}>
-          <div className="pointer-events-none absolute inset-0 rounded-[34px] border border-white/45" />
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-[linear-gradient(180deg,rgba(255,255,255,0.70)_0%,rgba(255,255,255,0)_100%)]" />
+        {!supabase && (
+          <div style={errorBoxStyle}>
+            NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY が未設定です。
+          </div>
+        )}
 
-          <div className="relative flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        {error && <div style={errorBoxStyle}>{error}</div>}
+
+        <div
+          style={{
+            ...filterGridStyle,
+            gridTemplateColumns: mobile
+              ? "1fr"
+              : tablet
+              ? "repeat(2, minmax(0, 1fr))"
+              : "repeat(4, minmax(0, 1fr))",
+          }}
+        >
+          <FilterCard label="対象月">
+            <input
+              type="month"
+              value={monthFilter}
+              onChange={(e) => setMonthFilter(e.target.value)}
+              style={inputStyle}
+            />
+          </FilterCard>
+
+          <FilterCard label="時給">
+            <input
+              type="number"
+              value={hourlyWage}
+              onChange={(e) => setHourlyWage(e.target.value)}
+              style={inputStyle}
+            />
+          </FilterCard>
+
+          <FilterCard label="残業倍率">
+            <input
+              type="number"
+              step="0.01"
+              value={overtimeRate}
+              onChange={(e) => setOvertimeRate(e.target.value)}
+              style={inputStyle}
+            />
+          </FilterCard>
+
+          <FilterCard label="深夜倍率">
+            <input
+              type="number"
+              step="0.01"
+              value={lateNightRate}
+              onChange={(e) => setLateNightRate(e.target.value)}
+              style={inputStyle}
+            />
+          </FilterCard>
+        </div>
+
+        <div
+          style={{
+            ...summaryGridLargeStyle,
+            gridTemplateColumns: mobile
+              ? "1fr"
+              : tablet
+              ? "repeat(2, minmax(0, 1fr))"
+              : "repeat(4, minmax(0, 1fr))",
+          }}
+        >
+          <MetricCard label="対象月" value={monthLabel(monthFilter)} />
+          <MetricCard label="台帳人数" value={`${ledgerRows.length}名`} />
+          <MetricCard label="合計出勤日数" value={`${totalWorkDays}日`} />
+          <MetricCard label="総支給概算" value={formatCurrency(totalGrossPay)} />
+        </div>
+
+        <div style={panelStyle}>
+          <div style={panelHeaderStyle}>
             <div>
-              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/50 bg-white/45 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-gray-600 backdrop-blur-xl">
-                <span className="inline-block h-2 w-2 rounded-full bg-black/70" />
-                Wage Ledger
-              </div>
-
-              <h1 className="text-3xl font-bold text-gray-900 md:text-5xl">
-                管理者用賃金台帳
-              </h1>
-              <p className="mt-3 max-w-3xl text-sm leading-7 text-gray-700 md:text-base">
-                勤怠データをもとに賃金を自動計算します。時給・インセンティブ・調整額だけ手入力で管理できます。
-              </p>
-              <p className="mt-2 text-xs text-gray-600">
-                計算倍率：残業 {OVERTIME_RATE}倍 / 深夜 {LATE_NIGHT_RATE}倍 / 残業深夜 {OVERTIME_LATE_NIGHT_RATE}倍
-              </p>
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={handleExportCSV}
-                className="rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(0,0,0,0.20)] transition hover:bg-black"
-              >
-                CSV出力
-              </button>
-              <button
-                onClick={handleExportExcel}
-                className="rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(0,0,0,0.20)] transition hover:bg-black"
-              >
-                Excel出力
-              </button>
+              <div style={panelMiniStyle}>LEDGER LIST</div>
+              <h2 style={panelTitleStyle}>賃金台帳一覧</h2>
             </div>
           </div>
-        </section>
 
-        <section className={`${glassCardClass} mb-8`}>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <Metric title="スタッフ人数" value={`${grandTotal.staffCount}人`} />
-            <Metric title="総出勤日数" value={`${grandTotal.workDays}日`} />
-            <Metric title="総勤務時間" value={formatMinutes(grandTotal.totalMinutes)} />
-            <Metric title="総支給額" value={formatYen(grandTotal.totalPay)} />
-          </div>
-        </section>
+          {loading ? (
+            <div style={loadingStyle}>読み込み中...</div>
+          ) : ledgerRows.length === 0 ? (
+            <div style={emptyBoxStyle}>該当するデータがありません。</div>
+          ) : mobile ? (
+            <div style={{ display: "grid", gap: 12 }}>
+              {ledgerRows.map((row) => (
+                <div key={`${row.staffName}-${row.month}`} style={recordCardStyle}>
+                  <div style={recordDateStyle}>{row.staffName}</div>
+                  <div style={recordSubStyle}>{monthLabel(row.month)}</div>
 
-        <section className={`${glassCardClass} mb-8`}>
-          <div className="grid gap-4 md:grid-cols-2">
-            <Field label="対象月">
-              <input
-                type="month"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className={glassInputClass}
-              />
-            </Field>
-
-            <Field label="スタッフ検索">
-              <input
-                type="text"
-                placeholder="スタッフ名で検索"
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                className={glassInputClass}
-              />
-            </Field>
-          </div>
-        </section>
-
-        <section className={glassCardClass}>
-          <div className="overflow-x-auto rounded-[24px] border border-white/30 bg-white/25 backdrop-blur-xl">
-            <table className="w-full min-w-[1800px]">
-              <thead className="bg-white/35">
-                <tr>
-                  <th className="p-4 text-left text-sm font-semibold text-gray-800">スタッフ名</th>
-                  <th className="p-4 text-left text-sm font-semibold text-gray-800">出勤日数</th>
-                  <th className="p-4 text-left text-sm font-semibold text-gray-800">通常</th>
-                  <th className="p-4 text-left text-sm font-semibold text-gray-800">残業</th>
-                  <th className="p-4 text-left text-sm font-semibold text-gray-800">深夜</th>
-                  <th className="p-4 text-left text-sm font-semibold text-gray-800">残業深夜</th>
-                  <th className="p-4 text-left text-sm font-semibold text-gray-800">総勤務</th>
-                  <th className="p-4 text-left text-sm font-semibold text-gray-800">時給</th>
-                  <th className="p-4 text-left text-sm font-semibold text-gray-800">通常支給</th>
-                  <th className="p-4 text-left text-sm font-semibold text-gray-800">残業支給</th>
-                  <th className="p-4 text-left text-sm font-semibold text-gray-800">深夜支給</th>
-                  <th className="p-4 text-left text-sm font-semibold text-gray-800">残業深夜支給</th>
-                  <th className="p-4 text-left text-sm font-semibold text-gray-800">インセンティブ</th>
-                  <th className="p-4 text-left text-sm font-semibold text-gray-800">調整額</th>
-                  <th className="p-4 text-left text-sm font-semibold text-gray-800">総支給額</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {rows.length === 0 ? (
+                  <div style={recordInfoGridStyle}>
+                    <MiniInfo label="出勤日数" value={`${row.workDays}日`} />
+                    <MiniInfo label="総勤務" value={minutesToText(row.totalMinutes)} />
+                    <MiniInfo label="通常" value={minutesToText(row.regularMinutes)} />
+                    <MiniInfo label="残業" value={minutesToText(row.overtimeMinutes)} />
+                    <MiniInfo label="深夜" value={minutesToText(row.lateNightMinutes)} />
+                    <MiniInfo label="支給概算" value={formatCurrency(row.grossPay)} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
                   <tr>
-                    <td colSpan={15} className="p-8 text-center text-gray-600">
-                      データがありません
-                    </td>
+                    <th style={thStyle}>対象月</th>
+                    <th style={thStyle}>スタッフ名</th>
+                    <th style={thStyle}>出勤日数</th>
+                    <th style={thStyle}>総勤務時間</th>
+                    <th style={thStyle}>通常勤務</th>
+                    <th style={thStyle}>残業</th>
+                    <th style={thStyle}>深夜</th>
+                    <th style={thStyle}>通常賃金</th>
+                    <th style={thStyle}>残業賃金</th>
+                    <th style={thStyle}>深夜賃金</th>
+                    <th style={thStyle}>総支給概算</th>
                   </tr>
-                ) : (
-                  rows.map((row) => (
-                    <tr key={row.staffName} className="border-t border-white/30">
-                      <td className="p-4 font-semibold text-gray-900">{row.staffName}</td>
-                      <td className="p-4 text-gray-700">{row.workDays}日</td>
-                      <td className="p-4 text-gray-700">{formatHours(row.normalMinutes)}h</td>
-                      <td className="p-4 text-gray-700">{formatHours(row.overtimeMinutes)}h</td>
-                      <td className="p-4 text-gray-700">{formatHours(row.lateNightMinutes)}h</td>
-                      <td className="p-4 text-gray-700">{formatHours(row.overtimeLateNightMinutes)}h</td>
-                      <td className="p-4 text-gray-700">{formatHours(row.totalMinutes)}h</td>
-
-                      <td className="p-4">
-                        <input
-                          type="number"
-                          min="0"
-                          value={row.hourlyRate}
-                          onChange={(e) =>
-                            updateWageSetting(row.staffName, "hourlyRate", e.target.value)
-                          }
-                          className={tableInputClass}
-                        />
-                      </td>
-
-                      <td className="p-4 text-gray-700">{formatYen(row.normalPay)}</td>
-                      <td className="p-4 text-gray-700">{formatYen(row.overtimePay)}</td>
-                      <td className="p-4 text-gray-700">{formatYen(row.lateNightPay)}</td>
-                      <td className="p-4 text-gray-700">{formatYen(row.overtimeLateNightPay)}</td>
-
-                      <td className="p-4">
-                        <input
-                          type="number"
-                          value={row.incentive}
-                          onChange={(e) =>
-                            updateWageSetting(row.staffName, "incentive", e.target.value)
-                          }
-                          className={tableInputClass}
-                        />
-                      </td>
-
-                      <td className="p-4">
-                        <input
-                          type="number"
-                          value={row.adjustment}
-                          onChange={(e) =>
-                            updateWageSetting(row.staffName, "adjustment", e.target.value)
-                          }
-                          className={tableInputClass}
-                        />
-                      </td>
-
-                      <td className="p-4 font-bold text-gray-900">{formatYen(row.totalPay)}</td>
+                </thead>
+                <tbody>
+                  {ledgerRows.map((row) => (
+                    <tr key={`${row.staffName}-${row.month}`}>
+                      <td style={tdStyle}>{monthLabel(row.month)}</td>
+                      <td style={tdStyleStrong}>{row.staffName}</td>
+                      <td style={tdStyle}>{row.workDays}日</td>
+                      <td style={tdStyle}>{minutesToText(row.totalMinutes)}</td>
+                      <td style={tdStyle}>{minutesToText(row.regularMinutes)}</td>
+                      <td style={tdStyle}>{minutesToText(row.overtimeMinutes)}</td>
+                      <td style={tdStyle}>{minutesToText(row.lateNightMinutes)}</td>
+                      <td style={tdStyle}>{formatCurrency(row.regularPay)}</td>
+                      <td style={tdStyle}>{formatCurrency(row.overtimePay)}</td>
+                      <td style={tdStyle}>{formatCurrency(row.lateNightPay)}</td>
+                      <td style={tdStyleStrongBlue}>{formatCurrency(row.grossPay)}</td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-
-              {rows.length > 0 && (
-                <tfoot className="bg-white/35">
-                  <tr>
-                    <td className="p-4 font-bold text-gray-900">合計</td>
-                    <td className="p-4 font-bold text-gray-900">{grandTotal.workDays}日</td>
-                    <td className="p-4 font-bold text-gray-900">{formatHours(grandTotal.normalMinutes)}h</td>
-                    <td className="p-4 font-bold text-gray-900">{formatHours(grandTotal.overtimeMinutes)}h</td>
-                    <td className="p-4 font-bold text-gray-900">{formatHours(grandTotal.lateNightMinutes)}h</td>
-                    <td className="p-4 font-bold text-gray-900">
-                      {formatHours(grandTotal.overtimeLateNightMinutes)}h
-                    </td>
-                    <td className="p-4 font-bold text-gray-900">{formatHours(grandTotal.totalMinutes)}h</td>
-                    <td className="p-4 font-bold text-gray-900">-</td>
-                    <td className="p-4 font-bold text-gray-900">{formatYen(grandTotal.normalPay)}</td>
-                    <td className="p-4 font-bold text-gray-900">{formatYen(grandTotal.overtimePay)}</td>
-                    <td className="p-4 font-bold text-gray-900">{formatYen(grandTotal.lateNightPay)}</td>
-                    <td className="p-4 font-bold text-gray-900">{formatYen(grandTotal.overtimeLateNightPay)}</td>
-                    <td className="p-4 font-bold text-gray-900">{formatYen(grandTotal.incentive)}</td>
-                    <td className="p-4 font-bold text-gray-900">{formatYen(grandTotal.adjustment)}</td>
-                    <td className="p-4 font-bold text-gray-900">{formatYen(grandTotal.totalPay)}</td>
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-          </div>
-        </section>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
-    </main>
+    </div>
   );
 }
 
-function Field({
+function FilterCard({
   label,
   children,
 }: {
@@ -708,33 +502,368 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div>
-      <label className="mb-2 block text-sm font-medium text-gray-700">{label}</label>
+    <div style={filterCardStyle}>
+      <div style={labelStyle}>{label}</div>
       {children}
     </div>
   );
 }
 
-function Metric({ title, value }: { title: string; value: string }) {
+function MetricCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
   return (
-    <div className={glassInnerClass}>
-      <div className="mb-1 text-sm text-gray-600">{title}</div>
-      <div className="text-2xl font-bold text-gray-900">{value}</div>
+    <div style={metricCardStyle}>
+      <div style={metricLabelStyle}>{label}</div>
+      <div style={metricValueStyle}>{value}</div>
     </div>
   );
 }
 
-const glassCardClass =
-  "relative overflow-hidden rounded-[30px] border border-white/35 bg-white/40 p-6 shadow-[0_24px_70px_rgba(0,0,0,0.10)] backdrop-blur-2xl";
+function MiniInfo({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div style={miniInfoCardStyle}>
+      <div style={miniInfoLabelStyle}>{label}</div>
+      <div style={miniInfoValueStyle}>{value}</div>
+    </div>
+  );
+}
 
-const glassCardLgClass =
-  "relative overflow-hidden rounded-[34px] border border-white/35 bg-white/40 p-8 shadow-[0_28px_80px_rgba(0,0,0,0.12)] backdrop-blur-2xl";
+const pageStyle: CSSProperties = {
+  minHeight: "100vh",
+  background:
+    "linear-gradient(135deg, #eef4ff 0%, #f8fbff 30%, #f3f7ff 65%, #eef2ff 100%)",
+  position: "relative",
+  overflow: "hidden",
+};
 
-const glassInnerClass =
-  "rounded-2xl border border-white/35 bg-white/35 px-4 py-4 backdrop-blur-xl";
+const bgGlowA: CSSProperties = {
+  position: "absolute",
+  top: -140,
+  left: -120,
+  width: 420,
+  height: 420,
+  borderRadius: "50%",
+  background:
+    "radial-gradient(circle, rgba(147,197,253,0.22) 0%, rgba(147,197,253,0) 72%)",
+  pointerEvents: "none",
+};
 
-const glassInputClass =
-  "w-full rounded-2xl border border-white/45 bg-white/45 px-4 py-3 text-gray-900 outline-none backdrop-blur-xl placeholder:text-gray-400";
+const bgGlowB: CSSProperties = {
+  position: "absolute",
+  right: -120,
+  top: 80,
+  width: 360,
+  height: 360,
+  borderRadius: "50%",
+  background:
+    "radial-gradient(circle, rgba(196,181,253,0.18) 0%, rgba(196,181,253,0) 72%)",
+  pointerEvents: "none",
+};
 
-const tableInputClass =
-  "w-[120px] rounded-xl border border-white/45 bg-white/45 px-3 py-2 text-gray-900 outline-none backdrop-blur-xl";
+const containerStyle: CSSProperties = {
+  position: "relative",
+  zIndex: 1,
+  maxWidth: 1280,
+  margin: "0 auto",
+  padding: "28px 18px 60px",
+  display: "grid",
+  gap: 18,
+};
+
+const topRowStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap",
+};
+
+const backLinkStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  color: "rgba(30,41,59,0.78)",
+  textDecoration: "none",
+  fontSize: 14,
+  fontWeight: 600,
+};
+
+const eyebrowStyle: CSSProperties = {
+  fontSize: 11,
+  letterSpacing: "0.24em",
+  color: "rgba(30,41,59,0.42)",
+};
+
+const heroCardStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: 20,
+  flexWrap: "wrap",
+  background: "rgba(255,255,255,0.55)",
+  border: "1px solid rgba(255,255,255,0.75)",
+  borderRadius: 28,
+  padding: "24px 22px",
+  boxShadow: "0 18px 40px rgba(148,163,184,0.14)",
+  backdropFilter: "blur(10px)",
+};
+
+const heroLeftStyle: CSSProperties = {
+  flex: 1,
+  minWidth: 260,
+};
+
+const miniLabelStyle: CSSProperties = {
+  fontSize: 11,
+  letterSpacing: "0.24em",
+  color: "rgba(30,41,59,0.48)",
+  marginBottom: 8,
+};
+
+const titleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: "clamp(28px, 4vw, 42px)",
+  lineHeight: 1.1,
+  color: "#0f172a",
+  fontWeight: 800,
+};
+
+const descStyle: CSSProperties = {
+  margin: "12px 0 0",
+  fontSize: 14,
+  lineHeight: 1.8,
+  color: "rgba(15,23,42,0.68)",
+};
+
+const topActionButtonStyle: CSSProperties = {
+  minHeight: 44,
+  padding: "10px 16px",
+  borderRadius: 14,
+  border: "1px solid rgba(203,213,225,0.95)",
+  background: "rgba(255,255,255,0.84)",
+  color: "#0f172a",
+  fontWeight: 700,
+  fontSize: 14,
+  cursor: "pointer",
+};
+
+const errorBoxStyle: CSSProperties = {
+  padding: "14px 16px",
+  borderRadius: 18,
+  background: "rgba(254,226,226,0.9)",
+  border: "1px solid rgba(248,113,113,0.28)",
+  color: "#b91c1c",
+  fontSize: 14,
+};
+
+const filterGridStyle: CSSProperties = {
+  display: "grid",
+  gap: 14,
+};
+
+const filterCardStyle: CSSProperties = {
+  background: "rgba(255,255,255,0.52)",
+  border: "1px solid rgba(255,255,255,0.76)",
+  borderRadius: 22,
+  padding: 16,
+  boxShadow: "0 14px 34px rgba(148,163,184,0.12)",
+  backdropFilter: "blur(10px)",
+};
+
+const labelStyle: CSSProperties = {
+  fontSize: 13,
+  color: "rgba(15,23,42,0.78)",
+  marginBottom: 8,
+};
+
+const inputStyle: CSSProperties = {
+  width: "100%",
+  height: 48,
+  borderRadius: 14,
+  border: "1px solid rgba(203,213,225,0.9)",
+  background: "rgba(255,255,255,0.82)",
+  color: "#0f172a",
+  padding: "0 14px",
+  outline: "none",
+  fontSize: 14,
+  boxSizing: "border-box",
+};
+
+const summaryGridLargeStyle: CSSProperties = {
+  display: "grid",
+  gap: 14,
+};
+
+const metricCardStyle: CSSProperties = {
+  borderRadius: 20,
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  padding: 16,
+};
+
+const metricLabelStyle: CSSProperties = {
+  fontSize: 12,
+  color: "rgba(15,23,42,0.46)",
+  marginBottom: 8,
+};
+
+const metricValueStyle: CSSProperties = {
+  fontSize: 24,
+  fontWeight: 800,
+  color: "#0f172a",
+  lineHeight: 1.2,
+};
+
+const panelStyle: CSSProperties = {
+  background: "rgba(255,255,255,0.52)",
+  border: "1px solid rgba(255,255,255,0.76)",
+  borderRadius: 26,
+  padding: 20,
+  boxShadow: "0 14px 34px rgba(148,163,184,0.12)",
+  backdropFilter: "blur(10px)",
+};
+
+const panelHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap",
+  marginBottom: 16,
+};
+
+const panelMiniStyle: CSSProperties = {
+  fontSize: 11,
+  letterSpacing: "0.22em",
+  color: "rgba(30,41,59,0.42)",
+  marginBottom: 6,
+};
+
+const panelTitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 22,
+  color: "#0f172a",
+  fontWeight: 700,
+};
+
+const emptyBoxStyle: CSSProperties = {
+  minHeight: 120,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  textAlign: "center",
+  borderRadius: 20,
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  color: "rgba(15,23,42,0.54)",
+  fontSize: 14,
+  padding: 20,
+};
+
+const miniInfoCardStyle: CSSProperties = {
+  borderRadius: 16,
+  background: "rgba(248,250,252,0.92)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  padding: 12,
+};
+
+const miniInfoLabelStyle: CSSProperties = {
+  fontSize: 11,
+  color: "rgba(15,23,42,0.46)",
+  marginBottom: 6,
+};
+
+const miniInfoValueStyle: CSSProperties = {
+  fontSize: 14,
+  fontWeight: 700,
+  color: "#0f172a",
+  lineHeight: 1.5,
+};
+
+const tableWrapStyle: CSSProperties = {
+  width: "100%",
+  overflowX: "auto",
+  borderRadius: 20,
+  border: "1px solid rgba(226,232,240,0.95)",
+  background: "rgba(255,255,255,0.72)",
+};
+
+const tableStyle: CSSProperties = {
+  width: "100%",
+  minWidth: 1100,
+  borderCollapse: "collapse",
+};
+
+const thStyle: CSSProperties = {
+  padding: "12px 10px",
+  textAlign: "left",
+  fontSize: 12,
+  fontWeight: 800,
+  color: "rgba(15,23,42,0.56)",
+  borderBottom: "1px solid rgba(226,232,240,0.95)",
+  background: "rgba(248,250,252,0.95)",
+  whiteSpace: "nowrap",
+};
+
+const tdStyle: CSSProperties = {
+  padding: "12px 10px",
+  fontSize: 13,
+  color: "#0f172a",
+  borderBottom: "1px solid rgba(226,232,240,0.7)",
+  verticalAlign: "top",
+  whiteSpace: "nowrap",
+};
+
+const tdStyleStrong: CSSProperties = {
+  ...tdStyle,
+  fontWeight: 800,
+};
+
+const tdStyleStrongBlue: CSSProperties = {
+  ...tdStyle,
+  fontWeight: 900,
+  color: "#2563eb",
+};
+
+const recordCardStyle: CSSProperties = {
+  borderRadius: 20,
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  padding: 16,
+};
+
+const recordDateStyle: CSSProperties = {
+  fontSize: 18,
+  fontWeight: 800,
+  color: "#0f172a",
+  marginBottom: 4,
+};
+
+const recordSubStyle: CSSProperties = {
+  fontSize: 13,
+  color: "rgba(15,23,42,0.56)",
+  marginBottom: 12,
+};
+
+const recordInfoGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: 10,
+};
+
+const loadingStyle: CSSProperties = {
+  textAlign: "center",
+  color: "rgba(15,23,42,0.56)",
+  fontSize: 14,
+  padding: "16px 0",
+};
