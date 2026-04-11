@@ -1,164 +1,604 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { CSSProperties } from "react";
 
-export default function AttendanceTopPage() {
-  const router = useRouter();
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [role, setRole] = useState("");
-  const [name, setName] = useState("");
+const menuCards = [
+  {
+    title: "スタッフ用",
+    sub: "出勤・退勤・休憩入力",
+    href: "/attendance/staff",
+    stat: "STAFF",
+    description:
+      "スタッフ本人がその日の出勤・退勤を記録するためのページです。",
+  },
+  {
+    title: "管理者用",
+    sub: "勤怠一覧・集計確認",
+    href: "/attendance/admin",
+    stat: "ADMIN",
+    description:
+      "全スタッフの勤怠、月別集計、残業・深夜時間を確認できます。",
+  },
+  {
+    title: "給与明細",
+    sub: "スタッフ別の給与概算",
+    href: "/attendance/admin/payslip",
+    stat: "PAYSLIP",
+    description:
+      "対象月・対象スタッフごとの給与明細を確認できます。",
+  },
+  {
+    title: "賃金台帳",
+    sub: "CSV / Excel 出力",
+    href: "/attendance/admin/wage-ledger",
+    stat: "LEDGER",
+    description:
+      "賃金台帳を一覧で確認し、CSVやExcelに出力できます。",
+  },
+];
 
-  useEffect(() => {
-    const loggedIn = localStorage.getItem("gymup_logged_in");
-    const userRole = localStorage.getItem("gymup_user_role") || "";
-    const userName = localStorage.getItem("gymup_current_staff_name") || "";
-
-    if (loggedIn !== "true") {
-      router.push("/login");
-      return;
-    }
-
-    setRole(userRole);
-    setName(userName);
-    setIsLoaded(true);
-  }, [router]);
-
-  if (!isLoaded) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-[#d1d5db] text-gray-700">
-        読み込み中...
-      </main>
-    );
-  }
-
+export default function AttendancePage() {
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[linear-gradient(135deg,#e5e7eb_0%,#d1d5db_42%,#9ca3af_100%)] text-gray-900">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-44 -left-36 h-[560px] w-[560px] rounded-full bg-white/70 blur-[140px]" />
-        <div className="absolute bottom-[-140px] right-[-80px] h-[460px] w-[460px] rounded-full bg-white/50 blur-[120px]" />
-      </div>
+    <main style={pageStyle}>
+      <div style={bgGlowTop} />
+      <div style={bgGlowLeft} />
+      <div style={bgGlowRight} />
+      <div style={noiseStyle} />
 
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.10]"
-        style={{
-          backgroundImage:
-            "repeating-linear-gradient(135deg, rgba(255,255,255,0.55) 0px, rgba(255,255,255,0.55) 1px, transparent 1px, transparent 24px)",
-        }}
-      />
+      <div style={containerStyle}>
+        <div style={topBarStyle}>
+          <Link href="/" style={backLinkStyle}>
+            ← ホームへ戻る
+          </Link>
 
-      <header className="relative border-b border-white/35 bg-white/35 backdrop-blur-2xl">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-4">
-            <img
-              src="/gymup-logo.png"
-              alt="GYMUP"
-              className="h-11 w-auto object-contain"
-            />
-            <div>
-              <div className="text-lg font-bold tracking-[0.08em] text-gray-900">
-                GYMUP CRM
-              </div>
-              <div className="text-xs text-gray-600">勤怠管理</div>
+          <div style={topIconsStyle}>
+            <div style={topDotStyle} />
+            <div style={topDotStyle} />
+            <div style={topDotStyle} />
+          </div>
+        </div>
+
+        <section style={heroCardStyle}>
+          <div style={heroLeftStyle}>
+            <div style={miniLabelStyle}>GYMUP CRM</div>
+            <h1 style={heroTitleStyle}>Attendance Dashboard</h1>
+            <p style={heroSubStyle}>
+              勤怠管理・給与確認・賃金台帳出力を、
+              <br />
+              ひとつの画面からスムーズに操作できます。
+            </p>
+
+            <div style={heroButtonRowStyle}>
+              <Link href="/attendance/staff" style={primaryButtonStyle}>
+                スタッフ打刻へ
+              </Link>
+              <Link href="/attendance/admin" style={secondaryButtonStyle}>
+                管理者集計へ
+              </Link>
             </div>
           </div>
 
-          <Link
-            href="/"
-            className="rounded-xl bg-black px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(0,0,0,0.20)] transition hover:bg-neutral-800"
-          >
-            ホームへ戻る
-          </Link>
-        </div>
-      </header>
+          <div style={heroRightStyle}>
+            <div style={chartCardStyle}>
+              <div style={chartTitleStyle}>Attendance Overview</div>
 
-      <div className="relative mx-auto max-w-6xl px-6 py-10">
-        <section className="relative mb-10 overflow-hidden rounded-[34px] border border-white/35 bg-white/40 p-8 shadow-[0_28px_80px_rgba(0,0,0,0.12)] backdrop-blur-2xl">
-          <div className="pointer-events-none absolute inset-0 rounded-[34px] border border-white/45" />
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-[linear-gradient(180deg,rgba(255,255,255,0.70)_0%,rgba(255,255,255,0)_100%)]" />
+              <div style={chartWrapStyle}>
+                <svg viewBox="0 0 320 140" style={{ width: "100%", height: "100%" }}>
+                  <defs>
+                    <linearGradient id="goldLine" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#f5d06f" />
+                      <stop offset="100%" stopColor="#d4af37" />
+                    </linearGradient>
+                    <linearGradient id="grayLine" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="rgba(255,255,255,0.35)" />
+                      <stop offset="100%" stopColor="rgba(255,255,255,0.12)" />
+                    </linearGradient>
+                  </defs>
 
-          <div className="relative">
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/50 bg-white/45 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.24em] text-gray-600 backdrop-blur-xl">
-              <span className="inline-block h-2 w-2 rounded-full bg-black/70" />
-              Attendance
+                  {[20, 50, 80, 110].map((y) => (
+                    <line
+                      key={y}
+                      x1="0"
+                      y1={y}
+                      x2="320"
+                      y2={y}
+                      stroke="rgba(255,255,255,0.08)"
+                      strokeWidth="1"
+                    />
+                  ))}
+
+                  <polyline
+                    fill="none"
+                    stroke="url(#grayLine)"
+                    strokeWidth="4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    points="0,92 40,82 80,88 120,62 160,70 200,56 240,78 280,66 320,74"
+                  />
+
+                  <polyline
+                    fill="none"
+                    stroke="url(#goldLine)"
+                    strokeWidth="4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    points="0,98 40,76 80,64 120,72 160,96 200,54 240,48 280,70 320,58"
+                  />
+
+                  <circle cx="320" cy="58" r="5" fill="#f5d06f" />
+                </svg>
+              </div>
+
+              <div style={chartBottomStyle}>
+                <div>
+                  <div style={chartValueLabelStyle}>今月稼働</div>
+                  <div style={chartValueStyle}>ACTIVE</div>
+                </div>
+                <div style={chartBadgeStyle}>LIVE</div>
+              </div>
             </div>
-
-            <h1 className="text-4xl font-bold tracking-tight text-gray-900">
-              勤怠管理
-            </h1>
-
-            <p className="mt-4 max-w-2xl text-sm leading-8 text-gray-700 md:text-base">
-              {name ? `${name} さんでログイン中。` : ""}
-              {role === "admin"
-                ? " 管理者用メニューとスタッフ用メニューを表示しています。"
-                : " スタッフ用メニューのみ表示しています。"}
-            </p>
           </div>
         </section>
 
-        <section className="grid gap-6 md:grid-cols-2">
-          {role === "admin" && (
-            <Link href="/attendance/admin" className="block h-full">
-              <div className="group relative flex h-full min-h-[260px] flex-col overflow-hidden rounded-[28px] border border-white/35 bg-white/40 p-6 shadow-[0_24px_70px_rgba(0,0,0,0.10)] backdrop-blur-2xl transition duration-300 hover:-translate-y-1 hover:shadow-[0_32px_90px_rgba(0,0,0,0.14)]">
-                <div className="pointer-events-none absolute inset-0 rounded-[28px] border border-white/40" />
-                <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,rgba(255,255,255,0.65)_0%,rgba(255,255,255,0)_100%)]" />
+        <section style={statsGridStyle}>
+          <StatCard label="打刻管理" value="CLOCK" />
+          <StatCard label="月次集計" value="SUMMARY" />
+          <StatCard label="給与確認" value="PAYROLL" />
+          <StatCard label="帳票出力" value="EXPORT" />
+        </section>
 
-                <div className="relative">
-                  <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/50 bg-white/45 px-3 py-1.5 text-[11px] font-semibold tracking-[0.20em] text-gray-600 backdrop-blur-xl">
-                    <span className="inline-block h-2 w-2 rounded-full bg-black/70" />
-                    ADMIN
-                  </div>
-
-                  <h2 className="text-2xl font-bold leading-tight text-gray-900">
-                    管理者メニュー
-                  </h2>
-
-                  <div className="mt-3 h-[1px] w-10 bg-white/60" />
-
-                  <p className="mt-4 flex-1 text-sm leading-7 text-gray-700">
-                    管理者用タイムカード、賃金台帳、給与明細管理へ進めます。
-                  </p>
-
-                  <div className="mt-6 inline-flex w-fit items-center gap-2 rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(0,0,0,0.20)] transition group-hover:bg-black">
-                    開く
-                    <span className="transition group-hover:translate-x-0.5">→</span>
-                  </div>
-                </div>
-              </div>
-            </Link>
-          )}
-
-          <Link href="/attendance/staff" className="block h-full">
-            <div className="group relative flex h-full min-h-[260px] flex-col overflow-hidden rounded-[28px] border border-white/35 bg-white/40 p-6 shadow-[0_24px_70px_rgba(0,0,0,0.10)] backdrop-blur-2xl transition duration-300 hover:-translate-y-1 hover:shadow-[0_32px_90px_rgba(0,0,0,0.14)]">
-              <div className="pointer-events-none absolute inset-0 rounded-[28px] border border-white/40" />
-              <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,rgba(255,255,255,0.65)_0%,rgba(255,255,255,0)_100%)]" />
-
-              <div className="relative">
-                <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/50 bg-white/45 px-3 py-1.5 text-[11px] font-semibold tracking-[0.20em] text-gray-600 backdrop-blur-xl">
-                  <span className="inline-block h-2 w-2 rounded-full bg-black/70" />
-                  STAFF
-                </div>
-
-                <h2 className="text-2xl font-bold leading-tight text-gray-900">
-                  スタッフメニュー
-                </h2>
-
-                <div className="mt-3 h-[1px] w-10 bg-white/60" />
-
-                <p className="mt-4 flex-1 text-sm leading-7 text-gray-700">
-                  スタッフ用タイムカードや勤怠確認ページへ進めます。
-                </p>
-
-                <div className="mt-6 inline-flex w-fit items-center gap-2 rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(0,0,0,0.20)] transition group-hover:bg-black">
-                  開く
-                  <span className="transition group-hover:translate-x-0.5">→</span>
-                </div>
-              </div>
+        <section style={menuSectionStyle}>
+          <div style={sectionHeaderStyle}>
+            <div>
+              <div style={sectionMiniStyle}>ATTENDANCE MENU</div>
+              <h2 style={sectionTitleStyle}>機能メニュー</h2>
             </div>
-          </Link>
+
+            <div style={sectionBadgeStyle}>4 MODULES</div>
+          </div>
+
+          <div style={menuGridStyle}>
+            {menuCards.map((item) => (
+              <Link key={item.href} href={item.href} style={menuCardStyle}>
+                <div style={menuTopStyle}>
+                  <span style={menuStatStyle}>{item.stat}</span>
+                  <span style={arrowStyle}>↗</span>
+                </div>
+
+                <div style={menuTitleStyle}>{item.title}</div>
+                <div style={menuSubStyle}>{item.sub}</div>
+                <p style={menuDescStyle}>{item.description}</p>
+              </Link>
+            ))}
+          </div>
         </section>
       </div>
     </main>
   );
+}
+
+function StatCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div style={statCardStyle}>
+      <div style={statLabelStyle}>{label}</div>
+      <div style={statValueStyle}>{value}</div>
+    </div>
+  );
+}
+
+const pageStyle: CSSProperties = {
+  minHeight: "100vh",
+  position: "relative",
+  overflow: "hidden",
+  background: "linear-gradient(135deg, #05070b 0%, #0b1220 38%, #020617 100%)",
+  padding: "24px 16px 60px",
+};
+
+const bgGlowTop: CSSProperties = {
+  position: "absolute",
+  top: -120,
+  left: "50%",
+  transform: "translateX(-50%)",
+  width: 500,
+  height: 260,
+  background:
+    "radial-gradient(circle, rgba(245,208,111,0.18) 0%, rgba(245,208,111,0.06) 35%, rgba(245,208,111,0) 72%)",
+  pointerEvents: "none",
+  filter: "blur(12px)",
+};
+
+const bgGlowLeft: CSSProperties = {
+  position: "absolute",
+  top: 120,
+  left: -120,
+  width: 320,
+  height: 320,
+  borderRadius: "50%",
+  background:
+    "radial-gradient(circle, rgba(212,175,55,0.14) 0%, rgba(212,175,55,0) 70%)",
+  pointerEvents: "none",
+  filter: "blur(10px)",
+};
+
+const bgGlowRight: CSSProperties = {
+  position: "absolute",
+  right: -120,
+  bottom: 80,
+  width: 340,
+  height: 340,
+  borderRadius: "50%",
+  background:
+    "radial-gradient(circle, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 72%)",
+  pointerEvents: "none",
+  filter: "blur(20px)",
+};
+
+const noiseStyle: CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  backgroundImage:
+    "radial-gradient(rgba(255,255,255,0.035) 1px, transparent 1px)",
+  backgroundSize: "16px 16px",
+  opacity: 0.28,
+  pointerEvents: "none",
+};
+
+const containerStyle: CSSProperties = {
+  position: "relative",
+  zIndex: 1,
+  maxWidth: 1280,
+  margin: "0 auto",
+};
+
+const topBarStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap",
+  marginBottom: 18,
+};
+
+const backLinkStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  color: "rgba(255,255,255,0.72)",
+  textDecoration: "none",
+  fontSize: 14,
+  fontWeight: 600,
+};
+
+const topIconsStyle: CSSProperties = {
+  display: "flex",
+  gap: 8,
+  alignItems: "center",
+};
+
+const topDotStyle: CSSProperties = {
+  width: 8,
+  height: 8,
+  borderRadius: "50%",
+  background: "rgba(255,255,255,0.24)",
+};
+
+const heroCardStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 0.9fr)",
+  gap: 18,
+  padding: 18,
+  borderRadius: 30,
+  background: "rgba(255,255,255,0.06)",
+  backdropFilter: "blur(18px)",
+  WebkitBackdropFilter: "blur(18px)",
+  border: "1px solid rgba(255,255,255,0.10)",
+  boxShadow:
+    "0 25px 60px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08)",
+};
+
+const heroLeftStyle: CSSProperties = {
+  borderRadius: 24,
+  padding: "26px 24px",
+  background:
+    "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(245,208,111,0.06) 100%)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  minHeight: 300,
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "center",
+};
+
+const miniLabelStyle: CSSProperties = {
+  fontSize: 11,
+  letterSpacing: "0.24em",
+  color: "rgba(255,255,255,0.45)",
+  marginBottom: 10,
+  fontWeight: 700,
+};
+
+const heroTitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: "clamp(34px, 5vw, 58px)",
+  lineHeight: 1.04,
+  fontWeight: 800,
+  color: "#f8fafc",
+  letterSpacing: "-0.03em",
+};
+
+const heroSubStyle: CSSProperties = {
+  marginTop: 18,
+  marginBottom: 0,
+  fontSize: 15,
+  lineHeight: 1.9,
+  color: "rgba(255,255,255,0.68)",
+};
+
+const heroButtonRowStyle: CSSProperties = {
+  display: "flex",
+  gap: 12,
+  flexWrap: "wrap",
+  marginTop: 24,
+};
+
+const primaryButtonStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 46,
+  padding: "0 18px",
+  borderRadius: 14,
+  background: "linear-gradient(135deg, #d4af37, #f5d06f)",
+  color: "#111827",
+  textDecoration: "none",
+  fontWeight: 800,
+  fontSize: 14,
+  boxShadow: "0 12px 28px rgba(212,175,55,0.26)",
+};
+
+const secondaryButtonStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 46,
+  padding: "0 18px",
+  borderRadius: 14,
+  background: "rgba(255,255,255,0.06)",
+  border: "1px solid rgba(255,255,255,0.12)",
+  color: "#f8fafc",
+  textDecoration: "none",
+  fontWeight: 700,
+  fontSize: 14,
+};
+
+const heroRightStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "stretch",
+};
+
+const chartCardStyle: CSSProperties = {
+  width: "100%",
+  borderRadius: 24,
+  padding: "22px 20px",
+  background:
+    "linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(245,208,111,0.04) 100%)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  minHeight: 300,
+  display: "flex",
+  flexDirection: "column",
+};
+
+const chartTitleStyle: CSSProperties = {
+  fontSize: 13,
+  fontWeight: 700,
+  color: "rgba(255,255,255,0.52)",
+  marginBottom: 16,
+};
+
+const chartWrapStyle: CSSProperties = {
+  flex: 1,
+  minHeight: 160,
+  borderRadius: 18,
+  padding: 12,
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.06)",
+};
+
+const chartBottomStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginTop: 16,
+  gap: 12,
+  flexWrap: "wrap",
+};
+
+const chartValueLabelStyle: CSSProperties = {
+  fontSize: 12,
+  color: "rgba(255,255,255,0.45)",
+  marginBottom: 4,
+};
+
+const chartValueStyle: CSSProperties = {
+  fontSize: 20,
+  fontWeight: 800,
+  color: "#f8fafc",
+};
+
+const chartBadgeStyle: CSSProperties = {
+  minHeight: 30,
+  display: "inline-flex",
+  alignItems: "center",
+  padding: "0 12px",
+  borderRadius: 999,
+  background: "rgba(212,175,55,0.14)",
+  border: "1px solid rgba(212,175,55,0.24)",
+  color: "#f5d06f",
+  fontSize: 12,
+  fontWeight: 800,
+};
+
+const statsGridStyle: CSSProperties = {
+  marginTop: 18,
+  display: "grid",
+  gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+  gap: 12,
+};
+
+const statCardStyle: CSSProperties = {
+  borderRadius: 20,
+  padding: "16px 18px",
+  background: "rgba(255,255,255,0.06)",
+  backdropFilter: "blur(14px)",
+  WebkitBackdropFilter: "blur(14px)",
+  border: "1px solid rgba(255,255,255,0.10)",
+  boxShadow: "0 18px 35px rgba(0,0,0,0.18)",
+};
+
+const statLabelStyle: CSSProperties = {
+  fontSize: 12,
+  color: "rgba(255,255,255,0.46)",
+  marginBottom: 8,
+  fontWeight: 700,
+};
+
+const statValueStyle: CSSProperties = {
+  fontSize: 22,
+  fontWeight: 800,
+  color: "#f8fafc",
+  letterSpacing: "-0.02em",
+};
+
+const menuSectionStyle: CSSProperties = {
+  marginTop: 18,
+  borderRadius: 30,
+  padding: 18,
+  background: "rgba(255,255,255,0.06)",
+  backdropFilter: "blur(18px)",
+  WebkitBackdropFilter: "blur(18px)",
+  border: "1px solid rgba(255,255,255,0.10)",
+  boxShadow:
+    "0 25px 60px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.08)",
+};
+
+const sectionHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap",
+  marginBottom: 16,
+};
+
+const sectionMiniStyle: CSSProperties = {
+  fontSize: 11,
+  letterSpacing: "0.22em",
+  color: "rgba(255,255,255,0.42)",
+  marginBottom: 6,
+  fontWeight: 700,
+};
+
+const sectionTitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 22,
+  color: "#f8fafc",
+  fontWeight: 800,
+};
+
+const sectionBadgeStyle: CSSProperties = {
+  minHeight: 34,
+  display: "inline-flex",
+  alignItems: "center",
+  padding: "0 14px",
+  borderRadius: 999,
+  background: "rgba(255,255,255,0.06)",
+  border: "1px solid rgba(255,255,255,0.10)",
+  color: "#f5d06f",
+  fontSize: 12,
+  fontWeight: 800,
+};
+
+const menuGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: 14,
+};
+
+const menuCardStyle: CSSProperties = {
+  display: "block",
+  textDecoration: "none",
+  borderRadius: 24,
+  padding: "18px 18px 16px",
+  background:
+    "linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(245,208,111,0.03) 100%)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  boxShadow: "0 16px 32px rgba(0,0,0,0.18)",
+};
+
+const menuTopStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginBottom: 12,
+};
+
+const menuStatStyle: CSSProperties = {
+  minHeight: 28,
+  display: "inline-flex",
+  alignItems: "center",
+  padding: "0 10px",
+  borderRadius: 999,
+  background: "rgba(212,175,55,0.12)",
+  border: "1px solid rgba(212,175,55,0.20)",
+  color: "#f5d06f",
+  fontSize: 11,
+  fontWeight: 800,
+  letterSpacing: "0.08em",
+};
+
+const arrowStyle: CSSProperties = {
+  fontSize: 18,
+  color: "rgba(255,255,255,0.55)",
+  fontWeight: 700,
+};
+
+const menuTitleStyle: CSSProperties = {
+  fontSize: 22,
+  fontWeight: 800,
+  color: "#f8fafc",
+  marginBottom: 6,
+};
+
+const menuSubStyle: CSSProperties = {
+  fontSize: 14,
+  fontWeight: 700,
+  color: "#f5d06f",
+  marginBottom: 10,
+};
+
+const menuDescStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 13,
+  lineHeight: 1.8,
+  color: "rgba(255,255,255,0.62)",
+};
+
+const responsiveStyle = `
+@media (max-width: 1024px) {
+  .attendance-hero-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+`;
+
+if (typeof document !== "undefined" && !document.getElementById("attendance-page-responsive-style")) {
+  const style = document.createElement("style");
+  style.id = "attendance-page-responsive-style";
+  style.innerHTML = responsiveStyle;
+  document.head.appendChild(style);
 }
