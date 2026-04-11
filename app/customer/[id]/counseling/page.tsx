@@ -93,6 +93,16 @@ type FormState = {
   notes: string;
 };
 
+type ViewMode = "front" | "back";
+
+type BodyPoint = {
+  key: string;
+  label: string;
+  left: string;
+  top: string;
+  size?: number;
+};
+
 const REFERRAL_OPTIONS = [
   "Web",
   "ホームページ",
@@ -198,6 +208,58 @@ const MEDICAL_HISTORY_OPTIONS = [
   "脳",
   "骨折",
   "その他",
+];
+
+const FRONT_POINTS: BodyPoint[] = [
+  { key: "front_neck", label: "首", left: "50%", top: "15%" },
+  { key: "front_left_shoulder", label: "肩", left: "36%", top: "20%", size: 16 },
+  { key: "front_right_shoulder", label: "肩", left: "64%", top: "20%", size: 16 },
+  { key: "front_chest", label: "胸", left: "50%", top: "25%" },
+  { key: "front_left_upper_arm", label: "二の腕", left: "24%", top: "28%" },
+  { key: "front_right_upper_arm", label: "二の腕", left: "76%", top: "28%" },
+  { key: "front_left_elbow", label: "肘", left: "18%", top: "40%" },
+  { key: "front_right_elbow", label: "肘", left: "82%", top: "40%" },
+  { key: "front_left_wrist", label: "手首", left: "15%", top: "52%" },
+  { key: "front_right_wrist", label: "手首", left: "85%", top: "52%" },
+  { key: "front_abdomen", label: "お腹", left: "50%", top: "38%" },
+  { key: "front_pelvis", label: "骨盤", left: "50%", top: "48%" },
+  { key: "front_left_hip", label: "股関節", left: "40%", top: "54%" },
+  { key: "front_right_hip", label: "股関節", left: "60%", top: "54%" },
+  { key: "front_left_thigh", label: "太もも前", left: "44%", top: "64%" },
+  { key: "front_right_thigh", label: "太もも前", left: "56%", top: "64%" },
+  { key: "front_left_knee", label: "膝", left: "45%", top: "78%" },
+  { key: "front_right_knee", label: "膝", left: "55%", top: "78%" },
+  { key: "front_left_calf", label: "ふくらはぎ", left: "45%", top: "89%" },
+  { key: "front_right_calf", label: "ふくらはぎ", left: "55%", top: "89%" },
+  { key: "front_left_ankle", label: "足首", left: "45%", top: "97%" },
+  { key: "front_right_ankle", label: "足首", left: "55%", top: "97%" },
+];
+
+const BACK_POINTS: BodyPoint[] = [
+  { key: "back_neck", label: "首", left: "50%", top: "15%" },
+  { key: "back_left_shoulder", label: "肩", left: "36%", top: "20%", size: 16 },
+  { key: "back_right_shoulder", label: "肩", left: "64%", top: "20%", size: 16 },
+  { key: "back_upper_back", label: "背中上部", left: "50%", top: "28%" },
+  { key: "back_left_upper_arm", label: "二の腕", left: "24%", top: "28%" },
+  { key: "back_right_upper_arm", label: "二の腕", left: "76%", top: "28%" },
+  { key: "back_left_elbow", label: "肘", left: "18%", top: "40%" },
+  { key: "back_right_elbow", label: "肘", left: "82%", top: "40%" },
+  { key: "back_left_wrist", label: "手首", left: "15%", top: "52%" },
+  { key: "back_right_wrist", label: "手首", left: "85%", top: "52%" },
+  { key: "back_mid_back", label: "背中下部", left: "50%", top: "40%" },
+  { key: "back_lower_back", label: "腰", left: "50%", top: "48%" },
+  { key: "back_left_hip", label: "お尻", left: "42%", top: "56%" },
+  { key: "back_right_hip", label: "お尻", left: "58%", top: "56%" },
+  { key: "back_left_pelvis", label: "骨盤", left: "46%", top: "52%" },
+  { key: "back_right_pelvis", label: "骨盤", left: "54%", top: "52%" },
+  { key: "back_left_thigh", label: "太もも裏", left: "44%", top: "66%" },
+  { key: "back_right_thigh", label: "太もも裏", left: "56%", top: "66%" },
+  { key: "back_left_knee", label: "膝", left: "45%", top: "78%" },
+  { key: "back_right_knee", label: "膝", left: "55%", top: "78%" },
+  { key: "back_left_calf", label: "ふくらはぎ", left: "45%", top: "89%" },
+  { key: "back_right_calf", label: "ふくらはぎ", left: "55%", top: "89%" },
+  { key: "back_left_ankle", label: "足首", left: "45%", top: "97%" },
+  { key: "back_right_ankle", label: "足首", left: "55%", top: "97%" },
 ];
 
 const emptyForm: FormState = {
@@ -349,6 +411,132 @@ function normalizeFormFromSheet(sheet: CounselingSheetRow): FormState {
   };
 }
 
+function silhouetteSvg(view: ViewMode) {
+  if (view === "front") {
+    return `
+      <svg viewBox="0 0 220 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="人体前面">
+        <defs>
+          <linearGradient id="bodyGradFront" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#fff7ed"/>
+            <stop offset="100%" stop-color="#ffffff"/>
+          </linearGradient>
+        </defs>
+        <circle cx="110" cy="52" r="28" fill="url(#bodyGradFront)" stroke="#c2410c" stroke-width="2"/>
+        <rect x="96" y="79" width="28" height="24" rx="10" fill="url(#bodyGradFront)" stroke="#c2410c" stroke-width="2"/>
+        <rect x="69" y="100" width="82" height="118" rx="34" fill="url(#bodyGradFront)" stroke="#c2410c" stroke-width="2"/>
+        <rect x="26" y="108" width="28" height="95" rx="14" fill="url(#bodyGradFront)" stroke="#c2410c" stroke-width="2"/>
+        <rect x="166" y="108" width="28" height="95" rx="14" fill="url(#bodyGradFront)" stroke="#c2410c" stroke-width="2"/>
+        <rect x="20" y="194" width="22" height="92" rx="11" fill="url(#bodyGradFront)" stroke="#c2410c" stroke-width="2"/>
+        <rect x="178" y="194" width="22" height="92" rx="11" fill="url(#bodyGradFront)" stroke="#c2410c" stroke-width="2"/>
+        <rect x="82" y="218" width="56" height="56" rx="22" fill="url(#bodyGradFront)" stroke="#c2410c" stroke-width="2"/>
+        <rect x="80" y="269" width="26" height="118" rx="13" fill="url(#bodyGradFront)" stroke="#c2410c" stroke-width="2"/>
+        <rect x="114" y="269" width="26" height="118" rx="13" fill="url(#bodyGradFront)" stroke="#c2410c" stroke-width="2"/>
+        <rect x="82" y="387" width="22" height="94" rx="11" fill="url(#bodyGradFront)" stroke="#c2410c" stroke-width="2"/>
+        <rect x="116" y="387" width="22" height="94" rx="11" fill="url(#bodyGradFront)" stroke="#c2410c" stroke-width="2"/>
+      </svg>
+    `;
+  }
+
+  return `
+    <svg viewBox="0 0 220 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="人体背面">
+      <defs>
+        <linearGradient id="bodyGradBack" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#fff7ed"/>
+          <stop offset="100%" stop-color="#ffffff"/>
+        </linearGradient>
+      </defs>
+      <circle cx="110" cy="52" r="28" fill="url(#bodyGradBack)" stroke="#c2410c" stroke-width="2"/>
+      <rect x="96" y="79" width="28" height="24" rx="10" fill="url(#bodyGradBack)" stroke="#c2410c" stroke-width="2"/>
+      <rect x="69" y="100" width="82" height="118" rx="34" fill="url(#bodyGradBack)" stroke="#c2410c" stroke-width="2"/>
+      <rect x="26" y="108" width="28" height="95" rx="14" fill="url(#bodyGradBack)" stroke="#c2410c" stroke-width="2"/>
+      <rect x="166" y="108" width="28" height="95" rx="14" fill="url(#bodyGradBack)" stroke="#c2410c" stroke-width="2"/>
+      <rect x="20" y="194" width="22" height="92" rx="11" fill="url(#bodyGradBack)" stroke="#c2410c" stroke-width="2"/>
+      <rect x="178" y="194" width="22" height="92" rx="11" fill="url(#bodyGradBack)" stroke="#c2410c" stroke-width="2"/>
+      <rect x="82" y="218" width="56" height="60" rx="22" fill="url(#bodyGradBack)" stroke="#c2410c" stroke-width="2"/>
+      <rect x="80" y="278" width="26" height="118" rx="13" fill="url(#bodyGradBack)" stroke="#c2410c" stroke-width="2"/>
+      <rect x="114" y="278" width="26" height="118" rx="13" fill="url(#bodyGradBack)" stroke="#c2410c" stroke-width="2"/>
+      <rect x="82" y="396" width="22" height="94" rx="11" fill="url(#bodyGradBack)" stroke="#c2410c" stroke-width="2"/>
+      <rect x="116" y="396" width="22" height="94" rx="11" fill="url(#bodyGradBack)" stroke="#c2410c" stroke-width="2"/>
+    </svg>
+  `;
+}
+
+function BodyTapMap({
+  viewMode,
+  selectedAreas,
+  onToggle,
+}: {
+  viewMode: ViewMode;
+  selectedAreas: string[];
+  onToggle: (label: string) => void;
+}) {
+  const points = viewMode === "front" ? FRONT_POINTS : BACK_POINTS;
+  const svg = silhouetteSvg(viewMode);
+
+  return (
+    <div style={bodyFigureCardStyle}>
+      <div style={bodyFigureHeaderStyle}>
+        <div style={bodyFigureTitleStyle}>正面・背面イメージ</div>
+        <div style={bodySwitchWrapStyle}>
+          <button
+            type="button"
+            style={viewMode === "front" ? bodySwitchActiveStyle : bodySwitchStyle}
+            onClick={() => onToggle("__switch_front__")}
+          >
+            前面
+          </button>
+          <button
+            type="button"
+            style={viewMode === "back" ? bodySwitchActiveStyle : bodySwitchStyle}
+            onClick={() => onToggle("__switch_back__")}
+          >
+            背面
+          </button>
+        </div>
+      </div>
+
+      <div style={bodyFigureWrapStyle}>
+        <div
+          style={bodySvgWrapStyle}
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
+        {points.map((point) => {
+          const active = selectedAreas.includes(point.label);
+          const size = point.size ?? 18;
+
+          return (
+            <button
+              key={point.key}
+              type="button"
+              title={point.label}
+              aria-label={point.label}
+              onClick={() => onToggle(point.label)}
+              style={{
+                ...bodyPointStyle,
+                width: size,
+                height: size,
+                left: point.left,
+                top: point.top,
+                background: active ? "#ef4444" : "rgba(255,255,255,0.95)",
+                border: active
+                  ? "2px solid #dc2626"
+                  : "2px solid rgba(180,83,9,0.30)",
+                boxShadow: active
+                  ? "0 0 0 6px rgba(239,68,68,0.14)"
+                  : "0 6px 16px rgba(15,23,42,0.08)",
+              }}
+            />
+          );
+        })}
+      </div>
+
+      <div style={bodyFigureTextStyle}>
+        人体の赤丸をタップすると選択されます。もう一度タップで解除できます。
+      </div>
+    </div>
+  );
+}
+
 export default function CounselingPage() {
   const params = useParams();
   const router = useRouter();
@@ -366,6 +554,7 @@ export default function CounselingPage() {
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [bodyViewMode, setBodyViewMode] = useState<ViewMode>("front");
 
   const selectedPurposeCount = useMemo(() => form.visit_purposes.length, [form.visit_purposes]);
   const selectedSymptomCount = useMemo(() => form.symptoms.length, [form.symptoms]);
@@ -482,8 +671,21 @@ export default function CounselingPage() {
       furigana: customer?.kana || "",
       phone: customer?.phone || "",
     });
+    setBodyViewMode("front");
     setSuccess("");
     setError("");
+  }
+
+  function handleBodyMapAction(value: string) {
+    if (value === "__switch_front__") {
+      setBodyViewMode("front");
+      return;
+    }
+    if (value === "__switch_back__") {
+      setBodyViewMode("back");
+      return;
+    }
+    toggleMultiField("body_areas", value);
   }
 
   async function handleSave() {
@@ -836,18 +1038,33 @@ export default function CounselingPage() {
               </div>
 
               <div style={bodyCardWrapStyle}>
-                <div style={bodyFigureCardStyle}>
-                  <div style={bodyFigureTitleStyle}>正面・背面イメージ</div>
-                  <div style={bodyFigureWrapStyle}>
-                    <div style={humanFigureStyle}>◯</div>
-                    <div style={humanFigureStyle}>◯</div>
-                  </div>
-                  <div style={bodyFigureTextStyle}>
-                    下の部位ボタンから気になる箇所を選択してください。
-                  </div>
-                </div>
+                <BodyTapMap
+                  viewMode={bodyViewMode}
+                  selectedAreas={form.body_areas}
+                  onToggle={handleBodyMapAction}
+                />
 
                 <div style={{ flex: 1, minWidth: 260 }}>
+                  <div style={selectedAreaTitleStyle}>選択中の部位</div>
+
+                  {form.body_areas.length === 0 ? (
+                    <div style={bodyEmptyStyle}>まだ選択されていません。</div>
+                  ) : (
+                    <div style={{ ...chipGridStyle, marginBottom: 14 }}>
+                      {form.body_areas.map((area) => (
+                        <button
+                          key={area}
+                          type="button"
+                          onClick={() => toggleMultiField("body_areas", area)}
+                          style={selectedAreaChipStyle}
+                        >
+                          {area} ×
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={selectedAreaTitleStyle}>部位ボタンからも選択できます</div>
                   <div style={chipGridStyle}>
                     {BODY_AREA_OPTIONS.map((option) => (
                       <button
@@ -1324,46 +1541,111 @@ const bodyCardWrapStyle: CSSProperties = {
 };
 
 const bodyFigureCardStyle: CSSProperties = {
-  width: 250,
-  minWidth: 250,
+  width: 290,
+  minWidth: 290,
   borderRadius: 20,
   border: "1px solid rgba(251,191,146,0.35)",
   background: "linear-gradient(180deg, rgba(255,247,237,0.88), rgba(255,255,255,0.92))",
   padding: 16,
 };
 
+const bodyFigureHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 10,
+  flexWrap: "wrap",
+  marginBottom: 10,
+};
+
 const bodyFigureTitleStyle: CSSProperties = {
   fontSize: 13,
   fontWeight: 800,
   color: "#9a3412",
-  marginBottom: 10,
+};
+
+const bodySwitchWrapStyle: CSSProperties = {
+  display: "flex",
+  gap: 8,
+};
+
+const bodySwitchStyle: CSSProperties = {
+  minWidth: 64,
+  height: 34,
+  borderRadius: 9999,
+  border: "1px solid rgba(226,232,240,0.95)",
+  background: "rgba(255,255,255,0.96)",
+  color: "#475569",
+  fontSize: 12,
+  fontWeight: 800,
+  cursor: "pointer",
+  padding: "0 12px",
+};
+
+const bodySwitchActiveStyle: CSSProperties = {
+  ...bodySwitchStyle,
+  border: "1px solid rgba(251,191,146,0.65)",
+  background: "rgba(255,247,237,0.98)",
+  color: "#9a3412",
 };
 
 const bodyFigureWrapStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "1fr 1fr",
-  gap: 10,
-  alignItems: "center",
-  justifyItems: "center",
-  minHeight: 180,
+  position: "relative",
+  width: "100%",
+  maxWidth: 220,
+  margin: "0 auto",
+  aspectRatio: "220 / 520",
 };
 
-const humanFigureStyle: CSSProperties = {
-  width: 70,
-  height: 150,
-  borderRadius: 40,
-  border: "2px solid rgba(180,83,9,0.35)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  color: "#b45309",
-  fontSize: 28,
-  background: "rgba(255,255,255,0.82)",
+const bodySvgWrapStyle: CSSProperties = {
+  position: "absolute",
+  inset: 0,
+};
+
+const bodyPointStyle: CSSProperties = {
+  position: "absolute",
+  transform: "translate(-50%, -50%)",
+  borderRadius: "9999px",
+  cursor: "pointer",
+  transition: "all 0.15s ease",
 };
 
 const bodyFigureTextStyle: CSSProperties = {
   fontSize: 12,
   lineHeight: 1.7,
   color: "#92400e",
-  marginTop: 10,
+  marginTop: 12,
+};
+
+const selectedAreaTitleStyle: CSSProperties = {
+  fontSize: 13,
+  fontWeight: 800,
+  color: "#9a3412",
+  marginBottom: 10,
+};
+
+const selectedAreaChipStyle: CSSProperties = {
+  minHeight: 38,
+  borderRadius: 9999,
+  padding: "0 14px",
+  border: "1px solid rgba(248,113,113,0.28)",
+  background: "rgba(254,226,226,0.92)",
+  color: "#b91c1c",
+  fontSize: 13,
+  fontWeight: 800,
+  cursor: "pointer",
+};
+
+const bodyEmptyStyle: CSSProperties = {
+  minHeight: 44,
+  display: "flex",
+  alignItems: "center",
+  padding: "0 14px",
+  borderRadius: 14,
+  background: "rgba(255,255,255,0.82)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  color: "#64748b",
+  fontSize: 13,
+  fontWeight: 700,
+  marginBottom: 14,
 };
