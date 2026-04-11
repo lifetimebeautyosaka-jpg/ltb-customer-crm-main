@@ -79,6 +79,8 @@ const STAFF_OPTIONS = [
 const MENU_OPTIONS = [
   "ストレッチ",
   "トレーニング",
+  "ストレッチ回数券",
+  "トレーニング回数券",
   "ペアトレ",
   "ヘッドスパ",
   "アロマ",
@@ -236,6 +238,36 @@ function toIdNumber(value: string | number | null | undefined) {
   return Number.isFinite(num) ? num : null;
 }
 
+function isTicketMenu(menu?: string | null) {
+  const text = trimmed(menu);
+  return text === "ストレッチ回数券" || text === "トレーニング回数券";
+}
+
+function detectServiceTypeFromReservationMenu(menu?: string | null) {
+  const text = trimmed(menu);
+  if (text.includes("ストレッチ")) return "ストレッチ";
+  return "トレーニング";
+}
+
+function buildSalesHref(item: ReservationRow, forceTicketMode = false) {
+  const reservationId = String(item.id ?? "");
+  const customerId = trimmed(item.customer_id);
+  const customerName = encodeURIComponent(trimmed(item.customer_name));
+  const date = trimmed(item.date);
+  const menu = trimmed(item.menu);
+  const staffName = encodeURIComponent(trimmed(item.staff_name));
+  const paymentMethod = encodeURIComponent(trimmed(item.payment_method));
+  const storeName = encodeURIComponent(trimmed(item.store_name));
+
+  const isTicket = forceTicketMode || isTicketMenu(menu);
+  const serviceType = encodeURIComponent(detectServiceTypeFromReservationMenu(menu));
+  const saleType = encodeURIComponent(isTicket ? "回数券消化" : "通常売上");
+
+  return `/sales?reservationId=${reservationId}&customerId=${customerId}&customerName=${customerName}&date=${date}&menu=${encodeURIComponent(
+    menu
+  )}&staffName=${staffName}&paymentMethod=${paymentMethod}&storeName=${storeName}&serviceType=${serviceType}&saleType=${saleType}`;
+}
+
 export default function ReservationPage() {
   const router = useRouter();
 
@@ -280,6 +312,7 @@ export default function ReservationPage() {
 
   const [salesReservationIds, setSalesReservationIds] = useState<number[]>([]);
   const [counseledReservationIds, setCounseledReservationIds] = useState<number[]>([]);
+  const [ticketUsedReservationIds, setTicketUsedReservationIds] = useState<number[]>([]);
 
   useEffect(() => {
     setMounted(true);
@@ -426,6 +459,11 @@ export default function ReservationPage() {
     [counseledReservationIds]
   );
 
+  const ticketUsedReservationIdSet = useMemo(
+    () => new Set(ticketUsedReservationIds.map((id) => Number(id)).filter((id) => Number.isFinite(id))),
+    [ticketUsedReservationIds]
+  );
+
   useEffect(() => {
     void loadReservationFlags();
   }, [selectedDayReservations]);
@@ -450,18 +488,24 @@ export default function ReservationPage() {
     if (reservationIds.length === 0) {
       setSalesReservationIds([]);
       setCounseledReservationIds([]);
+      setTicketUsedReservationIds([]);
       return;
     }
 
     try {
-      const [{ data: salesData, error: salesError }, { data: counselingData, error: counselingError }] =
-        await Promise.all([
-          supabase.from("sales").select("reservation_id").in("reservation_id", reservationIds),
-          supabase.from("counselings").select("reservation_id").in("reservation_id", reservationIds),
-        ]);
+      const [
+        { data: salesData, error: salesError },
+        { data: counselingData, error: counselingError },
+        { data: ticketUsageData, error: ticketUsageError },
+      ] = await Promise.all([
+        supabase.from("sales").select("reservation_id").in("reservation_id", reservationIds),
+        supabase.from("counselings").select("reservation_id").in("reservation_id", reservationIds),
+        supabase.from("ticket_usages").select("reservation_id").in("reservation_id", reservationIds),
+      ]);
 
       if (salesError) throw salesError;
       if (counselingError) throw counselingError;
+      if (ticketUsageError) throw ticketUsageError;
 
       setSalesReservationIds(
         ((salesData as Array<{ reservation_id?: number | null }>) || [])
@@ -471,6 +515,12 @@ export default function ReservationPage() {
 
       setCounseledReservationIds(
         ((counselingData as Array<{ reservation_id?: number | null }>) || [])
+          .map((row) => toIdNumber(row.reservation_id))
+          .filter((id): id is number => id !== null)
+      );
+
+      setTicketUsedReservationIds(
+        ((ticketUsageData as Array<{ reservation_id?: number | null }>) || [])
           .map((row) => toIdNumber(row.reservation_id))
           .filter((id): id is number => id !== null)
       );
@@ -926,6 +976,10 @@ export default function ReservationPage() {
                     const newVisit = isNewVisit(item);
                     const isSold = salesReservationIdSet.has(reservationId);
                     const isCounseled = counseledReservationIdSet.has(reservationId);
+                    const isTicketUsed = ticketUsedReservationIdSet.has(reservationId);
+                    const ticketMenu = isTicketMenu(item.menu);
+                    const salesHref = buildSalesHref(item, false);
+                    const ticketSalesHref = buildSalesHref(item, true);
 
                     return (
                       <div key={String(item.id)} style={styles.dayEventCardWrap}>
@@ -991,9 +1045,26 @@ export default function ReservationPage() {
                                 {trimmed(item.store_name) || "店舗未設定"}
                               </span>
 
+                              {ticketMenu ? (
+                                <span
+                                  style={{
+                                    ...styles.statusChipCompact,
+                                    ...styles.statusChipTicketMenu,
+                                  }}
+                                >
+                                  回数券予約
+                                </span>
+                              ) : null}
+
                               {isSold ? (
                                 <span style={{ ...styles.statusChipCompact, ...styles.statusChipDone }}>
                                   売上済
+                                </span>
+                              ) : null}
+
+                              {isTicketUsed ? (
+                                <span style={{ ...styles.statusChipCompact, ...styles.statusChipDoneGreen }}>
+                                  回数券消化済
                                 </span>
                               ) : null}
 
@@ -1020,7 +1091,13 @@ export default function ReservationPage() {
                         <div
                           style={{
                             ...styles.dayEventActionRowCompact,
-                            gridTemplateColumns: newVisit ? "1fr 1fr" : "1fr",
+                            gridTemplateColumns: ticketMenu
+                              ? newVisit
+                                ? "1fr 1fr 1fr"
+                                : "1fr 1fr"
+                              : newVisit
+                              ? "1fr 1fr"
+                              : "1fr",
                           }}
                         >
                           {isSold ? (
@@ -1030,12 +1107,33 @@ export default function ReservationPage() {
                           ) : (
                             <button
                               type="button"
-                              onClick={() => router.push(`/sales?reservationId=${item.id}`)}
+                              onClick={() => router.push(salesHref)}
                               style={styles.dayEventSalesBtnCompact}
                             >
                               売上登録
                             </button>
                           )}
+
+                          {ticketMenu ? (
+                            isTicketUsed ? (
+                              <div
+                                style={{
+                                  ...styles.dayEventTicketBtnCompact,
+                                  ...styles.dayEventTicketBtnDone,
+                                }}
+                              >
+                                回数券消化済
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => router.push(ticketSalesHref)}
+                                style={styles.dayEventTicketBtnCompact}
+                              >
+                                回数券消化
+                              </button>
+                            )
+                          ) : null}
 
                           {newVisit ? (
                             <button
@@ -1828,6 +1926,14 @@ const styles: Record<string, CSSProperties> = {
     background: "#e5e7eb",
     color: "#374151",
   },
+  statusChipDoneGreen: {
+    background: "rgba(22,163,74,0.12)",
+    color: "#15803d",
+  },
+  statusChipTicketMenu: {
+    background: "rgba(22,163,74,0.10)",
+    color: "#166534",
+  },
   staffMiniBadgeCompact: {
     flexShrink: 0,
     fontSize: 9,
@@ -1877,6 +1983,24 @@ const styles: Record<string, CSSProperties> = {
     boxShadow: "0 3px 10px rgba(0,0,0,0.08)",
   },
   dayEventSalesBtnDone: {
+    background: "#9ca3af",
+  },
+  dayEventTicketBtnCompact: {
+    width: "100%",
+    height: 32,
+    borderRadius: 10,
+    border: "none",
+    background: "#15803d",
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: 800,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    boxShadow: "0 3px 10px rgba(0,0,0,0.08)",
+  },
+  dayEventTicketBtnDone: {
     background: "#9ca3af",
   },
   dayEventCounselingBtnCompact: {
