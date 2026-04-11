@@ -268,7 +268,7 @@ function buildSalesHref(item: ReservationRow, forceTicketMode = false) {
   )}&staffName=${staffName}&paymentMethod=${paymentMethod}&storeName=${storeName}&serviceType=${serviceType}&saleType=${saleType}`;
 }
 
-function getPendingPriority(params: {
+function getPendingFlags(params: {
   item: ReservationRow;
   salesReservationIdSet: Set<number>;
   counseledReservationIdSet: Set<number>;
@@ -277,7 +277,14 @@ function getPendingPriority(params: {
   const { item, salesReservationIdSet, counseledReservationIdSet, ticketUsedReservationIdSet } = params;
 
   const reservationId = toIdNumber(item.id);
-  if (reservationId === null) return 99;
+  if (reservationId === null) {
+    return {
+      salesPending: false,
+      counselingPending: false,
+      ticketPending: false,
+      isPending: false,
+    };
+  }
 
   const soldByReservation = trimmed(item.reservation_status) === "売上済";
   const isSold = soldByReservation || salesReservationIdSet.has(reservationId);
@@ -289,8 +296,22 @@ function getPendingPriority(params: {
   const counselingPending = isNewVisit(item) && !isCounseled;
   const ticketPending = ticketMenu && !isTicketUsed;
 
-  if (salesPending || counselingPending || ticketPending) return 0;
-  return 1;
+  return {
+    salesPending,
+    counselingPending,
+    ticketPending,
+    isPending: salesPending || counselingPending || ticketPending,
+  };
+}
+
+function getPendingPriority(params: {
+  item: ReservationRow;
+  salesReservationIdSet: Set<number>;
+  counseledReservationIdSet: Set<number>;
+  ticketUsedReservationIdSet: Set<number>;
+}) {
+  const flags = getPendingFlags(params);
+  return flags.isPending ? 0 : 1;
 }
 
 export default function ReservationPage() {
@@ -469,22 +490,14 @@ export default function ReservationPage() {
         : reservations.filter((item) => item.store_name === selectedStoreFilter);
 
     if (showOnlyPending) {
-      list = list.filter((item) => {
-        const reservationId = toIdNumber(item.id);
-        if (reservationId === null) return false;
-
-        const soldByReservation = trimmed(item.reservation_status) === "売上済";
-        const isSold = soldByReservation || salesReservationIdSet.has(reservationId);
-        const isCounseled = counseledReservationIdSet.has(reservationId);
-        const ticketMenu = isTicketMenu(item.menu);
-        const isTicketUsed = ticketUsedReservationIdSet.has(reservationId);
-
-        const salesPending = !isSold;
-        const counselingPending = isNewVisit(item) && !isCounseled;
-        const ticketPending = ticketMenu && !isTicketUsed;
-
-        return salesPending || counselingPending || ticketPending;
-      });
+      list = list.filter((item) =>
+        getPendingFlags({
+          item,
+          salesReservationIdSet,
+          counseledReservationIdSet,
+          ticketUsedReservationIdSet,
+        }).isPending
+      );
     }
 
     return [...list].sort((a, b) => {
@@ -587,6 +600,37 @@ export default function ReservationPage() {
         String(item.customer_id) !== ""
     );
   }, [selectedDayReservations]);
+
+  const pendingSummary = useMemo(() => {
+    const summary = {
+      totalPending: 0,
+      salesPending: 0,
+      counselingPending: 0,
+      ticketPending: 0,
+      visibleCount: visibleReservations.length,
+    };
+
+    visibleReservations.forEach((item) => {
+      const flags = getPendingFlags({
+        item,
+        salesReservationIdSet,
+        counseledReservationIdSet,
+        ticketUsedReservationIdSet,
+      });
+
+      if (flags.isPending) summary.totalPending += 1;
+      if (flags.salesPending) summary.salesPending += 1;
+      if (flags.counselingPending) summary.counselingPending += 1;
+      if (flags.ticketPending) summary.ticketPending += 1;
+    });
+
+    return summary;
+  }, [
+    visibleReservations,
+    salesReservationIdSet,
+    counseledReservationIdSet,
+    ticketUsedReservationIdSet,
+  ]);
 
   async function loadReservationFlags() {
     if (!supabase) return;
@@ -905,6 +949,37 @@ export default function ReservationPage() {
             </div>
           </div>
 
+          <div style={styles.summaryBar}>
+            <div style={styles.summaryPill}>
+              <span style={styles.summaryLabel}>未処理</span>
+              <span style={styles.summaryCountDanger}>{pendingSummary.totalPending}件</span>
+            </div>
+
+            <div style={styles.summaryPill}>
+              <span style={styles.summaryLabel}>売上未</span>
+              <span style={styles.summaryCountDanger}>{pendingSummary.salesPending}件</span>
+            </div>
+
+            <div style={styles.summaryPill}>
+              <span style={styles.summaryLabel}>カウンセリング未</span>
+              <span style={styles.summaryCountDanger}>{pendingSummary.counselingPending}件</span>
+            </div>
+
+            <div style={styles.summaryPill}>
+              <span style={styles.summaryLabel}>回数券未消化</span>
+              <span style={styles.summaryCountDanger}>{pendingSummary.ticketPending}件</span>
+            </div>
+
+            <div style={styles.summaryPill}>
+              <span style={styles.summaryLabel}>表示中</span>
+              <span style={styles.summaryCount}>{pendingSummary.visibleCount}件</span>
+            </div>
+
+            {showOnlyPending ? (
+              <div style={styles.summaryPillActive}>未処理だけ表示中</div>
+            ) : null}
+          </div>
+
           <div style={styles.filterRow}>
             {STORE_OPTIONS.map((store) => (
               <button
@@ -1093,12 +1168,22 @@ export default function ReservationPage() {
                     const salesHref = buildSalesHref(item, false);
                     const ticketSalesHref = buildSalesHref(item, true);
 
+                    const flags = getPendingFlags({
+                      item,
+                      salesReservationIdSet,
+                      counseledReservationIdSet,
+                      ticketUsedReservationIdSet,
+                    });
+
                     return (
                       <div key={String(item.id)} style={styles.dayEventCardWrap}>
                         <button
                           type="button"
                           onClick={() => router.push(`/reservation/detail/${item.id}`)}
-                          style={styles.dayEventRowCompact}
+                          style={{
+                            ...styles.dayEventRowCompact,
+                            ...(flags.isPending ? styles.pendingCard : {}),
+                          }}
                         >
                           <div style={styles.timeColCompact}>
                             <div style={styles.timeMainCompact}>{trimmed(item.start_time) || "—"}</div>
@@ -1692,6 +1777,48 @@ const styles: Record<string, CSSProperties> = {
     whiteSpace: "nowrap",
     flexShrink: 0,
   },
+  summaryBar: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    marginBottom: 8,
+  },
+  summaryPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "7px 10px",
+    borderRadius: 999,
+    background: "#fff",
+    border: "1px solid #e5e7eb",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
+  },
+  summaryPillActive: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "7px 10px",
+    borderRadius: 999,
+    background: "rgba(239,68,68,0.10)",
+    color: "#b91c1c",
+    border: "1px solid rgba(239,68,68,0.18)",
+    fontSize: 11,
+    fontWeight: 800,
+  },
+  summaryLabel: {
+    fontSize: 11,
+    fontWeight: 800,
+    color: "#6b7280",
+  },
+  summaryCount: {
+    fontSize: 12,
+    fontWeight: 900,
+    color: "#111827",
+  },
+  summaryCountDanger: {
+    fontSize: 12,
+    fontWeight: 900,
+    color: "#dc2626",
+  },
   filterRow: {
     display: "flex",
     gap: 6,
@@ -1976,6 +2103,10 @@ const styles: Record<string, CSSProperties> = {
     textAlign: "left",
     cursor: "pointer",
     boxShadow: "0 3px 10px rgba(0,0,0,0.04)",
+  },
+  pendingCard: {
+    border: "2px solid #ef4444",
+    background: "rgba(239,68,68,0.05)",
   },
   timeColCompact: {
     textAlign: "center",
