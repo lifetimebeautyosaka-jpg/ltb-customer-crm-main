@@ -853,9 +853,17 @@ export default function ReservationPage() {
                           borderLeft: `4px solid ${getStaffColor(item.staff_name)}`,
                         }}
                       >
-                        <span style={styles.eventMiniText}>
-                          {trimmed(item.customer_name) || trimmed(item.staff_name) || "予定"}
-                        </span>
+                        <div style={styles.eventMiniLine}>
+                          <span
+                            style={{
+                              ...styles.eventMiniStoreDot,
+                              background: getStoreColor(item.store_name),
+                            }}
+                          />
+                          <span style={styles.eventMiniText}>
+                            {trimmed(item.customer_name) || trimmed(item.staff_name) || "予定"}
+                          </span>
+                        </div>
                       </div>
                     ))}
 
@@ -1569,6 +1577,18 @@ const styles: Record<string, CSSProperties> = {
     padding: "3px 4px 3px 6px",
     overflow: "hidden",
   },
+  eventMiniLine: {
+    display: "flex",
+    alignItems: "center",
+    gap: 4,
+    minWidth: 0,
+  },
+  eventMiniStoreDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 999,
+    flexShrink: 0,
+  },
   eventMiniText: {
     display: "block",
     fontSize: 9,
@@ -1577,6 +1597,7 @@ const styles: Record<string, CSSProperties> = {
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
+    minWidth: 0,
   },
   moreText: {
     fontSize: 9,
