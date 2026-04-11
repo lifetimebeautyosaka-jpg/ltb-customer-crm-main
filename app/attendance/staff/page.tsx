@@ -166,35 +166,31 @@ function humanizeSupabaseError(message: string) {
   }
 
   if (lower.includes("late_night_minutes")) {
-    return "staff_attendance テーブルに late_night_minutes 列がありません。列追加SQLを実行してください。";
+    return "staff_attendance テーブルに late_night_minutes 列がありません。";
   }
 
   if (lower.includes("regular_minutes")) {
-    return "staff_attendance テーブルに regular_minutes 列がありません。列追加SQLを実行してください。";
+    return "staff_attendance テーブルに regular_minutes 列がありません。";
   }
 
   if (lower.includes("overtime_minutes")) {
-    return "staff_attendance テーブルに overtime_minutes 列がありません。列追加SQLを実行してください。";
+    return "staff_attendance テーブルに overtime_minutes 列がありません。";
   }
 
   if (lower.includes("total_work_minutes")) {
-    return "staff_attendance テーブルに total_work_minutes 列がありません。列追加SQLを実行してください。";
+    return "staff_attendance テーブルに total_work_minutes 列がありません。";
   }
 
   if (lower.includes("break_minutes")) {
-    return "staff_attendance テーブルに break_minutes 列がありません。列追加SQLを実行してください。";
+    return "staff_attendance テーブルに break_minutes 列がありません。";
   }
 
   if (lower.includes("updated_at")) {
-    return "staff_attendance テーブルに updated_at 列がありません。列追加SQLを実行してください。";
-  }
-
-  if (lower.includes("created_at")) {
-    return "staff_attendance テーブルに created_at 列がありません。列追加SQLを実行してください。";
+    return "staff_attendance テーブルに updated_at 列がありません。";
   }
 
   if (lower.includes("note")) {
-    return "staff_attendance テーブルに note 列がありません。列追加SQLを実行してください。";
+    return "staff_attendance テーブルに note 列がありません。";
   }
 
   return message;
@@ -285,13 +281,16 @@ export default function AttendanceStaffPage() {
       .select("*")
       .eq("staff_id", clientStaffId)
       .eq("work_date", todayJst)
-      .maybeSingle();
+      .order("id", { ascending: false })
+      .limit(1);
 
     if (error) {
       throw new Error(humanizeSupabaseError(error.message));
     }
 
-    const row = (data as AttendanceRow | null) || null;
+    const rows = (data as AttendanceRow[] | null) || [];
+    const row = rows.length > 0 ? rows[0] : null;
+
     setTodayRow(row);
     setBreakMinutes(row?.break_minutes ?? 60);
     setNote(row?.note ?? "");
@@ -422,13 +421,15 @@ export default function AttendanceStaffPage() {
         .select("*")
         .eq("staff_id", staffId)
         .eq("work_date", todayJst)
-        .maybeSingle();
+        .order("id", { ascending: false })
+        .limit(1);
 
       if (existingError) {
         throw new Error(humanizeSupabaseError(existingError.message));
       }
 
-      const existing = (data as AttendanceRow | null) || null;
+      const rows = (data as AttendanceRow[] | null) || [];
+      const existing = rows.length > 0 ? rows[0] : null;
       const nowIso = new Date().toISOString();
 
       if (!existing) {
@@ -437,25 +438,34 @@ export default function AttendanceStaffPage() {
           staff_name: staffName,
           work_date: todayJst,
           clock_in: nowIso,
+          clock_out: null,
           break_minutes: breakMinutes,
           note,
           regular_minutes: 0,
           overtime_minutes: 0,
           late_night_minutes: 0,
           total_work_minutes: 0,
+          updated_at: nowIso,
         });
 
         if (insertError) {
           throw new Error(humanizeSupabaseError(insertError.message));
         }
       } else {
+        if (existing.clock_in) {
+          alert("本日はすでに出勤済みです。");
+          await loadTodayAttendance(staffId);
+          return;
+        }
+
         const { error: updateError } = await supabase
           .from("staff_attendance")
           .update({
             staff_name: staffName,
-            clock_in: existing.clock_in || nowIso,
+            clock_in: nowIso,
             break_minutes: breakMinutes,
             note,
+            updated_at: nowIso,
           })
           .eq("id", existing.id);
 
@@ -495,13 +505,15 @@ export default function AttendanceStaffPage() {
         .select("*")
         .eq("staff_id", staffId)
         .eq("work_date", todayJst)
-        .maybeSingle();
+        .order("id", { ascending: false })
+        .limit(1);
 
       if (fetchError) {
         throw new Error(humanizeSupabaseError(fetchError.message));
       }
 
-      const existing = (data as AttendanceRow | null) || null;
+      const rows = (data as AttendanceRow[] | null) || [];
+      const existing = rows.length > 0 ? rows[0] : null;
 
       if (!existing || !existing.clock_in) {
         alert("先に出勤してください。");
@@ -530,6 +542,7 @@ export default function AttendanceStaffPage() {
           overtime_minutes: overtime,
           late_night_minutes: lateNight,
           regular_minutes: regular,
+          updated_at: nowIso,
         })
         .eq("id", existing.id);
 
@@ -563,12 +576,27 @@ export default function AttendanceStaffPage() {
       setSaving(true);
       setPageError("");
 
+      const updatePayload: Record<string, any> = {
+        break_minutes: breakMinutes,
+        note,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (todayRow.clock_in && todayRow.clock_out) {
+        const totalMinutes = calcTotalMinutes(todayRow.clock_in, todayRow.clock_out, breakMinutes);
+        const overtime = calcOvertimeMinutes(totalMinutes);
+        const lateNight = calcLateNightMinutes(todayRow.clock_in, todayRow.clock_out);
+        const regular = Math.max(0, totalMinutes - overtime);
+
+        updatePayload.total_work_minutes = totalMinutes;
+        updatePayload.overtime_minutes = overtime;
+        updatePayload.late_night_minutes = lateNight;
+        updatePayload.regular_minutes = regular;
+      }
+
       const { error } = await supabase
         .from("staff_attendance")
-        .update({
-          break_minutes: breakMinutes,
-          note,
-        })
+        .update(updatePayload)
         .eq("id", todayRow.id);
 
       if (error) {
@@ -1024,6 +1052,7 @@ const inputStyle: CSSProperties = {
   padding: "0 14px",
   outline: "none",
   fontSize: 14,
+  boxSizing: "border-box",
 };
 
 const textareaStyle: CSSProperties = {
@@ -1036,6 +1065,7 @@ const textareaStyle: CSSProperties = {
   outline: "none",
   fontSize: 14,
   resize: "vertical",
+  boxSizing: "border-box",
 };
 
 const staffInfoBoxStyle: CSSProperties = {
@@ -1112,8 +1142,8 @@ const summaryLabelStyle: CSSProperties = {
 
 const summaryValueStyle: CSSProperties = {
   fontSize: 24,
+  fontWeight: 800,
   color: "#0f172a",
-  fontWeight: 700,
 };
 
 const actionRowStyle: CSSProperties = {
@@ -1124,37 +1154,35 @@ const actionRowStyle: CSSProperties = {
 };
 
 const actionButtonStyle: CSSProperties = {
-  height: 52,
+  height: 50,
   border: "none",
-  borderRadius: 18,
-  fontSize: 15,
-  fontWeight: 800,
+  borderRadius: 16,
+  fontWeight: 700,
+  fontSize: 14,
   cursor: "pointer",
-  transition: "transform 0.2s ease, opacity 0.2s ease",
 };
 
 const clockInButtonStyle: CSSProperties = {
-  background: "linear-gradient(135deg, #86efac, #34d399)",
-  color: "#064e3b",
-  boxShadow: "0 10px 24px rgba(52,211,153,0.22)",
+  background: "linear-gradient(135deg, #dcfce7, #bbf7d0)",
+  color: "#166534",
+  boxShadow: "0 10px 24px rgba(34,197,94,0.16)",
 };
 
 const clockOutButtonStyle: CSSProperties = {
-  background: "linear-gradient(135deg, #bfdbfe, #60a5fa)",
-  color: "#1e3a8a",
-  boxShadow: "0 10px 24px rgba(96,165,250,0.20)",
+  background: "linear-gradient(135deg, #fee2e2, #fecaca)",
+  color: "#b91c1c",
+  boxShadow: "0 10px 24px rgba(239,68,68,0.14)",
 };
 
 const disabledButtonStyle: CSSProperties = {
-  background: "rgba(226,232,240,0.78)",
-  color: "rgba(15,23,42,0.34)",
+  background: "#e5e7eb",
+  color: "#94a3b8",
   cursor: "not-allowed",
-  boxShadow: "none",
 };
 
 const summaryGridLargeStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
   gap: 14,
   marginBottom: 16,
 };
@@ -1163,7 +1191,7 @@ const metricCardStyle: CSSProperties = {
   borderRadius: 20,
   background: "rgba(255,255,255,0.72)",
   border: "1px solid rgba(226,232,240,0.95)",
-  padding: "16px 16px",
+  padding: 16,
 };
 
 const metricLabelStyle: CSSProperties = {
@@ -1173,48 +1201,49 @@ const metricLabelStyle: CSSProperties = {
 };
 
 const metricValueStyle: CSSProperties = {
-  fontSize: 28,
-  color: "#0f172a",
+  fontSize: 24,
   fontWeight: 800,
-  letterSpacing: "-0.03em",
+  color: "#0f172a",
+  lineHeight: 1.2,
 };
 
 const metricValueSmallStyle: CSSProperties = {
-  fontSize: 15,
-  color: "#0f172a",
+  fontSize: 14,
   fontWeight: 700,
-  lineHeight: 1.5,
+  color: "#0f172a",
+  lineHeight: 1.7,
 };
 
 const detailBoxStyle: CSSProperties = {
   borderRadius: 20,
-  background: "rgba(255,255,255,0.7)",
+  background: "rgba(255,255,255,0.72)",
   border: "1px solid rgba(226,232,240,0.95)",
-  padding: 14,
+  padding: 16,
 };
 
 const detailRowStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
+  alignItems: "center",
   gap: 12,
   padding: "10px 0",
   borderBottom: "1px solid rgba(226,232,240,0.9)",
 };
 
 const detailLabelStyle: CSSProperties = {
-  fontSize: 13,
-  color: "rgba(15,23,42,0.56)",
+  fontSize: 14,
+  color: "rgba(15,23,42,0.62)",
 };
 
 const detailValueStyle: CSSProperties = {
   fontSize: 14,
-  color: "#0f172a",
   fontWeight: 700,
-  textAlign: "right",
+  color: "#0f172a",
 };
 
 const loadingStyle: CSSProperties = {
-  marginTop: 18,
+  marginTop: 14,
+  textAlign: "center",
+  color: "rgba(15,23,42,0.56)",
   fontSize: 14,
-  color: "rgba(15,23,42,0.62)",
 };

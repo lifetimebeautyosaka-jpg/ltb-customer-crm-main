@@ -13,6 +13,8 @@ type TimecardRecord = {
   minutes?: number;
 };
 
+const STORAGE_KEY = "attendanceRecords";
+
 function getToday() {
   const now = new Date();
   const y = now.getFullYear();
@@ -45,9 +47,35 @@ function calcMinutes(clockIn?: string, clockOut?: string, breakMinutes = 0) {
 }
 
 function formatMinutes(minutes: number) {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
+  const safe = Math.max(0, Math.floor(minutes || 0));
+  const h = Math.floor(safe / 60);
+  const m = safe % 60;
   return `${h}時間${m}分`;
+}
+
+function saveRecords(data: TimecardRecord[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+function loadRecords(): TimecardRecord[] {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return [];
+
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.error("attendanceRecords 読み込みエラー:", error);
+    return [];
+  }
+}
+
+function getTodayRecord(
+  records: TimecardRecord[],
+  staffName: string,
+  today: string
+) {
+  return records.find((r) => r.staffName === staffName && r.date === today);
 }
 
 export default function StaffTimecardPage() {
@@ -62,32 +90,22 @@ export default function StaffTimecardPage() {
       "スタッフ";
 
     setStaffName(name);
-
-    const raw = localStorage.getItem("attendanceRecords");
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          setRecords(parsed);
-        }
-      } catch (error) {
-        console.error("attendanceRecords 読み込みエラー:", error);
-      }
-    }
+    setRecords(loadRecords());
   }, []);
 
   const today = getToday();
 
   const myTodayRecord = useMemo(() => {
-    return records.find(
-      (r) => r.staffName === staffName && r.date === today
-    );
+    return getTodayRecord(records, staffName, today);
   }, [records, staffName, today]);
 
   const myRecords = useMemo(() => {
     return records
       .filter((r) => r.staffName === staffName)
-      .sort((a, b) => b.date.localeCompare(a.date));
+      .sort((a, b) => {
+        if (a.date !== b.date) return b.date.localeCompare(a.date);
+        return b.id.localeCompare(a.id);
+      });
   }, [records, staffName]);
 
   useEffect(() => {
@@ -95,10 +113,28 @@ export default function StaffTimecardPage() {
   }, [myTodayRecord]);
 
   const handleClockIn = () => {
-    if (myTodayRecord?.clockIn) return;
+    const todayRecord = getTodayRecord(records, staffName, today);
+
+    if (todayRecord) {
+      if (todayRecord.clockIn) return;
+
+      const updated = records.map((r) => {
+        if (r.id === todayRecord.id) {
+          return {
+            ...r,
+            clockIn: getNowTime(),
+          };
+        }
+        return r;
+      });
+
+      setRecords(updated);
+      saveRecords(updated);
+      return;
+    }
 
     const newRecord: TimecardRecord = {
-      id: Date.now().toString(),
+      id: `${staffName}-${today}`,
       staffName,
       date: today,
       clockIn: getNowTime(),
@@ -109,16 +145,17 @@ export default function StaffTimecardPage() {
 
     const updated = [newRecord, ...records];
     setRecords(updated);
-    localStorage.setItem("attendanceRecords", JSON.stringify(updated));
+    saveRecords(updated);
   };
 
   const handleBreakSave = () => {
-    if (!myTodayRecord) return;
+    const todayRecord = getTodayRecord(records, staffName, today);
+    if (!todayRecord) return;
 
     const breakMinutes = Number(breakInput) || 0;
 
     const updated = records.map((r) => {
-      if (r.id === myTodayRecord.id) {
+      if (r.id === todayRecord.id) {
         const minutes = calcMinutes(r.clockIn, r.clockOut, breakMinutes);
         return {
           ...r,
@@ -130,17 +167,19 @@ export default function StaffTimecardPage() {
     });
 
     setRecords(updated);
-    localStorage.setItem("attendanceRecords", JSON.stringify(updated));
+    saveRecords(updated);
   };
 
   const handleClockOut = () => {
-    if (!myTodayRecord?.clockIn || myTodayRecord?.clockOut) return;
+    const todayRecord = getTodayRecord(records, staffName, today);
+
+    if (!todayRecord || !todayRecord.clockIn || todayRecord.clockOut) return;
 
     const now = getNowTime();
     const breakMinutes = Number(breakInput) || 0;
 
     const updated = records.map((r) => {
-      if (r.id === myTodayRecord.id) {
+      if (r.id === todayRecord.id) {
         const minutes = calcMinutes(r.clockIn, now, breakMinutes);
         return {
           ...r,
@@ -153,7 +192,7 @@ export default function StaffTimecardPage() {
     });
 
     setRecords(updated);
-    localStorage.setItem("attendanceRecords", JSON.stringify(updated));
+    saveRecords(updated);
   };
 
   return (
