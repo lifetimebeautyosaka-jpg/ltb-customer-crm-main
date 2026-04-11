@@ -268,6 +268,31 @@ function buildSalesHref(item: ReservationRow, forceTicketMode = false) {
   )}&staffName=${staffName}&paymentMethod=${paymentMethod}&storeName=${storeName}&serviceType=${serviceType}&saleType=${saleType}`;
 }
 
+function getPendingPriority(params: {
+  item: ReservationRow;
+  salesReservationIdSet: Set<number>;
+  counseledReservationIdSet: Set<number>;
+  ticketUsedReservationIdSet: Set<number>;
+}) {
+  const { item, salesReservationIdSet, counseledReservationIdSet, ticketUsedReservationIdSet } = params;
+
+  const reservationId = toIdNumber(item.id);
+  if (reservationId === null) return 99;
+
+  const soldByReservation = trimmed(item.reservation_status) === "売上済";
+  const isSold = soldByReservation || salesReservationIdSet.has(reservationId);
+  const isCounseled = counseledReservationIdSet.has(reservationId);
+  const ticketMenu = isTicketMenu(item.menu);
+  const isTicketUsed = ticketUsedReservationIdSet.has(reservationId);
+
+  const salesPending = !isSold;
+  const counselingPending = isNewVisit(item) && !isCounseled;
+  const ticketPending = ticketMenu && !isTicketUsed;
+
+  if (salesPending || counselingPending || ticketPending) return 0;
+  return 1;
+}
+
 export default function ReservationPage() {
   const router = useRouter();
 
@@ -284,6 +309,7 @@ export default function ReservationPage() {
   });
 
   const [selectedStoreFilter, setSelectedStoreFilter] = useState("すべて");
+  const [showOnlyPending, setShowOnlyPending] = useState(false);
   const [selectedDate, setSelectedDate] = useState(toYmd(new Date()));
   const [daySheetOpen, setDaySheetOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
@@ -421,10 +447,80 @@ export default function ReservationPage() {
       .slice(0, 25);
   }, [customerSearch, customers]);
 
+  const salesReservationIdSet = useMemo(
+    () => new Set(salesReservationIds.map((id) => Number(id)).filter((id) => Number.isFinite(id))),
+    [salesReservationIds]
+  );
+
+  const counseledReservationIdSet = useMemo(
+    () => new Set(counseledReservationIds.map((id) => Number(id)).filter((id) => Number.isFinite(id))),
+    [counseledReservationIds]
+  );
+
+  const ticketUsedReservationIdSet = useMemo(
+    () => new Set(ticketUsedReservationIds.map((id) => Number(id)).filter((id) => Number.isFinite(id))),
+    [ticketUsedReservationIds]
+  );
+
   const visibleReservations = useMemo(() => {
-    if (selectedStoreFilter === "すべて") return reservations;
-    return reservations.filter((item) => item.store_name === selectedStoreFilter);
-  }, [reservations, selectedStoreFilter]);
+    let list =
+      selectedStoreFilter === "すべて"
+        ? reservations
+        : reservations.filter((item) => item.store_name === selectedStoreFilter);
+
+    if (showOnlyPending) {
+      list = list.filter((item) => {
+        const reservationId = toIdNumber(item.id);
+        if (reservationId === null) return false;
+
+        const soldByReservation = trimmed(item.reservation_status) === "売上済";
+        const isSold = soldByReservation || salesReservationIdSet.has(reservationId);
+        const isCounseled = counseledReservationIdSet.has(reservationId);
+        const ticketMenu = isTicketMenu(item.menu);
+        const isTicketUsed = ticketUsedReservationIdSet.has(reservationId);
+
+        const salesPending = !isSold;
+        const counselingPending = isNewVisit(item) && !isCounseled;
+        const ticketPending = ticketMenu && !isTicketUsed;
+
+        return salesPending || counselingPending || ticketPending;
+      });
+    }
+
+    return [...list].sort((a, b) => {
+      const aPriority = getPendingPriority({
+        item: a,
+        salesReservationIdSet,
+        counseledReservationIdSet,
+        ticketUsedReservationIdSet,
+      });
+      const bPriority = getPendingPriority({
+        item: b,
+        salesReservationIdSet,
+        counseledReservationIdSet,
+        ticketUsedReservationIdSet,
+      });
+
+      if (aPriority !== bPriority) return aPriority - bPriority;
+
+      const aDate = trimmed(a.date);
+      const bDate = trimmed(b.date);
+      if (aDate !== bDate) return aDate < bDate ? -1 : 1;
+
+      const aTime = trimmed(a.start_time);
+      const bTime = trimmed(b.start_time);
+      if (aTime !== bTime) return aTime < bTime ? -1 : 1;
+
+      return 0;
+    });
+  }, [
+    reservations,
+    selectedStoreFilter,
+    showOnlyPending,
+    salesReservationIdSet,
+    counseledReservationIdSet,
+    ticketUsedReservationIdSet,
+  ]);
 
   const calendarDays = useMemo(() => buildCalendarDays(currentMonth), [currentMonth]);
 
@@ -446,23 +542,37 @@ export default function ReservationPage() {
   }, [visibleReservations]);
 
   const selectedDayReservations = useMemo(() => {
-    return [...(reservationsByDate.get(selectedDate) || [])].sort(sortReservations);
-  }, [reservationsByDate, selectedDate]);
+    const list = [...(reservationsByDate.get(selectedDate) || [])];
 
-  const salesReservationIdSet = useMemo(
-    () => new Set(salesReservationIds.map((id) => Number(id)).filter((id) => Number.isFinite(id))),
-    [salesReservationIds]
-  );
+    return list.sort((a, b) => {
+      const aPriority = getPendingPriority({
+        item: a,
+        salesReservationIdSet,
+        counseledReservationIdSet,
+        ticketUsedReservationIdSet,
+      });
+      const bPriority = getPendingPriority({
+        item: b,
+        salesReservationIdSet,
+        counseledReservationIdSet,
+        ticketUsedReservationIdSet,
+      });
 
-  const counseledReservationIdSet = useMemo(
-    () => new Set(counseledReservationIds.map((id) => Number(id)).filter((id) => Number.isFinite(id))),
-    [counseledReservationIds]
-  );
+      if (aPriority !== bPriority) return aPriority - bPriority;
 
-  const ticketUsedReservationIdSet = useMemo(
-    () => new Set(ticketUsedReservationIds.map((id) => Number(id)).filter((id) => Number.isFinite(id))),
-    [ticketUsedReservationIds]
-  );
+      const aTime = trimmed(a.start_time);
+      const bTime = trimmed(b.start_time);
+      if (aTime !== bTime) return aTime < bTime ? -1 : 1;
+
+      return 0;
+    });
+  }, [
+    reservationsByDate,
+    selectedDate,
+    salesReservationIdSet,
+    counseledReservationIdSet,
+    ticketUsedReservationIdSet,
+  ]);
 
   useEffect(() => {
     void loadReservationFlags();
@@ -776,6 +886,17 @@ export default function ReservationPage() {
 
               <button
                 type="button"
+                onClick={() => setShowOnlyPending((prev) => !prev)}
+                style={{
+                  ...styles.pendingFilterBtn,
+                  ...(showOnlyPending ? styles.pendingFilterBtnActive : {}),
+                }}
+              >
+                {showOnlyPending ? "未処理だけ表示中" : "未処理だけ"}
+              </button>
+
+              <button
+                type="button"
                 onClick={() => router.push("/")}
                 style={styles.topBtn}
               >
@@ -801,17 +922,7 @@ export default function ReservationPage() {
           </div>
 
           <div style={styles.legendBox}>
-            {[
-              "山口",
-              "中西",
-              "池田",
-              "石川",
-              "羽田",
-              "菱谷",
-              "井上",
-              "林",
-              "その他",
-            ].map((name) => (
+            {["山口", "中西", "池田", "石川", "羽田", "菱谷", "井上", "林", "その他"].map((name) => (
               <div key={name} style={styles.legendItem}>
                 <span
                   style={{
@@ -974,7 +1085,8 @@ export default function ReservationPage() {
                   selectedDayReservations.map((item) => {
                     const reservationId = toIdNumber(item.id) ?? 0;
                     const newVisit = isNewVisit(item);
-                    const isSold = salesReservationIdSet.has(reservationId);
+                    const soldByReservation = trimmed(item.reservation_status) === "売上済";
+                    const isSold = soldByReservation || salesReservationIdSet.has(reservationId);
                     const isCounseled = counseledReservationIdSet.has(reservationId);
                     const isTicketUsed = ticketUsedReservationIdSet.has(reservationId);
                     const ticketMenu = isTicketMenu(item.menu);
@@ -1056,21 +1168,27 @@ export default function ReservationPage() {
                                 </span>
                               ) : null}
 
-                              {isSold ? (
-                                <span style={{ ...styles.statusChipCompact, ...styles.statusChipDone }}>
-                                  売上済
-                                </span>
-                              ) : null}
+                              <span
+                                style={{
+                                  ...styles.statusChipCompact,
+                                  ...(isSold ? styles.statusChipDone : styles.statusChipNotDoneRed),
+                                }}
+                              >
+                                {isSold ? "売上済" : "売上未"}
+                              </span>
+
+                              <span
+                                style={{
+                                  ...styles.statusChipCompact,
+                                  ...(isCounseled ? styles.statusChipDone : styles.statusChipNotDoneBlue),
+                                }}
+                              >
+                                {isCounseled ? "カウンセリング済" : "カウンセリング未"}
+                              </span>
 
                               {isTicketUsed ? (
                                 <span style={{ ...styles.statusChipCompact, ...styles.statusChipDoneGreen }}>
                                   回数券消化済
-                                </span>
-                              ) : null}
-
-                              {isCounseled ? (
-                                <span style={{ ...styles.statusChipCompact, ...styles.statusChipDone }}>
-                                  カウンセリング済
                                 </span>
                               ) : null}
                             </div>
@@ -1530,6 +1648,8 @@ const styles: Record<string, CSSProperties> = {
     gap: 6,
     alignItems: "center",
     flexShrink: 0,
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
   },
   counselingTopBtn: {
     border: "none",
@@ -1542,6 +1662,22 @@ const styles: Record<string, CSSProperties> = {
     boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
     cursor: "pointer",
     whiteSpace: "nowrap",
+  },
+  pendingFilterBtn: {
+    border: "none",
+    background: "#fff",
+    color: "#111827",
+    borderRadius: 10,
+    padding: "9px 10px",
+    fontSize: 11,
+    fontWeight: 800,
+    boxShadow: "0 6px 18px rgba(0,0,0,0.10)",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+  pendingFilterBtnActive: {
+    background: "#ef4444",
+    color: "#fff",
   },
   topBtn: {
     border: "none",
@@ -1933,6 +2069,14 @@ const styles: Record<string, CSSProperties> = {
   statusChipTicketMenu: {
     background: "rgba(22,163,74,0.10)",
     color: "#166534",
+  },
+  statusChipNotDoneRed: {
+    background: "rgba(239,68,68,0.12)",
+    color: "#b91c1c",
+  },
+  statusChipNotDoneBlue: {
+    background: "rgba(37,99,235,0.12)",
+    color: "#1d4ed8",
   },
   staffMiniBadgeCompact: {
     flexShrink: 0,
