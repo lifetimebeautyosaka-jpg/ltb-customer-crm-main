@@ -45,6 +45,10 @@ type CustomerOption = {
   phone: string;
 };
 
+type SimpleReservationIdRow = {
+  reservation_id?: number | string | null;
+};
+
 const STORE_OPTIONS = [
   "すべて",
   "江戸堀",
@@ -274,7 +278,8 @@ function getPendingFlags(params: {
   counseledReservationIdSet: Set<number>;
   ticketUsedReservationIdSet: Set<number>;
 }) {
-  const { item, salesReservationIdSet, counseledReservationIdSet, ticketUsedReservationIdSet } = params;
+  const { item, salesReservationIdSet, counseledReservationIdSet, ticketUsedReservationIdSet } =
+    params;
 
   const reservationId = toIdNumber(item.id);
   if (reservationId === null) {
@@ -378,11 +383,13 @@ export default function ReservationPage() {
     }
 
     void loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted, router]);
 
   useEffect(() => {
     if (!mounted) return;
     void loadReservations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentMonth, mounted]);
 
   async function loadAll() {
@@ -469,25 +476,52 @@ export default function ReservationPage() {
   }, [customerSearch, customers]);
 
   const salesReservationIdSet = useMemo(
-    () => new Set(salesReservationIds.map((id) => Number(id)).filter((id) => Number.isFinite(id))),
+    () =>
+      new Set(
+        salesReservationIds
+          .map((id) => Number(id))
+          .filter((id) => Number.isFinite(id))
+      ),
     [salesReservationIds]
   );
 
   const counseledReservationIdSet = useMemo(
-    () => new Set(counseledReservationIds.map((id) => Number(id)).filter((id) => Number.isFinite(id))),
+    () =>
+      new Set(
+        counseledReservationIds
+          .map((id) => Number(id))
+          .filter((id) => Number.isFinite(id))
+      ),
     [counseledReservationIds]
   );
 
   const ticketUsedReservationIdSet = useMemo(
-    () => new Set(ticketUsedReservationIds.map((id) => Number(id)).filter((id) => Number.isFinite(id))),
+    () =>
+      new Set(
+        ticketUsedReservationIds
+          .map((id) => Number(id))
+          .filter((id) => Number.isFinite(id))
+      ),
     [ticketUsedReservationIds]
   );
 
-  const visibleReservations = useMemo(() => {
-    let list =
+  const baseVisibleReservations = useMemo(() => {
+    const list =
       selectedStoreFilter === "すべて"
         ? reservations
         : reservations.filter((item) => item.store_name === selectedStoreFilter);
+
+    return [...list];
+  }, [reservations, selectedStoreFilter]);
+
+  useEffect(() => {
+    if (!mounted) return;
+    void loadReservationFlagsForVisible();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, baseVisibleReservations]);
+
+  const visibleReservations = useMemo(() => {
+    let list = [...baseVisibleReservations];
 
     if (showOnlyPending) {
       list = list.filter((item) =>
@@ -500,7 +534,7 @@ export default function ReservationPage() {
       );
     }
 
-    return [...list].sort((a, b) => {
+    return list.sort((a, b) => {
       const aPriority = getPendingPriority({
         item: a,
         salesReservationIdSet,
@@ -527,8 +561,7 @@ export default function ReservationPage() {
       return 0;
     });
   }, [
-    reservations,
-    selectedStoreFilter,
+    baseVisibleReservations,
     showOnlyPending,
     salesReservationIdSet,
     counseledReservationIdSet,
@@ -587,10 +620,6 @@ export default function ReservationPage() {
     ticketUsedReservationIdSet,
   ]);
 
-  useEffect(() => {
-    void loadReservationFlags();
-  }, [selectedDayReservations]);
-
   const counselingCandidates = useMemo(() => {
     return selectedDayReservations.filter(
       (item) =>
@@ -632,10 +661,10 @@ export default function ReservationPage() {
     ticketUsedReservationIdSet,
   ]);
 
-  async function loadReservationFlags() {
+  async function loadReservationFlagsForVisible() {
     if (!supabase) return;
 
-    const reservationIds = selectedDayReservations
+    const reservationIds = baseVisibleReservations
       .map((item) => toIdNumber(item.id))
       .filter((id): id is number => id !== null);
 
@@ -653,8 +682,14 @@ export default function ReservationPage() {
         { data: ticketUsageData, error: ticketUsageError },
       ] = await Promise.all([
         supabase.from("sales").select("reservation_id").in("reservation_id", reservationIds),
-        supabase.from("counselings").select("reservation_id").in("reservation_id", reservationIds),
-        supabase.from("ticket_usages").select("reservation_id").in("reservation_id", reservationIds),
+        supabase
+          .from("counselings")
+          .select("reservation_id")
+          .in("reservation_id", reservationIds),
+        supabase
+          .from("ticket_usages")
+          .select("reservation_id")
+          .in("reservation_id", reservationIds),
       ]);
 
       if (salesError) throw salesError;
@@ -662,19 +697,19 @@ export default function ReservationPage() {
       if (ticketUsageError) throw ticketUsageError;
 
       setSalesReservationIds(
-        ((salesData as Array<{ reservation_id?: number | null }>) || [])
+        ((salesData as SimpleReservationIdRow[]) || [])
           .map((row) => toIdNumber(row.reservation_id))
           .filter((id): id is number => id !== null)
       );
 
       setCounseledReservationIds(
-        ((counselingData as Array<{ reservation_id?: number | null }>) || [])
+        ((counselingData as SimpleReservationIdRow[]) || [])
           .map((row) => toIdNumber(row.reservation_id))
           .filter((id): id is number => id !== null)
       );
 
       setTicketUsedReservationIds(
-        ((ticketUsageData as Array<{ reservation_id?: number | null }>) || [])
+        ((ticketUsageData as SimpleReservationIdRow[]) || [])
           .map((row) => toIdNumber(row.reservation_id))
           .filter((id): id is number => id !== null)
       );
@@ -869,15 +904,11 @@ export default function ReservationPage() {
   }
 
   function goPrevMonth() {
-    setCurrentMonth(
-      new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1)
-    );
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
   }
 
   function goNextMonth() {
-    setCurrentMonth(
-      new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1)
-    );
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
   }
 
   function handleOpenCounselingPicker() {
@@ -939,11 +970,7 @@ export default function ReservationPage() {
                 {showOnlyPending ? "未処理だけ表示中" : "未処理だけ"}
               </button>
 
-              <button
-                type="button"
-                onClick={() => router.push("/")}
-                style={styles.topBtn}
-              >
+              <button type="button" onClick={() => router.push("/")} style={styles.topBtn}>
                 TOPへ戻る
               </button>
             </div>
@@ -975,9 +1002,7 @@ export default function ReservationPage() {
               <span style={styles.summaryCount}>{pendingSummary.visibleCount}件</span>
             </div>
 
-            {showOnlyPending ? (
-              <div style={styles.summaryPillActive}>未処理だけ表示中</div>
-            ) : null}
+            {showOnlyPending ? <div style={styles.summaryPillActive}>未処理だけ表示中</div> : null}
           </div>
 
           <div style={styles.filterRow}>
@@ -997,17 +1022,19 @@ export default function ReservationPage() {
           </div>
 
           <div style={styles.legendBox}>
-            {["山口", "中西", "池田", "石川", "羽田", "菱谷", "井上", "林", "その他"].map((name) => (
-              <div key={name} style={styles.legendItem}>
-                <span
-                  style={{
-                    ...styles.legendDot,
-                    background: getStaffColor(name),
-                  }}
-                />
-                {name}
-              </div>
-            ))}
+            {["山口", "中西", "池田", "石川", "羽田", "菱谷", "井上", "林", "その他"].map(
+              (name) => (
+                <div key={name} style={styles.legendItem}>
+                  <span
+                    style={{
+                      ...styles.legendDot,
+                      background: getStaffColor(name),
+                    }}
+                  />
+                  {name}
+                </div>
+              )
+            )}
           </div>
 
           <div style={styles.legendBoxStore}>
@@ -1097,7 +1124,7 @@ export default function ReservationPage() {
                             }}
                           />
                           <span style={styles.eventMiniText}>
-                            {trimmed(item.customer_name) || trimmed(item.staff_name) || "予定"}
+                            {trimmed(item.start_time) || "--:--"} {trimmed(item.customer_name) || "顧客名未設定"}
                           </span>
                         </div>
                       </div>
@@ -1113,11 +1140,7 @@ export default function ReservationPage() {
           </div>
         </section>
 
-        <button
-          type="button"
-          onClick={() => openCreateModal(selectedDate)}
-          style={styles.fab}
-        >
+        <button type="button" onClick={() => openCreateModal()} style={styles.fab}>
           ＋
         </button>
 
@@ -1128,46 +1151,33 @@ export default function ReservationPage() {
 
               <div style={styles.sheetHeader}>
                 <div>
-                  <div style={styles.sheetDate}>{formatJapaneseDate(selectedDate)}</div>
-                  <div style={styles.sheetCount}>{selectedDayReservations.length}件</div>
+                  <div style={styles.sheetSubTitle}>予約一覧</div>
+                  <h2 style={styles.sheetTitle}>{formatJapaneseDate(selectedDate)}</h2>
                 </div>
 
                 <div style={styles.sheetHeaderBtns}>
                   <button
                     type="button"
-                    onClick={() => setDaySheetOpen(false)}
-                    style={styles.calendarBackBtn}
+                    onClick={() => openCreateModal(selectedDate)}
+                    style={styles.sheetActionBtnPrimary}
                   >
-                    カレンダーへ
+                    ＋予約追加
                   </button>
-
                   <button
                     type="button"
-                    onClick={() => openCreateModal(selectedDate)}
-                    style={styles.roundIconBtn}
+                    onClick={() => setDaySheetOpen(false)}
+                    style={styles.sheetCloseBtn}
                   >
-                    ＋
+                    閉じる
                   </button>
                 </div>
               </div>
 
-              <div style={styles.sheetBody}>
-                {loading ? (
-                  <div style={styles.emptyText}>読み込み中...</div>
-                ) : selectedDayReservations.length === 0 ? (
-                  <div style={styles.emptyText}>この日の予定はまだありません。</div>
-                ) : (
-                  selectedDayReservations.map((item) => {
-                    const reservationId = toIdNumber(item.id) ?? 0;
-                    const newVisit = isNewVisit(item);
-                    const soldByReservation = trimmed(item.reservation_status) === "売上済";
-                    const isSold = soldByReservation || salesReservationIdSet.has(reservationId);
-                    const isCounseled = counseledReservationIdSet.has(reservationId);
-                    const isTicketUsed = ticketUsedReservationIdSet.has(reservationId);
-                    const ticketMenu = isTicketMenu(item.menu);
-                    const salesHref = buildSalesHref(item, false);
-                    const ticketSalesHref = buildSalesHref(item, true);
-
+              {selectedDayReservations.length === 0 ? (
+                <div style={styles.emptyBox}>この日の予約はありません。</div>
+              ) : (
+                <div style={styles.cardList}>
+                  {selectedDayReservations.map((item) => {
                     const flags = getPendingFlags({
                       item,
                       salesReservationIdSet,
@@ -1175,390 +1185,268 @@ export default function ReservationPage() {
                       ticketUsedReservationIdSet,
                     });
 
+                    const isTicket = isTicketMenu(item.menu);
+                    const isSold =
+                      trimmed(item.reservation_status) === "売上済" ||
+                      salesReservationIdSet.has(Number(item.id));
+                    const isCounseled = counseledReservationIdSet.has(Number(item.id));
+                    const isTicketUsed = ticketUsedReservationIdSet.has(Number(item.id));
+
                     return (
-                      <div key={String(item.id)} style={styles.dayEventCardWrap}>
-                        <button
-                          type="button"
-                          onClick={() => router.push(`/reservation/detail/${item.id}`)}
-                          style={{
-                            ...styles.dayEventRowCompact,
-                            ...(flags.isPending ? styles.pendingCard : {}),
-                          }}
-                        >
-                          <div style={styles.timeColCompact}>
-                            <div style={styles.timeMainCompact}>{trimmed(item.start_time) || "—"}</div>
-                            <div style={styles.timeSubCompact}>{trimmed(item.end_time) || "—"}</div>
+                      <div
+                        key={String(item.id)}
+                        style={{
+                          ...styles.reserveCard,
+                          ...(flags.isPending ? styles.reserveCardPending : {}),
+                        }}
+                      >
+                        <div style={styles.reserveCardHead}>
+                          <div style={styles.reserveTime}>
+                            {trimmed(item.start_time) || "--:--"}
+                            {trimmed(item.end_time) ? ` 〜 ${trimmed(item.end_time)}` : ""}
                           </div>
 
-                          <div
-                            style={{
-                              ...styles.colorBarCompact,
-                              background: getStaffColor(item.staff_name),
-                            }}
-                          />
-
-                          <div style={styles.dayEventMainCompact}>
-                            <div style={styles.dayEventTopLineCompact}>
-                              <div style={styles.dayEventTitleCompact}>
-                                {trimmed(item.customer_name) || "予定"}
-                              </div>
-
-                              <div style={styles.rightMiniBadges}>
-                                <span
-                                  style={{
-                                    ...styles.storeColorDot,
-                                    background: getStoreColor(item.store_name),
-                                  }}
-                                />
-                                <div
-                                  style={{
-                                    ...styles.staffMiniBadgeCompact,
-                                    borderColor: getStaffColor(item.staff_name),
-                                    color: getStaffColor(item.staff_name),
-                                  }}
-                                >
-                                  {trimmed(item.staff_name) || "その他"}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div style={styles.dayEventBadgeRowCompact}>
-                              <span
-                                style={{
-                                  ...styles.statusChipCompact,
-                                  ...(newVisit ? styles.statusChipNew : styles.statusChipRepeat),
-                                }}
-                              >
-                                {getVisitTypeLabel(item)}
-                              </span>
-
-                              <span
-                                style={{
-                                  ...styles.statusChipCompact,
-                                  background: `${getStoreColor(item.store_name)}20`,
-                                  color: getStoreColor(item.store_name),
-                                }}
-                              >
-                                {trimmed(item.store_name) || "店舗未設定"}
-                              </span>
-
-                              {ticketMenu ? (
-                                <span
-                                  style={{
-                                    ...styles.statusChipCompact,
-                                    ...styles.statusChipTicketMenu,
-                                  }}
-                                >
-                                  回数券予約
-                                </span>
-                              ) : null}
-
-                              <span
-                                style={{
-                                  ...styles.statusChipCompact,
-                                  ...(isSold ? styles.statusChipDone : styles.statusChipNotDoneRed),
-                                }}
-                              >
-                                {isSold ? "売上済" : "売上未"}
-                              </span>
-
-                              <span
-                                style={{
-                                  ...styles.statusChipCompact,
-                                  ...(isCounseled ? styles.statusChipDone : styles.statusChipNotDoneBlue),
-                                }}
-                              >
-                                {isCounseled ? "カウンセリング済" : "カウンセリング未"}
-                              </span>
-
-                              {isTicketUsed ? (
-                                <span style={{ ...styles.statusChipCompact, ...styles.statusChipDoneGreen }}>
-                                  回数券消化済
-                                </span>
-                              ) : null}
-                            </div>
-
-                            <div style={styles.dayEventSubCompact}>
-                              {trimmed(item.menu) || "—"}
-                              {trimmed(item.payment_method)
-                                ? ` / ${trimmed(item.payment_method)}`
-                                : ""}
-                            </div>
-
-                            {trimmed(item.memo) ? (
-                              <div style={styles.dayEventMemoCompact}>{trimmed(item.memo)}</div>
-                            ) : null}
-                          </div>
-                        </button>
-
-                        <div
-                          style={{
-                            ...styles.dayEventActionRowCompact,
-                            gridTemplateColumns: ticketMenu
-                              ? newVisit
-                                ? "1fr 1fr 1fr"
-                                : "1fr 1fr"
-                              : newVisit
-                              ? "1fr 1fr"
-                              : "1fr",
-                          }}
-                        >
-                          {isSold ? (
-                            <div style={{ ...styles.dayEventSalesBtnCompact, ...styles.dayEventSalesBtnDone }}>
-                              売上済
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => router.push(salesHref)}
-                              style={styles.dayEventSalesBtnCompact}
+                          <div style={styles.reserveRightBadges}>
+                            <span
+                              style={{
+                                ...styles.badge,
+                                background: getStoreColor(item.store_name),
+                              }}
                             >
-                              売上登録
-                            </button>
-                          )}
+                              {trimmed(item.store_name) || "店舗未設定"}
+                            </span>
+                            <span
+                              style={{
+                                ...styles.badge,
+                                background: getStaffColor(item.staff_name),
+                              }}
+                            >
+                              {trimmed(item.staff_name) || "スタッフ未設定"}
+                            </span>
+                          </div>
+                        </div>
 
-                          {ticketMenu ? (
-                            isTicketUsed ? (
-                              <div
-                                style={{
-                                  ...styles.dayEventTicketBtnCompact,
-                                  ...styles.dayEventTicketBtnDone,
-                                }}
-                              >
-                                回数券消化済
-                              </div>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => router.push(ticketSalesHref)}
-                                style={styles.dayEventTicketBtnCompact}
-                              >
-                                回数券消化
-                              </button>
-                            )
+                        <div style={styles.reserveNameRow}>
+                          <div style={styles.reserveCustomerName}>
+                            {trimmed(item.customer_name) || "顧客名未設定"}
+                          </div>
+
+                          {isNewVisit(item) ? (
+                            <span style={styles.newBadge}>新規</span>
+                          ) : (
+                            <span style={styles.repeatBadge}>再来</span>
+                          )}
+                        </div>
+
+                        <div style={styles.reserveMeta}>
+                          <span>メニュー: {trimmed(item.menu) || "—"}</span>
+                          <span>支払: {trimmed(item.payment_method) || "—"}</span>
+                        </div>
+
+                        <div style={styles.statusRow}>
+                          <span style={isSold ? styles.doneBadge : styles.pendingBadge}>
+                            {isSold ? "売上済" : "売上未"}
+                          </span>
+
+                          {isNewVisit(item) ? (
+                            <span style={isCounseled ? styles.doneBadgeBlue : styles.pendingBadgeYellow}>
+                              {isCounseled ? "カウンセリング済" : "カウンセリング未"}
+                            </span>
                           ) : null}
 
-                          {newVisit ? (
+                          {isTicket ? (
+                            <>
+                              <span style={styles.ticketBadge}>回数券予約</span>
+                              <span style={isTicketUsed ? styles.doneBadgePurple : styles.pendingBadgePurple}>
+                                {isTicketUsed ? "回数券消化済" : "回数券未消化"}
+                              </span>
+                            </>
+                          ) : null}
+                        </div>
+
+                        {trimmed(item.memo) ? (
+                          <div style={styles.memoBox}>{trimmed(item.memo)}</div>
+                        ) : null}
+
+                        <div style={styles.actionRow}>
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/reservation/detail/${item.id}`)}
+                            style={styles.actionBtnDark}
+                          >
+                            詳細
+                          </button>
+
+                          {!isSold ? (
+                            <button
+                              type="button"
+                              onClick={() => router.push(buildSalesHref(item))}
+                              style={styles.actionBtnBlue}
+                            >
+                              {isTicket ? "回数券消化" : "売上登録"}
+                            </button>
+                          ) : null}
+
+                          {isNewVisit(item) && !isCounseled ? (
                             <button
                               type="button"
                               onClick={() => handleGoCounseling(item)}
-                              style={
-                                isCounseled
-                                  ? {
-                                      ...styles.dayEventCounselingBtnCompact,
-                                      ...styles.dayEventCounselingBtnDone,
-                                    }
-                                  : styles.dayEventCounselingBtnCompact
-                              }
+                              style={styles.actionBtnOrange}
                             >
-                              {isCounseled ? "カウンセリング済" : "カウンセリング"}
+                              カウンセリング
                             </button>
                           ) : null}
                         </div>
                       </div>
                     );
-                  })
-                )}
-              </div>
+                  })}
+                </div>
+              )}
             </div>
           </div>
         ) : null}
 
         {formOpen ? (
-          <div style={styles.sheetOverlay} onClick={() => setFormOpen(false)}>
-            <div style={styles.formModal} onClick={(e) => e.stopPropagation()}>
-              <div style={styles.sheetHandle} />
-
-              <div style={styles.formHeader}>
-                <div style={styles.formTitle}>新規予約</div>
-                <button
-                  type="button"
-                  onClick={() => setFormOpen(false)}
-                  style={styles.closeBtn}
-                >
+          <div style={styles.modalOverlay} onClick={() => setFormOpen(false)}>
+            <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+              <div style={styles.modalHeader}>
+                <h3 style={styles.modalTitle}>新規予約</h3>
+                <button type="button" onClick={() => setFormOpen(false)} style={styles.modalCloseBtn}>
                   ×
                 </button>
               </div>
 
-              <div style={styles.formBody}>
-                <label style={styles.field}>
-                  <span style={styles.label}>顧客検索</span>
+              <div style={styles.formGrid}>
+                <div style={styles.formBlockFull}>
+                  <label style={styles.label}>顧客検索</label>
                   <input
                     value={customerSearch}
                     onChange={(e) => setCustomerSearch(e.target.value)}
-                    placeholder="氏名・かな・電話で検索"
+                    placeholder="名前・かな・電話で検索"
                     style={styles.input}
                   />
-                </label>
-
-                <label style={styles.field}>
-                  <span style={styles.label}>既存顧客を選択</span>
-                  <select
-                    value={selectedCustomerId}
-                    onChange={(e) => handleSelectCustomer(e.target.value)}
-                    style={styles.input}
-                  >
-                    <option value="">選択しない（新規/手入力）</option>
-                    {filteredCustomers.map((customer) => (
-                      <option key={customer.id} value={customer.id}>
-                        {customer.name}
-                        {customer.phone ? ` / ${customer.phone}` : ""}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <div style={styles.formGrid2}>
-                  <label style={styles.field}>
-                    <span style={styles.label}>顧客名</span>
-                    <input
-                      value={customerName}
-                      onChange={(e) => {
-                        setCustomerName(e.target.value);
-                        setSelectedCustomerId("");
-                      }}
-                      style={styles.input}
-                    />
-                  </label>
-
-                  <label style={styles.field}>
-                    <span style={styles.label}>かな</span>
-                    <input
-                      value={customerKana}
-                      onChange={(e) => {
-                        setCustomerKana(e.target.value);
-                        setSelectedCustomerId("");
-                      }}
-                      style={styles.input}
-                    />
-                  </label>
+                  {filteredCustomers.length > 0 ? (
+                    <div style={styles.customerSearchList}>
+                      {filteredCustomers.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => handleSelectCustomer(c.id)}
+                          style={styles.customerSearchItem}
+                        >
+                          <div style={styles.customerSearchName}>{c.name || "名称なし"}</div>
+                          <div style={styles.customerSearchSub}>
+                            {c.kana || "かな未設定"} / {c.phone || "電話未設定"}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
 
-                <label style={styles.field}>
-                  <span style={styles.label}>電話番号</span>
+                <div>
+                  <label style={styles.label}>顧客名</label>
+                  <input
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    style={styles.input}
+                  />
+                </div>
+
+                <div>
+                  <label style={styles.label}>かな</label>
+                  <input
+                    value={customerKana}
+                    onChange={(e) => setCustomerKana(e.target.value)}
+                    style={styles.input}
+                  />
+                </div>
+
+                <div>
+                  <label style={styles.label}>電話</label>
                   <input
                     value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    style={styles.input}
+                  />
+                </div>
+
+                <div>
+                  <label style={styles.label}>日付</label>
+                  <input
+                    type="date"
+                    value={formDate}
+                    onChange={(e) => setFormDate(e.target.value)}
+                    style={styles.input}
+                  />
+                </div>
+
+                <div>
+                  <label style={styles.label}>開始時間</label>
+                  <input
+                    type="time"
+                    value={startTime}
+                    onChange={(e) => handleChangeStartTime(e.target.value)}
+                    style={styles.input}
+                  />
+                </div>
+
+                <div>
+                  <label style={styles.label}>終了時間</label>
+                  <input
+                    type="time"
+                    value={endTime}
                     onChange={(e) => {
-                      setCustomerPhone(e.target.value);
-                      setSelectedCustomerId("");
+                      setEndTimeTouched(true);
+                      setEndTime(e.target.value);
                     }}
                     style={styles.input}
                   />
-                </label>
-
-                <div style={styles.formGrid2}>
-                  <label style={styles.field}>
-                    <span style={styles.label}>日付</span>
-                    <input
-                      type="date"
-                      value={formDate}
-                      onChange={(e) => setFormDate(e.target.value)}
-                      style={styles.input}
-                    />
-                  </label>
-
-                  <label style={styles.field}>
-                    <span style={styles.label}>店舗</span>
-                    <select
-                      value={storeName}
-                      onChange={(e) => setStoreName(e.target.value)}
-                      style={styles.input}
-                    >
-                      {STORE_OPTIONS_FOR_FORM.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
                 </div>
 
-                <div style={styles.formGrid2}>
-                  <label style={styles.field}>
-                    <span style={styles.label}>開始時間</span>
-                    <input
-                      type="time"
-                      value={startTime}
-                      onChange={(e) => handleChangeStartTime(e.target.value)}
-                      style={styles.input}
-                    />
-                  </label>
-
-                  <label style={styles.field}>
-                    <span style={styles.label}>終了時間</span>
-                    <input
-                      type="time"
-                      value={endTime}
-                      onChange={(e) => {
-                        setEndTime(e.target.value);
-                        setEndTimeTouched(true);
-                      }}
-                      style={styles.input}
-                    />
-                  </label>
+                <div>
+                  <label style={styles.label}>店舗</label>
+                  <select
+                    value={storeName}
+                    onChange={(e) => setStoreName(e.target.value)}
+                    style={styles.input}
+                  >
+                    {STORE_OPTIONS_FOR_FORM.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                <div style={styles.autoHelp}>
-                  開始時間を入れると、終了時間は1時間後が自動セットされます。あとで手動調整OK
+                <div>
+                  <label style={styles.label}>担当スタッフ</label>
+                  <select
+                    value={staffName}
+                    onChange={(e) => setStaffName(e.target.value)}
+                    style={styles.input}
+                  >
+                    {STAFF_OPTIONS.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                <div style={styles.formGrid2}>
-                  <label style={styles.field}>
-                    <span style={styles.label}>担当スタッフ</span>
-                    <select
-                      value={staffName}
-                      onChange={(e) => setStaffName(e.target.value)}
-                      style={styles.input}
-                    >
-                      {STAFF_OPTIONS.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label style={styles.field}>
-                    <span style={styles.label}>メニュー</span>
-                    <select
-                      value={menu}
-                      onChange={(e) => setMenu(e.target.value)}
-                      style={styles.input}
-                    >
-                      {MENU_OPTIONS.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                <div>
+                  <label style={styles.label}>メニュー</label>
+                  <select value={menu} onChange={(e) => setMenu(e.target.value)} style={styles.input}>
+                    {MENU_OPTIONS.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                <label style={styles.field}>
-                  <span style={styles.label}>来店区分</span>
-                  <div style={styles.visitTypeRow}>
-                    {VISIT_TYPE_OPTIONS.map((item) => {
-                      const active = visitType === item;
-                      return (
-                        <button
-                          key={item}
-                          type="button"
-                          onClick={() => setVisitType(item)}
-                          style={{
-                            ...styles.visitTypeBtn,
-                            ...(active ? styles.visitTypeBtnActive : {}),
-                            background: active ? (item === "新規" ? "#2563eb" : "#4b5563") : "#fff",
-                          }}
-                        >
-                          {item}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </label>
-
-                <label style={styles.field}>
-                  <span style={styles.label}>支払方法</span>
+                <div>
+                  <label style={styles.label}>支払方法</label>
                   <select
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value)}
@@ -1570,28 +1458,45 @@ export default function ReservationPage() {
                       </option>
                     ))}
                   </select>
-                </label>
+                </div>
 
-                <label style={styles.field}>
-                  <span style={styles.label}>メモ</span>
+                <div>
+                  <label style={styles.label}>来店区分</label>
+                  <select
+                    value={visitType}
+                    onChange={(e) => setVisitType(e.target.value)}
+                    style={styles.input}
+                  >
+                    {VISIT_TYPE_OPTIONS.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={styles.formBlockFull}>
+                  <label style={styles.label}>メモ</label>
                   <textarea
                     value={memo}
                     onChange={(e) => setMemo(e.target.value)}
                     style={styles.textarea}
-                    placeholder="備考・領収・回数券メモなど"
+                    rows={4}
                   />
-                </label>
+                </div>
+              </div>
 
+              <div style={styles.modalFooter}>
+                <button type="button" onClick={() => setFormOpen(false)} style={styles.cancelBtn}>
+                  キャンセル
+                </button>
                 <button
                   type="button"
-                  onClick={handleSaveReservation}
+                  onClick={() => void handleSaveReservation()}
+                  style={styles.saveBtn}
                   disabled={saving}
-                  style={{
-                    ...styles.saveBtn,
-                    opacity: saving ? 0.7 : 1,
-                  }}
                 >
-                  {saving ? "保存中..." : "予約を保存"}
+                  {saving ? "保存中..." : "保存する"}
                 </button>
               </div>
             </div>
@@ -1599,71 +1504,44 @@ export default function ReservationPage() {
         ) : null}
 
         {counselingPickerOpen ? (
-          <div
-            style={styles.sheetOverlay}
-            onClick={() => setCounselingPickerOpen(false)}
-          >
-            <div
-              style={styles.counselingPickerModal}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div style={styles.sheetHandle} />
-
-              <div style={styles.formHeader}>
-                <div style={styles.formTitle}>カウンセリング対象を選択</div>
+          <div style={styles.modalOverlay} onClick={() => setCounselingPickerOpen(false)}>
+            <div style={styles.modalSmall} onClick={(e) => e.stopPropagation()}>
+              <div style={styles.modalHeader}>
+                <h3 style={styles.modalTitle}>カウンセリング対象を選択</h3>
                 <button
                   type="button"
                   onClick={() => setCounselingPickerOpen(false)}
-                  style={styles.closeBtn}
+                  style={styles.modalCloseBtn}
                 >
                   ×
                 </button>
               </div>
 
-              <div style={styles.counselingPickerBody}>
-                <div style={styles.counselingPickerHelp}>
-                  {formatJapaneseDate(selectedDate)} の新規予約から選んでください
+              {counselingCandidates.length === 0 ? (
+                <div style={styles.emptyBox}>対象がありません。</div>
+              ) : (
+                <div style={styles.cardList}>
+                  {counselingCandidates.map((item) => (
+                    <button
+                      key={String(item.id)}
+                      type="button"
+                      onClick={() => handleGoCounseling(item)}
+                      style={styles.counselingSelectCard}
+                    >
+                      <div style={styles.counselingSelectTime}>
+                        {trimmed(item.start_time) || "--:--"}
+                        {trimmed(item.end_time) ? ` 〜 ${trimmed(item.end_time)}` : ""}
+                      </div>
+                      <div style={styles.counselingSelectName}>
+                        {trimmed(item.customer_name) || "顧客名未設定"}
+                      </div>
+                      <div style={styles.counselingSelectSub}>
+                        {trimmed(item.menu) || "メニュー未設定"} / {trimmed(item.staff_name) || "担当未設定"}
+                      </div>
+                    </button>
+                  ))}
                 </div>
-
-                {counselingCandidates.length === 0 ? (
-                  <div style={styles.emptyText}>対象の新規・顧客付き予約がありません。</div>
-                ) : (
-                  <div style={styles.counselingCandidateList}>
-                    {counselingCandidates.map((item) => (
-                      <button
-                        key={String(item.id)}
-                        type="button"
-                        onClick={() => handleGoCounseling(item)}
-                        style={styles.counselingCandidateButton}
-                      >
-                        <div style={styles.counselingCandidateTop}>
-                          <div style={styles.counselingCandidateName}>
-                            {trimmed(item.customer_name) || "顧客名未設定"}
-                          </div>
-                          <div
-                            style={{
-                              ...styles.staffMiniBadge,
-                              borderColor: getStaffColor(item.staff_name),
-                              color: getStaffColor(item.staff_name),
-                            }}
-                          >
-                            {trimmed(item.staff_name) || "その他"}
-                          </div>
-                        </div>
-
-                        <div style={styles.counselingCandidateSub}>
-                          {trimmed(item.start_time) || "—"}〜{trimmed(item.end_time) || "—"} /{" "}
-                          {trimmed(item.menu) || "—"}
-                        </div>
-
-                        <div style={styles.counselingCandidateSub}>
-                          店舗 {trimmed(item.store_name) || "—"}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              )}
             </div>
           </div>
         ) : null}
@@ -1675,167 +1553,154 @@ export default function ReservationPage() {
 const styles: Record<string, CSSProperties> = {
   page: {
     minHeight: "100vh",
-    background: "#f3f4f6",
-    padding: "0",
+    background: "linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)",
+    padding: "0 0 100px",
   },
   mobileWrap: {
-    maxWidth: 430,
+    width: "100%",
+    maxWidth: 420,
     margin: "0 auto",
     minHeight: "100vh",
-    background: "#f3f4f6",
     position: "relative",
-    paddingBottom: 90,
   },
   topBar: {
     position: "sticky",
     top: 0,
     zIndex: 20,
-    background: "rgba(243,244,246,0.95)",
-    backdropFilter: "blur(12px)",
-    padding: "14px 10px 8px",
+    padding: "14px 12px 12px",
+    background: "rgba(248,250,252,0.92)",
+    backdropFilter: "blur(10px)",
+    borderBottom: "1px solid rgba(226,232,240,0.9)",
   },
   topHeaderRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-    marginBottom: 8,
+    display: "grid",
+    gap: 10,
+    marginBottom: 10,
   },
   monthRow: {
     display: "flex",
     alignItems: "center",
-    gap: 8,
-    minWidth: 0,
+    justifyContent: "space-between",
+    gap: 10,
   },
   monthTitle: {
     margin: 0,
-    fontSize: 21,
+    fontSize: 24,
     fontWeight: 900,
-    color: "#111827",
-    lineHeight: 1.1,
-    whiteSpace: "nowrap",
+    color: "#0f172a",
+    textAlign: "center",
+    flex: 1,
   },
   arrowBtn: {
-    border: "none",
-    background: "#ffffff",
-    width: 36,
-    height: 36,
+    width: 42,
+    height: 42,
     borderRadius: 999,
-    fontSize: 22,
-    fontWeight: 700,
+    border: "1px solid #e2e8f0",
+    background: "#fff",
     color: "#111827",
-    boxShadow: "0 6px 18px rgba(0,0,0,0.08)",
+    fontSize: 24,
     cursor: "pointer",
     flexShrink: 0,
   },
   topRightBtns: {
     display: "flex",
-    gap: 6,
-    alignItems: "center",
-    flexShrink: 0,
+    gap: 8,
     flexWrap: "wrap",
-    justifyContent: "flex-end",
-  },
-  counselingTopBtn: {
-    border: "none",
-    background: "#2563eb",
-    color: "#fff",
-    borderRadius: 10,
-    padding: "9px 10px",
-    fontSize: 11,
-    fontWeight: 800,
-    boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-  },
-  pendingFilterBtn: {
-    border: "none",
-    background: "#fff",
-    color: "#111827",
-    borderRadius: 10,
-    padding: "9px 10px",
-    fontSize: 11,
-    fontWeight: 800,
-    boxShadow: "0 6px 18px rgba(0,0,0,0.10)",
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-  },
-  pendingFilterBtnActive: {
-    background: "#ef4444",
-    color: "#fff",
   },
   topBtn: {
     border: "none",
     background: "#111827",
     color: "#fff",
-    borderRadius: 10,
-    padding: "9px 10px",
-    fontSize: 11,
+    padding: "10px 12px",
+    borderRadius: 999,
+    fontSize: 12,
     fontWeight: 800,
-    boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
     cursor: "pointer",
-    whiteSpace: "nowrap",
-    flexShrink: 0,
+  },
+  counselingTopBtn: {
+    border: "none",
+    background: "linear-gradient(135deg, #f59e0b, #d97706)",
+    color: "#fff",
+    padding: "10px 12px",
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  pendingFilterBtn: {
+    border: "1px solid #e2e8f0",
+    background: "#fff",
+    color: "#111827",
+    padding: "10px 12px",
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  pendingFilterBtnActive: {
+    background: "#fee2e2",
+    color: "#b91c1c",
+    border: "1px solid #fecaca",
   },
   summaryBar: {
     display: "flex",
     gap: 8,
-    flexWrap: "wrap",
-    marginBottom: 8,
+    overflowX: "auto",
+    paddingBottom: 4,
+    marginBottom: 10,
   },
   summaryPill: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
-    padding: "7px 10px",
-    borderRadius: 999,
     background: "#fff",
-    border: "1px solid #e5e7eb",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
+    borderRadius: 16,
+    padding: "10px 12px",
+    minWidth: 96,
+    display: "grid",
+    gap: 4,
+    boxShadow: "0 6px 16px rgba(0,0,0,0.05)",
+    flexShrink: 0,
   },
   summaryPillActive: {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "7px 10px",
-    borderRadius: 999,
-    background: "rgba(239,68,68,0.10)",
-    color: "#b91c1c",
-    border: "1px solid rgba(239,68,68,0.18)",
-    fontSize: 11,
+    background: "#fee2e2",
+    color: "#991b1b",
+    borderRadius: 16,
+    padding: "10px 12px",
+    fontSize: 12,
     fontWeight: 800,
+    display: "inline-block",
+    flexShrink: 0,
   },
   summaryLabel: {
     fontSize: 11,
-    fontWeight: 800,
-    color: "#6b7280",
+    color: "#64748b",
+    fontWeight: 700,
   },
   summaryCount: {
-    fontSize: 12,
+    fontSize: 18,
+    color: "#0f172a",
     fontWeight: 900,
-    color: "#111827",
   },
   summaryCountDanger: {
-    fontSize: 12,
-    fontWeight: 900,
+    fontSize: 18,
     color: "#dc2626",
+    fontWeight: 900,
   },
   filterRow: {
     display: "flex",
-    gap: 6,
+    gap: 8,
     overflowX: "auto",
     paddingBottom: 4,
-    marginBottom: 6,
+    marginBottom: 10,
   },
   storeChip: {
-    border: "1px solid #e5e7eb",
+    border: "1px solid #e2e8f0",
     background: "#fff",
-    color: "#374151",
-    borderRadius: 14,
-    padding: "7px 10px",
-    whiteSpace: "nowrap",
-    fontWeight: 700,
-    fontSize: 11,
+    color: "#334155",
+    borderRadius: 999,
+    padding: "9px 12px",
+    fontWeight: 800,
+    fontSize: 12,
     cursor: "pointer",
+    flexShrink: 0,
   },
   storeChipActive: {
     background: "#111827",
@@ -1844,36 +1709,53 @@ const styles: Record<string, CSSProperties> = {
   },
   legendBox: {
     display: "flex",
-    gap: 6,
+    gap: 10,
     overflowX: "auto",
-    paddingBottom: 2,
-    marginBottom: 4,
+    paddingBottom: 4,
+    marginBottom: 8,
   },
   legendBoxStore: {
     display: "flex",
-    gap: 6,
+    gap: 10,
     overflowX: "auto",
     paddingBottom: 2,
   },
   legendItem: {
-    display: "inline-flex",
+    display: "flex",
     alignItems: "center",
-    gap: 5,
-    padding: "4px 7px",
-    borderRadius: 999,
-    background: "#fff",
-    border: "1px solid #e5e7eb",
-    fontSize: 10,
+    gap: 6,
+    fontSize: 11,
+    color: "#475569",
     fontWeight: 700,
-    color: "#374151",
-    whiteSpace: "nowrap",
+    flexShrink: 0,
+    background: "#fff",
+    borderRadius: 999,
+    padding: "6px 10px",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
   },
   legendDot: {
-    width: 8,
-    height: 8,
+    width: 9,
+    height: 9,
     borderRadius: 999,
-    display: "inline-block",
     flexShrink: 0,
+  },
+  errorBox: {
+    margin: "12px",
+    background: "#fee2e2",
+    color: "#991b1b",
+    borderRadius: 14,
+    padding: "12px 14px",
+    fontWeight: 700,
+    fontSize: 13,
+  },
+  successBox: {
+    margin: "12px",
+    background: "#dcfce7",
+    color: "#166534",
+    borderRadius: 14,
+    padding: "12px 14px",
+    fontWeight: 700,
+    fontSize: 13,
   },
   calendarCard: {
     padding: "6px 8px 18px",
@@ -1984,7 +1866,7 @@ const styles: Record<string, CSSProperties> = {
   sheetOverlay: {
     position: "fixed",
     inset: 0,
-    background: "rgba(15,23,42,0.28)",
+    background: "rgba(15,23,42,0.35)",
     zIndex: 50,
     display: "flex",
     alignItems: "flex-end",
@@ -1992,489 +1874,424 @@ const styles: Record<string, CSSProperties> = {
   },
   sheet: {
     width: "100%",
-    maxWidth: 430,
-    background: "#fff",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: "8px 0 10px",
-    maxHeight: "88vh",
-    overflow: "hidden",
-  },
-  formModal: {
-    width: "100%",
-    maxWidth: 430,
-    background: "#fff",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: "10px 0 20px",
-    maxHeight: "90vh",
-    overflow: "hidden",
-  },
-  counselingPickerModal: {
-    width: "100%",
-    maxWidth: 430,
-    background: "#fff",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: "10px 0 20px",
-    maxHeight: "88vh",
-    overflow: "hidden",
+    maxWidth: 420,
+    maxHeight: "86vh",
+    background: "#f8fafc",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    overflow: "auto",
+    padding: "8px 12px 24px",
   },
   sheetHandle: {
-    width: 56,
-    height: 6,
+    width: 48,
+    height: 5,
     borderRadius: 999,
-    background: "#d1d5db",
-    margin: "0 auto 8px",
+    background: "#cbd5e1",
+    margin: "6px auto 14px",
   },
   sheetHeader: {
     display: "flex",
-    alignItems: "center",
     justifyContent: "space-between",
-    padding: "0 10px 6px",
+    alignItems: "flex-start",
+    gap: 10,
+    marginBottom: 14,
   },
-  calendarBackBtn: {
-    border: "none",
-    background: "#e5e7eb",
-    color: "#111827",
-    borderRadius: 10,
-    padding: "8px 10px",
+  sheetSubTitle: {
     fontSize: 11,
-    fontWeight: 800,
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-  },
-  sheetDate: {
-    fontSize: 15,
-    fontWeight: 900,
-    color: "#111827",
-    lineHeight: 1.2,
-  },
-  sheetCount: {
-    marginTop: 2,
-    fontSize: 10,
+    color: "#64748b",
     fontWeight: 700,
-    color: "#6b7280",
+    marginBottom: 4,
+  },
+  sheetTitle: {
+    margin: 0,
+    fontSize: 22,
+    color: "#0f172a",
+    fontWeight: 900,
   },
   sheetHeaderBtns: {
     display: "flex",
-    gap: 6,
-    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
   },
-  roundIconBtn: {
+  sheetActionBtnPrimary: {
     border: "none",
     background: "#111827",
     color: "#fff",
-    width: 36,
-    height: 36,
-    borderRadius: 999,
-    fontSize: 20,
-    fontWeight: 700,
-    cursor: "pointer",
-  },
-  sheetBody: {
-    overflowY: "auto",
-    maxHeight: "calc(88vh - 78px)",
-    padding: "0 8px 2px",
-    display: "grid",
-    gap: 6,
-  },
-  emptyText: {
-    textAlign: "center",
-    color: "#6b7280",
-    fontSize: 13,
-    fontWeight: 700,
-    padding: "22px 10px",
-  },
-  dayEventCardWrap: {
-    display: "grid",
-    gap: 4,
-  },
-  dayEventRowCompact: {
-    width: "100%",
-    border: "1px solid #e5e7eb",
-    background: "#ffffff",
+    padding: "10px 12px",
     borderRadius: 12,
-    padding: "7px 8px",
-    display: "grid",
-    gridTemplateColumns: "42px 5px minmax(0,1fr)",
-    gap: 7,
-    alignItems: "start",
-    textAlign: "left",
-    cursor: "pointer",
-    boxShadow: "0 3px 10px rgba(0,0,0,0.04)",
-  },
-  pendingCard: {
-    border: "2px solid #ef4444",
-    background: "rgba(239,68,68,0.05)",
-  },
-  timeColCompact: {
-    textAlign: "center",
-    paddingTop: 1,
-  },
-  timeMainCompact: {
+    fontWeight: 800,
     fontSize: 12,
-    fontWeight: 900,
-    color: "#111827",
-    lineHeight: 1.05,
+    cursor: "pointer",
   },
-  timeSubCompact: {
-    marginTop: 1,
-    fontSize: 9,
+  sheetCloseBtn: {
+    border: "1px solid #e2e8f0",
+    background: "#fff",
+    color: "#334155",
+    padding: "10px 12px",
+    borderRadius: 12,
+    fontWeight: 800,
+    fontSize: 12,
+    cursor: "pointer",
+  },
+  emptyBox: {
+    background: "#fff",
+    borderRadius: 16,
+    padding: "18px 14px",
+    color: "#64748b",
     fontWeight: 700,
-    color: "#6b7280",
-    lineHeight: 1.1,
+    fontSize: 13,
+    textAlign: "center",
   },
-  colorBarCompact: {
-    width: 5,
-    borderRadius: 999,
-    alignSelf: "stretch",
-    minHeight: 42,
+  cardList: {
+    display: "grid",
+    gap: 10,
   },
-  dayEventMainCompact: {
-    minWidth: 0,
+  reserveCard: {
+    background: "#fff",
+    borderRadius: 18,
+    padding: 14,
+    boxShadow: "0 6px 16px rgba(0,0,0,0.05)",
+    border: "1px solid #e2e8f0",
   },
-  dayEventTopLineCompact: {
+  reserveCardPending: {
+    border: "2px solid #ef4444",
+    boxShadow: "0 10px 24px rgba(239,68,68,0.12)",
+  },
+  reserveCardHead: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "flex-start",
+    gap: 8,
+    marginBottom: 10,
+  },
+  reserveTime: {
+    fontSize: 16,
+    fontWeight: 900,
+    color: "#0f172a",
+  },
+  reserveRightBadges: {
+    display: "flex",
     gap: 6,
-    marginBottom: 2,
-  },
-  dayEventTitleCompact: {
-    fontSize: 12,
-    fontWeight: 800,
-    color: "#111827",
-    lineHeight: 1.2,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-    minWidth: 0,
-    flex: 1,
-  },
-  rightMiniBadges: {
-    display: "flex",
-    alignItems: "center",
-    gap: 5,
-    flexShrink: 0,
-  },
-  storeColorDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-    display: "inline-block",
-    flexShrink: 0,
-  },
-  dayEventBadgeRowCompact: {
-    display: "flex",
     flexWrap: "wrap",
-    gap: 4,
-    marginBottom: 4,
+    justifyContent: "flex-end",
   },
-  statusChipCompact: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 999,
-    padding: "2px 7px",
-    fontSize: 9,
-    fontWeight: 800,
-    lineHeight: 1,
-  },
-  statusChipNew: {
-    background: "#dbeafe",
-    color: "#1d4ed8",
-  },
-  statusChipRepeat: {
-    background: "#f3f4f6",
-    color: "#4b5563",
-  },
-  statusChipDone: {
-    background: "#e5e7eb",
-    color: "#374151",
-  },
-  statusChipDoneGreen: {
-    background: "rgba(22,163,74,0.12)",
-    color: "#15803d",
-  },
-  statusChipTicketMenu: {
-    background: "rgba(22,163,74,0.10)",
-    color: "#166534",
-  },
-  statusChipNotDoneRed: {
-    background: "rgba(239,68,68,0.12)",
-    color: "#b91c1c",
-  },
-  statusChipNotDoneBlue: {
-    background: "rgba(37,99,235,0.12)",
-    color: "#1d4ed8",
-  },
-  staffMiniBadgeCompact: {
-    flexShrink: 0,
-    fontSize: 9,
-    fontWeight: 800,
-    border: "1px solid",
-    borderRadius: 999,
-    padding: "2px 5px",
-    background: "#fff",
-    lineHeight: 1.05,
-  },
-  dayEventSubCompact: {
-    fontSize: 10,
-    fontWeight: 700,
-    color: "#374151",
-    lineHeight: 1.25,
-  },
-  dayEventMemoCompact: {
-    marginTop: 3,
-    fontSize: 9,
-    lineHeight: 1.3,
-    color: "#6b7280",
-    background: "#f8fafc",
-    borderRadius: 7,
-    padding: "4px 5px",
-    overflow: "hidden",
-    display: "-webkit-box",
-    WebkitLineClamp: 1,
-    WebkitBoxOrient: "vertical",
-  },
-  dayEventActionRowCompact: {
-    display: "grid",
-    gap: 4,
-  },
-  dayEventSalesBtnCompact: {
-    width: "100%",
-    height: 32,
-    borderRadius: 10,
-    border: "none",
-    background: "#111827",
+  badge: {
     color: "#fff",
     fontSize: 11,
     fontWeight: 800,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-    boxShadow: "0 3px 10px rgba(0,0,0,0.08)",
-  },
-  dayEventSalesBtnDone: {
-    background: "#9ca3af",
-  },
-  dayEventTicketBtnCompact: {
-    width: "100%",
-    height: 32,
-    borderRadius: 10,
-    border: "none",
-    background: "#15803d",
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: 800,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-    boxShadow: "0 3px 10px rgba(0,0,0,0.08)",
-  },
-  dayEventTicketBtnDone: {
-    background: "#9ca3af",
-  },
-  dayEventCounselingBtnCompact: {
-    width: "100%",
-    height: 32,
-    borderRadius: 10,
-    border: "none",
-    background: "#2563eb",
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: 800,
-    cursor: "pointer",
-    boxShadow: "0 3px 10px rgba(0,0,0,0.08)",
-  },
-  dayEventCounselingBtnDone: {
-    background: "#9ca3af",
-  },
-  staffMiniBadge: {
-    flexShrink: 0,
-    fontSize: 10,
-    fontWeight: 800,
-    border: "1px solid",
+    padding: "5px 8px",
     borderRadius: 999,
-    padding: "2px 6px",
-    background: "#fff",
-    lineHeight: 1.1,
   },
-  formHeader: {
+  reserveNameRow: {
     display: "flex",
     alignItems: "center",
-    justifyContent: "space-between",
-    padding: "0 18px 12px",
+    gap: 8,
+    flexWrap: "wrap",
+    marginBottom: 8,
   },
-  formTitle: {
+  reserveCustomerName: {
     fontSize: 18,
     fontWeight: 900,
     color: "#111827",
   },
-  closeBtn: {
-    border: "none",
-    background: "#f3f4f6",
-    color: "#111827",
-    width: 36,
-    height: 36,
+  newBadge: {
+    background: "#dbeafe",
+    color: "#1d4ed8",
     borderRadius: 999,
-    fontSize: 20,
+    padding: "4px 8px",
+    fontSize: 11,
+    fontWeight: 800,
+  },
+  repeatBadge: {
+    background: "#f1f5f9",
+    color: "#475569",
+    borderRadius: 999,
+    padding: "4px 8px",
+    fontSize: 11,
+    fontWeight: 800,
+  },
+  reserveMeta: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    color: "#475569",
     fontWeight: 700,
+    fontSize: 12,
+    marginBottom: 10,
+  },
+  statusRow: {
+    display: "flex",
+    gap: 6,
+    flexWrap: "wrap",
+    marginBottom: 10,
+  },
+  pendingBadge: {
+    background: "#fee2e2",
+    color: "#991b1b",
+    borderRadius: 999,
+    padding: "5px 8px",
+    fontSize: 11,
+    fontWeight: 800,
+  },
+  doneBadge: {
+    background: "#dcfce7",
+    color: "#166534",
+    borderRadius: 999,
+    padding: "5px 8px",
+    fontSize: 11,
+    fontWeight: 800,
+  },
+  doneBadgeBlue: {
+    background: "#dbeafe",
+    color: "#1d4ed8",
+    borderRadius: 999,
+    padding: "5px 8px",
+    fontSize: 11,
+    fontWeight: 800,
+  },
+  pendingBadgeYellow: {
+    background: "#fef3c7",
+    color: "#92400e",
+    borderRadius: 999,
+    padding: "5px 8px",
+    fontSize: 11,
+    fontWeight: 800,
+  },
+  ticketBadge: {
+    background: "#ede9fe",
+    color: "#6d28d9",
+    borderRadius: 999,
+    padding: "5px 8px",
+    fontSize: 11,
+    fontWeight: 800,
+  },
+  doneBadgePurple: {
+    background: "#e9d5ff",
+    color: "#6d28d9",
+    borderRadius: 999,
+    padding: "5px 8px",
+    fontSize: 11,
+    fontWeight: 800,
+  },
+  pendingBadgePurple: {
+    background: "#f3e8ff",
+    color: "#7c3aed",
+    borderRadius: 999,
+    padding: "5px 8px",
+    fontSize: 11,
+    fontWeight: 800,
+  },
+  memoBox: {
+    background: "#f8fafc",
+    borderRadius: 12,
+    padding: "10px 12px",
+    color: "#475569",
+    fontSize: 12,
+    lineHeight: 1.6,
+    marginBottom: 10,
+    whiteSpace: "pre-wrap",
+  },
+  actionRow: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  actionBtnDark: {
+    border: "none",
+    background: "#111827",
+    color: "#fff",
+    borderRadius: 12,
+    padding: "10px 12px",
+    fontSize: 12,
+    fontWeight: 800,
     cursor: "pointer",
   },
-  formBody: {
-    overflowY: "auto",
-    maxHeight: "calc(90vh - 68px)",
-    padding: "0 18px 10px",
-    display: "grid",
-    gap: 14,
+  actionBtnBlue: {
+    border: "none",
+    background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+    color: "#fff",
+    borderRadius: 12,
+    padding: "10px 12px",
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: "pointer",
   },
-  field: {
+  actionBtnOrange: {
+    border: "none",
+    background: "linear-gradient(135deg, #f59e0b, #d97706)",
+    color: "#fff",
+    borderRadius: 12,
+    padding: "10px 12px",
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  modalOverlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(15,23,42,0.35)",
+    zIndex: 60,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 12,
+  },
+  modal: {
+    width: "100%",
+    maxWidth: 420,
+    maxHeight: "88vh",
+    overflow: "auto",
+    background: "#fff",
+    borderRadius: 22,
+    padding: 16,
+    boxShadow: "0 24px 60px rgba(0,0,0,0.18)",
+  },
+  modalSmall: {
+    width: "100%",
+    maxWidth: 420,
+    maxHeight: "80vh",
+    overflow: "auto",
+    background: "#fff",
+    borderRadius: 22,
+    padding: 16,
+    boxShadow: "0 24px 60px rgba(0,0,0,0.18)",
+  },
+  modalHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 14,
+  },
+  modalTitle: {
+    margin: 0,
+    fontSize: 20,
+    fontWeight: 900,
+    color: "#0f172a",
+  },
+  modalCloseBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 999,
+    border: "1px solid #e2e8f0",
+    background: "#fff",
+    color: "#111827",
+    fontSize: 20,
+    cursor: "pointer",
+  },
+  formGrid: {
     display: "grid",
-    gap: 6,
+    gridTemplateColumns: "1fr 1fr",
+    gap: 12,
+  },
+  formBlockFull: {
+    gridColumn: "1 / -1",
   },
   label: {
-    fontSize: 13,
+    display: "block",
+    fontSize: 12,
     fontWeight: 800,
-    color: "#374151",
+    color: "#334155",
+    marginBottom: 6,
   },
   input: {
     width: "100%",
-    height: 44,
-    borderRadius: 14,
-    border: "1px solid #d1d5db",
-    background: "#fff",
-    padding: "0 14px",
+    boxSizing: "border-box",
+    border: "1px solid #e2e8f0",
+    borderRadius: 12,
+    padding: "11px 12px",
     fontSize: 14,
-    color: "#111827",
-    outline: "none",
+    background: "#fff",
+    color: "#0f172a",
   },
   textarea: {
     width: "100%",
-    minHeight: 110,
-    borderRadius: 14,
-    border: "1px solid #d1d5db",
-    background: "#fff",
-    padding: "12px 14px",
+    boxSizing: "border-box",
+    border: "1px solid #e2e8f0",
+    borderRadius: 12,
+    padding: "11px 12px",
     fontSize: 14,
-    color: "#111827",
-    outline: "none",
+    background: "#fff",
+    color: "#0f172a",
     resize: "vertical",
   },
-  formGrid2: {
+  customerSearchList: {
     display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 12,
+    gap: 8,
+    marginTop: 8,
+    maxHeight: 220,
+    overflowY: "auto",
+    paddingRight: 2,
   },
-  autoHelp: {
-    fontSize: 11,
-    lineHeight: 1.5,
-    color: "#6b7280",
+  customerSearchItem: {
+    border: "1px solid #e2e8f0",
     background: "#f8fafc",
     borderRadius: 12,
     padding: "10px 12px",
+    textAlign: "left",
+    cursor: "pointer",
   },
-  visitTypeRow: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 8,
-  },
-  visitTypeBtn: {
-    height: 44,
-    borderRadius: 14,
-    border: "1px solid #d1d5db",
-    color: "#111827",
+  customerSearchName: {
     fontSize: 14,
     fontWeight: 800,
-    cursor: "pointer",
+    color: "#0f172a",
+    marginBottom: 4,
   },
-  visitTypeBtnActive: {
-    border: "1px solid transparent",
-    color: "#fff",
-  },
-  saveBtn: {
-    height: 48,
-    border: "none",
-    borderRadius: 14,
-    background: "#111827",
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: 800,
-    cursor: "pointer",
-    marginTop: 4,
-  },
-  counselingPickerBody: {
-    overflowY: "auto",
-    maxHeight: "calc(88vh - 68px)",
-    padding: "0 18px 10px",
-    display: "grid",
-    gap: 12,
-  },
-  counselingPickerHelp: {
-    fontSize: 12,
-    lineHeight: 1.6,
+  customerSearchSub: {
+    fontSize: 11,
     color: "#64748b",
     fontWeight: 700,
-    background: "#f8fafc",
-    borderRadius: 12,
-    padding: "10px 12px",
   },
-  counselingCandidateList: {
-    display: "grid",
-    gap: 10,
-  },
-  counselingCandidateButton: {
-    width: "100%",
-    textAlign: "left",
-    border: "1px solid #e5e7eb",
-    background: "#fff",
-    borderRadius: 16,
-    padding: "12px 12px",
-    cursor: "pointer",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
-  },
-  counselingCandidateTop: {
+  modalFooter: {
     display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
+    justifyContent: "flex-end",
     gap: 8,
+    marginTop: 16,
+  },
+  cancelBtn: {
+    border: "1px solid #e2e8f0",
+    background: "#fff",
+    color: "#334155",
+    borderRadius: 12,
+    padding: "11px 14px",
+    fontWeight: 800,
+    fontSize: 13,
+    cursor: "pointer",
+  },
+  saveBtn: {
+    border: "none",
+    background: "#111827",
+    color: "#fff",
+    borderRadius: 12,
+    padding: "11px 14px",
+    fontWeight: 800,
+    fontSize: 13,
+    cursor: "pointer",
+  },
+  counselingSelectCard: {
+    border: "1px solid #e2e8f0",
+    background: "#f8fafc",
+    borderRadius: 16,
+    padding: 14,
+    textAlign: "left",
+    cursor: "pointer",
+  },
+  counselingSelectTime: {
+    fontSize: 13,
+    fontWeight: 900,
+    color: "#0f172a",
     marginBottom: 6,
   },
-  counselingCandidateName: {
-    fontSize: 15,
+  counselingSelectName: {
+    fontSize: 17,
     fontWeight: 900,
     color: "#111827",
-    lineHeight: 1.3,
+    marginBottom: 6,
   },
-  counselingCandidateSub: {
+  counselingSelectSub: {
     fontSize: 12,
-    color: "#6b7280",
-    lineHeight: 1.6,
+    color: "#64748b",
     fontWeight: 700,
-  },
-  errorBox: {
-    margin: "8px 12px 0",
-    background: "#fef2f2",
-    color: "#b91c1c",
-    border: "1px solid #fecaca",
-    borderRadius: 14,
-    padding: "10px 12px",
-    fontSize: 12,
-    fontWeight: 700,
-    lineHeight: 1.5,
-  },
-  successBox: {
-    margin: "8px 12px 0",
-    background: "#f0fdf4",
-    color: "#15803d",
-    border: "1px solid #bbf7d0",
-    borderRadius: 14,
-    padding: "10px 12px",
-    fontSize: 12,
-    fontWeight: 700,
-    lineHeight: 1.5,
   },
 };
