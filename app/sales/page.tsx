@@ -149,6 +149,10 @@ const STORE_OPTIONS = [
   "未設定",
 ];
 
+const PAYMENT_OPTIONS: PaymentMethod[] = ["現金", "カード", "銀行振込", "その他"];
+const ACCOUNTING_OPTIONS: AccountingType[] = ["通常売上", "前受金", "回数券消化"];
+const SERVICE_OPTIONS: ServiceType[] = ["ストレッチ", "トレーニング"];
+
 function formatCurrency(value: number) {
   return `¥${Number(value || 0).toLocaleString()}`;
 }
@@ -166,6 +170,11 @@ function formatDateJP(value: string) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
   return `${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
+function trimmed(value: unknown) {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
 }
 
 function buildCategory(
@@ -543,7 +552,11 @@ export default function SalesPage() {
       setServiceType(detectServiceTypeFromMenu(queryMenu));
     }
 
-    if (querySaleType === "前受金" || querySaleType === "回数券消化" || querySaleType === "通常売上") {
+    if (
+      querySaleType === "前受金" ||
+      querySaleType === "回数券消化" ||
+      querySaleType === "通常売上"
+    ) {
       setPayments((prev) =>
         prev.map((row, index) =>
           index === 0
@@ -858,6 +871,10 @@ export default function SalesPage() {
             next.amount = "0";
             next.paymentMethod = "その他";
           }
+          if (value === "通常売上" && next.amount === "0") {
+            next.amount = "";
+            next.paymentMethod = "現金";
+          }
         }
 
         return next;
@@ -915,9 +932,7 @@ export default function SalesPage() {
     }
 
     if (reservationId && existingSalesForReservation.length > 0) {
-      const ok = window.confirm(
-        "この予約にはすでに売上があります。追加登録しますか？"
-      );
+      const ok = window.confirm("この予約にはすでに売上があります。追加登録しますか？");
       if (!ok) return;
     }
 
@@ -1027,9 +1042,11 @@ export default function SalesPage() {
       }
 
       await fetchSales();
+
       if (reservationId) {
         await loadExistingSalesForReservation(reservationId);
       }
+
       alert("売上を登録しました");
       resetForm();
     } catch (error) {
@@ -1041,19 +1058,84 @@ export default function SalesPage() {
   };
 
   const handleDeleteSale = async (id: string) => {
-    const ok = window.confirm("この売上データを削除しますか？");
-    if (!ok) return;
+    const targetSale = sales.find((sale) => sale.id === id);
 
-    const { error } = await supabase.from("sales").delete().eq("id", id);
-
-    if (error) {
-      alert(`削除エラー: ${error.message}`);
+    if (!targetSale) {
+      alert("削除対象の売上データが見つかりません");
       return;
     }
 
-    await fetchSales();
-    if (reservationId) {
-      await loadExistingSalesForReservation(reservationId);
+    const ok = window.confirm("この売上データを削除しますか？");
+    if (!ok) return;
+
+    try {
+      const targetReservationId =
+        targetSale.reservationId !== null && targetSale.reservationId !== undefined
+          ? String(targetSale.reservationId)
+          : "";
+
+      const { error: deleteError } = await supabase.from("sales").delete().eq("id", id);
+
+      if (deleteError) {
+        alert(`削除エラー: ${deleteError.message}`);
+        return;
+      }
+
+      if (targetReservationId) {
+        const { data: remainSales, error: remainSalesError } = await supabase
+          .from("sales")
+          .select("id")
+          .eq("reservation_id", Number(targetReservationId));
+
+        if (remainSalesError) {
+          alert(`残売上確認エラー: ${remainSalesError.message}`);
+          await fetchSales();
+          if (reservationId) {
+            await loadExistingSalesForReservation(reservationId);
+          }
+          return;
+        }
+
+        const remainingCount = Array.isArray(remainSales) ? remainSales.length : 0;
+
+        if (remainingCount === 0) {
+          const { error: reservationUpdateError } = await supabase
+            .from("reservations")
+            .update({
+              reservation_status: "予約済",
+            })
+            .eq("id", Number(targetReservationId));
+
+          if (reservationUpdateError) {
+            alert(`予約ステータス更新エラー: ${reservationUpdateError.message}`);
+          }
+
+          if (reservationId === targetReservationId) {
+            setReservationStatus("予約済");
+          }
+        } else {
+          if (reservationId === targetReservationId) {
+            setReservationStatus("売上済");
+          }
+        }
+      }
+
+      await fetchSales();
+
+      if (targetReservationId) {
+        if (reservationId === targetReservationId) {
+          await loadExistingSalesForReservation(targetReservationId);
+        } else if (reservationId) {
+          await loadExistingSalesForReservation(reservationId);
+        }
+      } else if (reservationId) {
+        await loadExistingSalesForReservation(reservationId);
+      }
+
+      alert("売上を削除しました");
+    } catch (error) {
+      console.error("handleDeleteSale error:", error);
+      alert(error instanceof Error ? error.message : "売上削除中にエラーが発生しました");
     }
   };
 
@@ -1114,334 +1196,316 @@ export default function SalesPage() {
 
   if (!mounted) return null;
 
+  const compact = windowWidth < 900;
+
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background:
-          "linear-gradient(135deg, #f7f7f8 0%, #ececef 45%, #dfe3e8 100%)",
-        padding: "24px",
-        fontFamily: "system-ui, sans-serif",
-      }}
-    >
-      <div style={{ maxWidth: "1320px", margin: "0 auto" }}>
-        <div
+    <div style={pageStyle}>
+      <div style={wrapStyle}>
+        <section style={heroCardStyle}>
+          <div style={heroTopStyle}>
+            <div>
+              <div style={heroEyebrowStyle}>GYMUP CRM</div>
+              <h1 style={heroTitleStyle}>売上管理</h1>
+              <div style={heroSubStyle}>予約連動 / 回数券消化 / 日別集計</div>
+            </div>
+
+            <div style={heroActionWrapStyle}>
+              <Link href="/" style={subButtonStyle}>
+                TOPへ
+              </Link>
+              <Link href="/reservation" style={subButtonStyle}>
+                予約へ
+              </Link>
+              {reservationId ? (
+                <Link href={`/reservation/detail/${reservationId}`} style={mainButtonLinkStyle}>
+                  予約詳細へ
+                </Link>
+              ) : null}
+            </div>
+          </div>
+        </section>
+
+        <section
           style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: "16px",
-            flexWrap: "wrap",
-            marginBottom: "24px",
+            ...summaryGridStyle,
+            gridTemplateColumns: compact ? "1fr 1fr" : "repeat(4, 1fr)",
           }}
         >
-          <div>
-            <h1
-              style={{
-                margin: 0,
-                fontSize: "32px",
-                fontWeight: 800,
-                color: "#111827",
-              }}
-            >
-              売上管理
-            </h1>
-            <p
-              style={{
-                marginTop: "8px",
-                color: "#6b7280",
-                fontSize: "14px",
-              }}
-            >
-              予約自動入力・複数支払い・回数券消化・予約ステータス更新
-            </p>
+          <div style={summaryCardStyle}>
+            <div style={summaryLabelStyle}>本日売上</div>
+            <div style={summaryValueStyle}>{formatCurrency(todayTotal)}</div>
           </div>
-
-          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-            <Link href="/" style={subButtonStyle}>
-              ← ホームへ
-            </Link>
-            <Link href="/accounting" style={mainLinkStyle}>
-              会計管理へ
-            </Link>
-            {reservationId ? (
-              <Link href={`/reservation/detail/${reservationId}`} style={subButtonStyle}>
-                予約詳細へ
-              </Link>
-            ) : null}
+          <div style={summaryCardStyle}>
+            <div style={summaryLabelStyle}>累計売上</div>
+            <div style={summaryValueStyle}>{formatCurrency(allTotal)}</div>
           </div>
-        </div>
-
-        <div style={topMetricGridStyle}>
-          <MetricCard title="本日の売上合計" value={formatCurrency(todayTotal)} />
-          <MetricCard title="総売上合計" value={formatCurrency(allTotal)} />
-          <MetricCard title="売上ブロック" value={`${payments.length}個`} />
-          <MetricCard
-            title="予約ステータス"
-            value={reservationStatus || "未連動"}
-          />
-        </div>
-
-        {reservationId ? (
-          <div style={statusInfoBoxStyle}>
-            予約ID: {reservationId}
-            {existingSalesForReservation.length > 0
-              ? ` / 既存売上 ${existingSalesForReservation.length}件`
-              : " / この予約は未売上登録"}
+          <div style={summaryCardStyle}>
+            <div style={summaryLabelStyle}>顧客数</div>
+            <div style={summaryValueStyle}>{customers.length}名</div>
           </div>
-        ) : null}
+          <div style={summaryCardStyle}>
+            <div style={summaryLabelStyle}>表示件数</div>
+            <div style={summaryValueStyle}>{filteredSales.length}件</div>
+          </div>
+        </section>
 
-        <div
+        <section
           style={{
             display: "grid",
-            gridTemplateColumns:
-              windowWidth < 1280
-                ? "minmax(0, 1fr)"
-                : "minmax(0, 1.55fr) minmax(280px, 360px)",
-            gap: "24px",
-            alignItems: "start",
+            gap: "20px",
+            gridTemplateColumns: compact ? "1fr" : "minmax(360px, 480px) minmax(0, 1fr)",
           }}
         >
-          <div
-            style={{
-              display: "grid",
-              gap: "24px",
-              minWidth: 0,
-              width: "100%",
-            }}
-          >
-            <section style={cardStyle}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: "12px",
-                  flexWrap: "wrap",
-                }}
-              >
-                <h2 style={sectionTitleStyle}>売上登録</h2>
-                {prefillLoading ? (
-                  <span style={miniInfoStyle}>予約情報を反映中...</span>
-                ) : reservationId ? (
-                  <span style={miniInfoStyle}>予約ID: {reservationId}</span>
+          <section style={cardStyle}>
+            <div style={sectionHeaderStyle}>
+              <h2 style={sectionTitleStyle}>売上入力</h2>
+              <div style={statusWrapStyle}>
+                {customerLoading ? <span style={smallStatusStyle}>顧客読込中...</span> : null}
+                {prefillLoading ? <span style={smallStatusStyle}>予約反映中...</span> : null}
+                {saving ? <span style={smallStatusStyle}>保存中...</span> : null}
+              </div>
+            </div>
+
+            {reservationId ? (
+              <div style={reservationBoxStyle}>
+                <div style={reservationBoxTitleStyle}>予約連動中</div>
+                <div style={reservationLineStyle}>予約ID: {reservationId}</div>
+                <div style={reservationLineStyle}>
+                  予約ステータス: {reservationStatus || "未取得"}
+                </div>
+                {existingSalesForReservation.length > 0 ? (
+                  <div style={reservationWarnStyle}>
+                    この予約には売上が {existingSalesForReservation.length} 件あります
+                  </div>
                 ) : null}
               </div>
+            ) : null}
 
-              <div style={formGridStyle}>
-                <div>
-                  <label style={labelStyle}>日付</label>
-                  <input
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    style={inputStyle}
-                  />
-                </div>
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>日付</label>
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputStyle} />
+            </div>
 
-                <div>
-                  <label style={labelStyle}>顧客</label>
-                  <select
-                    value={customerId}
-                    onChange={(e) => setCustomerId(e.target.value)}
-                    style={inputStyle}
-                    disabled={customerLoading}
-                  >
-                    <option value="">
-                      {customerLoading ? "顧客を読み込み中..." : "顧客を選択してください"}
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>顧客</label>
+              <select
+                value={customerId}
+                onChange={(e) => setCustomerId(e.target.value)}
+                style={inputStyle}
+              >
+                <option value="">選択してください</option>
+                {customers.map((customer) => (
+                  <option key={String(customer.id)} value={String(customer.id)}>
+                    {customer.name}
+                    {customer.phone ? ` / ${customer.phone}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedCustomer ? (
+              <div style={selectedCustomerBoxStyle}>
+                選択中: {selectedCustomer.name}
+                {selectedCustomer.phone ? ` / ${selectedCustomer.phone}` : ""}
+              </div>
+            ) : null}
+
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>メニュー名</label>
+              <input
+                value={menuName}
+                onChange={(e) => setMenuName(e.target.value)}
+                style={inputStyle}
+                placeholder="例: 90分ストレッチ"
+              />
+            </div>
+
+            <div style={twoColStyle}>
+              <div>
+                <label style={labelStyle}>サービス区分</label>
+                <select
+                  value={serviceType}
+                  onChange={(e) => setServiceType(e.target.value as ServiceType)}
+                  style={inputStyle}
+                >
+                  {SERVICE_OPTIONS.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
                     </option>
-                    {customers.map((customer) => (
-                      <option key={String(customer.id)} value={String(customer.id)}>
-                        {customer.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={labelStyle}>メニュー名</label>
-                  <input
-                    value={menuName}
-                    onChange={(e) => setMenuName(e.target.value)}
-                    style={inputStyle}
-                    placeholder="例: ストレッチ回数券"
-                  />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>サービス種別</label>
-                  <select
-                    value={serviceType}
-                    onChange={(e) => setServiceType(e.target.value as ServiceType)}
-                    style={inputStyle}
-                  >
-                    <option value="ストレッチ">ストレッチ</option>
-                    <option value="トレーニング">トレーニング</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label style={labelStyle}>担当スタッフ</label>
-                  <select
-                    value={staff}
-                    onChange={(e) => setStaff(e.target.value)}
-                    style={inputStyle}
-                  >
-                    {STAFF_OPTIONS.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={labelStyle}>店舗</label>
-                  <select
-                    value={storeName}
-                    onChange={(e) => setStoreName(e.target.value)}
-                    style={inputStyle}
-                  >
-                    {STORE_OPTIONS.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                  ))}
+                </select>
               </div>
 
-              <div style={{ marginTop: "18px" }}>
-                <div style={labelStyle}>支払いブロック</div>
+              <div>
+                <label style={labelStyle}>担当スタッフ</label>
+                <select
+                  value={staff}
+                  onChange={(e) => setStaff(e.target.value)}
+                  style={inputStyle}
+                >
+                  {STAFF_OPTIONS.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
-                <div style={{ display: "grid", gap: "12px" }}>
-                  {payments.map((payment, index) => (
-                    <div key={payment.id} style={paymentCardStyle}>
-                      <div style={paymentGridStyle}>
-                        <div>
-                          <label style={labelStyle}>売上区分</label>
-                          <select
-                            value={payment.saleType}
-                            onChange={(e) =>
-                              updatePayment(
-                                payment.id,
-                                "saleType",
-                                e.target.value as AccountingType
-                              )
-                            }
-                            style={inputStyle}
-                          >
-                            <option value="通常売上">通常売上</option>
-                            <option value="前受金">前受金</option>
-                            <option value="回数券消化">回数券消化</option>
-                          </select>
-                        </div>
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>店舗</label>
+              <select
+                value={storeName}
+                onChange={(e) => setStoreName(e.target.value)}
+                style={inputStyle}
+              >
+                {STORE_OPTIONS.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-                        <div>
-                          <label style={labelStyle}>支払方法</label>
-                          <select
-                            value={payment.paymentMethod}
-                            onChange={(e) =>
-                              updatePayment(
-                                payment.id,
-                                "paymentMethod",
-                                e.target.value as PaymentMethod
-                              )
-                            }
-                            style={inputStyle}
-                            disabled={payment.saleType === "回数券消化"}
-                          >
-                            {PAYMENT_OPTIONS.map((item) => (
-                              <option key={item} value={item}>
-                                {item}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+            <div style={paymentSectionStyle}>
+              <div style={sectionMiniHeaderStyle}>
+                <div style={sectionMiniTitleStyle}>支払い内訳</div>
+                <div style={totalBoxStyle}>合計: {formatCurrency(totalAmount)}</div>
+              </div>
 
-                        <div>
-                          <label style={labelStyle}>金額</label>
-                          <input
-                            type="number"
-                            min="0"
-                            value={payment.amount}
-                            onChange={(e) =>
-                              updatePayment(payment.id, "amount", e.target.value)
-                            }
-                            style={inputStyle}
-                            disabled={payment.saleType === "回数券消化"}
-                            placeholder={payment.saleType === "回数券消化" ? "0" : "金額入力"}
-                          />
-                        </div>
+              <div style={{ display: "grid", gap: "12px" }}>
+                {payments.map((payment, index) => (
+                  <div key={payment.id} style={paymentCardStyle}>
+                    <div
+                      style={{
+                        display: "grid",
+                        gap: "10px",
+                        gridTemplateColumns: compact ? "1fr" : "1.1fr 1fr 1fr 90px",
+                      }}
+                    >
+                      <div>
+                        <label style={labelStyle}>売上タイプ</label>
+                        <select
+                          value={payment.saleType}
+                          onChange={(e) =>
+                            updatePayment(
+                              payment.id,
+                              "saleType",
+                              e.target.value as AccountingType
+                            )
+                          }
+                          style={inputStyle}
+                        >
+                          {ACCOUNTING_OPTIONS.map((item) => (
+                            <option key={item} value={item}>
+                              {item}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
 
-                        <div style={{ display: "flex", alignItems: "end" }}>
-                          <button
-                            type="button"
-                            onClick={() => removePaymentRow(payment.id)}
-                            style={{
-                              ...dangerButtonStyle,
-                              width: "100%",
-                              opacity: index === 0 && payments.length === 1 ? 0.5 : 1,
-                            }}
-                            disabled={index === 0 && payments.length === 1}
-                          >
-                            削除
-                          </button>
-                        </div>
+                      <div>
+                        <label style={labelStyle}>支払方法</label>
+                        <select
+                          value={payment.paymentMethod}
+                          onChange={(e) =>
+                            updatePayment(
+                              payment.id,
+                              "paymentMethod",
+                              e.target.value as PaymentMethod
+                            )
+                          }
+                          style={inputStyle}
+                          disabled={payment.saleType === "回数券消化"}
+                        >
+                          {PAYMENT_OPTIONS.map((item) => (
+                            <option key={item} value={item}>
+                              {item}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={labelStyle}>金額</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={payment.amount}
+                          onChange={(e) =>
+                            updatePayment(payment.id, "amount", e.target.value)
+                          }
+                          style={inputStyle}
+                          disabled={payment.saleType === "回数券消化"}
+                          placeholder={payment.saleType === "回数券消化" ? "0" : "金額入力"}
+                        />
+                      </div>
+
+                      <div style={{ display: "flex", alignItems: "end" }}>
+                        <button
+                          type="button"
+                          onClick={() => removePaymentRow(payment.id)}
+                          style={{
+                            ...dangerButtonStyle,
+                            width: "100%",
+                            opacity: index === 0 && payments.length === 1 ? 0.5 : 1,
+                          }}
+                          disabled={index === 0 && payments.length === 1}
+                        >
+                          削除
+                        </button>
                       </div>
                     </div>
-                  ))}
-                </div>
-
-                <div style={{ marginTop: "12px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                  <button type="button" onClick={addPaymentRow} style={subButtonAsButtonStyle}>
-                    ＋ 支払い追加
-                  </button>
-
-                  <div style={totalBoxStyle}>
-                    合計: {formatCurrency(totalAmount)}
                   </div>
-                </div>
+                ))}
               </div>
 
-              <div style={{ marginTop: "18px" }}>
-                <label style={labelStyle}>メモ</label>
-                <textarea
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  style={textareaStyle}
-                  placeholder="メモ"
-                />
-              </div>
-
-              <div style={{ marginTop: "18px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  onClick={handleAddSale}
-                  style={mainButtonStyle}
-                  disabled={saving}
-                >
-                  {saving ? "保存中..." : "売上を登録"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  style={subButtonAsButtonStyle}
-                >
-                  リセット
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleDownloadCsv}
-                  style={subButtonAsButtonStyle}
-                >
-                  日別集計CSV
+              <div style={{ marginTop: "12px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                <button type="button" onClick={addPaymentRow} style={subButtonAsButtonStyle}>
+                  ＋ 支払い追加
                 </button>
               </div>
-            </section>
+            </div>
 
+            <div style={{ marginTop: "18px" }}>
+              <label style={labelStyle}>メモ</label>
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                style={textareaStyle}
+                placeholder="メモ"
+              />
+            </div>
+
+            <div style={{ marginTop: "18px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={handleAddSale}
+                style={mainButtonStyle}
+                disabled={saving}
+              >
+                {saving ? "保存中..." : "売上を登録"}
+              </button>
+
+              <button
+                type="button"
+                onClick={resetForm}
+                style={subButtonAsButtonStyle}
+              >
+                リセット
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDownloadCsv}
+                style={subButtonAsButtonStyle}
+              >
+                日別集計CSV
+              </button>
+            </div>
+          </section>
+
+          <div style={{ display: "grid", gap: "20px" }}>
             <section style={cardStyle}>
               <div
                 style={{
@@ -1457,8 +1521,8 @@ export default function SalesPage() {
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="顧客名・スタッフ・日付などで検索"
-                  style={{ ...inputStyle, width: "280px", maxWidth: "100%" }}
+                  placeholder="顧客名・日付・担当・予約IDで検索"
+                  style={{ ...inputStyle, maxWidth: "320px" }}
                 />
               </div>
 
@@ -1467,366 +1531,599 @@ export default function SalesPage() {
               ) : filteredSales.length === 0 ? (
                 <div style={emptyBoxStyle}>売上データがありません</div>
               ) : (
-                <div style={{ display: "grid", gap: "12px" }}>
+                <div style={{ display: "grid", gap: "12px", marginTop: "16px" }}>
                   {filteredSales.map((sale) => (
-                    <div key={sale.id} style={saleRowStyle}>
-                      <div style={saleRowTopStyle}>
+                    <div key={sale.id} style={saleCardStyle}>
+                      <div style={saleCardTopStyle}>
                         <div>
-                          <div style={saleNameStyle}>{sale.customerName}</div>
-                          <div style={saleMetaStyle}>
-                            {formatDateJP(sale.date)} / {sale.menuName} / {sale.staff} / {sale.storeName}
-                          </div>
-                          <div style={saleMetaStyle}>
-                            {sale.accountingType} / {sale.paymentMethod}
-                            {sale.reservationId ? ` / 予約ID:${sale.reservationId}` : ""}
-                          </div>
+                          <div style={saleDateStyle}>{formatDateJP(sale.date)}</div>
+                          <div style={saleCustomerStyle}>{sale.customerName}</div>
                         </div>
+                        <div style={saleAmountStyle}>{formatCurrency(sale.amount)}</div>
+                      </div>
 
-                        <div style={{ textAlign: "right" }}>
-                          <div style={saleAmountStyle}>{formatCurrency(sale.amount)}</div>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteSale(sale.id)}
-                            style={deleteInlineButtonStyle}
-                          >
-                            削除
-                          </button>
+                      <div style={saleMetaGridStyle}>
+                        <div style={metaChipStyle}>区分: {sale.serviceType}</div>
+                        <div style={metaChipStyle}>タイプ: {sale.accountingType}</div>
+                        <div style={metaChipStyle}>支払: {sale.paymentMethod}</div>
+                        <div style={metaChipStyle}>担当: {sale.staff}</div>
+                        <div style={metaChipStyle}>店舗: {sale.storeName}</div>
+                        <div style={metaChipStyle}>
+                          予約ID: {sale.reservationId ? String(sale.reservationId) : "なし"}
                         </div>
                       </div>
 
-                      {sale.note ? <div style={saleNoteStyle}>{sale.note}</div> : null}
+                      {sale.note ? (
+                        <div style={noteBoxStyle}>{sale.note}</div>
+                      ) : null}
+
+                      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "12px" }}>
+                        {sale.reservationId ? (
+                          <Link
+                            href={`/reservation/detail/${sale.reservationId}`}
+                            style={subButtonStyle}
+                          >
+                            予約詳細へ
+                          </Link>
+                        ) : null}
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSale(sale.id)}
+                          style={dangerButtonStyle}
+                        >
+                          売上削除
+                        </button>
+                      </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </section>
+
+            <section
+              style={{
+                ...summaryGridStyle,
+                gridTemplateColumns: compact ? "1fr" : "1fr 1fr 1fr",
+              }}
+            >
+              <div style={cardStyle}>
+                <h3 style={miniTitleStyle}>月別売上</h3>
+                <div style={{ display: "grid", gap: "8px", marginTop: "12px" }}>
+                  {monthlyTotals.length === 0 ? (
+                    <div style={emptyInnerStyle}>データなし</div>
+                  ) : (
+                    monthlyTotals.map(([month, total]) => (
+                      <div key={month} style={listRowStyle}>
+                        <span>{month}</span>
+                        <strong>{formatCurrency(total)}</strong>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div style={cardStyle}>
+                <h3 style={miniTitleStyle}>担当別売上</h3>
+                <div style={{ display: "grid", gap: "8px", marginTop: "12px" }}>
+                  {staffTotals.length === 0 ? (
+                    <div style={emptyInnerStyle}>データなし</div>
+                  ) : (
+                    staffTotals.map(([name, total]) => (
+                      <div key={name} style={listRowStyle}>
+                        <span>{name}</span>
+                        <strong>{formatCurrency(total)}</strong>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div style={cardStyle}>
+                <h3 style={miniTitleStyle}>支払方法別売上</h3>
+                <div style={{ display: "grid", gap: "8px", marginTop: "12px" }}>
+                  {paymentTotals.length === 0 ? (
+                    <div style={emptyInnerStyle}>データなし</div>
+                  ) : (
+                    paymentTotals.map(([name, total]) => (
+                      <div key={name} style={listRowStyle}>
+                        <span>{name}</span>
+                        <strong>{formatCurrency(total)}</strong>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </section>
+
+            <section style={cardStyle}>
+              <h2 style={sectionTitleStyle}>日別集計</h2>
+
+              {dailySummaryRows.length === 0 ? (
+                <div style={emptyBoxStyle}>集計データがありません</div>
+              ) : (
+                <div style={tableWrapStyle}>
+                  <table style={tableStyle}>
+                    <thead>
+                      <tr>
+                        <th style={thStyle}>日付</th>
+                        <th style={thStyle}>スト現</th>
+                        <th style={thStyle}>ストカ</th>
+                        <th style={thStyle}>スト受</th>
+                        <th style={thStyle}>スト券</th>
+                        <th style={thStyle}>トレ現</th>
+                        <th style={thStyle}>トレカ</th>
+                        <th style={thStyle}>トレ受</th>
+                        <th style={thStyle}>トレ券</th>
+                        <th style={thStyle}>純売上</th>
+                        <th style={thStyle}>前受現</th>
+                        <th style={thStyle}>前受カ</th>
+                        <th style={thStyle}>前受計</th>
+                        <th style={thStyle}>総合計</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dailySummaryRows.map((row) => (
+                        <tr key={row.date}>
+                          <td style={tdStyle}>{formatDateJP(row.date)}</td>
+                          <td style={tdStyle}>{formatCurrency(row.stretchCash)}</td>
+                          <td style={tdStyle}>{formatCurrency(row.stretchCard)}</td>
+                          <td style={tdStyle}>{formatCurrency(row.stretchReceived)}</td>
+                          <td style={tdStyle}>{formatCurrency(row.stretchTicket)}</td>
+                          <td style={tdStyle}>{formatCurrency(row.trainingCash)}</td>
+                          <td style={tdStyle}>{formatCurrency(row.trainingCard)}</td>
+                          <td style={tdStyle}>{formatCurrency(row.trainingReceived)}</td>
+                          <td style={tdStyle}>{formatCurrency(row.trainingTicket)}</td>
+                          <td style={tdStyleStrong}>{formatCurrency(row.netSalesTotal)}</td>
+                          <td style={tdStyle}>{formatCurrency(row.advanceCash)}</td>
+                          <td style={tdStyle}>{formatCurrency(row.advanceCard)}</td>
+                          <td style={tdStyleStrong}>{formatCurrency(row.advanceTotal)}</td>
+                          <td style={tdStyleStrong}>{formatCurrency(row.grandTotal)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </section>
           </div>
-
-          <aside style={{ display: "grid", gap: "24px" }}>
-            <section style={cardStyle}>
-              <h2 style={sectionTitleStyle}>月別売上</h2>
-              {monthlyTotals.length === 0 ? (
-                <div style={emptyBoxStyle}>データなし</div>
-              ) : (
-                <div style={{ display: "grid", gap: "10px" }}>
-                  {monthlyTotals.map(([month, amount]) => (
-                    <div key={month} style={summaryRowStyle}>
-                      <span>{month}</span>
-                      <strong>{formatCurrency(amount)}</strong>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section style={cardStyle}>
-              <h2 style={sectionTitleStyle}>スタッフ別売上</h2>
-              {staffTotals.length === 0 ? (
-                <div style={emptyBoxStyle}>データなし</div>
-              ) : (
-                <div style={{ display: "grid", gap: "10px" }}>
-                  {staffTotals.map(([name, amount]) => (
-                    <div key={name} style={summaryRowStyle}>
-                      <span>{name}</span>
-                      <strong>{formatCurrency(amount)}</strong>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section style={cardStyle}>
-              <h2 style={sectionTitleStyle}>支払方法別売上</h2>
-              {paymentTotals.length === 0 ? (
-                <div style={emptyBoxStyle}>データなし</div>
-              ) : (
-                <div style={{ display: "grid", gap: "10px" }}>
-                  {paymentTotals.map(([name, amount]) => (
-                    <div key={name} style={summaryRowStyle}>
-                      <span>{name}</span>
-                      <strong>{formatCurrency(amount)}</strong>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          </aside>
-        </div>
+        </section>
       </div>
     </div>
   );
 }
 
-function MetricCard({ title, value }: { title: string; value: string }) {
-  return (
-    <div style={metricCardStyle}>
-      <div style={metricTitleStyle}>{title}</div>
-      <div style={metricValueStyle}>{value}</div>
-    </div>
-  );
-}
-
-const cardStyle: CSSProperties = {
-  background: "rgba(255,255,255,0.78)",
-  border: "1px solid rgba(255,255,255,0.7)",
-  borderRadius: "24px",
-  padding: "22px",
-  boxShadow: "0 12px 40px rgba(0,0,0,0.08)",
-  backdropFilter: "blur(10px)",
+const pageStyle: CSSProperties = {
+  minHeight: "100vh",
+  background: "linear-gradient(135deg, #f7f7f8 0%, #ececef 45%, #dfe3e8 100%)",
+  padding: "24px",
+  fontFamily:
+    "'Inter', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic', sans-serif",
 };
 
-const sectionTitleStyle: CSSProperties = {
-  fontSize: "22px",
+const wrapStyle: CSSProperties = {
+  maxWidth: "1400px",
+  margin: "0 auto",
+  display: "grid",
+  gap: "20px",
+};
+
+const heroCardStyle: CSSProperties = {
+  background: "rgba(255,255,255,0.72)",
+  backdropFilter: "blur(16px)",
+  border: "1px solid rgba(255,255,255,0.75)",
+  borderRadius: "28px",
+  padding: "24px",
+  boxShadow: "0 20px 40px rgba(15,23,42,0.08)",
+};
+
+const heroTopStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  gap: "20px",
+  flexWrap: "wrap",
+};
+
+const heroEyebrowStyle: CSSProperties = {
+  fontSize: "12px",
   fontWeight: 800,
+  color: "#64748b",
+  letterSpacing: "0.12em",
+  marginBottom: "6px",
+};
+
+const heroTitleStyle: CSSProperties = {
   margin: 0,
+  fontSize: "34px",
+  fontWeight: 900,
   color: "#111827",
 };
 
-const formGridStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: "14px",
-  marginTop: "18px",
+const heroSubStyle: CSSProperties = {
+  marginTop: "8px",
+  fontSize: "14px",
+  color: "#475569",
+  fontWeight: 700,
 };
 
-const paymentGridStyle: CSSProperties = {
+const heroActionWrapStyle: CSSProperties = {
+  display: "flex",
+  gap: "10px",
+  flexWrap: "wrap",
+};
+
+const summaryGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: "16px",
+};
+
+const summaryCardStyle: CSSProperties = {
+  background: "rgba(255,255,255,0.86)",
+  border: "1px solid rgba(255,255,255,0.7)",
+  borderRadius: "22px",
+  padding: "20px",
+  boxShadow: "0 12px 30px rgba(15,23,42,0.06)",
+};
+
+const summaryLabelStyle: CSSProperties = {
+  fontSize: "12px",
+  color: "#64748b",
+  fontWeight: 800,
+  marginBottom: "8px",
+};
+
+const summaryValueStyle: CSSProperties = {
+  fontSize: "28px",
+  color: "#111827",
+  fontWeight: 900,
+};
+
+const cardStyle: CSSProperties = {
+  background: "rgba(255,255,255,0.84)",
+  border: "1px solid rgba(255,255,255,0.76)",
+  borderRadius: "24px",
+  padding: "22px",
+  boxShadow: "0 14px 32px rgba(15,23,42,0.06)",
+};
+
+const sectionHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
   gap: "12px",
+  flexWrap: "wrap",
+  marginBottom: "18px",
 };
 
-const paymentCardStyle: CSSProperties = {
-  padding: "14px",
-  borderRadius: "16px",
+const sectionTitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: "24px",
+  color: "#111827",
+  fontWeight: 900,
+};
+
+const miniTitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: "18px",
+  color: "#111827",
+  fontWeight: 900,
+};
+
+const statusWrapStyle: CSSProperties = {
+  display: "flex",
+  gap: "8px",
+  flexWrap: "wrap",
+};
+
+const smallStatusStyle: CSSProperties = {
+  background: "#eef2ff",
+  color: "#3730a3",
+  borderRadius: "999px",
+  padding: "6px 10px",
+  fontSize: "12px",
+  fontWeight: 800,
+};
+
+const reservationBoxStyle: CSSProperties = {
+  background: "#fff7ed",
+  border: "1px solid #fdba74",
+  borderRadius: "18px",
+  padding: "14px 16px",
+  marginBottom: "16px",
+};
+
+const reservationBoxTitleStyle: CSSProperties = {
+  fontSize: "13px",
+  fontWeight: 900,
+  color: "#9a3412",
+  marginBottom: "6px",
+};
+
+const reservationLineStyle: CSSProperties = {
+  fontSize: "13px",
+  color: "#7c2d12",
+  fontWeight: 700,
+  lineHeight: 1.6,
+};
+
+const reservationWarnStyle: CSSProperties = {
+  marginTop: "8px",
+  fontSize: "12px",
+  fontWeight: 800,
+  color: "#b91c1c",
+};
+
+const selectedCustomerBoxStyle: CSSProperties = {
   background: "#f8fafc",
-  border: "1px solid #e5e7eb",
+  border: "1px solid #e2e8f0",
+  borderRadius: "14px",
+  padding: "10px 12px",
+  fontSize: "13px",
+  color: "#334155",
+  fontWeight: 700,
+  marginTop: "10px",
+};
+
+const fieldGroupStyle: CSSProperties = {
+  marginTop: "14px",
 };
 
 const labelStyle: CSSProperties = {
   display: "block",
-  fontSize: "13px",
-  fontWeight: 700,
-  marginBottom: "8px",
-  color: "#374151",
+  fontSize: "12px",
+  fontWeight: 800,
+  color: "#334155",
+  marginBottom: "6px",
 };
 
 const inputStyle: CSSProperties = {
   width: "100%",
-  height: "44px",
-  padding: "0 14px",
+  boxSizing: "border-box",
   borderRadius: "14px",
-  border: "1px solid #d1d5db",
-  background: "#fff",
+  border: "1px solid #dbe1ea",
+  background: "rgba(255,255,255,0.94)",
+  padding: "12px 14px",
   fontSize: "14px",
+  color: "#111827",
   outline: "none",
 };
 
 const textareaStyle: CSSProperties = {
-  width: "100%",
-  minHeight: "110px",
-  padding: "12px 14px",
-  borderRadius: "14px",
-  border: "1px solid #d1d5db",
-  background: "#fff",
-  fontSize: "14px",
-  outline: "none",
+  ...inputStyle,
+  minHeight: "120px",
   resize: "vertical",
 };
 
-const mainButtonStyle: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  height: "44px",
-  padding: "0 18px",
-  borderRadius: "14px",
-  border: "none",
-  background: "linear-gradient(135deg, #111827 0%, #374151 100%)",
-  color: "#fff",
-  fontWeight: 800,
-  cursor: "pointer",
+const twoColStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: "12px",
+  marginTop: "14px",
 };
 
-const subButtonAsButtonStyle: CSSProperties = {
-  display: "inline-flex",
+const paymentSectionStyle: CSSProperties = {
+  marginTop: "18px",
+  background: "rgba(248,250,252,0.9)",
+  border: "1px solid #e2e8f0",
+  borderRadius: "20px",
+  padding: "16px",
+};
+
+const sectionMiniHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
   alignItems: "center",
-  justifyContent: "center",
-  height: "44px",
-  padding: "0 18px",
-  borderRadius: "14px",
-  border: "1px solid #d1d5db",
-  background: "#fff",
+  gap: "10px",
+  flexWrap: "wrap",
+  marginBottom: "12px",
+};
+
+const sectionMiniTitleStyle: CSSProperties = {
+  fontSize: "16px",
+  fontWeight: 900,
   color: "#111827",
-  fontWeight: 700,
-  cursor: "pointer",
 };
 
-const dangerButtonStyle: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  height: "44px",
-  padding: "0 18px",
-  borderRadius: "14px",
-  border: "1px solid #fecaca",
-  background: "#fef2f2",
-  color: "#b91c1c",
-  fontWeight: 700,
-  cursor: "pointer",
+const paymentCardStyle: CSSProperties = {
+  background: "#fff",
+  border: "1px solid #e2e8f0",
+  borderRadius: "16px",
+  padding: "14px",
 };
 
-const mainLinkStyle: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  height: "42px",
-  padding: "0 14px",
-  borderRadius: "12px",
+const totalBoxStyle: CSSProperties = {
   background: "#111827",
   color: "#fff",
+  padding: "10px 14px",
+  borderRadius: "999px",
+  fontWeight: 900,
+  fontSize: "13px",
+};
+
+const mainButtonStyle: CSSProperties = {
+  border: "none",
+  background: "linear-gradient(135deg, #111827 0%, #1f2937 100%)",
+  color: "#fff",
+  padding: "12px 18px",
+  borderRadius: "14px",
+  fontWeight: 900,
+  fontSize: "14px",
+  cursor: "pointer",
   textDecoration: "none",
-  fontWeight: 700,
+};
+
+const mainButtonLinkStyle: CSSProperties = {
+  ...mainButtonStyle,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
 };
 
 const subButtonStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  height: "42px",
-  padding: "0 14px",
-  borderRadius: "12px",
-  background: "#fff",
-  color: "#111827",
   textDecoration: "none",
-  fontWeight: 700,
-  border: "1px solid #d1d5db",
-};
-
-const topMetricGridStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: "16px",
-  marginBottom: "24px",
-};
-
-const metricCardStyle: CSSProperties = {
-  background: "rgba(255,255,255,0.78)",
-  border: "1px solid rgba(255,255,255,0.7)",
-  borderRadius: "22px",
-  padding: "18px",
-  boxShadow: "0 12px 40px rgba(0,0,0,0.08)",
-};
-
-const metricTitleStyle: CSSProperties = {
-  fontSize: "13px",
-  color: "#6b7280",
-  fontWeight: 700,
-  marginBottom: "8px",
-};
-
-const metricValueStyle: CSSProperties = {
-  fontSize: "28px",
-  color: "#111827",
-  fontWeight: 800,
-  lineHeight: 1.2,
-};
-
-const totalBoxStyle: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  minHeight: "44px",
-  padding: "0 18px",
-  borderRadius: "14px",
-  background: "#f3f4f6",
-  color: "#111827",
-  fontWeight: 800,
-};
-
-const miniInfoStyle: CSSProperties = {
-  fontSize: "12px",
-  color: "#6b7280",
-  fontWeight: 700,
-};
-
-const statusInfoBoxStyle: CSSProperties = {
-  marginBottom: "20px",
-  padding: "12px 14px",
-  borderRadius: "14px",
-  background: "#eff6ff",
-  color: "#1d4ed8",
-  border: "1px solid #bfdbfe",
-  fontWeight: 700,
-  fontSize: "13px",
-};
-
-const saleRowStyle: CSSProperties = {
-  padding: "14px",
-  borderRadius: "16px",
+  border: "1px solid #dbe1ea",
   background: "#fff",
-  border: "1px solid #e5e7eb",
+  color: "#111827",
+  padding: "11px 16px",
+  borderRadius: "14px",
+  fontWeight: 800,
+  fontSize: "14px",
 };
 
-const saleRowTopStyle: CSSProperties = {
+const subButtonAsButtonStyle: CSSProperties = {
+  border: "1px solid #dbe1ea",
+  background: "#fff",
+  color: "#111827",
+  padding: "11px 16px",
+  borderRadius: "14px",
+  fontWeight: 800,
+  fontSize: "14px",
+  cursor: "pointer",
+};
+
+const dangerButtonStyle: CSSProperties = {
+  border: "none",
+  background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+  color: "#fff",
+  padding: "11px 16px",
+  borderRadius: "14px",
+  fontWeight: 900,
+  fontSize: "14px",
+  cursor: "pointer",
+};
+
+const saleCardStyle: CSSProperties = {
+  background: "#fff",
+  border: "1px solid #e2e8f0",
+  borderRadius: "18px",
+  padding: "16px",
+};
+
+const saleCardTopStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  gap: "12px",
   alignItems: "flex-start",
+  gap: "12px",
+  flexWrap: "wrap",
 };
 
-const saleNameStyle: CSSProperties = {
-  fontSize: "16px",
-  fontWeight: 800,
-  color: "#111827",
-};
-
-const saleMetaStyle: CSSProperties = {
+const saleDateStyle: CSSProperties = {
   fontSize: "12px",
-  color: "#6b7280",
-  marginTop: "4px",
+  color: "#64748b",
+  fontWeight: 800,
+  marginBottom: "6px",
+};
+
+const saleCustomerStyle: CSSProperties = {
+  fontSize: "20px",
+  color: "#111827",
+  fontWeight: 900,
 };
 
 const saleAmountStyle: CSSProperties = {
-  fontSize: "18px",
-  fontWeight: 800,
+  fontSize: "22px",
   color: "#111827",
+  fontWeight: 900,
 };
 
-const saleNoteStyle: CSSProperties = {
-  marginTop: "10px",
-  padding: "10px 12px",
-  borderRadius: "12px",
+const saleMetaGridStyle: CSSProperties = {
+  display: "flex",
+  gap: "8px",
+  flexWrap: "wrap",
+  marginTop: "14px",
+};
+
+const metaChipStyle: CSSProperties = {
   background: "#f8fafc",
-  color: "#475569",
+  border: "1px solid #e2e8f0",
+  color: "#334155",
+  padding: "7px 10px",
+  borderRadius: "999px",
   fontSize: "12px",
-  lineHeight: 1.6,
+  fontWeight: 800,
+};
+
+const noteBoxStyle: CSSProperties = {
+  marginTop: "12px",
+  background: "#f8fafc",
+  borderRadius: "14px",
+  padding: "12px 14px",
+  color: "#334155",
+  fontSize: "13px",
+  lineHeight: 1.7,
   whiteSpace: "pre-wrap",
 };
 
-const deleteInlineButtonStyle: CSSProperties = {
-  marginTop: "8px",
-  background: "transparent",
-  border: "none",
-  color: "#dc2626",
-  cursor: "pointer",
+const emptyBoxStyle: CSSProperties = {
+  marginTop: "14px",
+  background: "#f8fafc",
+  border: "1px dashed #cbd5e1",
+  borderRadius: "16px",
+  padding: "24px",
+  textAlign: "center",
+  color: "#64748b",
   fontWeight: 700,
 };
 
-const summaryRowStyle: CSSProperties = {
+const emptyInnerStyle: CSSProperties = {
+  color: "#64748b",
+  fontWeight: 700,
+  fontSize: "13px",
+};
+
+const listRowStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
-  gap: "10px",
+  gap: "12px",
   alignItems: "center",
-  padding: "10px 12px",
-  borderRadius: "12px",
   background: "#f8fafc",
-  color: "#111827",
+  borderRadius: "12px",
+  padding: "10px 12px",
+  fontSize: "13px",
+  color: "#334155",
+  fontWeight: 700,
 };
 
-const emptyBoxStyle: CSSProperties = {
-  padding: "18px",
-  borderRadius: "16px",
-  background: "#f8fafc",
-  color: "#6b7280",
+const tableWrapStyle: CSSProperties = {
+  marginTop: "14px",
+  overflowX: "auto",
+  WebkitOverflowScrolling: "touch",
+};
+
+const tableStyle: CSSProperties = {
+  width: "100%",
+  minWidth: "1200px",
+  borderCollapse: "separate",
+  borderSpacing: 0,
+};
+
+const thStyle: CSSProperties = {
+  background: "#111827",
+  color: "#fff",
+  fontSize: "12px",
+  fontWeight: 900,
+  padding: "12px 10px",
+  position: "sticky",
+  top: 0,
+  whiteSpace: "nowrap",
+};
+
+const tdStyle: CSSProperties = {
+  background: "#fff",
+  borderBottom: "1px solid #e2e8f0",
+  padding: "12px 10px",
+  fontSize: "13px",
+  color: "#334155",
   fontWeight: 700,
+  whiteSpace: "nowrap",
+};
+
+const tdStyleStrong: CSSProperties = {
+  ...tdStyle,
+  color: "#111827",
+  fontWeight: 900,
 };
