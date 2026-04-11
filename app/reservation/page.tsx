@@ -49,6 +49,13 @@ type SimpleReservationIdRow = {
   reservation_id?: number | string | null;
 };
 
+type FilterMode =
+  | "all"
+  | "pending"
+  | "sales_pending"
+  | "counseling_pending"
+  | "ticket_pending";
+
 const STORE_OPTIONS = [
   "すべて",
   "江戸堀",
@@ -335,7 +342,7 @@ export default function ReservationPage() {
   });
 
   const [selectedStoreFilter, setSelectedStoreFilter] = useState("すべて");
-  const [showOnlyPending, setShowOnlyPending] = useState(false);
+  const [selectedFilterMode, setSelectedFilterMode] = useState<FilterMode>("all");
   const [selectedDate, setSelectedDate] = useState(toYmd(new Date()));
   const [daySheetOpen, setDaySheetOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
@@ -523,15 +530,21 @@ export default function ReservationPage() {
   const visibleReservations = useMemo(() => {
     let list = [...baseVisibleReservations];
 
-    if (showOnlyPending) {
-      list = list.filter((item) =>
-        getPendingFlags({
+    if (selectedFilterMode !== "all") {
+      list = list.filter((item) => {
+        const flags = getPendingFlags({
           item,
           salesReservationIdSet,
           counseledReservationIdSet,
           ticketUsedReservationIdSet,
-        }).isPending
-      );
+        });
+
+        if (selectedFilterMode === "pending") return flags.isPending;
+        if (selectedFilterMode === "sales_pending") return flags.salesPending;
+        if (selectedFilterMode === "counseling_pending") return flags.counselingPending;
+        if (selectedFilterMode === "ticket_pending") return flags.ticketPending;
+        return true;
+      });
     }
 
     return list.sort((a, b) => {
@@ -562,7 +575,7 @@ export default function ReservationPage() {
     });
   }, [
     baseVisibleReservations,
-    showOnlyPending,
+    selectedFilterMode,
     salesReservationIdSet,
     counseledReservationIdSet,
     ticketUsedReservationIdSet,
@@ -631,6 +644,8 @@ export default function ReservationPage() {
   }, [selectedDayReservations]);
 
   const pendingSummary = useMemo(() => {
+    const source = baseVisibleReservations;
+
     const summary = {
       totalPending: 0,
       salesPending: 0,
@@ -639,7 +654,7 @@ export default function ReservationPage() {
       visibleCount: visibleReservations.length,
     };
 
-    visibleReservations.forEach((item) => {
+    source.forEach((item) => {
       const flags = getPendingFlags({
         item,
         salesReservationIdSet,
@@ -655,7 +670,8 @@ export default function ReservationPage() {
 
     return summary;
   }, [
-    visibleReservations,
+    baseVisibleReservations,
+    visibleReservations.length,
     salesReservationIdSet,
     counseledReservationIdSet,
     ticketUsedReservationIdSet,
@@ -933,6 +949,19 @@ export default function ReservationPage() {
     router.push(`/customer/${item.customer_id}/counseling?reservationId=${item.id}`);
   }
 
+  function setFilterMode(nextMode: FilterMode) {
+    setSelectedFilterMode((prev) => (prev === nextMode ? "all" : nextMode));
+  }
+
+  function getSummaryCardStyle(mode: FilterMode, base: CSSProperties) {
+    const active = selectedFilterMode === mode;
+    return {
+      ...styles.summaryPill,
+      ...base,
+      ...(active ? styles.summaryPillSelected : {}),
+    };
+  }
+
   if (!mounted) return null;
 
   return (
@@ -961,13 +990,15 @@ export default function ReservationPage() {
 
               <button
                 type="button"
-                onClick={() => setShowOnlyPending((prev) => !prev)}
+                onClick={() => setFilterMode("pending")}
                 style={{
                   ...styles.pendingFilterBtn,
-                  ...(showOnlyPending ? styles.pendingFilterBtnActive : {}),
+                  ...(selectedFilterMode === "pending"
+                    ? styles.pendingFilterBtnActive
+                    : {}),
                 }}
               >
-                {showOnlyPending ? "未処理だけ表示中" : "未処理だけ"}
+                {selectedFilterMode === "pending" ? "未処理だけ表示中" : "未処理だけ"}
               </button>
 
               <button type="button" onClick={() => router.push("/")} style={styles.topBtn}>
@@ -977,32 +1008,83 @@ export default function ReservationPage() {
           </div>
 
           <div style={styles.summaryBar}>
-            <div style={styles.summaryPill}>
-              <span style={styles.summaryLabel}>未処理</span>
-              <span style={styles.summaryCountDanger}>{pendingSummary.totalPending}件</span>
-            </div>
+            <button
+              type="button"
+              onClick={() => setFilterMode("pending")}
+              style={getSummaryCardStyle("pending", {
+                background: "#fee2e2",
+              })}
+            >
+              <span style={{ ...styles.summaryLabel, color: "#991b1b" }}>未処理</span>
+              <span style={{ ...styles.summaryCountDanger }}>{pendingSummary.totalPending}件</span>
+            </button>
 
-            <div style={styles.summaryPill}>
-              <span style={styles.summaryLabel}>売上未</span>
-              <span style={styles.summaryCountDanger}>{pendingSummary.salesPending}件</span>
-            </div>
+            <button
+              type="button"
+              onClick={() => setFilterMode("sales_pending")}
+              style={getSummaryCardStyle("sales_pending", {
+                background: "#fef3c7",
+              })}
+            >
+              <span style={{ ...styles.summaryLabel, color: "#92400e" }}>売上未</span>
+              <span style={{ ...styles.summaryCountDanger, color: "#b45309" }}>
+                {pendingSummary.salesPending}件
+              </span>
+            </button>
 
-            <div style={styles.summaryPill}>
-              <span style={styles.summaryLabel}>カウンセリング未</span>
-              <span style={styles.summaryCountDanger}>{pendingSummary.counselingPending}件</span>
-            </div>
+            <button
+              type="button"
+              onClick={() => setFilterMode("counseling_pending")}
+              style={getSummaryCardStyle("counseling_pending", {
+                background: "#dbeafe",
+              })}
+            >
+              <span style={{ ...styles.summaryLabel, color: "#1d4ed8" }}>
+                カウンセリング未
+              </span>
+              <span style={{ ...styles.summaryCountDanger, color: "#1d4ed8" }}>
+                {pendingSummary.counselingPending}件
+              </span>
+            </button>
 
-            <div style={styles.summaryPill}>
-              <span style={styles.summaryLabel}>回数券未消化</span>
-              <span style={styles.summaryCountDanger}>{pendingSummary.ticketPending}件</span>
-            </div>
+            <button
+              type="button"
+              onClick={() => setFilterMode("ticket_pending")}
+              style={getSummaryCardStyle("ticket_pending", {
+                background: "#ede9fe",
+              })}
+            >
+              <span style={{ ...styles.summaryLabel, color: "#6d28d9" }}>
+                回数券未消化
+              </span>
+              <span style={{ ...styles.summaryCountDanger, color: "#6d28d9" }}>
+                {pendingSummary.ticketPending}件
+              </span>
+            </button>
 
-            <div style={styles.summaryPill}>
-              <span style={styles.summaryLabel}>表示中</span>
-              <span style={styles.summaryCount}>{pendingSummary.visibleCount}件</span>
-            </div>
+            <button
+              type="button"
+              onClick={() => setFilterMode("all")}
+              style={getSummaryCardStyle("all", {
+                background: "#dcfce7",
+              })}
+            >
+              <span style={{ ...styles.summaryLabel, color: "#166534" }}>表示中</span>
+              <span style={{ ...styles.summaryCount, color: "#166534" }}>
+                {pendingSummary.visibleCount}件
+              </span>
+            </button>
+          </div>
 
-            {showOnlyPending ? <div style={styles.summaryPillActive}>未処理だけ表示中</div> : null}
+          <div style={styles.activeFilterBar}>
+            <span style={styles.activeFilterLabel}>現在の表示:</span>
+            <span style={styles.activeFilterValue}>
+              {selectedFilterMode === "all" && "すべて"}
+              {selectedFilterMode === "pending" && "未処理のみ"}
+              {selectedFilterMode === "sales_pending" && "売上未のみ"}
+              {selectedFilterMode === "counseling_pending" && "カウンセリング未のみ"}
+              {selectedFilterMode === "ticket_pending" && "回数券未消化のみ"}
+            </span>
           </div>
 
           <div style={styles.filterRow}>
@@ -1079,6 +1161,15 @@ export default function ReservationPage() {
               const isToday = ymd === toYmd(new Date());
               const isSelected = ymd === selectedDate;
 
+              const pendingCount = items.filter((item) =>
+                getPendingFlags({
+                  item,
+                  salesReservationIdSet,
+                  counseledReservationIdSet,
+                  ticketUsedReservationIdSet,
+                }).isPending
+              ).length;
+
               return (
                 <button
                   key={ymd}
@@ -1088,6 +1179,7 @@ export default function ReservationPage() {
                     ...styles.dayCell,
                     ...(isSelected ? styles.dayCellSelected : {}),
                     opacity: isCurrentMonth ? 1 : 0.4,
+                    ...(pendingCount > 0 ? styles.dayCellPending : {}),
                   }}
                 >
                   <div style={styles.dayHead}>
@@ -1105,30 +1197,44 @@ export default function ReservationPage() {
                     >
                       {dateObj.getDate()}
                     </span>
+
+                    {pendingCount > 0 ? (
+                      <span style={styles.dayPendingBadge}>{pendingCount}</span>
+                    ) : null}
                   </div>
 
                   <div style={styles.eventListMini}>
-                    {items.slice(0, 3).map((item) => (
-                      <div
-                        key={String(item.id)}
-                        style={{
-                          ...styles.eventMini,
-                          borderLeft: `4px solid ${getStaffColor(item.staff_name)}`,
-                        }}
-                      >
-                        <div style={styles.eventMiniLine}>
-                          <span
-                            style={{
-                              ...styles.eventMiniStoreDot,
-                              background: getStoreColor(item.store_name),
-                            }}
-                          />
-                          <span style={styles.eventMiniText}>
-                            {trimmed(item.start_time) || "--:--"} {trimmed(item.customer_name) || "顧客名未設定"}
-                          </span>
+                    {items.slice(0, 3).map((item) => {
+                      const flags = getPendingFlags({
+                        item,
+                        salesReservationIdSet,
+                        counseledReservationIdSet,
+                        ticketUsedReservationIdSet,
+                      });
+
+                      return (
+                        <div
+                          key={String(item.id)}
+                          style={{
+                            ...styles.eventMini,
+                            borderLeft: `4px solid ${getStaffColor(item.staff_name)}`,
+                            ...(flags.isPending ? styles.eventMiniPending : {}),
+                          }}
+                        >
+                          <div style={styles.eventMiniLine}>
+                            <span
+                              style={{
+                                ...styles.eventMiniStoreDot,
+                                background: getStoreColor(item.store_name),
+                              }}
+                            />
+                            <span style={styles.eventMiniText}>
+                              {trimmed(item.start_time) || "--:--"} {trimmed(item.customer_name) || "顧客名未設定"}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
 
                     {items.length > 3 ? (
                       <div style={styles.moreText}>+{items.length - 3}件</div>
@@ -1249,7 +1355,11 @@ export default function ReservationPage() {
                           </span>
 
                           {isNewVisit(item) ? (
-                            <span style={isCounseled ? styles.doneBadgeBlue : styles.pendingBadgeYellow}>
+                            <span
+                              style={
+                                isCounseled ? styles.doneBadgeBlue : styles.pendingBadgeYellow
+                              }
+                            >
                               {isCounseled ? "カウンセリング済" : "カウンセリング未"}
                             </span>
                           ) : null}
@@ -1257,7 +1367,13 @@ export default function ReservationPage() {
                           {isTicket ? (
                             <>
                               <span style={styles.ticketBadge}>回数券予約</span>
-                              <span style={isTicketUsed ? styles.doneBadgePurple : styles.pendingBadgePurple}>
+                              <span
+                                style={
+                                  isTicketUsed
+                                    ? styles.doneBadgePurple
+                                    : styles.pendingBadgePurple
+                                }
+                              >
                                 {isTicketUsed ? "回数券消化済" : "回数券未消化"}
                               </span>
                             </>
@@ -1647,10 +1763,10 @@ const styles: Record<string, CSSProperties> = {
     gap: 8,
     overflowX: "auto",
     paddingBottom: 4,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   summaryPill: {
-    background: "#fff",
+    border: "none",
     borderRadius: 16,
     padding: "10px 12px",
     minWidth: 96,
@@ -1658,16 +1774,12 @@ const styles: Record<string, CSSProperties> = {
     gap: 4,
     boxShadow: "0 6px 16px rgba(0,0,0,0.05)",
     flexShrink: 0,
+    cursor: "pointer",
+    textAlign: "left",
   },
-  summaryPillActive: {
-    background: "#fee2e2",
-    color: "#991b1b",
-    borderRadius: 16,
-    padding: "10px 12px",
-    fontSize: 12,
-    fontWeight: 800,
-    display: "inline-block",
-    flexShrink: 0,
+  summaryPillSelected: {
+    outline: "2px solid #111827",
+    transform: "translateY(-1px)",
   },
   summaryLabel: {
     fontSize: 11,
@@ -1683,6 +1795,27 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 18,
     color: "#dc2626",
     fontWeight: 900,
+  },
+  activeFilterBar: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+    marginBottom: 10,
+  },
+  activeFilterLabel: {
+    fontSize: 11,
+    color: "#64748b",
+    fontWeight: 800,
+  },
+  activeFilterValue: {
+    fontSize: 12,
+    color: "#111827",
+    fontWeight: 900,
+    background: "#fff",
+    border: "1px solid #e2e8f0",
+    borderRadius: 999,
+    padding: "6px 10px",
   },
   filterRow: {
     display: "flex",
@@ -1793,6 +1926,9 @@ const styles: Record<string, CSSProperties> = {
   dayCellSelected: {
     outline: "2px solid #111827",
   },
+  dayCellPending: {
+    boxShadow: "0 10px 24px rgba(239,68,68,0.10)",
+  },
   dayHead: {
     display: "flex",
     justifyContent: "space-between",
@@ -1810,6 +1946,19 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 999,
     padding: "2px 8px",
   },
+  dayPendingBadge: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: 999,
+    background: "#ef4444",
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: 900,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "0 5px",
+  },
   eventListMini: {
     display: "grid",
     gap: 4,
@@ -1819,6 +1968,9 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 8,
     padding: "3px 4px 3px 6px",
     overflow: "hidden",
+  },
+  eventMiniPending: {
+    background: "#fff1f2",
   },
   eventMiniLine: {
     display: "flex",
