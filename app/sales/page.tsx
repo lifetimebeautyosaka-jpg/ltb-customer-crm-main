@@ -97,6 +97,19 @@ type TicketRow = {
   created_at: string | null;
 };
 
+type TicketUsageRow = {
+  id: number | string;
+  reservation_id: number | null;
+  ticket_id: number | string | null;
+  customer_id: number | null;
+  customer_name: string | null;
+  ticket_name: string | null;
+  service_type: ServiceType | null;
+  used_date: string | null;
+  before_count: number | null;
+  after_count: number | null;
+};
+
 type DailySummaryRow = {
   date: string;
   stretchCash: number;
@@ -475,6 +488,80 @@ async function rollbackConsumedTicket(params: {
       .eq("ticket_id", ticketId)
       .eq("reservation_id", Number(reservationId))
       .eq("before_count", beforeCount);
+  }
+}
+
+async function restoreTicketUsageFromDeletedSale(params: {
+  sale: Sale;
+}): Promise<void> {
+  const { sale } = params;
+
+  if (sale.accountingType !== "回数券消化") return;
+  if (!sale.customerId) return;
+
+  let usageQuery = supabase
+    .from("ticket_usages")
+    .select(
+      "id, reservation_id, ticket_id, customer_id, customer_name, ticket_name, service_type, used_date, before_count, after_count"
+    )
+    .eq("customer_id", Number(sale.customerId))
+    .eq("service_type", sale.serviceType)
+    .order("id", { ascending: false })
+    .limit(1);
+
+  if (sale.reservationId) {
+    usageQuery = usageQuery.eq("reservation_id", Number(sale.reservationId));
+  } else {
+    usageQuery = usageQuery.eq("used_date", sale.date);
+  }
+
+  const { data: usageData, error: usageError } = await usageQuery.maybeSingle();
+
+  if (usageError) {
+    throw new Error(`回数券消化履歴取得エラー: ${usageError.message}`);
+  }
+
+  const usage = usageData as TicketUsageRow | null;
+  if (!usage) {
+    throw new Error("回数券消化履歴が見つからないため、残数を戻せませんでした");
+  }
+
+  if (!usage.ticket_id) {
+    throw new Error("ticket_usages に ticket_id がないため、残数を戻せませんでした");
+  }
+
+  const beforeCount = Number(usage.before_count ?? 0);
+  const afterCount = Number(usage.after_count ?? 0);
+
+  const nextStatus = beforeCount <= 0 ? "消化済み" : "利用中";
+
+  const { error: ticketRestoreError } = await supabase
+    .from("customer_tickets")
+    .update({
+      remaining_count: beforeCount,
+      status: nextStatus,
+    })
+    .eq("id", usage.ticket_id);
+
+  if (ticketRestoreError) {
+    throw new Error(`回数券戻しエラー: ${ticketRestoreError.message}`);
+  }
+
+  const { error: usageDeleteError } = await supabase
+    .from("ticket_usages")
+    .delete()
+    .eq("id", usage.id);
+
+  if (usageDeleteError) {
+    await supabase
+      .from("customer_tickets")
+      .update({
+        remaining_count: afterCount,
+        status: afterCount <= 0 ? "消化済み" : "利用中",
+      })
+      .eq("id", usage.ticket_id);
+
+    throw new Error(`回数券消化履歴削除エラー: ${usageDeleteError.message}`);
   }
 }
 
@@ -1074,11 +1161,14 @@ export default function SalesPage() {
           ? String(targetSale.reservationId)
           : "";
 
+      if (targetSale.accountingType === "回数券消化") {
+        await restoreTicketUsageFromDeletedSale({ sale: targetSale });
+      }
+
       const { error: deleteError } = await supabase.from("sales").delete().eq("id", id);
 
       if (deleteError) {
-        alert(`削除エラー: ${deleteError.message}`);
-        return;
+        throw new Error(`削除エラー: ${deleteError.message}`);
       }
 
       if (targetReservationId) {
@@ -1088,12 +1178,7 @@ export default function SalesPage() {
           .eq("reservation_id", Number(targetReservationId));
 
         if (remainSalesError) {
-          alert(`残売上確認エラー: ${remainSalesError.message}`);
-          await fetchSales();
-          if (reservationId) {
-            await loadExistingSalesForReservation(reservationId);
-          }
-          return;
+          throw new Error(`残売上確認エラー: ${remainSalesError.message}`);
         }
 
         const remainingCount = Array.isArray(remainSales) ? remainSales.length : 0;
@@ -1107,16 +1192,14 @@ export default function SalesPage() {
             .eq("id", Number(targetReservationId));
 
           if (reservationUpdateError) {
-            alert(`予約ステータス更新エラー: ${reservationUpdateError.message}`);
+            throw new Error(`予約ステータス更新エラー: ${reservationUpdateError.message}`);
           }
 
           if (reservationId === targetReservationId) {
             setReservationStatus("予約済");
           }
-        } else {
-          if (reservationId === targetReservationId) {
-            setReservationStatus("売上済");
-          }
+        } else if (reservationId === targetReservationId) {
+          setReservationStatus("売上済");
         }
       }
 
