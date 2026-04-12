@@ -190,6 +190,14 @@ function trimmed(value: unknown) {
   return String(value).trim();
 }
 
+function normalizeText(value?: string | null) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, "")
+    .replace(/[‐-‒–—―ー－]/g, "-")
+    .toLowerCase();
+}
+
 function buildCategory(
   serviceType: ServiceType,
   accountingType: AccountingType,
@@ -221,7 +229,8 @@ function buildCategory(
 }
 
 function normalizeServiceType(value?: string | null): ServiceType {
-  return value === "ストレッチ" ? "ストレッチ" : "トレーニング";
+  if (value === "ストレッチ") return "ストレッチ";
+  return "トレーニング";
 }
 
 function normalizeAccountingType(value?: string | null): AccountingType {
@@ -298,6 +307,7 @@ function buildDailySummaryRows(sales: Sale[]): DailySummaryRow[] {
 
   sales.forEach((sale) => {
     const date = sale.date || todayString();
+
     if (!grouped[date]) {
       grouped[date] = {
         date,
@@ -383,6 +393,67 @@ function buildDailySummaryRows(sales: Sale[]): DailySummaryRow[] {
     .sort((a, b) => (a.date > b.date ? 1 : -1));
 }
 
+function findCustomerByFlexibleMatch(
+  customerList: Customer[],
+  params: {
+    customerId?: string;
+    customerName?: string;
+    phone?: string;
+  }
+): Customer | null {
+  const id = trimmed(params.customerId);
+  const name = trimmed(params.customerName);
+  const phone = trimmed(params.phone).replace(/[^\d]/g, "");
+
+  if (id) {
+    const byId = customerList.find((c) => String(c.id) === id);
+    if (byId) return byId;
+  }
+
+  if (name) {
+    const normalizedName = normalizeText(name);
+
+    const exact = customerList.find((c) => normalizeText(c.name) === normalizedName);
+    if (exact) return exact;
+
+    const partial = customerList.find((c) => {
+      const target = normalizeText(c.name);
+      return target.includes(normalizedName) || normalizedName.includes(target);
+    });
+    if (partial) return partial;
+  }
+
+  if (phone) {
+    const byPhone = customerList.find((c) => {
+      const p = trimmed(c.phone).replace(/[^\d]/g, "");
+      return !!p && p === phone;
+    });
+    if (byPhone) return byPhone;
+  }
+
+  return null;
+}
+
+function mergeNoteLines(current: string, lines: Array<string | null | undefined>) {
+  const baseLines = current
+    .split("\n")
+    .map((line) => trimmed(line))
+    .filter(Boolean);
+
+  const merged = [...baseLines];
+  const exists = new Set(baseLines);
+
+  for (const line of lines) {
+    const v = trimmed(line);
+    if (!v) continue;
+    if (exists.has(v)) continue;
+    merged.push(v);
+    exists.add(v);
+  }
+
+  return merged.join("\n");
+}
+
 async function consumeCustomerTicket(params: {
   customerId: string;
   customerName: string;
@@ -409,11 +480,13 @@ async function consumeCustomerTicket(params: {
   }
 
   const target = ticketData as TicketRow | null;
+
   if (!target) {
     throw new Error(`${serviceType}の利用可能な回数券がありません`);
   }
 
   const beforeCount = Number(target.remaining_count || 0);
+
   if (beforeCount <= 0) {
     throw new Error("回数券の残数がありません");
   }
@@ -522,6 +595,7 @@ async function restoreTicketUsageFromDeletedSale(params: {
   }
 
   const usage = usageData as TicketUsageRow | null;
+
   if (!usage) {
     throw new Error("回数券消化履歴が見つからないため、残数を戻せませんでした");
   }
@@ -532,7 +606,6 @@ async function restoreTicketUsageFromDeletedSale(params: {
 
   const beforeCount = Number(usage.before_count ?? 0);
   const afterCount = Number(usage.after_count ?? 0);
-
   const nextStatus = beforeCount <= 0 ? "消化済み" : "利用中";
 
   const { error: ticketRestoreError } = await supabase
@@ -596,6 +669,7 @@ export default function SalesPage() {
 
     const isLoggedIn =
       localStorage.getItem("gymup_logged_in") || localStorage.getItem("isLoggedIn");
+
     if (isLoggedIn !== "true") {
       window.location.href = "/login";
       return;
@@ -615,31 +689,56 @@ export default function SalesPage() {
   const mobile = windowWidth < 768;
 
   const applyQueryParams = (customerList: Customer[]) => {
+    const queryFrom = getQueryParam("from");
+    const querySignupId = getQueryParam("signup_id");
+
     const queryDate = getQueryParam("date");
     const queryCustomerId = getQueryParam("customerId") || getQueryParam("customer_id");
     const queryCustomerName =
       getQueryParam("customerName") ||
       getQueryParam("customer_name") ||
       getQueryParam("customer");
+
+    const queryCustomerKana =
+      getQueryParam("customer_kana") ||
+      getQueryParam("full_name_kana") ||
+      getQueryParam("kana");
+
+    const queryPhone = getQueryParam("phone");
+    const queryEmail = getQueryParam("email");
+
     const queryStore =
       getQueryParam("storeName") ||
       getQueryParam("store_name") ||
       getQueryParam("store");
+
     const queryStaff =
       getQueryParam("staffName") ||
       getQueryParam("staff_name") ||
       getQueryParam("staff");
+
     const queryService =
       getQueryParam("serviceType") ||
       getQueryParam("service_type") ||
-      getQueryParam("service");
-    const queryMenu = getQueryParam("menu");
+      getQueryParam("service") ||
+      getQueryParam("menu_type");
+
+    const queryMenu =
+      getQueryParam("menu") ||
+      getQueryParam("menu_name") ||
+      getQueryParam("plan_name");
+
     const queryPaymentMethod =
       getQueryParam("paymentMethod") || getQueryParam("payment_method");
+
     const queryReservationId =
       getQueryParam("reservationId") || getQueryParam("reservation_id");
+
     const querySaleType =
       getQueryParam("saleType") || getQueryParam("sale_type");
+
+    const queryAmount = getQueryParam("amount");
+    const queryMemo = getQueryParam("memo");
 
     if (queryDate) setDate(queryDate);
     if (queryStore) setStoreName(queryStore);
@@ -647,53 +746,64 @@ export default function SalesPage() {
     if (queryMenu) setMenuName(queryMenu);
     if (queryReservationId) setReservationId(queryReservationId);
 
-    if (queryPaymentMethod) {
-      const normalized = normalizePaymentMethod(queryPaymentMethod);
-      setPayments((prev) =>
-        prev.map((row, index) =>
-          index === 0 ? { ...row, paymentMethod: normalized } : row
-        )
-      );
-    }
-
     if (queryService === "ストレッチ" || queryService === "トレーニング") {
       setServiceType(queryService);
     } else if (queryMenu) {
       setServiceType(detectServiceTypeFromMenu(queryMenu));
     }
 
-    if (
+    const normalizedSaleType: AccountingType =
       querySaleType === "前受金" ||
       querySaleType === "回数券消化" ||
       querySaleType === "通常売上"
-    ) {
-      setPayments((prev) =>
-        prev.map((row, index) =>
-          index === 0
-            ? {
-                ...row,
-                saleType: querySaleType,
-                paymentMethod:
-                  querySaleType === "回数券消化"
-                    ? "その他"
-                    : querySaleType === "前受金"
-                    ? "その他"
-                    : row.paymentMethod,
-                amount: querySaleType === "回数券消化" ? "0" : row.amount,
-              }
-            : row
-        )
-      );
+        ? querySaleType
+        : "通常売上";
+
+    const normalizedPayment = normalizePaymentMethod(queryPaymentMethod || "現金");
+
+    setPayments((prev) =>
+      prev.map((row, index) => {
+        if (index !== 0) return row;
+
+        return {
+          ...row,
+          saleType: normalizedSaleType,
+          paymentMethod: normalizedSaleType === "回数券消化" ? "その他" : normalizedPayment,
+          amount:
+            normalizedSaleType === "回数券消化"
+              ? "0"
+              : queryAmount
+              ? String(queryAmount)
+              : row.amount,
+        };
+      })
+    );
+
+    const matched = findCustomerByFlexibleMatch(customerList, {
+      customerId: queryCustomerId,
+      customerName: queryCustomerName,
+      phone: queryPhone,
+    });
+
+    if (matched) {
+      setCustomerId(String(matched.id));
+    } else if (queryCustomerId) {
+      setCustomerId(String(queryCustomerId));
     }
 
-    if (queryCustomerId) {
-      setCustomerId(String(queryCustomerId));
-    } else if (queryCustomerName) {
-      const found = customerList.find((c) => c.name === queryCustomerName);
-      if (found) {
-        setCustomerId(String(found.id));
-      }
-    }
+    const lines = [
+      queryFrom ? `流入元: ${queryFrom}` : "",
+      querySignupId ? `signup_id: ${querySignupId}` : "",
+      queryCustomerName ? `申込氏名: ${queryCustomerName}` : "",
+      queryCustomerKana ? `申込氏名カナ: ${queryCustomerKana}` : "",
+      queryPhone ? `申込電話番号: ${queryPhone}` : "",
+      queryEmail ? `申込メール: ${queryEmail}` : "",
+      queryMenu ? `申込メニュー: ${queryMenu}` : "",
+      queryAmount ? `申込金額: ${queryAmount}` : "",
+      queryMemo ? `申込メモ: ${queryMemo}` : "",
+    ];
+
+    setNote((prev) => mergeNoteLines(prev, lines));
   };
 
   const fetchCustomers = async () => {
@@ -804,17 +914,9 @@ export default function SalesPage() {
       const noteLines = [
         row.customer_name ? `予約顧客: ${row.customer_name}` : "",
         row.memo ? `予約メモ: ${row.memo}` : "",
-      ].filter(Boolean);
+      ];
 
-      if (noteLines.length > 0) {
-        setNote((prev) => {
-          const base = prev.trim();
-          const add = noteLines.join("\n");
-          if (!base) return add;
-          if (base.includes(add)) return base;
-          return `${add}\n${base}`;
-        });
-      }
+      setNote((prev) => mergeNoteLines(prev, noteLines));
     } catch (error) {
       console.error("loadReservationForPrefill error:", error);
     } finally {
@@ -891,7 +993,8 @@ export default function SalesPage() {
         sale.date.toLowerCase().includes(keyword) ||
         sale.storeName.toLowerCase().includes(keyword) ||
         sale.paymentMethod.toLowerCase().includes(keyword) ||
-        String(sale.reservationId || "").includes(keyword)
+        String(sale.reservationId || "").includes(keyword) ||
+        sale.note.toLowerCase().includes(keyword)
       );
     });
   }, [sales, search]);
@@ -983,6 +1086,7 @@ export default function SalesPage() {
       alert("支払いは1件以上必要です");
       return;
     }
+
     setPayments((prev) => prev.filter((row) => row.id !== id));
   };
 
@@ -1163,59 +1267,16 @@ export default function SalesPage() {
         await restoreTicketUsageFromDeletedSale({ sale: target });
       }
 
-      const { error: deleteError } = await supabase
-        .from("sales")
-        .delete()
-        .eq("id", Number(saleId));
+      const { error } = await supabase.from("sales").delete().eq("id", saleId);
 
-      if (deleteError) {
-        throw new Error(`売上削除エラー: ${deleteError.message}`);
-      }
-
-      const targetReservationId = target.reservationId ? String(target.reservationId) : "";
-
-      if (targetReservationId) {
-        const { data: remainSales, error: remainSalesError } = await supabase
-          .from("sales")
-          .select("id")
-          .eq("reservation_id", Number(targetReservationId));
-
-        if (remainSalesError) {
-          throw new Error(`残売上確認エラー: ${remainSalesError.message}`);
-        }
-
-        const remainingCount = Array.isArray(remainSales) ? remainSales.length : 0;
-
-        if (remainingCount === 0) {
-          const { error: reservationUpdateError } = await supabase
-            .from("reservations")
-            .update({
-              reservation_status: "予約済",
-            })
-            .eq("id", Number(targetReservationId));
-
-          if (reservationUpdateError) {
-            throw new Error(`予約ステータス更新エラー: ${reservationUpdateError.message}`);
-          }
-
-          if (reservationId === targetReservationId) {
-            setReservationStatus("予約済");
-          }
-        } else if (reservationId === targetReservationId) {
-          setReservationStatus("売上済");
-        }
+      if (error) {
+        throw new Error(`売上削除エラー: ${error.message}`);
       }
 
       await fetchSales();
 
-      if (targetReservationId) {
-        if (reservationId === targetReservationId) {
-          await loadExistingSalesForReservation(targetReservationId);
-        } else if (reservationId) {
-          await loadExistingSalesForReservation(reservationId);
-        }
-      } else if (reservationId) {
-        await loadExistingSalesForReservation(reservationId);
+      if (target.reservationId) {
+        await loadExistingSalesForReservation(String(target.reservationId));
       }
 
       alert("売上を削除しました");
@@ -1225,147 +1286,495 @@ export default function SalesPage() {
     }
   };
 
-  const handleDownloadCsv = () => {
-    if (sales.length === 0) {
-      alert("売上データがありません");
+  const exportSalesCsv = () => {
+    if (filteredSales.length === 0) {
+      alert("出力する売上データがありません");
       return;
     }
 
-    const header = [
-      "日付",
-      "ストレッチ(現金)",
-      "ストレッチ(カード等)",
-      "ストレッチ(受領済)",
-      "ストレッチ(回数券)",
-      "トレーニング(現金)",
-      "トレーニング(カード等)",
-      "トレーニング(受領済)",
-      "トレーニング(回数券)",
-      "純売上合計",
-      "前受(現金)",
-      "前受(カード等)",
-      "前受合計",
-      "総合計",
+    const rows = [
+      [
+        "日付",
+        "顧客名",
+        "メニュー",
+        "サービス",
+        "会計区分",
+        "支払方法",
+        "金額",
+        "担当",
+        "店舗",
+        "予約ID",
+        "メモ",
+      ].map(toCsvValue).join(","),
+      ...filteredSales.map((sale) =>
+        [
+          sale.date,
+          sale.customerName,
+          sale.menuName,
+          sale.serviceType,
+          sale.accountingType,
+          sale.paymentMethod,
+          sale.amount,
+          sale.staff,
+          sale.storeName,
+          sale.reservationId ?? "",
+          sale.note.replace(/\n/g, " / "),
+        ]
+          .map(toCsvValue)
+          .join(",")
+      ),
     ];
 
-    const rows = dailySummaryRows.map((row) => [
-      formatDateJP(row.date),
-      row.stretchCash,
-      row.stretchCard,
-      row.stretchReceived,
-      row.stretchTicket,
-      row.trainingCash,
-      row.trainingCard,
-      row.trainingReceived,
-      row.trainingTicket,
-      row.netSalesTotal,
-      row.advanceCash,
-      row.advanceCard,
-      row.advanceTotal,
-      row.grandTotal,
-    ]);
-
-    const csv = [header, ...rows]
-      .map((row) => row.map((cell) => toCsvValue(cell)).join(","))
-      .join("\n");
-
-    const blob = new Blob(["\uFEFF" + csv], {
-      type: "text/csv;charset=utf-8;",
-    });
+    const bom = "\uFEFF";
+    const blob = new Blob([bom + rows.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `gymup-daily-sales-summary-${todayString()}.csv`;
+    a.download = `sales_${todayString()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  if (!mounted) return null;
+  const pageStyle: CSSProperties = {
+    minHeight: "100vh",
+    background:
+      "linear-gradient(135deg, #f7f7f8 0%, #eceef1 45%, #e7eaef 100%)",
+    padding: mobile ? "16px" : "24px",
+    color: "#111827",
+  };
+
+  const innerStyle: CSSProperties = {
+    maxWidth: "1480px",
+    margin: "0 auto",
+    display: "grid",
+    gap: "18px",
+  };
+
+  const cardStyle: CSSProperties = {
+    background: "rgba(255,255,255,0.84)",
+    border: "1px solid rgba(255,255,255,0.9)",
+    borderRadius: "24px",
+    padding: mobile ? "16px" : "20px",
+    boxShadow: "0 12px 40px rgba(15, 23, 42, 0.08)",
+    backdropFilter: "blur(12px)",
+  };
+
+  const headerStyle: CSSProperties = {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: mobile ? "stretch" : "center",
+    gap: "12px",
+    flexDirection: mobile ? "column" : "row",
+  };
+
+  const titleStyle: CSSProperties = {
+    margin: 0,
+    fontSize: mobile ? "26px" : "34px",
+    fontWeight: 800,
+    letterSpacing: "0.02em",
+  };
+
+  const subTextStyle: CSSProperties = {
+    margin: "6px 0 0",
+    fontSize: "14px",
+    color: "#6b7280",
+  };
+
+  const topActionsStyle: CSSProperties = {
+    display: "flex",
+    gap: "10px",
+    flexWrap: "wrap",
+  };
+
+  const linkButtonStyle: CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "11px 16px",
+    borderRadius: "14px",
+    textDecoration: "none",
+    fontWeight: 700,
+    fontSize: "14px",
+    border: "1px solid #d1d5db",
+    background: "#fff",
+    color: "#111827",
+  };
+
+  const primaryButtonStyle: CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "13px 18px",
+    borderRadius: "16px",
+    border: "none",
+    background: "linear-gradient(135deg, #111827 0%, #374151 100%)",
+    color: "#fff",
+    fontWeight: 800,
+    fontSize: "14px",
+    cursor: "pointer",
+    boxShadow: "0 10px 24px rgba(17, 24, 39, 0.22)",
+  };
+
+  const secondaryButtonStyle: CSSProperties = {
+    ...primaryButtonStyle,
+    background: "#fff",
+    color: "#111827",
+    border: "1px solid #d1d5db",
+    boxShadow: "none",
+  };
+
+  const dangerButtonStyle: CSSProperties = {
+    ...primaryButtonStyle,
+    background: "linear-gradient(135deg, #991b1b 0%, #dc2626 100%)",
+    boxShadow: "0 10px 24px rgba(153, 27, 27, 0.18)",
+  };
+
+  const ghostButtonStyle: CSSProperties = {
+    ...primaryButtonStyle,
+    background: "#f9fafb",
+    color: "#111827",
+    border: "1px solid #e5e7eb",
+    boxShadow: "none",
+  };
+
+  const miniTitleStyle: CSSProperties = {
+    margin: 0,
+    fontSize: "18px",
+    fontWeight: 800,
+  };
+
+  const gridStyle: CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: mobile
+      ? "1fr"
+      : tablet
+      ? "repeat(2, minmax(0, 1fr))"
+      : "repeat(4, minmax(0, 1fr))",
+    gap: "14px",
+  };
+
+  const labelStyle: CSSProperties = {
+    display: "block",
+    fontSize: "12px",
+    fontWeight: 700,
+    color: "#6b7280",
+    marginBottom: "7px",
+  };
+
+  const inputStyle: CSSProperties = {
+    width: "100%",
+    borderRadius: "14px",
+    border: "1px solid #d1d5db",
+    padding: "12px 14px",
+    fontSize: "14px",
+    outline: "none",
+    background: "#fff",
+    boxSizing: "border-box",
+  };
+
+  const textareaStyle: CSSProperties = {
+    ...inputStyle,
+    minHeight: "120px",
+    resize: "vertical",
+    lineHeight: 1.6,
+  };
+
+  const statGridStyle: CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: mobile
+      ? "repeat(2, minmax(0, 1fr))"
+      : compact
+      ? "repeat(3, minmax(0, 1fr))"
+      : "repeat(6, minmax(0, 1fr))",
+    gap: "12px",
+  };
+
+  const statCardStyle: CSSProperties = {
+    borderRadius: "20px",
+    padding: "16px",
+    background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+    border: "1px solid #e5e7eb",
+    boxShadow: "0 6px 18px rgba(15, 23, 42, 0.05)",
+  };
+
+  const statLabelStyle: CSSProperties = {
+    fontSize: "12px",
+    color: "#6b7280",
+    fontWeight: 700,
+    marginBottom: "8px",
+  };
+
+  const statValueStyle: CSSProperties = {
+    fontSize: mobile ? "18px" : "24px",
+    fontWeight: 800,
+    letterSpacing: "0.01em",
+  };
+
+  const paymentRowCardStyle: CSSProperties = {
+    border: "1px solid #e5e7eb",
+    borderRadius: "18px",
+    padding: "14px",
+    background: "#fafafa",
+    display: "grid",
+    gap: "12px",
+  };
+
+  const paymentTitleStyle: CSSProperties = {
+    fontWeight: 800,
+    fontSize: "14px",
+  };
+
+  const pillStyle = (bg: string, color = "#111827"): CSSProperties => ({
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "6px 10px",
+    borderRadius: "999px",
+    background: bg,
+    color,
+    fontSize: "12px",
+    fontWeight: 800,
+    whiteSpace: "nowrap",
+  });
+
+  const tableWrapStyle: CSSProperties = {
+    width: "100%",
+    overflowX: "auto",
+    borderRadius: "18px",
+    border: "1px solid #e5e7eb",
+    background: "#fff",
+  };
+
+  const tableStyle: CSSProperties = {
+    width: "100%",
+    minWidth: "980px",
+    borderCollapse: "collapse",
+    fontSize: "14px",
+  };
+
+  const thStyle: CSSProperties = {
+    textAlign: "left",
+    padding: "13px 14px",
+    fontWeight: 800,
+    color: "#374151",
+    background: "#f9fafb",
+    borderBottom: "1px solid #e5e7eb",
+    whiteSpace: "nowrap",
+  };
+
+  const tdStyle: CSSProperties = {
+    padding: "13px 14px",
+    borderBottom: "1px solid #f1f5f9",
+    verticalAlign: "top",
+  };
+
+  if (!mounted) {
+    return null;
+  }
 
   return (
     <div style={pageStyle}>
-      <div style={wrapStyle}>
-        <section style={heroCardStyle}>
-          <div
-            style={{
-              ...heroTopStyle,
-              flexDirection: mobile ? "column" : "row",
-              alignItems: mobile ? "stretch" : "center",
-            }}
-          >
+      <div style={innerStyle}>
+        <section style={cardStyle}>
+          <div style={headerStyle}>
             <div>
-              <div style={heroEyebrowStyle}>GYMUP CRM</div>
-              <h1 style={heroTitleStyle}>売上管理</h1>
-              <div style={heroSubStyle}>予約連動 / 回数券消化 / 日別集計</div>
+              <h1 style={titleStyle}>売上管理</h1>
+              <p style={subTextStyle}>
+                予約連動・回数券消化・signup自動入力対応
+              </p>
             </div>
 
-            <div
-              style={{
-                ...heroActionWrapStyle,
-                width: mobile ? "100%" : "auto",
-              }}
-            >
-              <Link
-                href="/"
-                style={{ ...subButtonStyle, width: mobile ? "100%" : "auto" }}
-              >
+            <div style={topActionsStyle}>
+              <Link href="/" style={linkButtonStyle}>
                 TOPへ
               </Link>
-              <Link
-                href="/reservation"
-                style={{ ...subButtonStyle, width: mobile ? "100%" : "auto" }}
-              >
-                予約へ
+              <Link href="/signup/list" style={linkButtonStyle}>
+                入会申請一覧へ
               </Link>
-              {reservationId ? (
-                <Link
-                  href={`/reservation/detail/${reservationId}`}
-                  style={{ ...mainButtonLinkStyle, width: mobile ? "100%" : "auto" }}
-                >
-                  予約詳細へ
-                </Link>
-              ) : null}
+              <button type="button" onClick={exportSalesCsv} style={secondaryButtonStyle}>
+                CSV出力
+              </button>
             </div>
           </div>
         </section>
 
-        <section
-          style={{
-            ...summaryGridStyle,
-            gridTemplateColumns: mobile
-              ? "1fr"
-              : tablet
-              ? "repeat(2, minmax(0, 1fr))"
-              : "repeat(4, minmax(0, 1fr))",
-          }}
-        >
-          <div style={summaryCardStyle}>
-            <div style={summaryLabelStyle}>本日売上</div>
-            <div style={summaryValueStyle}>{formatCurrency(todayTotal)}</div>
-          </div>
-          <div style={summaryCardStyle}>
-            <div style={summaryLabelStyle}>累計売上</div>
-            <div style={summaryValueStyle}>{formatCurrency(allTotal)}</div>
-          </div>
-          <div style={summaryCardStyle}>
-            <div style={summaryLabelStyle}>顧客数</div>
-            <div style={summaryValueStyle}>{customers.length}名</div>
-          </div>
-          <div style={summaryCardStyle}>
-            <div style={summaryLabelStyle}>今回入力合計</div>
-            <div style={summaryValueStyle}>{formatCurrency(totalAmount)}</div>
+        <section style={cardStyle}>
+          <div style={statGridStyle}>
+            <div style={statCardStyle}>
+              <div style={statLabelStyle}>本日の売上</div>
+              <div style={statValueStyle}>{formatCurrency(todayTotal)}</div>
+            </div>
+            <div style={statCardStyle}>
+              <div style={statLabelStyle}>累計売上</div>
+              <div style={statValueStyle}>{formatCurrency(allTotal)}</div>
+            </div>
+            <div style={statCardStyle}>
+              <div style={statLabelStyle}>登録件数</div>
+              <div style={statValueStyle}>{sales.length.toLocaleString()}件</div>
+            </div>
+            <div style={statCardStyle}>
+              <div style={statLabelStyle}>フォーム合計</div>
+              <div style={statValueStyle}>{formatCurrency(totalAmount)}</div>
+            </div>
+            <div style={statCardStyle}>
+              <div style={statLabelStyle}>顧客</div>
+              <div style={statValueStyle}>
+                {customerLoading ? "読込中" : `${customers.length.toLocaleString()}名`}
+              </div>
+            </div>
+            <div style={statCardStyle}>
+              <div style={statLabelStyle}>予約ステータス</div>
+              <div style={statValueStyle} style={{ ...statValueStyle, fontSize: mobile ? "16px" : "20px" }}>
+                {reservationStatus || "—"}
+              </div>
+            </div>
           </div>
         </section>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: tablet ? "1fr" : "minmax(0, 1.2fr) minmax(0, 0.8fr)",
-            gap: "20px",
-            alignItems: "start",
-          }}
-        >
-          <section style={cardStyle}>
+        <section style={cardStyle}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: mobile ? "stretch" : "center",
+              flexDirection: mobile ? "column" : "row",
+              gap: "12px",
+              marginBottom: "16px",
+            }}
+          >
+            <h2 style={miniTitleStyle}>売上登録</h2>
+
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+              {prefillLoading && <span style={pillStyle("#dbeafe", "#1d4ed8")}>予約読込中</span>}
+              {getQueryParam("from") === "signup" && (
+                <span style={pillStyle("#ede9fe", "#6d28d9")}>signup流入</span>
+              )}
+              {reservationId && <span style={pillStyle("#dcfce7", "#166534")}>予約ID: {reservationId}</span>}
+            </div>
+          </div>
+
+          <div style={gridStyle}>
+            <div>
+              <label style={labelStyle}>日付</label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>顧客</label>
+              <select
+                value={customerId}
+                onChange={(e) => setCustomerId(e.target.value)}
+                style={inputStyle}
+              >
+                <option value="">顧客を選択</option>
+                {customers.map((customer) => (
+                  <option key={String(customer.id)} value={String(customer.id)}>
+                    {customer.name}
+                    {customer.phone ? ` / ${customer.phone}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>サービス種別</label>
+              <select
+                value={serviceType}
+                onChange={(e) => setServiceType(e.target.value as ServiceType)}
+                style={inputStyle}
+              >
+                {SERVICE_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>メニュー名</label>
+              <input
+                value={menuName}
+                onChange={(e) => setMenuName(e.target.value)}
+                placeholder="例：ストレッチ回数券 / 月4プラン"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>担当</label>
+              <select
+                value={staff}
+                onChange={(e) => setStaff(e.target.value)}
+                style={inputStyle}
+              >
+                {STAFF_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>店舗</label>
+              <select
+                value={storeName}
+                onChange={(e) => setStoreName(e.target.value)}
+                style={inputStyle}
+              >
+                {STORE_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>予約ID</label>
+              <input
+                value={reservationId}
+                onChange={(e) => setReservationId(e.target.value)}
+                placeholder="予約詳細からなら自動入力"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>選択中の顧客</label>
+              <div
+                style={{
+                  ...inputStyle,
+                  display: "flex",
+                  alignItems: "center",
+                  minHeight: "46px",
+                  color: selectedCustomer ? "#111827" : "#9ca3af",
+                }}
+              >
+                {selectedCustomer
+                  ? `${selectedCustomer.name}${selectedCustomer.phone ? ` / ${selectedCustomer.phone}` : ""}`
+                  : "未選択"}
+              </div>
+            </div>
+
+            <div style={{ gridColumn: tablet ? "auto" : "1 / -1" }}>
+              <label style={labelStyle}>メモ</label>
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="備考・補足"
+                style={textareaStyle}
+              />
+            </div>
+          </div>
+
+          <div style={{ marginTop: "18px" }}>
             <div
               style={{
                 display: "flex",
@@ -1374,349 +1783,200 @@ export default function SalesPage() {
                 gap: "12px",
                 flexWrap: "wrap",
                 flexDirection: mobile ? "column" : "row",
-                marginBottom: "18px",
+                marginBottom: "12px",
               }}
             >
-              <h2 style={sectionTitleStyle}>売上登録</h2>
+              <h3 style={miniTitleStyle}>支払い設定</h3>
 
-              <div style={statusRowStyle}>
-                {prefillLoading ? <span style={statusChipStyle}>予約読込中</span> : null}
-                {reservationId ? (
-                  <span style={statusChipStyle}>
-                    予約ID: {reservationId} / {reservationStatus || "確認中"}
-                  </span>
-                ) : null}
-              </div>
-            </div>
-
-            <div style={formGridStyle}>
-              <div>
-                <label style={labelStyle}>日付</label>
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  style={inputStyle}
-                />
-              </div>
-
-              <div>
-                <label style={labelStyle}>顧客</label>
-                <select
-                  value={customerId}
-                  onChange={(e) => setCustomerId(e.target.value)}
-                  style={inputStyle}
-                  disabled={customerLoading}
-                >
-                  <option value="">顧客を選択</option>
-                  {customers.map((customer) => (
-                    <option key={String(customer.id)} value={String(customer.id)}>
-                      {customer.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label style={labelStyle}>メニュー名</label>
-                <input
-                  value={menuName}
-                  onChange={(e) => setMenuName(e.target.value)}
-                  placeholder="例：ストレッチ90分"
-                  style={inputStyle}
-                />
-              </div>
-
-              <div>
-                <label style={labelStyle}>サービス区分</label>
-                <select
-                  value={serviceType}
-                  onChange={(e) => setServiceType(e.target.value as ServiceType)}
-                  style={inputStyle}
-                >
-                  {SERVICE_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label style={labelStyle}>担当</label>
-                <select
-                  value={staff}
-                  onChange={(e) => setStaff(e.target.value)}
-                  style={inputStyle}
-                >
-                  {STAFF_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label style={labelStyle}>店舗</label>
-                <select
-                  value={storeName}
-                  onChange={(e) => setStoreName(e.target.value)}
-                  style={inputStyle}
-                >
-                  {STORE_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label style={labelStyle}>予約ID</label>
-                <input
-                  value={reservationId}
-                  onChange={(e) => setReservationId(e.target.value)}
-                  placeholder="予約詳細からなら自動入力"
-                  style={inputStyle}
-                />
-              </div>
-
-              <div style={{ gridColumn: tablet ? "auto" : "1 / -1" }}>
-                <label style={labelStyle}>メモ</label>
-                <textarea
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="備考・補足"
-                  style={textareaStyle}
-                />
-              </div>
-            </div>
-
-            <div style={{ marginTop: "18px" }}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: mobile ? "stretch" : "center",
-                  gap: "12px",
-                  flexWrap: "wrap",
-                  flexDirection: mobile ? "column" : "row",
-                  marginBottom: "12px",
-                }}
+              <button
+                type="button"
+                onClick={addPaymentRow}
+                style={{ ...secondaryButtonStyle, width: mobile ? "100%" : "auto" }}
               >
-                <h3 style={miniTitleStyle}>支払い設定</h3>
+                ＋ 支払いを追加
+              </button>
+            </div>
 
-                <button
-                  type="button"
-                  onClick={addPaymentRow}
-                  style={{ ...subButtonAsButtonStyle, width: mobile ? "100%" : "auto" }}
-                >
-                  ＋ 支払いを追加
-                </button>
-              </div>
+            <div style={{ display: "grid", gap: "12px" }}>
+              {payments.map((row, index) => (
+                <div key={row.id} style={paymentRowCardStyle}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: mobile ? "stretch" : "center",
+                      gap: "10px",
+                      flexWrap: "wrap",
+                      flexDirection: mobile ? "column" : "row",
+                    }}
+                  >
+                    <div style={paymentTitleStyle}>支払い {index + 1}</div>
 
-              <div style={{ display: "grid", gap: "12px" }}>
-                {payments.map((row, index) => (
-                  <div key={row.id} style={paymentRowCardStyle}>
-                    <div
+                    <button
+                      type="button"
+                      onClick={() => removePaymentRow(row.id)}
                       style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: mobile ? "stretch" : "center",
-                        gap: "10px",
-                        flexWrap: "wrap",
-                        flexDirection: mobile ? "column" : "row",
+                        ...dangerButtonStyle,
+                        width: mobile ? "100%" : "auto",
                       }}
                     >
-                      <div style={paymentTitleStyle}>支払い {index + 1}</div>
+                      削除
+                    </button>
+                  </div>
 
-                      <button
-                        type="button"
-                        onClick={() => removePaymentRow(row.id)}
-                        style={{
-                          ...dangerButtonStyle,
-                          width: mobile ? "100%" : "auto",
-                        }}
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: mobile
+                        ? "1fr"
+                        : tablet
+                        ? "repeat(2, minmax(0, 1fr))"
+                        : "repeat(4, minmax(0, 1fr))",
+                      gap: "12px",
+                    }}
+                  >
+                    <div>
+                      <label style={labelStyle}>会計区分</label>
+                      <select
+                        value={row.saleType}
+                        onChange={(e) =>
+                          updatePayment(row.id, "saleType", e.target.value as AccountingType)
+                        }
+                        style={inputStyle}
                       >
-                        削除
-                      </button>
+                        {ACCOUNTING_OPTIONS.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: mobile
-                          ? "1fr"
-                          : tablet
-                          ? "repeat(2, minmax(0, 1fr))"
-                          : "repeat(4, minmax(0, 1fr))",
-                        gap: "12px",
-                      }}
-                    >
-                      <div>
-                        <label style={labelStyle}>会計区分</label>
-                        <select
-                          value={row.saleType}
-                          onChange={(e) =>
-                            updatePayment(row.id, "saleType", e.target.value as AccountingType)
-                          }
-                          style={inputStyle}
-                        >
-                          {ACCOUNTING_OPTIONS.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                    <div>
+                      <label style={labelStyle}>支払方法</label>
+                      <select
+                        value={row.paymentMethod}
+                        onChange={(e) =>
+                          updatePayment(row.id, "paymentMethod", e.target.value as PaymentMethod)
+                        }
+                        style={{
+                          ...inputStyle,
+                          opacity: row.saleType === "回数券消化" ? 0.6 : 1,
+                        }}
+                        disabled={row.saleType === "回数券消化"}
+                      >
+                        {PAYMENT_OPTIONS.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                      <div>
-                        <label style={labelStyle}>支払方法</label>
-                        <select
-                          value={row.paymentMethod}
-                          onChange={(e) =>
-                            updatePayment(row.id, "paymentMethod", e.target.value as PaymentMethod)
-                          }
-                          style={inputStyle}
-                          disabled={row.saleType === "回数券消化"}
-                        >
-                          {PAYMENT_OPTIONS.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                    <div>
+                      <label style={labelStyle}>金額</label>
+                      <input
+                        inputMode="numeric"
+                        value={row.amount}
+                        onChange={(e) => updatePayment(row.id, "amount", e.target.value)}
+                        placeholder="0"
+                        style={{
+                          ...inputStyle,
+                          opacity: row.saleType === "回数券消化" ? 0.6 : 1,
+                        }}
+                        disabled={row.saleType === "回数券消化"}
+                      />
+                    </div>
 
-                      <div>
-                        <label style={labelStyle}>金額</label>
-                        <input
-                          type="number"
-                          value={row.amount}
-                          onChange={(e) => updatePayment(row.id, "amount", e.target.value)}
-                          placeholder={row.saleType === "回数券消化" ? "0" : "例：8000"}
-                          style={inputStyle}
-                          disabled={row.saleType === "回数券消化"}
-                        />
-                      </div>
-
-                      <div>
-                        <label style={labelStyle}>カテゴリ</label>
-                        <div style={readonlyBoxStyle}>
-                          {buildCategory(serviceType, row.saleType, row.paymentMethod)}
-                        </div>
+                    <div>
+                      <label style={labelStyle}>説明</label>
+                      <div
+                        style={{
+                          ...inputStyle,
+                          display: "flex",
+                          alignItems: "center",
+                          minHeight: "46px",
+                          color: "#374151",
+                        }}
+                      >
+                        {row.saleType === "回数券消化"
+                          ? "回数券を1回消化します"
+                          : row.saleType === "前受金"
+                          ? "前受金として保存します"
+                          : "通常売上として保存します"}
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
-
-            <div style={summaryBoxStyle}>
-              <div style={summaryRowStyle}>
-                <span>選択顧客</span>
-                <strong>{selectedCustomer?.name || "未選択"}</strong>
-              </div>
-              <div style={summaryRowStyle}>
-                <span>支払い件数</span>
-                <strong>{payments.length}件</strong>
-              </div>
-              <div style={summaryRowStyle}>
-                <span>合計金額</span>
-                <strong>{formatCurrency(totalAmount)}</strong>
-              </div>
-            </div>
-
-            {reservationId && existingSalesForReservation.length > 0 ? (
-              <div style={warnBoxStyle}>
-                この予約にはすでに売上が {existingSalesForReservation.length} 件あります。追加登録前に確認してください。
-              </div>
-            ) : null}
 
             <div
               style={{
-                marginTop: "18px",
+                marginTop: "16px",
                 display: "flex",
-                gap: "10px",
-                flexWrap: "wrap",
+                justifyContent: "space-between",
+                alignItems: mobile ? "stretch" : "center",
                 flexDirection: mobile ? "column" : "row",
+                gap: "12px",
               }}
             >
-              <button
-                onClick={handleAddSale}
-                style={{ ...mainButtonStyle, width: mobile ? "100%" : "auto" }}
-                disabled={saving || customerLoading}
-              >
-                {saving ? "登録中..." : "売上を登録する"}
-              </button>
+              <div style={{ fontSize: "14px", color: "#6b7280", fontWeight: 700 }}>
+                合計: <span style={{ color: "#111827" }}>{formatCurrency(totalAmount)}</span>
+              </div>
 
-              <button
-                onClick={resetForm}
-                style={{ ...subButtonPlainStyle, width: mobile ? "100%" : "auto" }}
-              >
-                入力をリセット
-              </button>
+              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", width: mobile ? "100%" : "auto" }}>
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  style={{ ...ghostButtonStyle, width: mobile ? "100%" : "auto" }}
+                >
+                  リセット
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddSale}
+                  disabled={saving}
+                  style={{
+                    ...primaryButtonStyle,
+                    width: mobile ? "100%" : "auto",
+                    opacity: saving ? 0.7 : 1,
+                  }}
+                >
+                  {saving ? "保存中..." : "売上を登録"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
 
-              <button
-                onClick={handleDownloadCsv}
-                style={{ ...subButtonPlainStyle, width: mobile ? "100%" : "auto" }}
-              >
-                日別集計CSV出力
-              </button>
+        {reservationId && existingSalesForReservation.length > 0 && (
+          <section style={cardStyle}>
+            <h2 style={miniTitleStyle}>この予約に紐づく既存売上</h2>
+            <div style={{ marginTop: "12px", display: "flex", flexWrap: "wrap", gap: "10px" }}>
+              {existingSalesForReservation.map((sale) => (
+                <div
+                  key={sale.id}
+                  style={{
+                    border: "1px solid #e5e7eb",
+                    background: "#fff",
+                    borderRadius: "16px",
+                    padding: "12px 14px",
+                    minWidth: "220px",
+                  }}
+                >
+                  <div style={{ fontWeight: 800, marginBottom: "6px" }}>{sale.customerName}</div>
+                  <div style={{ fontSize: "13px", color: "#6b7280", lineHeight: 1.7 }}>
+                    <div>{sale.accountingType}</div>
+                    <div>{sale.paymentMethod}</div>
+                    <div>{formatCurrency(sale.amount)}</div>
+                    <div>登録日: {formatDateJP(sale.date)}</div>
+                  </div>
+                </div>
+              ))}
             </div>
           </section>
-
-          <div style={{ display: "grid", gap: "20px" }}>
-            <section style={cardStyle}>
-              <h3 style={miniTitleStyle}>月別売上</h3>
-              <div style={{ display: "grid", gap: "8px", marginTop: "12px" }}>
-                {monthlyTotals.length === 0 ? (
-                  <div style={emptyInnerStyle}>データなし</div>
-                ) : (
-                  monthlyTotals.map(([month, total]) => (
-                    <div key={month} style={listRowStyle}>
-                      <span>{month}</span>
-                      <strong>{formatCurrency(total)}</strong>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
-
-            <section style={cardStyle}>
-              <h3 style={miniTitleStyle}>担当別売上</h3>
-              <div style={{ display: "grid", gap: "8px", marginTop: "12px" }}>
-                {staffTotals.length === 0 ? (
-                  <div style={emptyInnerStyle}>データなし</div>
-                ) : (
-                  staffTotals.map(([name, total]) => (
-                    <div key={name} style={listRowStyle}>
-                      <span>{name}</span>
-                      <strong>{formatCurrency(total)}</strong>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
-
-            <section style={cardStyle}>
-              <h3 style={miniTitleStyle}>支払方法別売上</h3>
-              <div style={{ display: "grid", gap: "8px", marginTop: "12px" }}>
-                {paymentTotals.length === 0 ? (
-                  <div style={emptyInnerStyle}>データなし</div>
-                ) : (
-                  paymentTotals.map(([name, total]) => (
-                    <div key={name} style={listRowStyle}>
-                      <span>{name}</span>
-                      <strong>{formatCurrency(total)}</strong>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
-          </div>
-        </div>
+        )}
 
         <section style={cardStyle}>
           <div
@@ -1725,118 +1985,133 @@ export default function SalesPage() {
               justifyContent: "space-between",
               alignItems: mobile ? "stretch" : "center",
               gap: "12px",
-              flexWrap: "wrap",
               flexDirection: mobile ? "column" : "row",
               marginBottom: "14px",
             }}
           >
-            <h2 style={sectionTitleStyle}>日別集計</h2>
-
-            <button
-              type="button"
-              onClick={handleDownloadCsv}
-              style={{ ...subButtonAsButtonStyle, width: mobile ? "100%" : "auto" }}
-            >
-              日別集計CSV
-            </button>
+            <h2 style={miniTitleStyle}>集計</h2>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="顧客名・担当・支払方法・予約IDで検索"
+              style={{ ...inputStyle, maxWidth: mobile ? "100%" : "360px" }}
+            />
           </div>
 
-          {dailySummaryRows.length === 0 ? (
-            <div style={emptyBoxStyle}>集計データがありません</div>
-          ) : mobile ? (
-            <div style={{ display: "grid", gap: "12px" }}>
-              {dailySummaryRows.map((row) => (
-                <div key={row.date} style={dailyCardStyle}>
-                  <div style={dailyCardDateStyle}>{formatDateJP(row.date)}</div>
-
-                  <div style={dailyCardGridStyle}>
-                    <div style={dailyItemStyle}>
-                      <span>スト現</span>
-                      <strong>{formatCurrency(row.stretchCash)}</strong>
-                    </div>
-                    <div style={dailyItemStyle}>
-                      <span>ストカ</span>
-                      <strong>{formatCurrency(row.stretchCard)}</strong>
-                    </div>
-                    <div style={dailyItemStyle}>
-                      <span>スト受</span>
-                      <strong>{formatCurrency(row.stretchReceived)}</strong>
-                    </div>
-                    <div style={dailyItemStyle}>
-                      <span>スト券</span>
-                      <strong>{formatCurrency(row.stretchTicket)}</strong>
-                    </div>
-                    <div style={dailyItemStyle}>
-                      <span>トレ現</span>
-                      <strong>{formatCurrency(row.trainingCash)}</strong>
-                    </div>
-                    <div style={dailyItemStyle}>
-                      <span>トレカ</span>
-                      <strong>{formatCurrency(row.trainingCard)}</strong>
-                    </div>
-                    <div style={dailyItemStyle}>
-                      <span>トレ受</span>
-                      <strong>{formatCurrency(row.trainingReceived)}</strong>
-                    </div>
-                    <div style={dailyItemStyle}>
-                      <span>トレ券</span>
-                      <strong>{formatCurrency(row.trainingTicket)}</strong>
-                    </div>
-                    <div style={dailyItemStyle}>
-                      <span>純売上</span>
-                      <strong>{formatCurrency(row.netSalesTotal)}</strong>
-                    </div>
-                    <div style={dailyItemStyle}>
-                      <span>前受現</span>
-                      <strong>{formatCurrency(row.advanceCash)}</strong>
-                    </div>
-                    <div style={dailyItemStyle}>
-                      <span>前受カ</span>
-                      <strong>{formatCurrency(row.advanceCard)}</strong>
-                    </div>
-                    <div style={dailyItemStyle}>
-                      <span>前受計</span>
-                      <strong>{formatCurrency(row.advanceTotal)}</strong>
-                    </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: mobile ? "1fr" : "repeat(3, minmax(0, 1fr))",
+              gap: "14px",
+            }}
+          >
+            <div style={paymentRowCardStyle}>
+              <div style={paymentTitleStyle}>月次売上</div>
+              <div style={{ display: "grid", gap: "8px" }}>
+                {monthlyTotals.length === 0 ? (
+                  <div style={{ color: "#9ca3af", fontSize: "14px" }}>データなし</div>
+                ) : (
+                  monthlyTotals.map(([month, total]) => (
                     <div
+                      key={month}
                       style={{
-                        ...dailyItemStyle,
-                        gridColumn: "1 / -1",
-                        background: "#eff6ff",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: "10px",
+                        fontSize: "14px",
                       }}
                     >
-                      <span>総合計</span>
-                      <strong>{formatCurrency(row.grandTotal)}</strong>
+                      <span>{month}</span>
+                      <strong>{formatCurrency(total)}</strong>
                     </div>
-                  </div>
-                </div>
-              ))}
+                  ))
+                )}
+              </div>
             </div>
-          ) : (
-            <div style={tableWrapStyle}>
-              <table style={tableStyle}>
-                <thead>
+
+            <div style={paymentRowCardStyle}>
+              <div style={paymentTitleStyle}>スタッフ別</div>
+              <div style={{ display: "grid", gap: "8px" }}>
+                {staffTotals.length === 0 ? (
+                  <div style={{ color: "#9ca3af", fontSize: "14px" }}>データなし</div>
+                ) : (
+                  staffTotals.map(([name, total]) => (
+                    <div
+                      key={name}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: "10px",
+                        fontSize: "14px",
+                      }}
+                    >
+                      <span>{name}</span>
+                      <strong>{formatCurrency(total)}</strong>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div style={paymentRowCardStyle}>
+              <div style={paymentTitleStyle}>支払方法別</div>
+              <div style={{ display: "grid", gap: "8px" }}>
+                {paymentTotals.length === 0 ? (
+                  <div style={{ color: "#9ca3af", fontSize: "14px" }}>データなし</div>
+                ) : (
+                  paymentTotals.map(([name, total]) => (
+                    <div
+                      key={name}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: "10px",
+                        fontSize: "14px",
+                      }}
+                    >
+                      <span>{name}</span>
+                      <strong>{formatCurrency(total)}</strong>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section style={cardStyle}>
+          <h2 style={miniTitleStyle}>日別集計</h2>
+          <div style={{ marginTop: "14px", ...tableWrapStyle }}>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>日付</th>
+                  <th style={thStyle}>スト現金</th>
+                  <th style={thStyle}>ストカード等</th>
+                  <th style={thStyle}>ストその他</th>
+                  <th style={thStyle}>スト回数券</th>
+                  <th style={thStyle}>トレ現金</th>
+                  <th style={thStyle}>トレカード等</th>
+                  <th style={thStyle}>トレその他</th>
+                  <th style={thStyle}>トレ回数券</th>
+                  <th style={thStyle}>純売上合計</th>
+                  <th style={thStyle}>前受現金</th>
+                  <th style={thStyle}>前受その他</th>
+                  <th style={thStyle}>前受合計</th>
+                  <th style={thStyle}>総合計</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dailySummaryRows.length === 0 ? (
                   <tr>
-                    <th style={thStyle}>日付</th>
-                    <th style={thStyle}>スト現</th>
-                    <th style={thStyle}>ストカ</th>
-                    <th style={thStyle}>スト受</th>
-                    <th style={thStyle}>スト券</th>
-                    <th style={thStyle}>トレ現</th>
-                    <th style={thStyle}>トレカ</th>
-                    <th style={thStyle}>トレ受</th>
-                    <th style={thStyle}>トレ券</th>
-                    <th style={thStyle}>純売上</th>
-                    <th style={thStyle}>前受現</th>
-                    <th style={thStyle}>前受カ</th>
-                    <th style={thStyle}>前受計</th>
-                    <th style={thStyle}>総合計</th>
+                    <td style={tdStyle} colSpan={14}>
+                      データがありません
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {dailySummaryRows.map((row) => (
+                ) : (
+                  dailySummaryRows.map((row) => (
                     <tr key={row.date}>
-                      <td style={tdStyle}>{formatDateJP(row.date)}</td>
+                      <td style={tdStyle}>{row.date}</td>
                       <td style={tdStyle}>{formatCurrency(row.stretchCash)}</td>
                       <td style={tdStyle}>{formatCurrency(row.stretchCard)}</td>
                       <td style={tdStyle}>{formatCurrency(row.stretchReceived)}</td>
@@ -1845,17 +2120,17 @@ export default function SalesPage() {
                       <td style={tdStyle}>{formatCurrency(row.trainingCard)}</td>
                       <td style={tdStyle}>{formatCurrency(row.trainingReceived)}</td>
                       <td style={tdStyle}>{formatCurrency(row.trainingTicket)}</td>
-                      <td style={tdStyleStrong}>{formatCurrency(row.netSalesTotal)}</td>
+                      <td style={{ ...tdStyle, fontWeight: 800 }}>{formatCurrency(row.netSalesTotal)}</td>
                       <td style={tdStyle}>{formatCurrency(row.advanceCash)}</td>
                       <td style={tdStyle}>{formatCurrency(row.advanceCard)}</td>
-                      <td style={tdStyleStrong}>{formatCurrency(row.advanceTotal)}</td>
-                      <td style={tdStyleStrongBlue}>{formatCurrency(row.grandTotal)}</td>
+                      <td style={{ ...tdStyle, fontWeight: 800 }}>{formatCurrency(row.advanceTotal)}</td>
+                      <td style={{ ...tdStyle, fontWeight: 800 }}>{formatCurrency(row.grandTotal)}</td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <section style={cardStyle}>
@@ -1864,588 +2139,107 @@ export default function SalesPage() {
               display: "flex",
               justifyContent: "space-between",
               alignItems: mobile ? "stretch" : "center",
-              gap: "12px",
-              flexWrap: "wrap",
               flexDirection: mobile ? "column" : "row",
+              gap: "12px",
+              marginBottom: "14px",
             }}
           >
-            <h2 style={sectionTitleStyle}>売上一覧</h2>
-
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="顧客名・日付・担当・予約IDで検索"
-              style={{
-                ...inputStyle,
-                width: mobile ? "100%" : "320px",
-                maxWidth: "100%",
-              }}
-            />
+            <h2 style={miniTitleStyle}>売上一覧</h2>
+            <div style={{ fontSize: "14px", color: "#6b7280" }}>
+              表示件数: {filteredSales.length.toLocaleString()}件
+            </div>
           </div>
 
-          {loading ? (
-            <div style={emptyBoxStyle}>読み込み中...</div>
-          ) : filteredSales.length === 0 ? (
-            <div style={emptyBoxStyle}>売上データがありません</div>
-          ) : (
-            <div style={{ display: "grid", gap: "12px", marginTop: "16px" }}>
-              {filteredSales.map((sale) => (
-                <div key={sale.id} style={saleCardStyle}>
-                  <div
-                    style={{
-                      ...saleCardTopStyle,
-                      flexDirection: mobile ? "column" : "row",
-                      alignItems: mobile ? "flex-start" : "flex-start",
-                    }}
-                  >
-                    <div style={{ minWidth: 0 }}>
-                      <div style={saleDateStyle}>{formatDateJP(sale.date)}</div>
-                      <div style={saleCustomerStyle}>{sale.customerName}</div>
-                    </div>
-
-                    <div
-                      style={{
-                        ...saleAmountStyle,
-                        alignSelf: mobile ? "flex-start" : "auto",
-                      }}
-                    >
-                      {formatCurrency(sale.amount)}
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      ...saleMetaGridStyle,
-                      display: "grid",
-                      gridTemplateColumns: mobile
-                        ? "1fr"
-                        : tablet
-                        ? "repeat(2, minmax(0, 1fr))"
-                        : "repeat(3, minmax(0, 1fr))",
-                      gap: "8px",
-                    }}
-                  >
-                    <div style={metaChipStyle}>区分: {sale.serviceType}</div>
-                    <div style={metaChipStyle}>タイプ: {sale.accountingType}</div>
-                    <div style={metaChipStyle}>支払: {sale.paymentMethod}</div>
-                    <div style={metaChipStyle}>担当: {sale.staff}</div>
-                    <div style={metaChipStyle}>店舗: {sale.storeName}</div>
-                    <div style={metaChipStyle}>
-                      予約ID: {sale.reservationId ? String(sale.reservationId) : "なし"}
-                    </div>
-                  </div>
-
-                  {sale.note ? <div style={noteBoxStyle}>{sale.note}</div> : null}
-
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "10px",
-                      flexWrap: "wrap",
-                      marginTop: "12px",
-                      flexDirection: mobile ? "column" : "row",
-                    }}
-                  >
-                    {sale.reservationId ? (
-                      <Link
-                        href={`/reservation/detail/${sale.reservationId}`}
-                        style={{
-                          ...subButtonStyle,
-                          width: mobile ? "100%" : "auto",
-                        }}
-                      >
-                        予約詳細へ
-                      </Link>
-                    ) : null}
-
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteSale(sale.id)}
-                      style={{
-                        ...dangerButtonStyle,
-                        width: mobile ? "100%" : "auto",
-                      }}
-                    >
-                      売上削除
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <div style={tableWrapStyle}>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>日付</th>
+                  <th style={thStyle}>顧客</th>
+                  <th style={thStyle}>メニュー</th>
+                  <th style={thStyle}>サービス</th>
+                  <th style={thStyle}>会計区分</th>
+                  <th style={thStyle}>支払方法</th>
+                  <th style={thStyle}>金額</th>
+                  <th style={thStyle}>担当</th>
+                  <th style={thStyle}>店舗</th>
+                  <th style={thStyle}>予約ID</th>
+                  <th style={thStyle}>メモ</th>
+                  <th style={thStyle}>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td style={tdStyle} colSpan={12}>
+                      読み込み中...
+                    </td>
+                  </tr>
+                ) : filteredSales.length === 0 ? (
+                  <tr>
+                    <td style={tdStyle} colSpan={12}>
+                      売上データがありません
+                    </td>
+                  </tr>
+                ) : (
+                  filteredSales.map((sale) => (
+                    <tr key={sale.id}>
+                      <td style={tdStyle}>{sale.date}</td>
+                      <td style={tdStyle}>{sale.customerName}</td>
+                      <td style={tdStyle}>{sale.menuName}</td>
+                      <td style={tdStyle}>
+                        <span
+                          style={pillStyle(
+                            sale.serviceType === "ストレッチ" ? "#fce7f3" : "#dbeafe",
+                            sale.serviceType === "ストレッチ" ? "#9d174d" : "#1d4ed8"
+                          )}
+                        >
+                          {sale.serviceType}
+                        </span>
+                      </td>
+                      <td style={tdStyle}>
+                        <span
+                          style={pillStyle(
+                            sale.accountingType === "通常売上"
+                              ? "#dcfce7"
+                              : sale.accountingType === "前受金"
+                              ? "#fef3c7"
+                              : "#ede9fe",
+                            sale.accountingType === "通常売上"
+                              ? "#166534"
+                              : sale.accountingType === "前受金"
+                              ? "#92400e"
+                              : "#6d28d9"
+                          )}
+                        >
+                          {sale.accountingType}
+                        </span>
+                      </td>
+                      <td style={tdStyle}>{sale.paymentMethod}</td>
+                      <td style={{ ...tdStyle, fontWeight: 800 }}>{formatCurrency(sale.amount)}</td>
+                      <td style={tdStyle}>{sale.staff}</td>
+                      <td style={tdStyle}>{sale.storeName}</td>
+                      <td style={tdStyle}>{sale.reservationId ?? "—"}</td>
+                      <td style={{ ...tdStyle, whiteSpace: "pre-wrap", minWidth: "260px" }}>
+                        {sale.note || "—"}
+                      </td>
+                      <td style={tdStyle}>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSale(sale.id)}
+                          style={dangerButtonStyle}
+                        >
+                          削除
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </section>
       </div>
     </div>
   );
 }
-
-const pageStyle: CSSProperties = {
-  minHeight: "100vh",
-  padding: "20px 12px 80px",
-  background: "linear-gradient(135deg, #f8fafc 0%, #eef2ff 45%, #f8fafc 100%)",
-};
-
-const wrapStyle: CSSProperties = {
-  maxWidth: "1400px",
-  margin: "0 auto",
-  display: "grid",
-  gap: "20px",
-};
-
-const heroCardStyle: CSSProperties = {
-  background: "rgba(255,255,255,0.92)",
-  border: "1px solid rgba(226,232,240,0.95)",
-  borderRadius: "24px",
-  padding: "20px",
-  boxShadow: "0 18px 45px rgba(15,23,42,0.06)",
-};
-
-const heroTopStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: "16px",
-  flexWrap: "wrap",
-};
-
-const heroEyebrowStyle: CSSProperties = {
-  fontSize: "12px",
-  letterSpacing: "0.14em",
-  color: "#64748b",
-  fontWeight: 900,
-  marginBottom: "6px",
-};
-
-const heroTitleStyle: CSSProperties = {
-  margin: 0,
-  fontSize: "32px",
-  lineHeight: 1.2,
-  color: "#111827",
-  fontWeight: 900,
-};
-
-const heroSubStyle: CSSProperties = {
-  marginTop: "8px",
-  color: "#64748b",
-  fontSize: "14px",
-  fontWeight: 700,
-};
-
-const heroActionWrapStyle: CSSProperties = {
-  display: "flex",
-  gap: "10px",
-  flexWrap: "wrap",
-};
-
-const cardStyle: CSSProperties = {
-  background: "rgba(255,255,255,0.96)",
-  border: "1px solid rgba(226,232,240,0.95)",
-  borderRadius: "24px",
-  padding: "20px",
-  boxShadow: "0 18px 45px rgba(15,23,42,0.05)",
-};
-
-const sectionTitleStyle: CSSProperties = {
-  margin: 0,
-  color: "#111827",
-  fontSize: "22px",
-  fontWeight: 900,
-};
-
-const miniTitleStyle: CSSProperties = {
-  margin: 0,
-  color: "#111827",
-  fontSize: "18px",
-  fontWeight: 900,
-};
-
-const summaryGridStyle: CSSProperties = {
-  display: "grid",
-  gap: "14px",
-};
-
-const summaryCardStyle: CSSProperties = {
-  background: "rgba(255,255,255,0.96)",
-  border: "1px solid rgba(226,232,240,0.95)",
-  borderRadius: "20px",
-  padding: "18px",
-  boxShadow: "0 10px 28px rgba(15,23,42,0.05)",
-};
-
-const summaryLabelStyle: CSSProperties = {
-  color: "#64748b",
-  fontSize: "13px",
-  fontWeight: 800,
-  marginBottom: "10px",
-};
-
-const summaryValueStyle: CSSProperties = {
-  color: "#111827",
-  fontSize: "28px",
-  lineHeight: 1.1,
-  fontWeight: 900,
-};
-
-const formGridStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: "14px",
-};
-
-const labelStyle: CSSProperties = {
-  display: "block",
-  marginBottom: "8px",
-  color: "#475569",
-  fontSize: "13px",
-  fontWeight: 800,
-};
-
-const inputStyle: CSSProperties = {
-  width: "100%",
-  minHeight: "46px",
-  borderRadius: "14px",
-  border: "1px solid #dbe1ea",
-  background: "#fff",
-  color: "#111827",
-  padding: "0 14px",
-  fontSize: "14px",
-  outline: "none",
-  boxSizing: "border-box",
-};
-
-const textareaStyle: CSSProperties = {
-  ...inputStyle,
-  minHeight: "110px",
-  padding: "12px 14px",
-  resize: "vertical",
-};
-
-const readonlyBoxStyle: CSSProperties = {
-  minHeight: "46px",
-  display: "flex",
-  alignItems: "center",
-  borderRadius: "14px",
-  border: "1px solid #e2e8f0",
-  background: "#f8fafc",
-  color: "#334155",
-  padding: "0 14px",
-  fontSize: "13px",
-  fontWeight: 700,
-};
-
-const paymentRowCardStyle: CSSProperties = {
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  borderRadius: "16px",
-  padding: "14px",
-  display: "grid",
-  gap: "12px",
-};
-
-const paymentTitleStyle: CSSProperties = {
-  color: "#111827",
-  fontSize: "15px",
-  fontWeight: 900,
-};
-
-const summaryBoxStyle: CSSProperties = {
-  marginTop: "16px",
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  borderRadius: "16px",
-  padding: "14px",
-  display: "grid",
-  gap: "10px",
-};
-
-const summaryRowStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: "12px",
-  color: "#334155",
-  fontSize: "14px",
-  fontWeight: 700,
-};
-
-const warnBoxStyle: CSSProperties = {
-  marginTop: "14px",
-  borderRadius: "16px",
-  padding: "14px 16px",
-  background: "rgba(254,249,195,0.9)",
-  border: "1px solid rgba(250,204,21,0.35)",
-  color: "#854d0e",
-  fontSize: "14px",
-  lineHeight: 1.7,
-  fontWeight: 800,
-};
-
-const statusRowStyle: CSSProperties = {
-  display: "flex",
-  gap: "10px",
-  flexWrap: "wrap",
-};
-
-const statusChipStyle: CSSProperties = {
-  minHeight: "34px",
-  display: "inline-flex",
-  alignItems: "center",
-  borderRadius: "999px",
-  padding: "0 12px",
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  color: "#334155",
-  fontSize: "12px",
-  fontWeight: 800,
-};
-
-const mainButtonStyle: CSSProperties = {
-  minHeight: "46px",
-  borderRadius: "14px",
-  padding: "0 18px",
-  border: "none",
-  background: "linear-gradient(135deg, #111827 0%, #374151 100%)",
-  color: "#fff",
-  fontSize: "14px",
-  fontWeight: 900,
-  cursor: "pointer",
-};
-
-const mainButtonLinkStyle: CSSProperties = {
-  ...mainButtonStyle,
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  textDecoration: "none",
-};
-
-const subButtonStyle: CSSProperties = {
-  minHeight: "44px",
-  borderRadius: "14px",
-  padding: "0 16px",
-  border: "1px solid #dbe1ea",
-  background: "#fff",
-  color: "#334155",
-  fontSize: "14px",
-  fontWeight: 800,
-  cursor: "pointer",
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  textDecoration: "none",
-};
-
-const subButtonPlainStyle: CSSProperties = {
-  ...subButtonStyle,
-  border: "1px solid #cbd5e1",
-  background: "#f8fafc",
-};
-
-const subButtonAsButtonStyle: CSSProperties = {
-  ...subButtonStyle,
-  appearance: "none",
-};
-
-const dangerButtonStyle: CSSProperties = {
-  minHeight: "42px",
-  borderRadius: "12px",
-  padding: "0 14px",
-  border: "1px solid rgba(248,113,113,0.28)",
-  background: "rgba(254,226,226,0.92)",
-  color: "#b91c1c",
-  fontSize: "13px",
-  fontWeight: 900,
-  cursor: "pointer",
-};
-
-const emptyBoxStyle: CSSProperties = {
-  marginTop: "14px",
-  minHeight: "100px",
-  borderRadius: "18px",
-  border: "1px dashed #cbd5e1",
-  background: "#f8fafc",
-  color: "#64748b",
-  fontSize: "14px",
-  fontWeight: 700,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  textAlign: "center",
-  padding: "20px",
-};
-
-const emptyInnerStyle: CSSProperties = {
-  minHeight: "44px",
-  borderRadius: "12px",
-  border: "1px dashed #dbe1ea",
-  background: "#f8fafc",
-  color: "#64748b",
-  fontSize: "13px",
-  fontWeight: 700,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-};
-
-const listRowStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: "12px",
-  padding: "12px 14px",
-  borderRadius: "14px",
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  color: "#334155",
-  fontSize: "14px",
-  fontWeight: 700,
-};
-
-const tableWrapStyle: CSSProperties = {
-  width: "100%",
-  overflowX: "auto",
-  WebkitOverflowScrolling: "touch",
-  borderRadius: "18px",
-  border: "1px solid #e2e8f0",
-  background: "#fff",
-};
-
-const tableStyle: CSSProperties = {
-  width: "100%",
-  minWidth: "1100px",
-  borderCollapse: "separate",
-  borderSpacing: 0,
-};
-
-const thStyle: CSSProperties = {
-  position: "sticky",
-  top: 0,
-  background: "#f8fafc",
-  color: "#475569",
-  fontSize: "12px",
-  fontWeight: 900,
-  textAlign: "center",
-  padding: "12px 10px",
-  borderBottom: "1px solid #e2e8f0",
-  whiteSpace: "nowrap",
-};
-
-const tdStyle: CSSProperties = {
-  textAlign: "center",
-  padding: "12px 10px",
-  borderBottom: "1px solid #eef2f7",
-  color: "#334155",
-  fontSize: "13px",
-  fontWeight: 700,
-  whiteSpace: "nowrap",
-};
-
-const tdStyleStrong: CSSProperties = {
-  ...tdStyle,
-  color: "#111827",
-  fontWeight: 900,
-};
-
-const tdStyleStrongBlue: CSSProperties = {
-  ...tdStyle,
-  color: "#1d4ed8",
-  fontWeight: 900,
-};
-
-const dailyCardStyle: CSSProperties = {
-  background: "#fff",
-  border: "1px solid #e2e8f0",
-  borderRadius: "18px",
-  padding: "14px",
-};
-
-const dailyCardDateStyle: CSSProperties = {
-  fontSize: "16px",
-  fontWeight: 900,
-  color: "#111827",
-  marginBottom: "12px",
-};
-
-const dailyCardGridStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "1fr 1fr",
-  gap: "8px",
-};
-
-const dailyItemStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "8px",
-  padding: "10px 12px",
-  borderRadius: "12px",
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  fontSize: "12px",
-  color: "#334155",
-  fontWeight: 700,
-};
-
-const saleCardStyle: CSSProperties = {
-  borderRadius: "18px",
-  border: "1px solid #e2e8f0",
-  background: "#fff",
-  padding: "16px",
-  boxShadow: "0 8px 24px rgba(15,23,42,0.04)",
-};
-
-const saleCardTopStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: "12px",
-  marginBottom: "12px",
-};
-
-const saleDateStyle: CSSProperties = {
-  color: "#64748b",
-  fontSize: "12px",
-  fontWeight: 800,
-  marginBottom: "4px",
-};
-
-const saleCustomerStyle: CSSProperties = {
-  color: "#111827",
-  fontSize: "18px",
-  fontWeight: 900,
-  lineHeight: 1.25,
-  wordBreak: "break-word",
-};
-
-const saleAmountStyle: CSSProperties = {
-  color: "#111827",
-  fontSize: "22px",
-  fontWeight: 900,
-  whiteSpace: "nowrap",
-};
-
-const saleMetaGridStyle: CSSProperties = {
-  marginTop: "4px",
-};
-
-const metaChipStyle: CSSProperties = {
-  minHeight: "38px",
-  display: "flex",
-  alignItems: "center",
-  borderRadius: "12px",
-  background: "#f8fafc",
-  border: "1px solid #e2e8f0",
-  color: "#334155",
-  padding: "0 12px",
-  fontSize: "13px",
-  fontWeight: 700,
-};
-
-const noteBoxStyle: CSSProperties = {
-  marginTop: "12px",
-  borderRadius: "14px",
-  border: "1px solid #e2e8f0",
-  background: "#f8fafc",
-  padding: "12px 14px",
-  color: "#334155",
-  fontSize: "13px",
-  lineHeight: 1.7,
-  whiteSpace: "pre-wrap",
-  wordBreak: "break-word",
-};
