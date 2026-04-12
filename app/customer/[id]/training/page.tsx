@@ -70,43 +70,73 @@ type BodyAreaPoint = {
   side: "front" | "back";
 };
 
-const TIGHT_AREA_PREFIX = "__TIGHT_AREAS__:";
+type TightAreaLevelMap = Record<string, 1 | 2 | 3>;
+
+const TIGHT_AREA_PREFIX = "__TIGHT_AREAS_V2__:";
 
 const FRONT_BODY_AREAS: BodyAreaPoint[] = [
-  { id: "front_neck", label: "首前", top: "10%", left: "50%", side: "front" },
-  { id: "front_right_shoulder", label: "右肩前", top: "18%", left: "32%", side: "front" },
-  { id: "front_left_shoulder", label: "左肩前", top: "18%", left: "68%", side: "front" },
-  { id: "front_chest", label: "胸", top: "24%", left: "50%", side: "front" },
-  { id: "front_right_arm", label: "右腕前", top: "31%", left: "22%", side: "front" },
-  { id: "front_left_arm", label: "左腕前", top: "31%", left: "78%", side: "front" },
-  { id: "front_upper_abs", label: "みぞおち", top: "36%", left: "50%", side: "front" },
-  { id: "front_waist", label: "お腹", top: "45%", left: "50%", side: "front" },
-  { id: "front_right_hip", label: "右股関節前", top: "58%", left: "40%", side: "front" },
-  { id: "front_left_hip", label: "左股関節前", top: "58%", left: "60%", side: "front" },
-  { id: "front_right_thigh", label: "右もも前", top: "70%", left: "42%", side: "front" },
-  { id: "front_left_thigh", label: "左もも前", top: "70%", left: "58%", side: "front" },
-  { id: "front_right_knee", label: "右ひざ前", top: "81%", left: "43%", side: "front" },
-  { id: "front_left_knee", label: "左ひざ前", top: "81%", left: "57%", side: "front" },
-  { id: "front_right_shin", label: "右すね", top: "90%", left: "43%", side: "front" },
-  { id: "front_left_shin", label: "左すね", top: "90%", left: "57%", side: "front" },
+  { id: "front_neck", label: "首前", top: "8%", left: "50%", side: "front" },
+
+  { id: "front_right_shoulder", label: "右肩前", top: "16%", left: "34%", side: "front" },
+  { id: "front_left_shoulder", label: "左肩前", top: "16%", left: "66%", side: "front" },
+
+  { id: "front_chest", label: "胸", top: "22%", left: "50%", side: "front" },
+
+  { id: "front_right_arm", label: "右上腕", top: "28%", left: "22%", side: "front" },
+  { id: "front_left_arm", label: "左上腕", top: "28%", left: "78%", side: "front" },
+
+  { id: "front_elbow_r", label: "右ひじ", top: "38%", left: "20%", side: "front" },
+  { id: "front_elbow_l", label: "左ひじ", top: "38%", left: "80%", side: "front" },
+
+  { id: "front_forearm_r", label: "右前腕", top: "46%", left: "18%", side: "front" },
+  { id: "front_forearm_l", label: "左前腕", top: "46%", left: "82%", side: "front" },
+
+  { id: "front_upper_abs", label: "みぞおち", top: "34%", left: "50%", side: "front" },
+  { id: "front_waist", label: "腹部", top: "44%", left: "50%", side: "front" },
+
+  { id: "front_hip_r", label: "右股関節", top: "58%", left: "42%", side: "front" },
+  { id: "front_hip_l", label: "左股関節", top: "58%", left: "58%", side: "front" },
+
+  { id: "front_thigh_r", label: "右もも", top: "70%", left: "43%", side: "front" },
+  { id: "front_thigh_l", label: "左もも", top: "70%", left: "57%", side: "front" },
+
+  { id: "front_knee_r", label: "右ひざ", top: "82%", left: "44%", side: "front" },
+  { id: "front_knee_l", label: "左ひざ", top: "82%", left: "56%", side: "front" },
+
+  { id: "front_shin_r", label: "右すね", top: "92%", left: "44%", side: "front" },
+  { id: "front_shin_l", label: "左すね", top: "92%", left: "56%", side: "front" },
 ];
 
 const BACK_BODY_AREAS: BodyAreaPoint[] = [
-  { id: "back_neck", label: "首後", top: "10%", left: "50%", side: "back" },
-  { id: "back_right_shoulder", label: "右肩後", top: "18%", left: "32%", side: "back" },
-  { id: "back_left_shoulder", label: "左肩後", top: "18%", left: "68%", side: "back" },
-  { id: "back_upper_back", label: "背中上", top: "27%", left: "50%", side: "back" },
-  { id: "back_right_arm", label: "右腕後", top: "31%", left: "22%", side: "back" },
-  { id: "back_left_arm", label: "左腕後", top: "31%", left: "78%", side: "back" },
-  { id: "back_mid_back", label: "背中中", top: "40%", left: "50%", side: "back" },
-  { id: "back_lower_back", label: "腰", top: "50%", left: "50%", side: "back" },
-  { id: "back_hip", label: "臀部", top: "60%", left: "50%", side: "back" },
-  { id: "back_right_ham", label: "右もも裏", top: "72%", left: "42%", side: "back" },
-  { id: "back_left_ham", label: "左もも裏", top: "72%", left: "58%", side: "back" },
-  { id: "back_right_knee", label: "右ひざ裏", top: "81%", left: "43%", side: "back" },
-  { id: "back_left_knee", label: "左ひざ裏", top: "81%", left: "57%", side: "back" },
-  { id: "back_right_calf", label: "右ふくらはぎ", top: "90%", left: "43%", side: "back" },
-  { id: "back_left_calf", label: "左ふくらはぎ", top: "90%", left: "57%", side: "back" },
+  { id: "back_neck", label: "首後", top: "8%", left: "50%", side: "back" },
+
+  { id: "back_right_shoulder", label: "右肩後", top: "16%", left: "34%", side: "back" },
+  { id: "back_left_shoulder", label: "左肩後", top: "16%", left: "66%", side: "back" },
+
+  { id: "back_upper_back", label: "肩甲骨", top: "26%", left: "50%", side: "back" },
+
+  { id: "back_arm_r", label: "右上腕", top: "30%", left: "22%", side: "back" },
+  { id: "back_arm_l", label: "左上腕", top: "30%", left: "78%", side: "back" },
+
+  { id: "back_elbow_r", label: "右ひじ", top: "40%", left: "20%", side: "back" },
+  { id: "back_elbow_l", label: "左ひじ", top: "40%", left: "80%", side: "back" },
+
+  { id: "back_forearm_r", label: "右前腕", top: "48%", left: "18%", side: "back" },
+  { id: "back_forearm_l", label: "左前腕", top: "48%", left: "82%", side: "back" },
+
+  { id: "back_mid_back", label: "背中中部", top: "38%", left: "50%", side: "back" },
+  { id: "back_lower_back", label: "腰", top: "48%", left: "50%", side: "back" },
+
+  { id: "back_glutes", label: "臀部", top: "60%", left: "50%", side: "back" },
+
+  { id: "back_ham_r", label: "右もも裏", top: "72%", left: "43%", side: "back" },
+  { id: "back_ham_l", label: "左もも裏", top: "72%", left: "57%", side: "back" },
+
+  { id: "back_knee_r", label: "右ひざ裏", top: "84%", left: "44%", side: "back" },
+  { id: "back_knee_l", label: "左ひざ裏", top: "84%", left: "56%", side: "back" },
+
+  { id: "back_calf_r", label: "右ふくらはぎ", top: "94%", left: "44%", side: "back" },
+  { id: "back_calf_l", label: "左ふくらはぎ", top: "94%", left: "56%", side: "back" },
 ];
 
 const CATEGORY_OPTIONS = [
@@ -288,7 +318,7 @@ function parseStoredTightAreas(rawPostureNote?: string | null) {
   const raw = rawPostureNote || "";
   if (!raw.startsWith(TIGHT_AREA_PREFIX)) {
     return {
-      tightAreas: [] as string[],
+      tightAreaLevels: {} as TightAreaLevelMap,
       postureNote: raw,
     };
   }
@@ -300,21 +330,38 @@ function parseStoredTightAreas(rawPostureNote?: string | null) {
 
   try {
     const parsed = JSON.parse(body);
+    const mapped: TightAreaLevelMap = {};
+
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      Object.entries(parsed).forEach(([key, value]) => {
+        const num = Number(value);
+        if (num === 1 || num === 2 || num === 3) {
+          mapped[key] = num as 1 | 2 | 3;
+        }
+      });
+    }
+
     return {
-      tightAreas: Array.isArray(parsed) ? parsed.map(String) : [],
+      tightAreaLevels: mapped,
       postureNote: note,
     };
   } catch {
     return {
-      tightAreas: [],
+      tightAreaLevels: {},
       postureNote: note || raw,
     };
   }
 }
 
-function buildStoredPostureNote(note: string, tightAreas: string[]) {
-  const cleanAreas = Array.from(new Set(tightAreas.filter(Boolean)));
-  const head = `${TIGHT_AREA_PREFIX}${JSON.stringify(cleanAreas)}`;
+function buildStoredPostureNote(note: string, tightAreaLevels: TightAreaLevelMap) {
+  const cleanMap: TightAreaLevelMap = {};
+  Object.entries(tightAreaLevels).forEach(([key, value]) => {
+    if (value === 1 || value === 2 || value === 3) {
+      cleanMap[key] = value;
+    }
+  });
+
+  const head = `${TIGHT_AREA_PREFIX}${JSON.stringify(cleanMap)}`;
   const body = note.trim();
   return body ? `${head}\n${body}` : head;
 }
@@ -367,7 +414,7 @@ function sessionToForm(session: TrainingSession) {
     summary: session.summary || "",
     nextTask: session.next_task || "",
     postureNote: parsedPosture.postureNote || "",
-    tightAreas: parsedPosture.tightAreas,
+    tightAreaLevels: parsedPosture.tightAreaLevels,
     stretchMenu: safeArray(session.stretch_menu).join("\n"),
     postureImageUrls: safeArray(session.posture_image_urls),
     setRows: rows.length > 0 ? rows : [makeRow()],
@@ -398,6 +445,32 @@ function extractErrorMessage(error: unknown): string {
   }
 
   return "不明なエラーです。";
+}
+
+function getLevelLabel(level?: number) {
+  if (level === 1) return "弱";
+  if (level === 2) return "中";
+  if (level === 3) return "強";
+  return "—";
+}
+
+function getHeatColor(level?: number) {
+  if (level === 1) return "rgba(250, 204, 21, 0.95)";
+  if (level === 2) return "rgba(251, 146, 60, 0.95)";
+  if (level === 3) return "rgba(239, 68, 68, 0.96)";
+  return "rgba(255,255,255,0.96)";
+}
+
+function getHeatShadow(level?: number) {
+  if (level === 1) return "0 0 0 6px rgba(250, 204, 21, 0.16)";
+  if (level === 2) return "0 0 0 8px rgba(251, 146, 60, 0.18)";
+  if (level === 3) return "0 0 0 10px rgba(239, 68, 68, 0.22)";
+  return "0 6px 18px rgba(15,23,42,0.08)";
+}
+
+function getHeatTextColor(level?: number) {
+  if (level === 1 || level === 2 || level === 3) return "#fff";
+  return "#334155";
 }
 
 export default function TrainingPage() {
@@ -431,7 +504,7 @@ export default function TrainingPage() {
   const [summary, setSummary] = useState("");
   const [nextTask, setNextTask] = useState("");
   const [postureNote, setPostureNote] = useState("");
-  const [tightAreas, setTightAreas] = useState<string[]>([]);
+  const [tightAreaLevels, setTightAreaLevels] = useState<TightAreaLevelMap>({});
   const [bodySide, setBodySide] = useState<"front" | "back">("front");
 
   const [stretchMenu, setStretchMenu] = useState("");
@@ -598,7 +671,7 @@ export default function TrainingPage() {
     setSummary("");
     setNextTask("");
     setPostureNote("");
-    setTightAreas([]);
+    setTightAreaLevels({});
     setBodySide("front");
     setStretchMenu("");
     setPostureImageUrls([]);
@@ -619,7 +692,7 @@ export default function TrainingPage() {
     setSummary(form.summary);
     setNextTask(form.nextTask);
     setPostureNote(form.postureNote);
-    setTightAreas(form.tightAreas);
+    setTightAreaLevels(form.tightAreaLevels);
     setStretchMenu(form.stretchMenu);
     setPostureImageUrls(form.postureImageUrls);
     setSetRows(form.setRows);
@@ -628,12 +701,27 @@ export default function TrainingPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function toggleTightArea(areaId: string) {
-    setTightAreas((prev) =>
-      prev.includes(areaId)
-        ? prev.filter((item) => item !== areaId)
-        : [...prev, areaId]
-    );
+  function cycleTightAreaLevel(areaId: string) {
+    setTightAreaLevels((prev) => {
+      const current = prev[areaId];
+      const next: TightAreaLevelMap = { ...prev };
+
+      if (!current) {
+        next[areaId] = 1;
+      } else if (current === 1) {
+        next[areaId] = 2;
+      } else if (current === 2) {
+        next[areaId] = 3;
+      } else {
+        delete next[areaId];
+      }
+
+      return next;
+    });
+  }
+
+  function clearAllTightAreas() {
+    setTightAreaLevels({});
   }
 
   function updateRow(rowId: string, key: keyof TrainingSetRow, value: string) {
@@ -772,7 +860,7 @@ export default function TrainingPage() {
         visceral_fat: toNumberOrNull(visceralFat),
         summary: trimmed(summary) || null,
         next_task: trimmed(nextTask) || null,
-        posture_note: buildStoredPostureNote(postureNote, tightAreas),
+        posture_note: buildStoredPostureNote(postureNote, tightAreaLevels),
         stretch_menu: stretchMenuArray,
         posture_image_urls: postureImageUrls,
       };
@@ -881,6 +969,20 @@ export default function TrainingPage() {
   const exerciseCount = useMemo(() => {
     return setRows.filter((row) => trimmed(row.exercise_name)).length;
   }, [setRows]);
+
+  const selectedAreas = useMemo(() => {
+    const allAreas = [...FRONT_BODY_AREAS, ...BACK_BODY_AREAS];
+    return Object.entries(tightAreaLevels)
+      .filter(([, level]) => level === 1 || level === 2 || level === 3)
+      .map(([areaId, level]) => {
+        const found = allAreas.find((item) => item.id === areaId);
+        return {
+          id: areaId,
+          label: found?.label || areaId,
+          level,
+        };
+      });
+  }, [tightAreaLevels]);
 
   if (!mounted) return null;
 
@@ -1104,7 +1206,22 @@ export default function TrainingPage() {
                 >
                   背面
                 </button>
+                <button
+                  type="button"
+                  onClick={clearAllTightAreas}
+                  style={clearButtonStyle}
+                >
+                  クリア
+                </button>
               </div>
+            </div>
+
+            <div style={legendWrapStyle}>
+              <span style={legendTextStyle}>タップごとに</span>
+              <span style={{ ...legendChipStyle, background: "rgba(250, 204, 21, 0.95)" }}>弱</span>
+              <span style={{ ...legendChipStyle, background: "rgba(251, 146, 60, 0.95)" }}>中</span>
+              <span style={{ ...legendChipStyle, background: "rgba(239, 68, 68, 0.96)" }}>強</span>
+              <span style={legendTextStyle}>→ 未選択</span>
             </div>
 
             <div style={bodyMapWrapStyle}>
@@ -1119,49 +1236,55 @@ export default function TrainingPage() {
                 </div>
 
                 {currentBodyAreas.map((point) => {
-                  const active = tightAreas.includes(point.id);
+                  const level = tightAreaLevels[point.id];
 
                   return (
                     <button
                       key={point.id}
                       type="button"
-                      onClick={() => toggleTightArea(point.id)}
+                      onClick={() => cycleTightAreaLevel(point.id)}
                       style={{
                         ...bodyPointButtonStyle,
                         top: point.top,
                         left: point.left,
-                        ...(active ? bodyPointButtonActiveStyle : {}),
+                        background: getHeatColor(level),
+                        color: getHeatTextColor(level),
+                        boxShadow: getHeatShadow(level),
+                        border:
+                          level && level > 0
+                            ? "1px solid rgba(255,255,255,0.18)"
+                            : "1px solid rgba(148,163,184,0.20)",
                       }}
                     >
                       {point.label}
+                      {level ? ` ${level}` : ""}
                     </button>
                   );
                 })}
               </div>
 
               <div style={bodyMapHelpStyle}>
-                模型の気になる場所をタップして選択してください。
+                模型の部位をタップすると「未選択 → 弱 → 中 → 強 → 未選択」で切り替わります。
               </div>
 
               <div style={chipWrapStyle}>
-                {tightAreas.length === 0 ? (
+                {selectedAreas.length === 0 ? (
                   <span style={emptyChipStyle}>未選択</span>
                 ) : (
-                  tightAreas.map((areaId) => {
-                    const allAreas = [...FRONT_BODY_AREAS, ...BACK_BODY_AREAS];
-                    const found = allAreas.find((item) => item.id === areaId);
-
-                    return (
-                      <button
-                        key={areaId}
-                        type="button"
-                        onClick={() => toggleTightArea(areaId)}
-                        style={selectedChipButtonStyle}
-                      >
-                        {found?.label || areaId} ×
-                      </button>
-                    );
-                  })
+                  selectedAreas.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => cycleTightAreaLevel(item.id)}
+                      style={{
+                        ...selectedChipButtonStyle,
+                        background: getHeatColor(item.level),
+                        color: getHeatTextColor(item.level),
+                      }}
+                    >
+                      {item.label}（{getLevelLabel(item.level)}） ×
+                    </button>
+                  ))
                 )}
               </div>
             </div>
@@ -1611,17 +1734,24 @@ export default function TrainingPage() {
                         />
                       </div>
 
-                      {parsedPosture.tightAreas.length > 0 && (
+                      {Object.keys(parsedPosture.tightAreaLevels).length > 0 && (
                         <div style={{ marginTop: 14 }}>
                           <div style={subSectionTitleStyle}>硬いところ・つらいところ</div>
                           <div style={chipWrapStyle}>
-                            {parsedPosture.tightAreas.map((areaId) => {
+                            {Object.entries(parsedPosture.tightAreaLevels).map(([areaId, level]) => {
                               const allAreas = [...FRONT_BODY_AREAS, ...BACK_BODY_AREAS];
                               const found = allAreas.find((item2) => item2.id === areaId);
 
                               return (
-                                <span key={areaId} style={chipStyle}>
-                                  {found?.label || areaId}
+                                <span
+                                  key={areaId}
+                                  style={{
+                                    ...chipStyle,
+                                    background: getHeatColor(level),
+                                    color: getHeatTextColor(level),
+                                  }}
+                                >
+                                  {found?.label || areaId}（{getLevelLabel(level)}）
                                 </span>
                               );
                             })}
@@ -1856,6 +1986,17 @@ const dangerButtonMiniStyle: CSSProperties = {
   background: "rgba(254,242,242,0.9)",
 };
 
+const clearButtonStyle: CSSProperties = {
+  minHeight: 36,
+  padding: "0 14px",
+  borderRadius: 12,
+  border: "1px solid rgba(239,68,68,0.22)",
+  background: "rgba(254,242,242,0.96)",
+  color: "#b91c1c",
+  cursor: "pointer",
+  fontWeight: 700,
+};
+
 const alertErrorStyle: CSSProperties = {
   borderRadius: 16,
   padding: "14px 16px",
@@ -1902,6 +2043,31 @@ const addRowButtonTopStyle: CSSProperties = {
 const addRowButtonBottomStyle: CSSProperties = {
   ...addRowButtonTopStyle,
   minHeight: 42,
+};
+
+const legendWrapStyle: CSSProperties = {
+  display: "flex",
+  gap: 8,
+  flexWrap: "wrap",
+  alignItems: "center",
+  marginBottom: 12,
+};
+
+const legendChipStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 26,
+  padding: "0 10px",
+  borderRadius: 999,
+  color: "#fff",
+  fontSize: 12,
+  fontWeight: 800,
+};
+
+const legendTextStyle: CSSProperties = {
+  fontSize: 12,
+  color: "#64748b",
+  fontWeight: 700,
 };
 
 const bodyMapWrapStyle: CSSProperties = {
@@ -2010,19 +2176,9 @@ const bodyPointButtonStyle: CSSProperties = {
   minHeight: 34,
   padding: "0 10px",
   borderRadius: 999,
-  border: "1px solid rgba(148,163,184,0.20)",
-  background: "rgba(255,255,255,0.96)",
-  color: "#334155",
   fontSize: 12,
   fontWeight: 700,
   cursor: "pointer",
-  boxShadow: "0 6px 18px rgba(15,23,42,0.08)",
-};
-
-const bodyPointButtonActiveStyle: CSSProperties = {
-  background: "rgba(239,68,68,0.12)",
-  color: "#b91c1c",
-  border: "1px solid rgba(239,68,68,0.26)",
 };
 
 const bodyMapHelpStyle: CSSProperties = {
@@ -2066,9 +2222,7 @@ const selectedChipButtonStyle: CSSProperties = {
   minHeight: 32,
   padding: "0 10px",
   borderRadius: 999,
-  border: "1px solid rgba(239,68,68,0.22)",
-  background: "rgba(254,242,242,0.96)",
-  color: "#b91c1c",
+  border: "1px solid rgba(255,255,255,0.18)",
   fontSize: 12,
   fontWeight: 700,
   cursor: "pointer",
