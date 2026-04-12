@@ -22,9 +22,18 @@ type AttendanceRow = {
 };
 
 type StaffMasterRow = {
+  id?: number;
   staff_id: string;
   staff_name: string;
+  is_active?: boolean | null;
 };
+
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+  if (!url || !key) return null;
+  return createClient(url, key);
+}
 
 function getJstNow() {
   return new Date();
@@ -40,24 +49,46 @@ function formatJstDate(date: Date) {
   return formatter.format(date);
 }
 
-function formatTime(dateString?: string | null) {
-  if (!dateString) return "--:--";
-  const date = new Date(dateString);
-  if (Number.isNaN(date.getTime())) return "--:--";
-
-  return new Intl.DateTimeFormat("ja-JP", {
-    timeZone: "Asia/Tokyo",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(date);
+function getCurrentMonthValue() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function formatDateTime(dateString?: string | null) {
-  if (!dateString) return "-";
-  const date = new Date(dateString);
-  if (Number.isNaN(date.getTime())) return "-";
+function getMonthRange(month: string) {
+  const [yearStr, monthStr] = month.split("-");
+  const year = Number(yearStr);
+  const monthIndex = Number(monthStr) - 1;
 
+  const start = new Date(year, monthIndex, 1);
+  const end = new Date(year, monthIndex + 1, 0);
+
+  const startText = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(
+    start.getDate()
+  ).padStart(2, "0")}`;
+
+  const endText = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(
+    end.getDate()
+  ).padStart(2, "0")}`;
+
+  return { startText, endText };
+}
+
+function formatDateJP(value?: string | null) {
+  if (!value) return "—";
+  const d = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return value;
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "short",
+  }).format(d);
+}
+
+function formatDateTimeJP(value?: string | null) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
   return new Intl.DateTimeFormat("ja-JP", {
     timeZone: "Asia/Tokyo",
     year: "numeric",
@@ -66,11 +97,23 @@ function formatDateTime(dateString?: string | null) {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-  }).format(date);
+  }).format(d);
+}
+
+function formatTimeJP(value?: string | null) {
+  if (!value) return "--:--";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "--:--";
+  return new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
 }
 
 function minutesToText(minutes: number) {
-  const safe = Math.max(0, Math.floor(minutes));
+  const safe = Math.max(0, Math.floor(minutes || 0));
   const h = Math.floor(safe / 60);
   const m = safe % 60;
   return `${h}時間${m}分`;
@@ -154,67 +197,30 @@ function makeStaffIdFromName(name: string) {
   return `staff_${name.trim().replace(/\s+/g, "_")}`;
 }
 
-function humanizeSupabaseError(message: string) {
-  const lower = message.toLowerCase();
-
-  if (lower.includes("schema cache") && lower.includes("staff_master")) {
-    return "staff_master テーブルが未作成です。SupabaseのSQLを先に実行してください。";
-  }
-
-  if (lower.includes("schema cache") && lower.includes("staff_attendance")) {
-    return "staff_attendance テーブルが未作成です。SupabaseのSQLを先に実行してください。";
-  }
-
-  if (lower.includes("late_night_minutes")) {
-    return "staff_attendance テーブルに late_night_minutes 列がありません。";
-  }
-
-  if (lower.includes("regular_minutes")) {
-    return "staff_attendance テーブルに regular_minutes 列がありません。";
-  }
-
-  if (lower.includes("overtime_minutes")) {
-    return "staff_attendance テーブルに overtime_minutes 列がありません。";
-  }
-
-  if (lower.includes("total_work_minutes")) {
-    return "staff_attendance テーブルに total_work_minutes 列がありません。";
-  }
-
-  if (lower.includes("break_minutes")) {
-    return "staff_attendance テーブルに break_minutes 列がありません。";
-  }
-
-  if (lower.includes("updated_at")) {
-    return "staff_attendance テーブルに updated_at 列がありません。";
-  }
-
-  if (lower.includes("note")) {
-    return "staff_attendance テーブルに note 列がありません。";
-  }
-
-  return message;
+function monthLabel(month: string) {
+  if (!month) return "—";
+  const [y, m] = month.split("-");
+  return `${y}年${Number(m)}月`;
 }
 
 export default function AttendanceStaffPage() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-
-  const supabase = useMemo(() => {
-    if (!supabaseUrl || !supabaseAnonKey) return null;
-    return createClient(supabaseUrl, supabaseAnonKey);
-  }, [supabaseUrl, supabaseAnonKey]);
+  const supabase = useMemo(() => getSupabaseClient(), []);
 
   const [mounted, setMounted] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(1400);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [pageError, setPageError] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
   const [staffId, setStaffId] = useState("");
   const [staffName, setStaffName] = useState("");
   const [inputStaffName, setInputStaffName] = useState("");
 
   const [todayRow, setTodayRow] = useState<AttendanceRow | null>(null);
+  const [monthRows, setMonthRows] = useState<AttendanceRow[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthValue());
+
   const [breakMinutes, setBreakMinutes] = useState(60);
   const [note, setNote] = useState("");
   const [liveNow, setLiveNow] = useState(Date.now());
@@ -223,6 +229,28 @@ export default function AttendanceStaffPage() {
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const onResize = () => setWindowWidth(window.innerWidth);
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+
+    const loggedIn =
+      localStorage.getItem("gymup_logged_in") ||
+      localStorage.getItem("isLoggedIn");
+
+    if (loggedIn !== "true") {
+      window.location.href = "/login";
+      return;
+    }
 
     const savedStaffId = localStorage.getItem("gymup_current_staff_id") || "";
     const savedStaffName = localStorage.getItem("gymup_current_staff_name") || "";
@@ -233,10 +261,10 @@ export default function AttendanceStaffPage() {
       setInputStaffName(savedStaffName);
     } else if (savedStaffName) {
       const generated = makeStaffIdFromName(savedStaffName);
+      localStorage.setItem("gymup_current_staff_id", generated);
       setStaffId(generated);
       setStaffName(savedStaffName);
       setInputStaffName(savedStaffName);
-      localStorage.setItem("gymup_current_staff_id", generated);
     }
 
     const timer = window.setInterval(() => {
@@ -244,31 +272,47 @@ export default function AttendanceStaffPage() {
     }, 1000 * 30);
 
     return () => window.clearInterval(timer);
-  }, []);
+  }, [mounted]);
+
+  useEffect(() => {
+    if (!mounted) return;
+    if (!staffId) {
+      setLoading(false);
+      return;
+    }
+    void init();
+  }, [mounted, staffId, selectedMonth]);
+
+  const mobile = windowWidth < 768;
+  const tablet = windowWidth < 1100;
 
   async function ensureStaffMaster(clientStaffId: string, clientStaffName: string) {
     if (!supabase) return;
 
     const { data, error } = await supabase
       .from("staff_master")
-      .select("staff_id, staff_name")
+      .select("staff_id, staff_name, is_active")
       .eq("staff_id", clientStaffId)
       .maybeSingle();
 
     if (error) {
-      throw new Error(humanizeSupabaseError(error.message));
+      if (error.message.includes("schema cache")) {
+        throw new Error("staff_master テーブルが未作成です。SupabaseのSQLを先に実行してください。");
+      }
+      throw new Error(error.message);
     }
 
-    const exists = (data as StaffMasterRow | null) || null;
+    const existing = (data as StaffMasterRow | null) || null;
 
-    if (!exists) {
+    if (!existing) {
       const { error: insertError } = await supabase.from("staff_master").insert({
         staff_id: clientStaffId,
         staff_name: clientStaffName,
+        is_active: true,
       });
 
       if (insertError) {
-        throw new Error(humanizeSupabaseError(insertError.message));
+        throw new Error(insertError.message);
       }
     }
   }
@@ -285,7 +329,10 @@ export default function AttendanceStaffPage() {
       .limit(1);
 
     if (error) {
-      throw new Error(humanizeSupabaseError(error.message));
+      if (error.message.includes("schema cache")) {
+        throw new Error("staff_attendance テーブルが未作成です。SupabaseのSQLを先に実行してください。");
+      }
+      throw new Error(error.message);
     }
 
     const rows = (data as AttendanceRow[] | null) || [];
@@ -296,74 +343,50 @@ export default function AttendanceStaffPage() {
     setNote(row?.note ?? "");
   }
 
-  useEffect(() => {
-    async function init() {
-      if (!mounted) return;
+  async function loadMonthAttendance(clientStaffId: string) {
+    if (!supabase) return;
 
-      if (!supabase) {
-        setLoading(false);
-        return;
-      }
+    const { startText, endText } = getMonthRange(selectedMonth);
 
-      if (!staffId) {
-        setLoading(false);
-        return;
-      }
+    const { data, error } = await supabase
+      .from("staff_attendance")
+      .select("*")
+      .eq("staff_id", clientStaffId)
+      .gte("work_date", startText)
+      .lte("work_date", endText)
+      .order("work_date", { ascending: false })
+      .order("id", { ascending: false });
 
-      try {
-        setLoading(true);
-        setPageError("");
-        await ensureStaffMaster(staffId, staffName || inputStaffName || "スタッフ");
-        await loadTodayAttendance(staffId);
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : "初期化に失敗しました。";
-        setPageError(msg);
-      } finally {
-        setLoading(false);
+    if (error) {
+      if (error.message.includes("schema cache")) {
+        throw new Error("staff_attendance テーブルが未作成です。SupabaseのSQLを先に実行してください。");
       }
+      throw new Error(error.message);
     }
 
-    init();
-  }, [mounted, supabase, staffId, staffName, inputStaffName, todayJst]);
-
-  function getStatusLabel() {
-    if (!todayRow?.clock_in) return "未出勤";
-    if (todayRow.clock_in && !todayRow.clock_out) return "勤務中";
-    return "退勤済";
+    setMonthRows((data as AttendanceRow[] | null) || []);
   }
 
-  function getStatusColor() {
-    if (!todayRow?.clock_in) return "#f59e0b";
-    if (todayRow.clock_in && !todayRow.clock_out) return "#10b981";
-    return "#3b82f6";
-  }
-
-  function getLiveWorkedMinutes() {
-    if (!todayRow?.clock_in) return 0;
-
-    const endSource = todayRow.clock_out
-      ? new Date(todayRow.clock_out).getTime()
-      : liveNow;
-    const startSource = new Date(todayRow.clock_in).getTime();
-
-    if (
-      !Number.isFinite(startSource) ||
-      !Number.isFinite(endSource) ||
-      endSource <= startSource
-    ) {
-      return 0;
+  async function init() {
+    if (!supabase) {
+      setErrorMessage("NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY が未設定です。");
+      setLoading(false);
+      return;
     }
 
-    const raw = Math.floor((endSource - startSource) / 1000 / 60);
-    const total = raw - Math.max(0, breakMinutes);
-    return total > 0 ? total : 0;
+    try {
+      setLoading(true);
+      setErrorMessage("");
+      await ensureStaffMaster(staffId, staffName || inputStaffName || "スタッフ");
+      await loadTodayAttendance(staffId);
+      await loadMonthAttendance(staffId);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "読み込みに失敗しました。";
+      setErrorMessage(msg);
+    } finally {
+      setLoading(false);
+    }
   }
-
-  const workedMinutes = getLiveWorkedMinutes();
-  const overtimeMinutes = calcOvertimeMinutes(workedMinutes);
-  const lateNightMinutes = todayRow?.clock_out
-    ? calcLateNightMinutes(todayRow.clock_in, todayRow.clock_out)
-    : 0;
 
   async function handleSaveStaff() {
     const name = inputStaffName.trim();
@@ -386,13 +409,14 @@ export default function AttendanceStaffPage() {
 
     try {
       setSaving(true);
-      setPageError("");
+      setErrorMessage("");
       await ensureStaffMaster(generatedId, name);
       await loadTodayAttendance(generatedId);
+      await loadMonthAttendance(generatedId);
       alert("スタッフを保存しました。");
     } catch (error) {
       const msg = error instanceof Error ? error.message : "スタッフ保存に失敗しました。";
-      setPageError(msg);
+      setErrorMessage(msg);
       alert(msg);
     } finally {
       setSaving(false);
@@ -406,13 +430,13 @@ export default function AttendanceStaffPage() {
     }
 
     if (!staffId || !staffName) {
-      alert("先にスタッフ名を登録してください。");
+      alert("先にスタッフ名を保存してください。");
       return;
     }
 
     try {
       setSaving(true);
-      setPageError("");
+      setErrorMessage("");
 
       await ensureStaffMaster(staffId, staffName);
 
@@ -424,9 +448,7 @@ export default function AttendanceStaffPage() {
         .order("id", { ascending: false })
         .limit(1);
 
-      if (existingError) {
-        throw new Error(humanizeSupabaseError(existingError.message));
-      }
+      if (existingError) throw new Error(existingError.message);
 
       const rows = (data as AttendanceRow[] | null) || [];
       const existing = rows.length > 0 ? rows[0] : null;
@@ -448,9 +470,7 @@ export default function AttendanceStaffPage() {
           updated_at: nowIso,
         });
 
-        if (insertError) {
-          throw new Error(humanizeSupabaseError(insertError.message));
-        }
+        if (insertError) throw new Error(insertError.message);
       } else {
         if (existing.clock_in) {
           alert("本日はすでに出勤済みです。");
@@ -469,16 +489,15 @@ export default function AttendanceStaffPage() {
           })
           .eq("id", existing.id);
 
-        if (updateError) {
-          throw new Error(humanizeSupabaseError(updateError.message));
-        }
+        if (updateError) throw new Error(updateError.message);
       }
 
       await loadTodayAttendance(staffId);
+      await loadMonthAttendance(staffId);
       alert("出勤を記録しました。");
     } catch (error) {
       const msg = error instanceof Error ? error.message : "出勤登録に失敗しました。";
-      setPageError(msg);
+      setErrorMessage(msg);
       alert(msg);
     } finally {
       setSaving(false);
@@ -492,13 +511,13 @@ export default function AttendanceStaffPage() {
     }
 
     if (!staffId || !staffName) {
-      alert("先にスタッフ名を登録してください。");
+      alert("先にスタッフ名を保存してください。");
       return;
     }
 
     try {
       setSaving(true);
-      setPageError("");
+      setErrorMessage("");
 
       const { data, error: fetchError } = await supabase
         .from("staff_attendance")
@@ -508,9 +527,7 @@ export default function AttendanceStaffPage() {
         .order("id", { ascending: false })
         .limit(1);
 
-      if (fetchError) {
-        throw new Error(humanizeSupabaseError(fetchError.message));
-      }
+      if (fetchError) throw new Error(fetchError.message);
 
       const rows = (data as AttendanceRow[] | null) || [];
       const existing = rows.length > 0 ? rows[0] : null;
@@ -527,9 +544,9 @@ export default function AttendanceStaffPage() {
 
       const nowIso = new Date().toISOString();
       const totalMinutes = calcTotalMinutes(existing.clock_in, nowIso, breakMinutes);
-      const overtime = calcOvertimeMinutes(totalMinutes);
-      const lateNight = calcLateNightMinutes(existing.clock_in, nowIso);
-      const regular = Math.max(0, totalMinutes - overtime);
+      const overtimeMinutes = calcOvertimeMinutes(totalMinutes);
+      const lateNightMinutes = calcLateNightMinutes(existing.clock_in, nowIso);
+      const regularMinutes = Math.max(0, totalMinutes - overtimeMinutes);
 
       const { error: updateError } = await supabase
         .from("staff_attendance")
@@ -539,22 +556,21 @@ export default function AttendanceStaffPage() {
           break_minutes: breakMinutes,
           note,
           total_work_minutes: totalMinutes,
-          overtime_minutes: overtime,
-          late_night_minutes: lateNight,
-          regular_minutes: regular,
+          overtime_minutes: overtimeMinutes,
+          late_night_minutes: lateNightMinutes,
+          regular_minutes: regularMinutes,
           updated_at: nowIso,
         })
         .eq("id", existing.id);
 
-      if (updateError) {
-        throw new Error(humanizeSupabaseError(updateError.message));
-      }
+      if (updateError) throw new Error(updateError.message);
 
       await loadTodayAttendance(staffId);
+      await loadMonthAttendance(staffId);
       alert("退勤を記録しました。");
     } catch (error) {
       const msg = error instanceof Error ? error.message : "退勤登録に失敗しました。";
-      setPageError(msg);
+      setErrorMessage(msg);
       alert(msg);
     } finally {
       setSaving(false);
@@ -574,7 +590,7 @@ export default function AttendanceStaffPage() {
 
     try {
       setSaving(true);
-      setPageError("");
+      setErrorMessage("");
 
       const updatePayload: Record<string, any> = {
         break_minutes: breakMinutes,
@@ -584,14 +600,14 @@ export default function AttendanceStaffPage() {
 
       if (todayRow.clock_in && todayRow.clock_out) {
         const totalMinutes = calcTotalMinutes(todayRow.clock_in, todayRow.clock_out, breakMinutes);
-        const overtime = calcOvertimeMinutes(totalMinutes);
-        const lateNight = calcLateNightMinutes(todayRow.clock_in, todayRow.clock_out);
-        const regular = Math.max(0, totalMinutes - overtime);
+        const overtimeMinutes = calcOvertimeMinutes(totalMinutes);
+        const lateNightMinutes = calcLateNightMinutes(todayRow.clock_in, todayRow.clock_out);
+        const regularMinutes = Math.max(0, totalMinutes - overtimeMinutes);
 
         updatePayload.total_work_minutes = totalMinutes;
-        updatePayload.overtime_minutes = overtime;
-        updatePayload.late_night_minutes = lateNight;
-        updatePayload.regular_minutes = regular;
+        updatePayload.overtime_minutes = overtimeMinutes;
+        updatePayload.late_night_minutes = lateNightMinutes;
+        updatePayload.regular_minutes = regularMinutes;
       }
 
       const { error } = await supabase
@@ -599,20 +615,70 @@ export default function AttendanceStaffPage() {
         .update(updatePayload)
         .eq("id", todayRow.id);
 
-      if (error) {
-        throw new Error(humanizeSupabaseError(error.message));
-      }
+      if (error) throw new Error(error.message);
 
       await loadTodayAttendance(staffId);
+      await loadMonthAttendance(staffId);
       alert("休憩・備考を保存しました。");
     } catch (error) {
       const msg = error instanceof Error ? error.message : "保存に失敗しました。";
-      setPageError(msg);
+      setErrorMessage(msg);
       alert(msg);
     } finally {
       setSaving(false);
     }
   }
+
+  const monthSummary = useMemo(() => {
+    return monthRows.reduce(
+      (acc, row) => {
+        acc.workDays += row.clock_in ? 1 : 0;
+        acc.totalMinutes += Number(row.total_work_minutes || 0);
+        acc.regularMinutes += Number(row.regular_minutes || 0);
+        acc.overtimeMinutes += Number(row.overtime_minutes || 0);
+        acc.lateNightMinutes += Number(row.late_night_minutes || 0);
+        return acc;
+      },
+      {
+        workDays: 0,
+        totalMinutes: 0,
+        regularMinutes: 0,
+        overtimeMinutes: 0,
+        lateNightMinutes: 0,
+      }
+    );
+  }, [monthRows]);
+
+  function getStatusLabel() {
+    if (!todayRow?.clock_in) return "未出勤";
+    if (todayRow.clock_in && !todayRow.clock_out) return "勤務中";
+    return "退勤済";
+  }
+
+  function getStatusColor() {
+    if (!todayRow?.clock_in) return "#f59e0b";
+    if (todayRow.clock_in && !todayRow.clock_out) return "#10b981";
+    return "#3b82f6";
+  }
+
+  function getLiveWorkedMinutes() {
+    if (!todayRow?.clock_in) return 0;
+
+    const endSource = todayRow.clock_out
+      ? new Date(todayRow.clock_out).getTime()
+      : liveNow;
+    const startSource = new Date(todayRow.clock_in).getTime();
+
+    if (!Number.isFinite(startSource) || !Number.isFinite(endSource) || endSource <= startSource) {
+      return 0;
+    }
+
+    const raw = Math.floor((endSource - startSource) / 1000 / 60);
+    const total = raw - Math.max(0, breakMinutes);
+    return total > 0 ? total : 0;
+  }
+
+  const workedMinutes = getLiveWorkedMinutes();
 
   if (!mounted) return null;
 
@@ -632,152 +698,196 @@ export default function AttendanceStaffPage() {
         <div style={heroCardStyle}>
           <div style={heroLeftStyle}>
             <div style={miniLabelStyle}>GYMUP ATTENDANCE</div>
-            <h1 style={titleStyle}>スタッフ出勤簿</h1>
+            <h1 style={titleStyle}>スタッフ打刻ページ</h1>
             <p style={descStyle}>
-              出勤・退勤・勤務時間・残業時間を、Supabaseで日別に記録します。
+              出勤・退勤・休憩時間を記録し、月ごとの出勤簿を累積表示します。
             </p>
           </div>
 
-          <div style={statusWrapStyle}>
-            <div
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              flexWrap: "wrap",
+              width: mobile ? "100%" : "auto",
+              flexDirection: mobile ? "column" : "row",
+            }}
+          >
+            <Link
+              href="/attendance/staff/payslip"
               style={{
-                ...statusBadgeStyle,
-                borderColor: `${getStatusColor()}55`,
-                color: getStatusColor(),
+                ...topActionLinkStyle,
+                width: mobile ? "100%" : "auto",
               }}
             >
-              {getStatusLabel()}
-            </div>
-            <div style={todayStyle}>対象日：{todayJst}</div>
+              給与明細を見る
+            </Link>
+            <Link
+              href="/attendance/admin"
+              style={{
+                ...topActionLinkStyle,
+                width: mobile ? "100%" : "auto",
+              }}
+            >
+              管理者ページ
+            </Link>
           </div>
         </div>
 
-        {!supabase && (
-          <div style={errorBoxStyle}>
-            NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY が未設定です。
+        {errorMessage && <div style={errorBoxStyle}>{errorMessage}</div>}
+
+        <div
+          style={{
+            ...filterGridStyle,
+            gridTemplateColumns: mobile
+              ? "1fr"
+              : tablet
+              ? "repeat(2, minmax(0, 1fr))"
+              : "repeat(4, minmax(0, 1fr))",
+          }}
+        >
+          <div style={filterCardStyle}>
+            <div style={labelStyle}>スタッフ名</div>
+            <input
+              value={inputStaffName}
+              onChange={(e) => setInputStaffName(e.target.value)}
+              placeholder="例：山口敏雄"
+              style={inputStyle}
+            />
           </div>
-        )}
 
-        {pageError && <div style={errorBoxStyle}>{pageError}</div>}
+          <div style={filterCardStyle}>
+            <div style={labelStyle}>対象月</div>
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
 
-        <div style={gridStyle}>
-          <div style={panelStyle}>
-            <div style={panelHeaderStyle}>
-              <div>
-                <div style={panelMiniStyle}>STAFF</div>
-                <h2 style={panelTitleStyle}>スタッフ情報</h2>
-              </div>
-            </div>
+          <div style={filterCardStyle}>
+            <div style={labelStyle}>休憩時間（分）</div>
+            <input
+              type="number"
+              min={0}
+              value={breakMinutes}
+              onChange={(e) => setBreakMinutes(Number(e.target.value || 0))}
+              style={inputStyle}
+            />
+          </div>
 
-            <div style={fieldGroupStyle}>
-              <label style={labelStyle}>スタッフ名</label>
-              <input
-                value={inputStaffName}
-                onChange={(e) => setInputStaffName(e.target.value)}
-                placeholder="例：山口敏雄"
-                style={inputStyle}
-              />
-            </div>
-
-            <div style={staffInfoBoxStyle}>
-              <div style={infoRowStyle}>
-                <span style={infoLabelStyle}>現在のスタッフ</span>
-                <span style={infoValueStyle}>{staffName || "未設定"}</span>
-              </div>
-              <div style={infoRowStyle}>
-                <span style={infoLabelStyle}>スタッフID</span>
-                <span style={infoValueStyle}>{staffId || "-"}</span>
-              </div>
-            </div>
-
-            <button onClick={handleSaveStaff} disabled={saving} style={primaryButtonStyle}>
-              {saving ? "保存中..." : "スタッフを保存"}
+          <div style={filterCardStyle}>
+            <div style={labelStyle}>スタッフ保存</div>
+            <button onClick={handleSaveStaff} style={topActionButtonStyle} disabled={saving}>
+              保存する
             </button>
           </div>
+        </div>
 
-          <div style={panelStyle}>
-            <div style={panelHeaderStyle}>
-              <div>
-                <div style={panelMiniStyle}>TODAY</div>
-                <h2 style={panelTitleStyle}>本日の打刻</h2>
-              </div>
+        <div style={filterCardStyle}>
+          <div style={labelStyle}>備考</div>
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={4}
+            style={textareaStyle}
+            placeholder="遅刻・早退・連絡事項など"
+          />
+          <div style={{ marginTop: 12 }}>
+            <button onClick={handleSaveMemo} style={topActionButtonStyle} disabled={saving || !todayRow}>
+              休憩・備考を保存
+            </button>
+          </div>
+        </div>
+
+        <div
+          style={{
+            ...summaryGridLargeStyle,
+            gridTemplateColumns: mobile
+              ? "1fr"
+              : tablet
+              ? "repeat(2, minmax(0, 1fr))"
+              : "repeat(4, minmax(0, 1fr))",
+          }}
+        >
+          <MetricCard label="本日の状態" value={getStatusLabel()} accentColor={getStatusColor()} />
+          <MetricCard label="本日の勤務時間" value={minutesToText(workedMinutes)} />
+          <MetricCard label="本月出勤日数" value={`${monthSummary.workDays}日`} />
+          <MetricCard label="本月総勤務" value={minutesToText(monthSummary.totalMinutes)} />
+        </div>
+
+        <div
+          style={{
+            ...summaryGridLargeStyle,
+            gridTemplateColumns: mobile
+              ? "1fr"
+              : tablet
+              ? "repeat(2, minmax(0, 1fr))"
+              : "repeat(4, minmax(0, 1fr))",
+          }}
+        >
+          <MetricCard label="通常勤務" value={minutesToText(monthSummary.regularMinutes)} />
+          <MetricCard label="残業時間" value={minutesToText(monthSummary.overtimeMinutes)} />
+          <MetricCard label="深夜時間" value={minutesToText(monthSummary.lateNightMinutes)} />
+          <MetricCard label="対象月" value={monthLabel(selectedMonth)} />
+        </div>
+
+        <div style={panelStyle}>
+          <div style={panelHeaderStyle}>
+            <div>
+              <div style={panelMiniStyle}>TODAY TIMECARD</div>
+              <h2 style={panelTitleStyle}>本日の打刻</h2>
             </div>
+          </div>
 
-            <div style={summaryGridStyle}>
-              <div style={summaryCardStyle}>
-                <div style={summaryLabelStyle}>出勤時刻</div>
-                <div style={summaryValueStyle}>{formatTime(todayRow?.clock_in)}</div>
-              </div>
-              <div style={summaryCardStyle}>
-                <div style={summaryLabelStyle}>退勤時刻</div>
-                <div style={summaryValueStyle}>{formatTime(todayRow?.clock_out)}</div>
-              </div>
-            </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: mobile ? "1fr" : "repeat(4, minmax(0, 1fr))",
+              gap: 12,
+              marginBottom: 16,
+            }}
+          >
+            <MiniInfo label="スタッフ名" value={staffName || "未設定"} />
+            <MiniInfo label="勤務日" value={todayJst} />
+            <MiniInfo label="出勤" value={formatTimeJP(todayRow?.clock_in)} />
+            <MiniInfo label="退勤" value={formatTimeJP(todayRow?.clock_out)} />
+          </div>
 
-            <div style={actionRowStyle}>
-              <button
-                onClick={handleClockIn}
-                disabled={saving || !staffName || Boolean(todayRow?.clock_in)}
-                style={{
-                  ...actionButtonStyle,
-                  ...(saving || !staffName || Boolean(todayRow?.clock_in)
-                    ? disabledButtonStyle
-                    : clockInButtonStyle),
-                }}
-              >
-                出勤する
-              </button>
-
-              <button
-                onClick={handleClockOut}
-                disabled={
-                  saving ||
-                  !staffName ||
-                  !Boolean(todayRow?.clock_in) ||
-                  Boolean(todayRow?.clock_out)
-                }
-                style={{
-                  ...actionButtonStyle,
-                  ...(saving ||
-                  !staffName ||
-                  !Boolean(todayRow?.clock_in) ||
-                  Boolean(todayRow?.clock_out)
-                    ? disabledButtonStyle
-                    : clockOutButtonStyle),
-                }}
-              >
-                退勤する
-              </button>
-            </div>
-
-            <div style={fieldGroupStyle}>
-              <label style={labelStyle}>休憩時間（分）</label>
-              <input
-                type="number"
-                min={0}
-                value={breakMinutes}
-                onChange={(e) => setBreakMinutes(Number(e.target.value || 0))}
-                style={inputStyle}
-              />
-            </div>
-
-            <div style={fieldGroupStyle}>
-              <label style={labelStyle}>備考</label>
-              <textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                rows={4}
-                placeholder="遅刻・早退・引き継ぎ事項など"
-                style={textareaStyle}
-              />
-            </div>
+          <div
+            style={{
+              display: "flex",
+              gap: 12,
+              flexWrap: "wrap",
+              flexDirection: mobile ? "column" : "row",
+            }}
+          >
+            <button
+              onClick={handleClockIn}
+              disabled={saving || !staffName || Boolean(todayRow?.clock_in)}
+              style={{
+                ...primaryButtonStyle,
+                width: mobile ? "100%" : "auto",
+                opacity: saving || !staffName || Boolean(todayRow?.clock_in) ? 0.55 : 1,
+              }}
+            >
+              出勤する
+            </button>
 
             <button
-              onClick={handleSaveMemo}
-              disabled={saving || !todayRow?.id}
-              style={secondaryButtonStyle}
+              onClick={handleClockOut}
+              disabled={saving || !staffName || !Boolean(todayRow?.clock_in) || Boolean(todayRow?.clock_out)}
+              style={{
+                ...secondaryButtonStyle,
+                width: mobile ? "100%" : "auto",
+                opacity:
+                  saving || !staffName || !Boolean(todayRow?.clock_in) || Boolean(todayRow?.clock_out)
+                    ? 0.55
+                    : 1,
+              }}
             >
-              休憩・備考を保存
+              退勤する
             </button>
           </div>
         </div>
@@ -785,72 +895,107 @@ export default function AttendanceStaffPage() {
         <div style={panelStyle}>
           <div style={panelHeaderStyle}>
             <div>
-              <div style={panelMiniStyle}>WORK SUMMARY</div>
-              <h2 style={panelTitleStyle}>本日の勤務状況</h2>
+              <div style={panelMiniStyle}>MONTHLY RECORDS</div>
+              <h2 style={panelTitleStyle}>月別出勤簿</h2>
             </div>
           </div>
 
-          <div style={summaryGridLargeStyle}>
-            <div style={metricCardStyle}>
-              <div style={metricLabelStyle}>勤務時間</div>
-              <div style={metricValueStyle}>{minutesToText(workedMinutes)}</div>
-            </div>
-            <div style={metricCardStyle}>
-              <div style={metricLabelStyle}>残業時間</div>
-              <div style={metricValueStyle}>{minutesToText(overtimeMinutes)}</div>
-            </div>
-            <div style={metricCardStyle}>
-              <div style={metricLabelStyle}>深夜時間</div>
-              <div style={metricValueStyle}>
-                {minutesToText(
-                  todayRow?.clock_out
-                    ? (todayRow.late_night_minutes ?? 0)
-                    : lateNightMinutes
-                )}
-              </div>
-            </div>
-            <div style={metricCardStyle}>
-              <div style={metricLabelStyle}>最終更新</div>
-              <div style={metricValueSmallStyle}>
-                {todayRow?.updated_at ? formatDateTime(todayRow.updated_at) : "-"}
-              </div>
-            </div>
-          </div>
+          {loading ? (
+            <div style={loadingStyle}>読み込み中...</div>
+          ) : monthRows.length === 0 ? (
+            <div style={emptyBoxStyle}>この月の勤怠データはまだありません。</div>
+          ) : mobile ? (
+            <div style={{ display: "grid", gap: 12 }}>
+              {monthRows.map((row) => (
+                <div key={row.id} style={recordCardStyle}>
+                  <div style={recordDateStyle}>{formatDateJP(row.work_date)}</div>
+                  <div style={recordInfoGridStyle}>
+                    <MiniInfo label="出勤" value={formatTimeJP(row.clock_in)} />
+                    <MiniInfo label="退勤" value={formatTimeJP(row.clock_out)} />
+                    <MiniInfo label="休憩" value={`${row.break_minutes ?? 0}分`} />
+                    <MiniInfo label="通常" value={minutesToText(row.regular_minutes ?? 0)} />
+                    <MiniInfo label="残業" value={minutesToText(row.overtime_minutes ?? 0)} />
+                    <MiniInfo label="深夜" value={minutesToText(row.late_night_minutes ?? 0)} />
+                    <MiniInfo label="総勤務" value={minutesToText(row.total_work_minutes ?? 0)} />
+                  </div>
 
-          <div style={detailBoxStyle}>
-            <div style={detailRowStyle}>
-              <span style={detailLabelStyle}>通常勤務</span>
-              <span style={detailValueStyle}>
-                {minutesToText(
-                  todayRow?.clock_out
-                    ? (todayRow.regular_minutes ?? 0)
-                    : Math.max(0, workedMinutes - overtimeMinutes)
-                )}
-              </span>
+                  <div style={noteBoxStyle}>
+                    <div style={noteLabelStyle}>備考</div>
+                    <div>{row.note || "—"}</div>
+                  </div>
+                </div>
+              ))}
             </div>
-
-            <div style={detailRowStyle}>
-              <span style={detailLabelStyle}>総勤務時間</span>
-              <span style={detailValueStyle}>
-                {minutesToText(
-                  todayRow?.clock_out
-                    ? (todayRow.total_work_minutes ?? 0)
-                    : workedMinutes
-                )}
-              </span>
+          ) : (
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={thStyle}>日付</th>
+                    <th style={thStyle}>出勤</th>
+                    <th style={thStyle}>退勤</th>
+                    <th style={thStyle}>休憩</th>
+                    <th style={thStyle}>通常</th>
+                    <th style={thStyle}>残業</th>
+                    <th style={thStyle}>深夜</th>
+                    <th style={thStyle}>総勤務</th>
+                    <th style={thStyle}>備考</th>
+                    <th style={thStyle}>更新日時</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthRows.map((row) => (
+                    <tr key={row.id}>
+                      <td style={tdStyle}>{formatDateJP(row.work_date)}</td>
+                      <td style={tdStyle}>{formatTimeJP(row.clock_in)}</td>
+                      <td style={tdStyle}>{formatTimeJP(row.clock_out)}</td>
+                      <td style={tdStyle}>{row.break_minutes ?? 0}分</td>
+                      <td style={tdStyle}>{minutesToText(row.regular_minutes ?? 0)}</td>
+                      <td style={tdStyle}>{minutesToText(row.overtime_minutes ?? 0)}</td>
+                      <td style={tdStyle}>{minutesToText(row.late_night_minutes ?? 0)}</td>
+                      <td style={tdStyleStrong}>{minutesToText(row.total_work_minutes ?? 0)}</td>
+                      <td style={tdNoteStyle}>{row.note || "—"}</td>
+                      <td style={tdStyle}>{formatDateTimeJP(row.updated_at || row.created_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-
-            <div style={{ ...detailRowStyle, borderBottom: "none" }}>
-              <span style={detailLabelStyle}>状態</span>
-              <span style={{ ...detailValueStyle, color: getStatusColor() }}>
-                {getStatusLabel()}
-              </span>
-            </div>
-          </div>
+          )}
         </div>
-
-        {loading && <div style={loadingStyle}>読み込み中...</div>}
       </div>
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  accentColor,
+}: {
+  label: string;
+  value: string;
+  accentColor?: string;
+}) {
+  return (
+    <div style={metricCardStyle}>
+      <div style={metricLabelStyle}>{label}</div>
+      <div style={{ ...metricValueStyle, color: accentColor || "#0f172a" }}>{value}</div>
+    </div>
+  );
+}
+
+function MiniInfo({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div style={miniInfoCardStyle}>
+      <div style={miniInfoLabelStyle}>{label}</div>
+      <div style={miniInfoValueStyle}>{value}</div>
     </div>
   );
 }
@@ -890,9 +1035,11 @@ const bgGlowB: CSSProperties = {
 const containerStyle: CSSProperties = {
   position: "relative",
   zIndex: 1,
-  maxWidth: 1180,
+  maxWidth: 1280,
   margin: "0 auto",
   padding: "28px 18px 60px",
+  display: "grid",
+  gap: 18,
 };
 
 const topRowStyle: CSSProperties = {
@@ -901,7 +1048,6 @@ const topRowStyle: CSSProperties = {
   alignItems: "center",
   gap: 12,
   flexWrap: "wrap",
-  marginBottom: 18,
 };
 
 const backLinkStyle: CSSProperties = {
@@ -929,7 +1075,6 @@ const heroCardStyle: CSSProperties = {
   border: "1px solid rgba(255,255,255,0.75)",
   borderRadius: 28,
   padding: "24px 22px",
-  marginBottom: 20,
   boxShadow: "0 18px 40px rgba(148,163,184,0.14)",
   backdropFilter: "blur(10px)",
 };
@@ -961,30 +1106,34 @@ const descStyle: CSSProperties = {
   color: "rgba(15,23,42,0.68)",
 };
 
-const statusWrapStyle: CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "flex-end",
-  gap: 10,
-  minWidth: 180,
-};
-
-const statusBadgeStyle: CSSProperties = {
+const topActionLinkStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 44,
   padding: "10px 16px",
-  borderRadius: 9999,
-  border: "1px solid rgba(148,163,184,0.24)",
-  background: "rgba(255,255,255,0.62)",
+  borderRadius: 14,
+  border: "1px solid rgba(203,213,225,0.95)",
+  background: "rgba(255,255,255,0.82)",
+  color: "#0f172a",
+  textDecoration: "none",
   fontWeight: 700,
   fontSize: 14,
 };
 
-const todayStyle: CSSProperties = {
-  color: "rgba(15,23,42,0.56)",
-  fontSize: 13,
+const topActionButtonStyle: CSSProperties = {
+  minHeight: 44,
+  padding: "10px 16px",
+  borderRadius: 14,
+  border: "1px solid rgba(203,213,225,0.95)",
+  background: "rgba(255,255,255,0.84)",
+  color: "#0f172a",
+  fontWeight: 700,
+  fontSize: 14,
+  cursor: "pointer",
 };
 
 const errorBoxStyle: CSSProperties = {
-  marginBottom: 20,
   padding: "14px 16px",
   borderRadius: 18,
   background: "rgba(254,226,226,0.9)",
@@ -993,53 +1142,24 @@ const errorBoxStyle: CSSProperties = {
   fontSize: 14,
 };
 
-const gridStyle: CSSProperties = {
+const filterGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-  gap: 18,
-  marginBottom: 18,
+  gap: 14,
 };
 
-const panelStyle: CSSProperties = {
+const filterCardStyle: CSSProperties = {
   background: "rgba(255,255,255,0.52)",
   border: "1px solid rgba(255,255,255,0.76)",
-  borderRadius: 26,
-  padding: 20,
+  borderRadius: 22,
+  padding: 16,
   boxShadow: "0 14px 34px rgba(148,163,184,0.12)",
   backdropFilter: "blur(10px)",
-};
-
-const panelHeaderStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  marginBottom: 16,
-};
-
-const panelMiniStyle: CSSProperties = {
-  fontSize: 11,
-  letterSpacing: "0.22em",
-  color: "rgba(30,41,59,0.42)",
-  marginBottom: 6,
-};
-
-const panelTitleStyle: CSSProperties = {
-  margin: 0,
-  fontSize: 22,
-  color: "#0f172a",
-  fontWeight: 700,
-};
-
-const fieldGroupStyle: CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: 8,
-  marginBottom: 14,
 };
 
 const labelStyle: CSSProperties = {
   fontSize: 13,
   color: "rgba(15,23,42,0.78)",
+  marginBottom: 8,
 };
 
 const inputStyle: CSSProperties = {
@@ -1068,123 +1188,9 @@ const textareaStyle: CSSProperties = {
   boxSizing: "border-box",
 };
 
-const staffInfoBoxStyle: CSSProperties = {
-  borderRadius: 18,
-  background: "rgba(255,255,255,0.7)",
-  border: "1px solid rgba(226,232,240,0.95)",
-  padding: 14,
-  marginBottom: 14,
-};
-
-const infoRowStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: 12,
-  padding: "6px 0",
-};
-
-const infoLabelStyle: CSSProperties = {
-  fontSize: 13,
-  color: "rgba(15,23,42,0.52)",
-};
-
-const infoValueStyle: CSSProperties = {
-  fontSize: 13,
-  color: "#0f172a",
-  fontWeight: 600,
-  textAlign: "right",
-};
-
-const primaryButtonStyle: CSSProperties = {
-  width: "100%",
-  height: 50,
-  border: "none",
-  borderRadius: 16,
-  background: "linear-gradient(135deg, #ffffff, #eaf1ff)",
-  color: "#0f172a",
-  fontWeight: 700,
-  fontSize: 14,
-  cursor: "pointer",
-  boxShadow: "0 10px 24px rgba(148,163,184,0.15)",
-};
-
-const secondaryButtonStyle: CSSProperties = {
-  width: "100%",
-  height: 48,
-  border: "1px solid rgba(203,213,225,0.95)",
-  borderRadius: 16,
-  background: "rgba(255,255,255,0.84)",
-  color: "#0f172a",
-  fontWeight: 700,
-  fontSize: 14,
-  cursor: "pointer",
-};
-
-const summaryGridStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-  gap: 12,
-  marginBottom: 14,
-};
-
-const summaryCardStyle: CSSProperties = {
-  borderRadius: 18,
-  background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(226,232,240,0.95)",
-  padding: "14px 14px",
-};
-
-const summaryLabelStyle: CSSProperties = {
-  fontSize: 12,
-  color: "rgba(15,23,42,0.46)",
-  marginBottom: 6,
-};
-
-const summaryValueStyle: CSSProperties = {
-  fontSize: 24,
-  fontWeight: 800,
-  color: "#0f172a",
-};
-
-const actionRowStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-  gap: 12,
-  marginBottom: 14,
-};
-
-const actionButtonStyle: CSSProperties = {
-  height: 50,
-  border: "none",
-  borderRadius: 16,
-  fontWeight: 700,
-  fontSize: 14,
-  cursor: "pointer",
-};
-
-const clockInButtonStyle: CSSProperties = {
-  background: "linear-gradient(135deg, #dcfce7, #bbf7d0)",
-  color: "#166534",
-  boxShadow: "0 10px 24px rgba(34,197,94,0.16)",
-};
-
-const clockOutButtonStyle: CSSProperties = {
-  background: "linear-gradient(135deg, #fee2e2, #fecaca)",
-  color: "#b91c1c",
-  boxShadow: "0 10px 24px rgba(239,68,68,0.14)",
-};
-
-const disabledButtonStyle: CSSProperties = {
-  background: "#e5e7eb",
-  color: "#94a3b8",
-  cursor: "not-allowed",
-};
-
 const summaryGridLargeStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
   gap: 14,
-  marginBottom: 16,
 };
 
 const metricCardStyle: CSSProperties = {
@@ -1207,43 +1213,182 @@ const metricValueStyle: CSSProperties = {
   lineHeight: 1.2,
 };
 
-const metricValueSmallStyle: CSSProperties = {
+const panelStyle: CSSProperties = {
+  background: "rgba(255,255,255,0.52)",
+  border: "1px solid rgba(255,255,255,0.76)",
+  borderRadius: 26,
+  padding: 20,
+  boxShadow: "0 14px 34px rgba(148,163,184,0.12)",
+  backdropFilter: "blur(10px)",
+};
+
+const panelHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap",
+  marginBottom: 16,
+};
+
+const panelMiniStyle: CSSProperties = {
+  fontSize: 11,
+  letterSpacing: "0.22em",
+  color: "rgba(30,41,59,0.42)",
+  marginBottom: 6,
+};
+
+const panelTitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 22,
+  color: "#0f172a",
+  fontWeight: 700,
+};
+
+const emptyBoxStyle: CSSProperties = {
+  minHeight: 120,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  textAlign: "center",
+  borderRadius: 20,
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  color: "rgba(15,23,42,0.54)",
+  fontSize: 14,
+  padding: 20,
+};
+
+const miniInfoCardStyle: CSSProperties = {
+  borderRadius: 16,
+  background: "rgba(248,250,252,0.92)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  padding: 12,
+};
+
+const miniInfoLabelStyle: CSSProperties = {
+  fontSize: 11,
+  color: "rgba(15,23,42,0.46)",
+  marginBottom: 6,
+};
+
+const miniInfoValueStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 700,
   color: "#0f172a",
-  lineHeight: 1.7,
+  lineHeight: 1.5,
 };
 
-const detailBoxStyle: CSSProperties = {
+const primaryButtonStyle: CSSProperties = {
+  minHeight: 48,
+  border: "none",
+  borderRadius: 16,
+  background: "linear-gradient(135deg, #ffffff, #eaf1ff)",
+  color: "#0f172a",
+  fontWeight: 700,
+  fontSize: 14,
+  cursor: "pointer",
+  padding: "0 18px",
+  boxShadow: "0 10px 24px rgba(148,163,184,0.15)",
+};
+
+const secondaryButtonStyle: CSSProperties = {
+  minHeight: 48,
+  border: "1px solid rgba(203,213,225,0.95)",
+  borderRadius: 16,
+  background: "rgba(255,255,255,0.84)",
+  color: "#0f172a",
+  fontWeight: 700,
+  fontSize: 14,
+  cursor: "pointer",
+  padding: "0 18px",
+};
+
+const tableWrapStyle: CSSProperties = {
+  width: "100%",
+  overflowX: "auto",
+  borderRadius: 20,
+  border: "1px solid rgba(226,232,240,0.95)",
+  background: "rgba(255,255,255,0.72)",
+};
+
+const tableStyle: CSSProperties = {
+  width: "100%",
+  minWidth: 980,
+  borderCollapse: "collapse",
+};
+
+const thStyle: CSSProperties = {
+  padding: "12px 10px",
+  textAlign: "left",
+  fontSize: 12,
+  fontWeight: 800,
+  color: "rgba(15,23,42,0.56)",
+  borderBottom: "1px solid rgba(226,232,240,0.95)",
+  background: "rgba(248,250,252,0.95)",
+  whiteSpace: "nowrap",
+};
+
+const tdStyle: CSSProperties = {
+  padding: "12px 10px",
+  fontSize: 13,
+  color: "#0f172a",
+  borderBottom: "1px solid rgba(226,232,240,0.7)",
+  verticalAlign: "top",
+  whiteSpace: "nowrap",
+};
+
+const tdStyleStrong: CSSProperties = {
+  ...tdStyle,
+  fontWeight: 800,
+};
+
+const tdNoteStyle: CSSProperties = {
+  ...tdStyle,
+  minWidth: 180,
+  whiteSpace: "normal",
+  lineHeight: 1.6,
+};
+
+const recordCardStyle: CSSProperties = {
   borderRadius: 20,
   background: "rgba(255,255,255,0.72)",
   border: "1px solid rgba(226,232,240,0.95)",
   padding: 16,
 };
 
-const detailRowStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: 12,
-  padding: "10px 0",
-  borderBottom: "1px solid rgba(226,232,240,0.9)",
+const recordDateStyle: CSSProperties = {
+  fontSize: 14,
+  color: "rgba(15,23,42,0.56)",
+  marginBottom: 6,
 };
 
-const detailLabelStyle: CSSProperties = {
-  fontSize: 14,
-  color: "rgba(15,23,42,0.62)",
+const recordInfoGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: 10,
 };
 
-const detailValueStyle: CSSProperties = {
-  fontSize: 14,
-  fontWeight: 700,
-  color: "#0f172a",
+const noteBoxStyle: CSSProperties = {
+  marginTop: 12,
+  borderRadius: 16,
+  background: "rgba(248,250,252,0.92)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  padding: 12,
+  fontSize: 13,
+  color: "#334155",
+  lineHeight: 1.6,
+};
+
+const noteLabelStyle: CSSProperties = {
+  fontSize: 11,
+  color: "rgba(15,23,42,0.46)",
+  marginBottom: 6,
 };
 
 const loadingStyle: CSSProperties = {
-  marginTop: 14,
   textAlign: "center",
   color: "rgba(15,23,42,0.56)",
   fontSize: 14,
+  padding: "16px 0",
 };
