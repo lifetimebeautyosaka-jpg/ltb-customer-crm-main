@@ -203,6 +203,10 @@ function monthLabel(month: string) {
   return `${y}年${Number(m)}月`;
 }
 
+function formatCurrency(value: number) {
+  return `¥${Math.round(value || 0).toLocaleString()}`;
+}
+
 export default function AttendanceStaffPage() {
   const supabase = useMemo(() => getSupabaseClient(), []);
 
@@ -224,6 +228,10 @@ export default function AttendanceStaffPage() {
   const [breakMinutes, setBreakMinutes] = useState(60);
   const [note, setNote] = useState("");
   const [liveNow, setLiveNow] = useState(Date.now());
+
+  const [hourlyWage, setHourlyWage] = useState("1200");
+  const [overtimeRate, setOvertimeRate] = useState("1.25");
+  const [lateNightRate, setLateNightRate] = useState("1.25");
 
   const todayJst = formatJstDate(getJstNow());
 
@@ -649,6 +657,24 @@ export default function AttendanceStaffPage() {
     );
   }, [monthRows]);
 
+  const salarySummary = useMemo(() => {
+    const wage = Number(hourlyWage || 0);
+    const overtimeMultiplier = Number(overtimeRate || 1.25);
+    const lateNightMultiplier = Number(lateNightRate || 1.25);
+
+    const regularPay = (monthSummary.regularMinutes / 60) * wage;
+    const overtimePay = (monthSummary.overtimeMinutes / 60) * wage * overtimeMultiplier;
+    const lateNightPay = (monthSummary.lateNightMinutes / 60) * wage * lateNightMultiplier;
+    const totalPay = regularPay + overtimePay + lateNightPay;
+
+    return {
+      regularPay,
+      overtimePay,
+      lateNightPay,
+      totalPay,
+    };
+  }, [monthSummary, hourlyWage, overtimeRate, lateNightRate]);
+
   function getStatusLabel() {
     if (!todayRow?.clock_in) return "未出勤";
     if (todayRow.clock_in && !todayRow.clock_out) return "勤務中";
@@ -743,7 +769,7 @@ export default function AttendanceStaffPage() {
               ? "1fr"
               : tablet
               ? "repeat(2, minmax(0, 1fr))"
-              : "repeat(4, minmax(0, 1fr))",
+              : "repeat(6, minmax(0, 1fr))",
           }}
         >
           <div style={filterCardStyle}>
@@ -778,10 +804,35 @@ export default function AttendanceStaffPage() {
           </div>
 
           <div style={filterCardStyle}>
-            <div style={labelStyle}>スタッフ保存</div>
-            <button onClick={handleSaveStaff} style={topActionButtonStyle} disabled={saving}>
-              保存する
-            </button>
+            <div style={labelStyle}>時給</div>
+            <input
+              type="number"
+              value={hourlyWage}
+              onChange={(e) => setHourlyWage(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+
+          <div style={filterCardStyle}>
+            <div style={labelStyle}>残業倍率</div>
+            <input
+              type="number"
+              step="0.01"
+              value={overtimeRate}
+              onChange={(e) => setOvertimeRate(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+
+          <div style={filterCardStyle}>
+            <div style={labelStyle}>深夜倍率</div>
+            <input
+              type="number"
+              step="0.01"
+              value={lateNightRate}
+              onChange={(e) => setLateNightRate(e.target.value)}
+              style={inputStyle}
+            />
           </div>
         </div>
 
@@ -794,7 +845,10 @@ export default function AttendanceStaffPage() {
             style={textareaStyle}
             placeholder="遅刻・早退・連絡事項など"
           />
-          <div style={{ marginTop: 12 }}>
+          <div style={{ marginTop: 12, display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <button onClick={handleSaveStaff} style={topActionButtonStyle} disabled={saving}>
+              スタッフ保存
+            </button>
             <button onClick={handleSaveMemo} style={topActionButtonStyle} disabled={saving || !todayRow}>
               休憩・備考を保存
             </button>
@@ -831,6 +885,22 @@ export default function AttendanceStaffPage() {
           <MetricCard label="残業時間" value={minutesToText(monthSummary.overtimeMinutes)} />
           <MetricCard label="深夜時間" value={minutesToText(monthSummary.lateNightMinutes)} />
           <MetricCard label="対象月" value={monthLabel(selectedMonth)} />
+        </div>
+
+        <div
+          style={{
+            ...summaryGridLargeStyle,
+            gridTemplateColumns: mobile
+              ? "1fr"
+              : tablet
+              ? "repeat(2, minmax(0, 1fr))"
+              : "repeat(4, minmax(0, 1fr))",
+          }}
+        >
+          <MetricCard label="通常賃金" value={formatCurrency(salarySummary.regularPay)} />
+          <MetricCard label="残業賃金" value={formatCurrency(salarySummary.overtimePay)} />
+          <MetricCard label="深夜賃金" value={formatCurrency(salarySummary.lateNightPay)} />
+          <MetricCard label="今月の給与概算" value={formatCurrency(salarySummary.totalPay)} />
         </div>
 
         <div style={panelStyle}>
@@ -1348,6 +1418,33 @@ const tdNoteStyle: CSSProperties = {
   minWidth: 180,
   whiteSpace: "normal",
   lineHeight: 1.6,
+};
+
+const detailBoxStyle: CSSProperties = {
+  borderRadius: 20,
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  padding: 16,
+};
+
+const detailRowStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  padding: "10px 0",
+  borderBottom: "1px solid rgba(226,232,240,0.9)",
+};
+
+const detailLabelStyle: CSSProperties = {
+  fontSize: 14,
+  color: "rgba(15,23,42,0.62)",
+};
+
+const detailValueStyle: CSSProperties = {
+  fontSize: 14,
+  fontWeight: 700,
+  color: "#0f172a",
 };
 
 const recordCardStyle: CSSProperties = {
