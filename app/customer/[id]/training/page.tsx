@@ -59,9 +59,7 @@ type TrainingSession = {
 type CustomerRow = {
   id: string | number;
   name?: string | null;
-  customer_name?: string | null;
   kana?: string | null;
-  furigana?: string | null;
   height?: number | null;
 };
 
@@ -228,8 +226,8 @@ function normalizeCustomer(row: CustomerRow | null) {
 
   return {
     id: String(row.id ?? ""),
-    name: row.name || row.customer_name || "—",
-    kana: row.kana || row.furigana || "",
+    name: row.name || "—",
+    kana: row.kana || "",
     height:
       row.height !== null && row.height !== undefined ? String(row.height) : "",
   };
@@ -409,7 +407,7 @@ export default function TrainingPage() {
 
     const { data, error: customerError } = await supabase
       .from("customers")
-      .select("id, name, customer_name, kana, furigana, height")
+      .select("id, name, kana, height")
       .eq("id", customerIdForQuery)
       .single();
 
@@ -458,17 +456,17 @@ export default function TrainingPage() {
     return list;
   }
 
-  function applyLatestHeightToForm(
-    list: TrainingSession[],
-    baseHeight = ""
-  ) {
+  function applyLatestHeightToForm(list: TrainingSession[], baseHeight = "") {
     if (editingSessionId) return;
 
     const latestWithHeight = list.find(
       (item) => item.body_height !== null && item.body_height !== undefined
     );
 
-    if (latestWithHeight?.body_height !== null && latestWithHeight?.body_height !== undefined) {
+    if (
+      latestWithHeight?.body_height !== null &&
+      latestWithHeight?.body_height !== undefined
+    ) {
       setBodyHeight(String(latestWithHeight.body_height));
       return;
     }
@@ -732,9 +730,7 @@ export default function TrainingPage() {
       await loadAll();
       resetForm(false);
       setSuccess(
-        editingSessionId
-          ? "履歴を更新しました。"
-          : "トレーニング履歴を保存しました。"
+        editingSessionId ? "履歴を更新しました。" : "トレーニング履歴を保存しました。"
       );
     } catch (e) {
       console.error(e);
@@ -998,9 +994,7 @@ export default function TrainingPage() {
 
             <div style={{ display: "grid", gap: 12 }}>
               {setRows.map((row, index) => {
-                const exerciseOptions = getExercisesByCategory(
-                  trimmed(row.category)
-                );
+                const exerciseOptions = getExercisesByCategory(trimmed(row.category));
                 const isLast = index === setRows.length - 1;
 
                 return (
