@@ -455,17 +455,17 @@ function getLevelLabel(level?: number) {
 }
 
 function getHeatColor(level?: number) {
-  if (level === 1) return "rgba(250, 204, 21, 0.95)";
-  if (level === 2) return "rgba(251, 146, 60, 0.95)";
-  if (level === 3) return "rgba(239, 68, 68, 0.96)";
+  if (level === 1) return "rgba(250, 204, 21, 0.98)";
+  if (level === 2) return "rgba(251, 146, 60, 0.98)";
+  if (level === 3) return "rgba(239, 68, 68, 0.99)";
   return "rgba(255,255,255,0.96)";
 }
 
 function getHeatShadow(level?: number) {
-  if (level === 1) return "0 0 0 6px rgba(250, 204, 21, 0.16)";
-  if (level === 2) return "0 0 0 8px rgba(251, 146, 60, 0.18)";
-  if (level === 3) return "0 0 0 10px rgba(239, 68, 68, 0.22)";
-  return "0 6px 18px rgba(15,23,42,0.08)";
+  if (level === 1) return "0 0 0 8px rgba(250, 204, 21, 0.18), 0 10px 24px rgba(15,23,42,0.10)";
+  if (level === 2) return "0 0 0 10px rgba(251, 146, 60, 0.20), 0 12px 28px rgba(15,23,42,0.12)";
+  if (level === 3) return "0 0 0 12px rgba(239, 68, 68, 0.24), 0 14px 32px rgba(15,23,42,0.14)";
+  return "0 10px 24px rgba(15,23,42,0.10)";
 }
 
 function getHeatTextColor(level?: number) {
@@ -482,6 +482,7 @@ export default function TrainingPage() {
   const customerId = Array.isArray(rawId) ? rawId[0] : String(rawId ?? "");
 
   const [mounted, setMounted] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(1200);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -516,9 +517,20 @@ export default function TrainingPage() {
   const lastRowRef = useRef<HTMLDivElement | null>(null);
 
   const currentBodyAreas = bodySide === "front" ? FRONT_BODY_AREAS : BACK_BODY_AREAS;
+  const isMobile = windowWidth <= 768;
+  const bodyPointSize = isMobile ? 80 : 72;
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const onResize = () => setWindowWidth(window.innerWidth);
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
   useEffect(() => {
@@ -1218,9 +1230,9 @@ export default function TrainingPage() {
 
             <div style={legendWrapStyle}>
               <span style={legendTextStyle}>タップごとに</span>
-              <span style={{ ...legendChipStyle, background: "rgba(250, 204, 21, 0.95)" }}>弱</span>
-              <span style={{ ...legendChipStyle, background: "rgba(251, 146, 60, 0.95)" }}>中</span>
-              <span style={{ ...legendChipStyle, background: "rgba(239, 68, 68, 0.96)" }}>強</span>
+              <span style={{ ...legendChipStyle, background: "rgba(250, 204, 21, 0.98)" }}>弱</span>
+              <span style={{ ...legendChipStyle, background: "rgba(251, 146, 60, 0.98)" }}>中</span>
+              <span style={{ ...legendChipStyle, background: "rgba(239, 68, 68, 0.99)" }}>強</span>
               <span style={legendTextStyle}>→ 未選択</span>
             </div>
 
@@ -1245,6 +1257,8 @@ export default function TrainingPage() {
                       onClick={() => cycleTightAreaLevel(point.id)}
                       style={{
                         ...bodyPointButtonStyle,
+                        width: bodyPointSize,
+                        height: bodyPointSize,
                         top: point.top,
                         left: point.left,
                         background: getHeatColor(level),
@@ -1252,12 +1266,14 @@ export default function TrainingPage() {
                         boxShadow: getHeatShadow(level),
                         border:
                           level && level > 0
-                            ? "1px solid rgba(255,255,255,0.18)"
-                            : "1px solid rgba(148,163,184,0.20)",
+                            ? "2px solid rgba(255,255,255,0.30)"
+                            : "2px solid rgba(148,163,184,0.20)",
                       }}
                     >
-                      {point.label}
-                      {level ? ` ${level}` : ""}
+                      <span style={bodyPointInnerStyle}>
+                        <span style={bodyPointLabelStyle}>{point.label}</span>
+                        {level ? <span style={bodyPointLevelStyle}>{level}</span> : null}
+                      </span>
                     </button>
                   );
                 })}
@@ -2173,12 +2189,38 @@ const bodyLegRightStyle: CSSProperties = {
 const bodyPointButtonStyle: CSSProperties = {
   position: "absolute",
   transform: "translate(-50%, -50%)",
-  minHeight: 34,
-  padding: "0 10px",
-  borderRadius: 999,
+  borderRadius: "50%",
   fontSize: 12,
-  fontWeight: 700,
+  fontWeight: 800,
   cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 0,
+  transition: "transform 0.12s ease, box-shadow 0.12s ease",
+  WebkitTapHighlightColor: "transparent",
+};
+
+const bodyPointInnerStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  lineHeight: 1.1,
+  gap: 2,
+  padding: "0 4px",
+  textAlign: "center",
+};
+
+const bodyPointLabelStyle: CSSProperties = {
+  fontSize: 11,
+  fontWeight: 800,
+};
+
+const bodyPointLevelStyle: CSSProperties = {
+  fontSize: 16,
+  fontWeight: 900,
+  lineHeight: 1,
 };
 
 const bodyMapHelpStyle: CSSProperties = {
