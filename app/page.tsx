@@ -10,6 +10,10 @@ const menuItems = [
   { href: "/attendance", title: "出退勤管理" },
   { href: "/training", title: "トレーニング" },
   { href: "/accounting", title: "会計管理" },
+
+  // 👇追加
+  { href: "/signup", title: "オンライン入会", type: "main" },
+  { href: "/signup/list", title: "入会申請一覧", type: "sub" },
 ];
 
 export default function HomePage() {
@@ -17,7 +21,6 @@ export default function HomePage() {
     <main style={styles.page}>
       <style>{`
 
-        /* タイトルキラ */
         .shine-text {
           position: relative;
           display: inline-block;
@@ -49,7 +52,6 @@ export default function HomePage() {
           100% { left: 200%; }
         }
 
-        /* カードキラ */
         .card {
           position: relative;
           overflow: hidden;
@@ -80,7 +82,6 @@ export default function HomePage() {
           100% { left: 200%; }
         }
 
-        /* レスポンシブ */
         .grid {
           display: grid;
           grid-template-columns: 1fr 1fr;
@@ -115,11 +116,25 @@ export default function HomePage() {
 
         {/* MENU */}
         <div className="grid">
-          {menuItems.map((item) => (
-            <Link key={item.href} href={item.href} className="card" style={styles.card}>
-              <div style={styles.cardTitle}>{item.title}</div>
-            </Link>
-          ))}
+          {menuItems.map((item) => {
+            const isMain = item.type === "main";
+            const isSub = item.type === "sub";
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="card"
+                style={{
+                  ...styles.card,
+                  ...(isMain && styles.cardMain),
+                  ...(isSub && styles.cardSub),
+                }}
+              >
+                <div style={styles.cardTitle}>{item.title}</div>
+              </Link>
+            );
+          })}
         </div>
       </div>
     </main>
@@ -176,6 +191,19 @@ const styles: any = {
     border: "1px solid rgba(255,255,255,0.06)",
     textDecoration: "none",
     color: "#fff",
+  },
+
+  // 👇強調（オンライン入会）
+  cardMain: {
+    border: "1px solid rgba(168,85,247,0.5)",
+    background:
+      "linear-gradient(135deg, rgba(168,85,247,0.15), rgba(236,72,153,0.15))",
+  },
+
+  // 👇管理用（一覧）
+  cardSub: {
+    border: "1px solid rgba(16,185,129,0.4)",
+    background: "rgba(16,185,129,0.08)",
   },
 
   cardTitle: {
