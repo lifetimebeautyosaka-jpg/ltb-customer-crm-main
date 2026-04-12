@@ -225,7 +225,7 @@ export default function AttendanceStaffPage() {
   const [monthRows, setMonthRows] = useState<AttendanceRow[]>([]);
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthValue());
 
-  const [breakMinutes, setBreakMinutes] = useState(60);
+  const [breakMinutes, setBreakMinutes] = useState(30);
   const [note, setNote] = useState("");
   const [liveNow, setLiveNow] = useState(Date.now());
 
@@ -347,7 +347,7 @@ export default function AttendanceStaffPage() {
     const row = rows.length > 0 ? rows[0] : null;
 
     setTodayRow(row);
-    setBreakMinutes(row?.break_minutes ?? 60);
+    setBreakMinutes(row?.break_minutes ?? 30);
     setNote(row?.note ?? "");
   }
 
@@ -793,14 +793,30 @@ export default function AttendanceStaffPage() {
           </div>
 
           <div style={filterCardStyle}>
-            <div style={labelStyle}>休憩時間（分）</div>
-            <input
-              type="number"
-              min={0}
-              value={breakMinutes}
-              onChange={(e) => setBreakMinutes(Number(e.target.value || 0))}
-              style={inputStyle}
-            />
+            <div style={labelStyle}>休憩時間</div>
+            <div style={breakButtonRowStyle}>
+              <button
+                type="button"
+                onClick={() => setBreakMinutes(30)}
+                style={{
+                  ...breakButtonStyle,
+                  ...(breakMinutes === 30 ? breakButtonActiveStyle : {}),
+                }}
+              >
+                30分
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setBreakMinutes(60)}
+                style={{
+                  ...breakButtonStyle,
+                  ...(breakMinutes === 60 ? breakButtonActiveStyle : {}),
+                }}
+              >
+                60分
+              </button>
+            </div>
           </div>
 
           <div style={filterCardStyle}>
@@ -1258,6 +1274,32 @@ const textareaStyle: CSSProperties = {
   boxSizing: "border-box",
 };
 
+const breakButtonRowStyle: CSSProperties = {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+};
+
+const breakButtonStyle: CSSProperties = {
+  minWidth: 96,
+  height: 48,
+  borderRadius: 14,
+  border: "1px solid rgba(203,213,225,0.95)",
+  background: "rgba(255,255,255,0.82)",
+  color: "#0f172a",
+  fontWeight: 700,
+  fontSize: 14,
+  cursor: "pointer",
+  padding: "0 16px",
+  transition: "all 0.2s ease",
+};
+
+const breakButtonActiveStyle: CSSProperties = {
+  background: "linear-gradient(135deg, #ffffff, #eaf1ff)",
+  boxShadow: "0 10px 24px rgba(148,163,184,0.15)",
+  border: "1px solid rgba(148,163,184,0.45)",
+};
+
 const summaryGridLargeStyle: CSSProperties = {
   display: "grid",
   gap: 14,
@@ -1418,33 +1460,6 @@ const tdNoteStyle: CSSProperties = {
   minWidth: 180,
   whiteSpace: "normal",
   lineHeight: 1.6,
-};
-
-const detailBoxStyle: CSSProperties = {
-  borderRadius: 20,
-  background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(226,232,240,0.95)",
-  padding: 16,
-};
-
-const detailRowStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: 12,
-  padding: "10px 0",
-  borderBottom: "1px solid rgba(226,232,240,0.9)",
-};
-
-const detailLabelStyle: CSSProperties = {
-  fontSize: 14,
-  color: "rgba(15,23,42,0.62)",
-};
-
-const detailValueStyle: CSSProperties = {
-  fontSize: 14,
-  fontWeight: 700,
-  color: "#0f172a",
 };
 
 const recordCardStyle: CSSProperties = {
