@@ -62,6 +62,53 @@ type CustomerRow = {
   height?: number | null;
 };
 
+type BodyAreaPoint = {
+  id: string;
+  label: string;
+  top: string;
+  left: string;
+  side: "front" | "back";
+};
+
+const TIGHT_AREA_PREFIX = "__TIGHT_AREAS__:";
+
+const FRONT_BODY_AREAS: BodyAreaPoint[] = [
+  { id: "front_neck", label: "首前", top: "10%", left: "50%", side: "front" },
+  { id: "front_right_shoulder", label: "右肩前", top: "18%", left: "32%", side: "front" },
+  { id: "front_left_shoulder", label: "左肩前", top: "18%", left: "68%", side: "front" },
+  { id: "front_chest", label: "胸", top: "24%", left: "50%", side: "front" },
+  { id: "front_right_arm", label: "右腕前", top: "31%", left: "22%", side: "front" },
+  { id: "front_left_arm", label: "左腕前", top: "31%", left: "78%", side: "front" },
+  { id: "front_upper_abs", label: "みぞおち", top: "36%", left: "50%", side: "front" },
+  { id: "front_waist", label: "お腹", top: "45%", left: "50%", side: "front" },
+  { id: "front_right_hip", label: "右股関節前", top: "58%", left: "40%", side: "front" },
+  { id: "front_left_hip", label: "左股関節前", top: "58%", left: "60%", side: "front" },
+  { id: "front_right_thigh", label: "右もも前", top: "70%", left: "42%", side: "front" },
+  { id: "front_left_thigh", label: "左もも前", top: "70%", left: "58%", side: "front" },
+  { id: "front_right_knee", label: "右ひざ前", top: "81%", left: "43%", side: "front" },
+  { id: "front_left_knee", label: "左ひざ前", top: "81%", left: "57%", side: "front" },
+  { id: "front_right_shin", label: "右すね", top: "90%", left: "43%", side: "front" },
+  { id: "front_left_shin", label: "左すね", top: "90%", left: "57%", side: "front" },
+];
+
+const BACK_BODY_AREAS: BodyAreaPoint[] = [
+  { id: "back_neck", label: "首後", top: "10%", left: "50%", side: "back" },
+  { id: "back_right_shoulder", label: "右肩後", top: "18%", left: "32%", side: "back" },
+  { id: "back_left_shoulder", label: "左肩後", top: "18%", left: "68%", side: "back" },
+  { id: "back_upper_back", label: "背中上", top: "27%", left: "50%", side: "back" },
+  { id: "back_right_arm", label: "右腕後", top: "31%", left: "22%", side: "back" },
+  { id: "back_left_arm", label: "左腕後", top: "31%", left: "78%", side: "back" },
+  { id: "back_mid_back", label: "背中中", top: "40%", left: "50%", side: "back" },
+  { id: "back_lower_back", label: "腰", top: "50%", left: "50%", side: "back" },
+  { id: "back_hip", label: "臀部", top: "60%", left: "50%", side: "back" },
+  { id: "back_right_ham", label: "右もも裏", top: "72%", left: "42%", side: "back" },
+  { id: "back_left_ham", label: "左もも裏", top: "72%", left: "58%", side: "back" },
+  { id: "back_right_knee", label: "右ひざ裏", top: "81%", left: "43%", side: "back" },
+  { id: "back_left_knee", label: "左ひざ裏", top: "81%", left: "57%", side: "back" },
+  { id: "back_right_calf", label: "右ふくらはぎ", top: "90%", left: "43%", side: "back" },
+  { id: "back_left_calf", label: "左ふくらはぎ", top: "90%", left: "57%", side: "back" },
+];
+
 const CATEGORY_OPTIONS = [
   "胸",
   "背中",
@@ -237,6 +284,41 @@ function normalizeCustomer(row: CustomerRow | null) {
   };
 }
 
+function parseStoredTightAreas(rawPostureNote?: string | null) {
+  const raw = rawPostureNote || "";
+  if (!raw.startsWith(TIGHT_AREA_PREFIX)) {
+    return {
+      tightAreas: [] as string[],
+      postureNote: raw,
+    };
+  }
+
+  const firstLineEnd = raw.indexOf("\n");
+  const firstLine = firstLineEnd === -1 ? raw : raw.slice(0, firstLineEnd);
+  const body = firstLine.replace(TIGHT_AREA_PREFIX, "").trim();
+  const note = firstLineEnd === -1 ? "" : raw.slice(firstLineEnd + 1);
+
+  try {
+    const parsed = JSON.parse(body);
+    return {
+      tightAreas: Array.isArray(parsed) ? parsed.map(String) : [],
+      postureNote: note,
+    };
+  } catch {
+    return {
+      tightAreas: [],
+      postureNote: note || raw,
+    };
+  }
+}
+
+function buildStoredPostureNote(note: string, tightAreas: string[]) {
+  const cleanAreas = Array.from(new Set(tightAreas.filter(Boolean)));
+  const head = `${TIGHT_AREA_PREFIX}${JSON.stringify(cleanAreas)}`;
+  const body = note.trim();
+  return body ? `${head}\n${body}` : head;
+}
+
 function sessionToForm(session: TrainingSession) {
   const rows = safeArray(session.training_sets)
     .sort((a, b) => (a.row_order ?? 0) - (b.row_order ?? 0))
@@ -257,6 +339,8 @@ function sessionToForm(session: TrainingSession) {
       seconds: item.seconds || "",
       memo: item.memo || "",
     }));
+
+  const parsedPosture = parseStoredTightAreas(session.posture_note);
 
   return {
     sessionDate: session.session_date ? session.session_date.slice(0, 10) : "",
@@ -282,7 +366,8 @@ function sessionToForm(session: TrainingSession) {
         : "",
     summary: session.summary || "",
     nextTask: session.next_task || "",
-    postureNote: session.posture_note || "",
+    postureNote: parsedPosture.postureNote || "",
+    tightAreas: parsedPosture.tightAreas,
     stretchMenu: safeArray(session.stretch_menu).join("\n"),
     postureImageUrls: safeArray(session.posture_image_urls),
     setRows: rows.length > 0 ? rows : [makeRow()],
@@ -346,6 +431,9 @@ export default function TrainingPage() {
   const [summary, setSummary] = useState("");
   const [nextTask, setNextTask] = useState("");
   const [postureNote, setPostureNote] = useState("");
+  const [tightAreas, setTightAreas] = useState<string[]>([]);
+  const [bodySide, setBodySide] = useState<"front" | "back">("front");
+
   const [stretchMenu, setStretchMenu] = useState("");
   const [postureImageUrls, setPostureImageUrls] = useState<string[]>([]);
   const [setRows, setSetRows] = useState<TrainingSetRow[]>([makeRow()]);
@@ -353,6 +441,8 @@ export default function TrainingPage() {
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
 
   const lastRowRef = useRef<HTMLDivElement | null>(null);
+
+  const currentBodyAreas = bodySide === "front" ? FRONT_BODY_AREAS : BACK_BODY_AREAS;
 
   useEffect(() => {
     setMounted(true);
@@ -508,6 +598,8 @@ export default function TrainingPage() {
     setSummary("");
     setNextTask("");
     setPostureNote("");
+    setTightAreas([]);
+    setBodySide("front");
     setStretchMenu("");
     setPostureImageUrls([]);
     setSetRows([makeRow()]);
@@ -527,12 +619,21 @@ export default function TrainingPage() {
     setSummary(form.summary);
     setNextTask(form.nextTask);
     setPostureNote(form.postureNote);
+    setTightAreas(form.tightAreas);
     setStretchMenu(form.stretchMenu);
     setPostureImageUrls(form.postureImageUrls);
     setSetRows(form.setRows);
     setEditingSessionId(isEdit ? session.id : null);
 
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function toggleTightArea(areaId: string) {
+    setTightAreas((prev) =>
+      prev.includes(areaId)
+        ? prev.filter((item) => item !== areaId)
+        : [...prev, areaId]
+    );
   }
 
   function updateRow(rowId: string, key: keyof TrainingSetRow, value: string) {
@@ -671,7 +772,7 @@ export default function TrainingPage() {
         visceral_fat: toNumberOrNull(visceralFat),
         summary: trimmed(summary) || null,
         next_task: trimmed(nextTask) || null,
-        posture_note: trimmed(postureNote) || null,
+        posture_note: buildStoredPostureNote(postureNote, tightAreas),
         stretch_menu: stretchMenuArray,
         posture_image_urls: postureImageUrls,
       };
@@ -966,6 +1067,103 @@ export default function TrainingPage() {
                   style={{ ...textareaStyle, minHeight: 100 }}
                 />
               </label>
+            </div>
+          </section>
+
+          <section style={{ ...CARD_STYLE, borderRadius: 24, padding: 20 }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: 12,
+                marginBottom: 14,
+              }}
+            >
+              <h2 style={sectionTitleStyle}>硬いところ・つらいところ</h2>
+
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={() => setBodySide("front")}
+                  style={{
+                    ...toggleSideButtonStyle,
+                    ...(bodySide === "front" ? toggleSideButtonActiveStyle : {}),
+                  }}
+                >
+                  前面
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBodySide("back")}
+                  style={{
+                    ...toggleSideButtonStyle,
+                    ...(bodySide === "back" ? toggleSideButtonActiveStyle : {}),
+                  }}
+                >
+                  背面
+                </button>
+              </div>
+            </div>
+
+            <div style={bodyMapWrapStyle}>
+              <div style={bodyMapStageStyle}>
+                <div style={bodySilhouetteStyle}>
+                  <div style={bodyHeadStyle} />
+                  <div style={bodyTorsoStyle} />
+                  <div style={bodyArmLeftStyle} />
+                  <div style={bodyArmRightStyle} />
+                  <div style={bodyLegLeftStyle} />
+                  <div style={bodyLegRightStyle} />
+                </div>
+
+                {currentBodyAreas.map((point) => {
+                  const active = tightAreas.includes(point.id);
+
+                  return (
+                    <button
+                      key={point.id}
+                      type="button"
+                      onClick={() => toggleTightArea(point.id)}
+                      style={{
+                        ...bodyPointButtonStyle,
+                        top: point.top,
+                        left: point.left,
+                        ...(active ? bodyPointButtonActiveStyle : {}),
+                      }}
+                    >
+                      {point.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div style={bodyMapHelpStyle}>
+                模型の気になる場所をタップして選択してください。
+              </div>
+
+              <div style={chipWrapStyle}>
+                {tightAreas.length === 0 ? (
+                  <span style={emptyChipStyle}>未選択</span>
+                ) : (
+                  tightAreas.map((areaId) => {
+                    const allAreas = [...FRONT_BODY_AREAS, ...BACK_BODY_AREAS];
+                    const found = allAreas.find((item) => item.id === areaId);
+
+                    return (
+                      <button
+                        key={areaId}
+                        type="button"
+                        onClick={() => toggleTightArea(areaId)}
+                        style={selectedChipButtonStyle}
+                      >
+                        {found?.label || areaId} ×
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             </div>
           </section>
 
@@ -1334,6 +1532,7 @@ export default function TrainingPage() {
               <div style={{ display: "grid", gap: 14 }}>
                 {history.map((item) => {
                   const setCount = safeArray(item.training_sets).length;
+                  const parsedPosture = parseStoredTightAreas(item.posture_note);
 
                   return (
                     <div key={item.id} style={historyCardStyle}>
@@ -1412,6 +1611,24 @@ export default function TrainingPage() {
                         />
                       </div>
 
+                      {parsedPosture.tightAreas.length > 0 && (
+                        <div style={{ marginTop: 14 }}>
+                          <div style={subSectionTitleStyle}>硬いところ・つらいところ</div>
+                          <div style={chipWrapStyle}>
+                            {parsedPosture.tightAreas.map((areaId) => {
+                              const allAreas = [...FRONT_BODY_AREAS, ...BACK_BODY_AREAS];
+                              const found = allAreas.find((item2) => item2.id === areaId);
+
+                              return (
+                                <span key={areaId} style={chipStyle}>
+                                  {found?.label || areaId}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
                       {safeArray(item.stretch_menu).length > 0 && (
                         <div style={{ marginTop: 14 }}>
                           <div style={subSectionTitleStyle}>ストレッチ項目</div>
@@ -1468,11 +1685,11 @@ export default function TrainingPage() {
                         </div>
                       )}
 
-                      {(item.summary || item.next_task || item.posture_note) && (
+                      {(item.summary || item.next_task || parsedPosture.postureNote) && (
                         <div style={{ marginTop: 14, display: "grid", gap: 10 }}>
                           <InfoBlock title="総評" text={item.summary} />
                           <InfoBlock title="次回課題" text={item.next_task} />
-                          <InfoBlock title="姿勢メモ" text={item.posture_note} />
+                          <InfoBlock title="姿勢メモ" text={parsedPosture.postureNote} />
                         </div>
                       )}
 
@@ -1687,6 +1904,176 @@ const addRowButtonBottomStyle: CSSProperties = {
   minHeight: 42,
 };
 
+const bodyMapWrapStyle: CSSProperties = {
+  display: "grid",
+  gap: 12,
+};
+
+const toggleSideButtonStyle: CSSProperties = {
+  minHeight: 36,
+  padding: "0 14px",
+  borderRadius: 12,
+  border: "1px solid rgba(148,163,184,0.24)",
+  background: "#fff",
+  color: "#334155",
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+const toggleSideButtonActiveStyle: CSSProperties = {
+  background: "rgba(37,99,235,0.10)",
+  border: "1px solid rgba(37,99,235,0.22)",
+  color: "#1d4ed8",
+};
+
+const bodyMapStageStyle: CSSProperties = {
+  position: "relative",
+  height: 520,
+  borderRadius: 24,
+  background: "linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)",
+  border: "1px solid rgba(148,163,184,0.16)",
+  overflow: "hidden",
+};
+
+const bodySilhouetteStyle: CSSProperties = {
+  position: "absolute",
+  inset: 0,
+};
+
+const bodyHeadStyle: CSSProperties = {
+  position: "absolute",
+  top: "4%",
+  left: "50%",
+  transform: "translateX(-50%)",
+  width: 70,
+  height: 70,
+  borderRadius: "50%",
+  background: "rgba(148,163,184,0.22)",
+};
+
+const bodyTorsoStyle: CSSProperties = {
+  position: "absolute",
+  top: "18%",
+  left: "50%",
+  transform: "translateX(-50%)",
+  width: 140,
+  height: 190,
+  borderRadius: 40,
+  background: "rgba(148,163,184,0.22)",
+};
+
+const bodyArmLeftStyle: CSSProperties = {
+  position: "absolute",
+  top: "20%",
+  left: "calc(50% - 105px)",
+  width: 38,
+  height: 190,
+  borderRadius: 30,
+  background: "rgba(148,163,184,0.18)",
+  transform: "rotate(8deg)",
+};
+
+const bodyArmRightStyle: CSSProperties = {
+  position: "absolute",
+  top: "20%",
+  left: "calc(50% + 67px)",
+  width: 38,
+  height: 190,
+  borderRadius: 30,
+  background: "rgba(148,163,184,0.18)",
+  transform: "rotate(-8deg)",
+};
+
+const bodyLegLeftStyle: CSSProperties = {
+  position: "absolute",
+  top: "52%",
+  left: "calc(50% - 55px)",
+  width: 42,
+  height: 210,
+  borderRadius: 30,
+  background: "rgba(148,163,184,0.18)",
+};
+
+const bodyLegRightStyle: CSSProperties = {
+  position: "absolute",
+  top: "52%",
+  left: "calc(50% + 13px)",
+  width: 42,
+  height: 210,
+  borderRadius: 30,
+  background: "rgba(148,163,184,0.18)",
+};
+
+const bodyPointButtonStyle: CSSProperties = {
+  position: "absolute",
+  transform: "translate(-50%, -50%)",
+  minHeight: 34,
+  padding: "0 10px",
+  borderRadius: 999,
+  border: "1px solid rgba(148,163,184,0.20)",
+  background: "rgba(255,255,255,0.96)",
+  color: "#334155",
+  fontSize: 12,
+  fontWeight: 700,
+  cursor: "pointer",
+  boxShadow: "0 6px 18px rgba(15,23,42,0.08)",
+};
+
+const bodyPointButtonActiveStyle: CSSProperties = {
+  background: "rgba(239,68,68,0.12)",
+  color: "#b91c1c",
+  border: "1px solid rgba(239,68,68,0.26)",
+};
+
+const bodyMapHelpStyle: CSSProperties = {
+  fontSize: 13,
+  color: "#64748b",
+};
+
+const chipWrapStyle: CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 8,
+};
+
+const chipStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 30,
+  padding: "0 10px",
+  borderRadius: 999,
+  background: "rgba(37,99,235,0.08)",
+  color: "#1d4ed8",
+  fontSize: 12,
+  fontWeight: 700,
+};
+
+const emptyChipStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 30,
+  padding: "0 10px",
+  borderRadius: 999,
+  background: "rgba(148,163,184,0.10)",
+  color: "#64748b",
+  fontSize: 12,
+  fontWeight: 700,
+};
+
+const selectedChipButtonStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 32,
+  padding: "0 10px",
+  borderRadius: 999,
+  border: "1px solid rgba(239,68,68,0.22)",
+  background: "rgba(254,242,242,0.96)",
+  color: "#b91c1c",
+  fontSize: 12,
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
 const exerciseCardStyle: CSSProperties = {
   borderRadius: 20,
   background: "rgba(248,250,252,0.88)",
@@ -1796,24 +2183,6 @@ const metricPillValueStyle: CSSProperties = {
   fontSize: 15,
   color: "#0f172a",
   fontWeight: 800,
-};
-
-const chipWrapStyle: CSSProperties = {
-  display: "flex",
-  flexWrap: "wrap",
-  gap: 8,
-};
-
-const chipStyle: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  minHeight: 30,
-  padding: "0 10px",
-  borderRadius: 999,
-  background: "rgba(37,99,235,0.08)",
-  color: "#1d4ed8",
-  fontSize: 12,
-  fontWeight: 700,
 };
 
 const setCardStyle: CSSProperties = {
