@@ -7,7 +7,6 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { BG, CARD, BUTTON_PRIMARY } from "../../../../styles/theme";
@@ -184,6 +183,11 @@ function formatDateTime(date?: string | null) {
   const d = new Date(date);
   if (Number.isNaN(d.getTime())) return date;
   return d.toLocaleString("ja-JP");
+}
+
+function withUnit(value: unknown, unit: string) {
+  if (value === null || value === undefined || value === "") return "—";
+  return `${value}${unit}`;
 }
 
 function makeRow(): TrainingSetRow {
@@ -372,7 +376,7 @@ export default function TrainingPage() {
       return;
     }
 
-    void loadAll();
+    void loadHistory();
   }, [mounted, customerId, router]);
 
   useEffect(() => {
@@ -396,88 +400,16 @@ export default function TrainingPage() {
     }
   }, [history, mounted, searchParams]);
 
-  async function loadCustomerBase() {
-    if (!supabase) throw new Error("Supabaseの環境変数が設定されていません。");
-    if (!customerId) throw new Error("顧客IDが見つかりません。");
-
-    const numericCustomerId = Number(customerId);
-    const customerIdForQuery = Number.isNaN(numericCustomerId)
-      ? customerId
-      : numericCustomerId;
-
-    const { data, error: customerError } = await supabase
-      .from("customers")
-      .select("id, name, kana, height")
-      .eq("id", customerIdForQuery)
-      .single();
-
-    if (customerError) throw customerError;
-
-    const customer = normalizeCustomer((data as CustomerRow) || null);
-    setCustomerName(customer.name || "—");
-    setCustomerKana(customer.kana || "");
-    setCustomerBaseHeight(customer.height || "");
-
-    return customer;
-  }
-
-  async function loadHistoryOnly() {
-    if (!supabase) throw new Error("Supabaseの環境変数が設定されていません。");
-    if (!customerId) throw new Error("顧客IDが見つかりません。");
-
-    const { data, error: fetchError } = await supabase
-      .from("training_sessions")
-      .select(
-        `
-        *,
-        training_sets (
-          id,
-          session_id,
-          row_id,
-          row_order,
-          category,
-          exercise_name,
-          set_count,
-          reps,
-          weight,
-          seconds,
-          memo
-        )
-      `
-      )
-      .eq("customer_id", String(customerId))
-      .order("session_date", { ascending: false })
-      .order("created_at", { ascending: false });
-
-    if (fetchError) throw fetchError;
-
-    const list = (data as TrainingSession[]) ?? [];
-    setHistory(list);
-    return list;
-  }
-
-  function applyLatestHeightToForm(list: TrainingSession[], baseHeight = "") {
-    if (editingSessionId) return;
-
-    const latestWithHeight = list.find(
-      (item) => item.body_height !== null && item.body_height !== undefined
-    );
-
-    if (
-      latestWithHeight?.body_height !== null &&
-      latestWithHeight?.body_height !== undefined
-    ) {
-      setBodyHeight(String(latestWithHeight.body_height));
-      return;
-    }
-
-    setBodyHeight(baseHeight || "");
-  }
-
-  async function loadAll() {
+  async function loadHistory() {
     if (!supabase) {
       setLoading(false);
       setError("Supabaseの環境変数が設定されていません。");
+      return;
+    }
+
+    if (!customerId) {
+      setLoading(false);
+      setError("顧客IDが見つかりません。");
       return;
     }
 
@@ -485,9 +417,68 @@ export default function TrainingPage() {
     setError("");
 
     try {
-      const customer = await loadCustomerBase();
-      const list = await loadHistoryOnly();
-      applyLatestHeightToForm(list, customer.height || "");
+      const numericCustomerId = Number(customerId);
+      const customerIdForQuery = Number.isNaN(numericCustomerId)
+        ? customerId
+        : numericCustomerId;
+
+      const { data: customerData, error: customerError } = await supabase
+        .from("customers")
+        .select("id, name, kana, height")
+        .eq("id", customerIdForQuery)
+        .single();
+
+      if (customerError) throw customerError;
+
+      const customer = normalizeCustomer((customerData as CustomerRow) || null);
+      setCustomerName(customer.name || "—");
+      setCustomerKana(customer.kana || "");
+      setCustomerBaseHeight(customer.height || "");
+
+      const { data, error: fetchError } = await supabase
+        .from("training_sessions")
+        .select(
+          `
+          *,
+          training_sets (
+            id,
+            session_id,
+            row_id,
+            row_order,
+            category,
+            exercise_name,
+            set_count,
+            reps,
+            weight,
+            seconds,
+            memo
+          )
+        `
+        )
+        .eq("customer_id", String(customerId))
+        .order("session_date", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      if (fetchError) throw fetchError;
+
+      const list = (data as TrainingSession[]) ?? [];
+      setHistory(list);
+
+      if (!editingSessionId) {
+        const latest = list.find(
+          (item) => item.body_height !== null && item.body_height !== undefined
+        );
+
+        if (
+          latest &&
+          latest.body_height !== null &&
+          latest.body_height !== undefined
+        ) {
+          setBodyHeight(String(latest.body_height));
+        } else {
+          setBodyHeight(customer.height || "");
+        }
+      }
     } catch (e) {
       console.error(e);
       setError(`取得エラー: ${extractErrorMessage(e)}`);
@@ -499,7 +490,17 @@ export default function TrainingPage() {
   function resetForm(clearMessage = false) {
     setEditingSessionId(null);
     setSessionDate(new Date().toISOString().slice(0, 10));
-    setBodyHeight(customerBaseHeight || "");
+
+    const latest = history.find(
+      (item) => item.body_height !== null && item.body_height !== undefined
+    );
+
+    setBodyHeight(
+      latest && latest.body_height !== null && latest.body_height !== undefined
+        ? String(latest.body_height)
+        : customerBaseHeight || ""
+    );
+
     setBodyWeight("");
     setBodyFat("");
     setMuscleMass("");
@@ -727,10 +728,12 @@ export default function TrainingPage() {
         if (rowsError) throw rowsError;
       }
 
-      await loadAll();
+      await loadHistory();
       resetForm(false);
       setSuccess(
-        editingSessionId ? "履歴を更新しました。" : "トレーニング履歴を保存しました。"
+        editingSessionId
+          ? "履歴を更新しました。"
+          : "トレーニング履歴を保存しました。"
       );
     } catch (e) {
       console.error(e);
@@ -767,7 +770,7 @@ export default function TrainingPage() {
       if (editingSessionId === sessionId) resetForm(true);
 
       setSuccess("履歴を削除しました。");
-      await loadAll();
+      await loadHistory();
     } catch (e) {
       console.error(e);
       setError(`削除エラー: ${extractErrorMessage(e)}`);
@@ -823,7 +826,14 @@ export default function TrainingPage() {
                   ? "トレーニング履歴を編集"
                   : "トレーニング履歴を登録"}
               </h1>
-              <div style={{ marginTop: 10, color: "#334155", fontSize: 15, fontWeight: 700 }}>
+              <div
+                style={{
+                  marginTop: 10,
+                  color: "#334155",
+                  fontSize: 15,
+                  fontWeight: 700,
+                }}
+              >
                 顧客名：{customerName}
                 {customerKana ? `（${customerKana}）` : ""}
               </div>
@@ -994,7 +1004,9 @@ export default function TrainingPage() {
 
             <div style={{ display: "grid", gap: 12 }}>
               {setRows.map((row, index) => {
-                const exerciseOptions = getExercisesByCategory(trimmed(row.category));
+                const exerciseOptions = getExercisesByCategory(
+                  trimmed(row.category)
+                );
                 const isLast = index === setRows.length - 1;
 
                 return (
@@ -1308,105 +1320,181 @@ export default function TrainingPage() {
                 marginBottom: 14,
               }}
             >
-              <h2 style={sectionTitleStyle}>履歴一覧</h2>
+              <h2 style={sectionTitleStyle}>トレーニング履歴</h2>
               <div style={{ fontSize: 13, color: "#64748b" }}>
                 件数：{history.length}
               </div>
             </div>
 
-            {history.length === 0 ? (
+            {loading ? (
+              <div style={emptyStateStyle}>読み込み中...</div>
+            ) : history.length === 0 ? (
               <div style={emptyStateStyle}>まだ履歴がありません。</div>
             ) : (
-              <div style={{ display: "grid", gap: 12 }}>
-                {history.map((item) => (
-                  <div key={item.id} style={historyCardStyle}>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 12,
-                        flexWrap: "wrap",
-                        marginBottom: 12,
-                      }}
-                    >
-                      <div>
-                        <div style={historyDateStyle}>
-                          {formatDate(item.session_date)}
+              <div style={{ display: "grid", gap: 14 }}>
+                {history.map((item) => {
+                  const setCount = safeArray(item.training_sets).length;
+
+                  return (
+                    <div key={item.id} style={historyCardStyle}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 12,
+                          flexWrap: "wrap",
+                          marginBottom: 14,
+                        }}
+                      >
+                        <div>
+                          <div style={historyDateStyle}>
+                            {formatDate(item.session_date)}
+                          </div>
+                          <div style={historyMetaStyle}>
+                            作成：{formatDateTime(item.created_at)}
+                          </div>
+                          {item.updated_at && (
+                            <div style={historyMetaStyle}>
+                              更新：{formatDateTime(item.updated_at)}
+                            </div>
+                          )}
                         </div>
-                        <div style={historyMetaStyle}>
-                          作成：{formatDateTime(item.created_at)}
+
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          <button
+                            type="button"
+                            onClick={() => applySessionToForm(item, true)}
+                            style={secondaryButtonMiniStyle}
+                          >
+                            編集
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => applySessionToForm(item, false)}
+                            style={secondaryButtonMiniStyle}
+                          >
+                            コピー
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleDelete(item.id)}
+                            style={dangerButtonMiniStyle}
+                          >
+                            削除
+                          </button>
                         </div>
                       </div>
 
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <button
-                          type="button"
-                          onClick={() => applySessionToForm(item, true)}
-                          style={secondaryButtonMiniStyle}
-                        >
-                          編集
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => applySessionToForm(item, false)}
-                          style={secondaryButtonMiniStyle}
-                        >
-                          コピー
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleDelete(item.id)}
-                          style={dangerButtonMiniStyle}
-                        >
-                          削除
-                        </button>
+                      <div style={historyMetricGridStyle}>
+                        <MetricPill
+                          label="身長"
+                          value={withUnit(item.body_height, "cm")}
+                        />
+                        <MetricPill
+                          label="体重"
+                          value={withUnit(item.body_weight, "kg")}
+                        />
+                        <MetricPill
+                          label="体脂肪"
+                          value={withUnit(item.body_fat, "%")}
+                        />
+                        <MetricPill
+                          label="筋肉量"
+                          value={withUnit(item.muscle_mass, "kg")}
+                        />
+                        <MetricPill
+                          label="内臓脂肪"
+                          value={withUnit(item.visceral_fat, "")}
+                        />
+                        <MetricPill
+                          label="種目数"
+                          value={setCount > 0 ? `${setCount}件` : "—"}
+                        />
                       </div>
-                    </div>
 
-                    <div style={historyMetricGridStyle}>
-                      <MetricPill
-                        label="身長"
-                        value={
-                          item.body_height !== null && item.body_height !== undefined
-                            ? `${item.body_height}cm`
-                            : "—"
-                        }
-                      />
-                      <MetricPill
-                        label="体重"
-                        value={
-                          item.body_weight !== null && item.body_weight !== undefined
-                            ? `${item.body_weight}kg`
-                            : "—"
-                        }
-                      />
-                      <MetricPill
-                        label="体脂肪"
-                        value={
-                          item.body_fat !== null && item.body_fat !== undefined
-                            ? `${item.body_fat}%`
-                            : "—"
-                        }
-                      />
-                      <MetricPill
-                        label="筋肉量"
-                        value={
-                          item.muscle_mass !== null && item.muscle_mass !== undefined
-                            ? `${item.muscle_mass}kg`
-                            : "—"
-                        }
-                      />
-                    </div>
+                      {safeArray(item.stretch_menu).length > 0 && (
+                        <div style={{ marginTop: 14 }}>
+                          <div style={subSectionTitleStyle}>ストレッチ項目</div>
+                          <div style={chipWrapStyle}>
+                            {safeArray(item.stretch_menu).map((menu, idx) => (
+                              <span key={`${menu}-${idx}`} style={chipStyle}>
+                                {menu}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
-                    {(item.summary || item.next_task || item.posture_note) && (
-                      <div style={{ marginTop: 14, display: "grid", gap: 10 }}>
-                        <InfoBlock title="総評" text={item.summary} />
-                        <InfoBlock title="次回課題" text={item.next_task} />
-                        <InfoBlock title="姿勢メモ" text={item.posture_note} />
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      {safeArray(item.training_sets).length > 0 && (
+                        <div style={{ marginTop: 14 }}>
+                          <div style={subSectionTitleStyle}>トレーニング内容</div>
+                          <div style={{ display: "grid", gap: 10 }}>
+                            {safeArray(item.training_sets)
+                              .sort((a, b) => (a.row_order ?? 0) - (b.row_order ?? 0))
+                              .map((setItem, idx) => (
+                                <div key={setItem.id || `${item.id}-${idx}`} style={setCardStyle}>
+                                  <div style={setCardHeaderStyle}>
+                                    <div style={setCardIndexStyle}>種目 {idx + 1}</div>
+                                    <div style={setCardExerciseStyle}>
+                                      {setItem.exercise_name || "—"}
+                                    </div>
+                                  </div>
+
+                                  <div style={setMetricGridStyle}>
+                                    <MiniMetric label="カテゴリ" value={setItem.category || "—"} />
+                                    <MiniMetric
+                                      label="セット"
+                                      value={
+                                        setItem.set_count !== null &&
+                                        setItem.set_count !== undefined
+                                          ? `${setItem.set_count}`
+                                          : "—"
+                                      }
+                                    />
+                                    <MiniMetric label="回数" value={setItem.reps || "—"} />
+                                    <MiniMetric label="重量" value={setItem.weight || "—"} />
+                                    <MiniMetric label="秒数" value={setItem.seconds || "—"} />
+                                  </div>
+
+                                  {setItem.memo && (
+                                    <div style={setMemoStyle}>
+                                      <div style={setMemoLabelStyle}>メモ</div>
+                                      <div style={setMemoTextStyle}>{setItem.memo}</div>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {(item.summary || item.next_task || item.posture_note) && (
+                        <div style={{ marginTop: 14, display: "grid", gap: 10 }}>
+                          <InfoBlock title="総評" text={item.summary} />
+                          <InfoBlock title="次回課題" text={item.next_task} />
+                          <InfoBlock title="姿勢メモ" text={item.posture_note} />
+                        </div>
+                      )}
+
+                      {safeArray(item.posture_image_urls).length > 0 && (
+                        <div style={{ marginTop: 14 }}>
+                          <div style={subSectionTitleStyle}>姿勢画像</div>
+                          <div style={imageGridStyle}>
+                            {safeArray(item.posture_image_urls).map((url, idx) => (
+                              <div key={`${url}-${idx}`} style={historyImageCardStyle}>
+                                <img
+                                  src={url}
+                                  alt={`history-posture-${idx + 1}`}
+                                  style={historyImageStyle}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </section>
@@ -1427,6 +1515,21 @@ function MetricPill({
     <div style={metricPillStyle}>
       <div style={metricPillLabelStyle}>{label}</div>
       <div style={metricPillValueStyle}>{value}</div>
+    </div>
+  );
+}
+
+function MiniMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div style={miniMetricStyle}>
+      <div style={miniMetricLabelStyle}>{label}</div>
+      <div style={miniMetricValueStyle}>{value}</div>
     </div>
   );
 }
@@ -1452,6 +1555,13 @@ const sectionTitleStyle: CSSProperties = {
   margin: "0 0 14px",
   fontSize: 22,
   color: "#0f172a",
+};
+
+const subSectionTitleStyle: CSSProperties = {
+  fontSize: 13,
+  color: "#475569",
+  fontWeight: 800,
+  marginBottom: 10,
 };
 
 const labelStyle: CSSProperties = {
@@ -1644,10 +1754,10 @@ const emptyStateStyle: CSSProperties = {
 };
 
 const historyCardStyle: CSSProperties = {
-  borderRadius: 20,
-  background: "rgba(248,250,252,0.90)",
+  borderRadius: 22,
+  background: "rgba(248,250,252,0.94)",
   border: "1px solid rgba(148,163,184,0.14)",
-  padding: 16,
+  padding: 18,
 };
 
 const historyDateStyle: CSSProperties = {
@@ -1688,6 +1798,99 @@ const metricPillValueStyle: CSSProperties = {
   fontWeight: 800,
 };
 
+const chipWrapStyle: CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 8,
+};
+
+const chipStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 30,
+  padding: "0 10px",
+  borderRadius: 999,
+  background: "rgba(37,99,235,0.08)",
+  color: "#1d4ed8",
+  fontSize: 12,
+  fontWeight: 700,
+};
+
+const setCardStyle: CSSProperties = {
+  borderRadius: 16,
+  background: "#fff",
+  border: "1px solid rgba(148,163,184,0.14)",
+  padding: 14,
+};
+
+const setCardHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 10,
+  flexWrap: "wrap",
+  marginBottom: 10,
+};
+
+const setCardIndexStyle: CSSProperties = {
+  fontSize: 12,
+  color: "#64748b",
+  fontWeight: 700,
+};
+
+const setCardExerciseStyle: CSSProperties = {
+  fontSize: 16,
+  color: "#0f172a",
+  fontWeight: 800,
+};
+
+const setMetricGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
+  gap: 8,
+};
+
+const miniMetricStyle: CSSProperties = {
+  borderRadius: 12,
+  background: "rgba(248,250,252,0.92)",
+  border: "1px solid rgba(148,163,184,0.14)",
+  padding: "10px 10px 8px",
+};
+
+const miniMetricLabelStyle: CSSProperties = {
+  fontSize: 10,
+  color: "#64748b",
+  marginBottom: 4,
+  fontWeight: 700,
+};
+
+const miniMetricValueStyle: CSSProperties = {
+  fontSize: 13,
+  color: "#0f172a",
+  fontWeight: 700,
+};
+
+const setMemoStyle: CSSProperties = {
+  marginTop: 10,
+  borderRadius: 12,
+  background: "rgba(248,250,252,0.92)",
+  border: "1px solid rgba(148,163,184,0.14)",
+  padding: 12,
+};
+
+const setMemoLabelStyle: CSSProperties = {
+  fontSize: 11,
+  color: "#64748b",
+  fontWeight: 700,
+  marginBottom: 4,
+};
+
+const setMemoTextStyle: CSSProperties = {
+  fontSize: 13,
+  color: "#0f172a",
+  lineHeight: 1.7,
+};
+
 const infoBlockStyle: CSSProperties = {
   borderRadius: 14,
   padding: 14,
@@ -1706,4 +1909,24 @@ const infoBlockTextStyle: CSSProperties = {
   fontSize: 14,
   color: "#0f172a",
   lineHeight: 1.8,
+};
+
+const imageGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+  gap: 10,
+};
+
+const historyImageCardStyle: CSSProperties = {
+  borderRadius: 16,
+  overflow: "hidden",
+  background: "#fff",
+  border: "1px solid rgba(148,163,184,0.14)",
+};
+
+const historyImageStyle: CSSProperties = {
+  width: "100%",
+  aspectRatio: "1 / 1",
+  objectFit: "cover",
+  display: "block",
 };
