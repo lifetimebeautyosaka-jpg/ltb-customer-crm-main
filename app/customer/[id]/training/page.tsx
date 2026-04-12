@@ -7,6 +7,7 @@ import {
   useState,
   type CSSProperties,
 } from "react";
+import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { BG, CARD, BUTTON_PRIMARY } from "../../../../styles/theme";
@@ -53,6 +54,15 @@ type TrainingSession = {
   created_at?: string | null;
   updated_at?: string | null;
   training_sets?: TrainingSetDB[];
+};
+
+type CustomerRow = {
+  id: string | number;
+  name?: string | null;
+  customer_name?: string | null;
+  kana?: string | null;
+  furigana?: string | null;
+  height?: number | null;
 };
 
 const CATEGORY_OPTIONS = [
@@ -206,6 +216,25 @@ function toNumberOrNull(value: unknown) {
   return Number.isFinite(num) ? num : null;
 }
 
+function normalizeCustomer(row: CustomerRow | null) {
+  if (!row) {
+    return {
+      id: "",
+      name: "—",
+      kana: "",
+      height: "",
+    };
+  }
+
+  return {
+    id: String(row.id ?? ""),
+    name: row.name || row.customer_name || "—",
+    kana: row.kana || row.furigana || "",
+    height:
+      row.height !== null && row.height !== undefined ? String(row.height) : "",
+  };
+}
+
 function sessionToForm(session: TrainingSession) {
   const rows = safeArray(session.training_sets)
     .sort((a, b) => (a.row_order ?? 0) - (b.row_order ?? 0))
@@ -299,6 +328,10 @@ export default function TrainingPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const [customerName, setCustomerName] = useState("—");
+  const [customerKana, setCustomerKana] = useState("");
+  const [customerBaseHeight, setCustomerBaseHeight] = useState("");
+
   const [sessionDate, setSessionDate] = useState(
     new Date().toISOString().slice(0, 10)
   );
@@ -341,7 +374,7 @@ export default function TrainingPage() {
       return;
     }
 
-    void loadHistory();
+    void loadAll();
   }, [mounted, customerId, router]);
 
   useEffect(() => {
@@ -365,25 +398,88 @@ export default function TrainingPage() {
     }
   }, [history, mounted, searchParams]);
 
-  function applyLatestHeightToForm(list: TrainingSession[]) {
-    if (editingSessionId) return;
-    const latest = list.find(
-      (item) => item.body_height !== null && item.body_height !== undefined
-    );
-    if (!latest) return;
-    setBodyHeight(String(latest.body_height));
+  async function loadCustomerBase() {
+    if (!supabase) throw new Error("Supabaseの環境変数が設定されていません。");
+    if (!customerId) throw new Error("顧客IDが見つかりません。");
+
+    const numericCustomerId = Number(customerId);
+    const customerIdForQuery = Number.isNaN(numericCustomerId)
+      ? customerId
+      : numericCustomerId;
+
+    const { data, error: customerError } = await supabase
+      .from("customers")
+      .select("id, name, customer_name, kana, furigana, height")
+      .eq("id", customerIdForQuery)
+      .single();
+
+    if (customerError) throw customerError;
+
+    const customer = normalizeCustomer((data as CustomerRow) || null);
+    setCustomerName(customer.name || "—");
+    setCustomerKana(customer.kana || "");
+    setCustomerBaseHeight(customer.height || "");
+
+    return customer;
   }
 
-  async function loadHistory() {
-    if (!supabase) {
-      setLoading(false);
-      setError("Supabaseの環境変数が設定されていません。");
+  async function loadHistoryOnly() {
+    if (!supabase) throw new Error("Supabaseの環境変数が設定されていません。");
+    if (!customerId) throw new Error("顧客IDが見つかりません。");
+
+    const { data, error: fetchError } = await supabase
+      .from("training_sessions")
+      .select(
+        `
+        *,
+        training_sets (
+          id,
+          session_id,
+          row_id,
+          row_order,
+          category,
+          exercise_name,
+          set_count,
+          reps,
+          weight,
+          seconds,
+          memo
+        )
+      `
+      )
+      .eq("customer_id", String(customerId))
+      .order("session_date", { ascending: false })
+      .order("created_at", { ascending: false });
+
+    if (fetchError) throw fetchError;
+
+    const list = (data as TrainingSession[]) ?? [];
+    setHistory(list);
+    return list;
+  }
+
+  function applyLatestHeightToForm(
+    list: TrainingSession[],
+    baseHeight = ""
+  ) {
+    if (editingSessionId) return;
+
+    const latestWithHeight = list.find(
+      (item) => item.body_height !== null && item.body_height !== undefined
+    );
+
+    if (latestWithHeight?.body_height !== null && latestWithHeight?.body_height !== undefined) {
+      setBodyHeight(String(latestWithHeight.body_height));
       return;
     }
 
-    if (!customerId) {
+    setBodyHeight(baseHeight || "");
+  }
+
+  async function loadAll() {
+    if (!supabase) {
       setLoading(false);
-      setError("顧客IDが見つかりません。");
+      setError("Supabaseの環境変数が設定されていません。");
       return;
     }
 
@@ -391,38 +487,12 @@ export default function TrainingPage() {
     setError("");
 
     try {
-      const { data, error: fetchError } = await supabase
-        .from("training_sessions")
-        .select(
-          `
-          *,
-          training_sets (
-            id,
-            session_id,
-            row_id,
-            row_order,
-            category,
-            exercise_name,
-            set_count,
-            reps,
-            weight,
-            seconds,
-            memo
-          )
-        `
-        )
-        .eq("customer_id", String(customerId))
-        .order("session_date", { ascending: false })
-        .order("created_at", { ascending: false });
-
-      if (fetchError) throw fetchError;
-
-      const list = (data as TrainingSession[]) ?? [];
-      setHistory(list);
-      applyLatestHeightToForm(list);
+      const customer = await loadCustomerBase();
+      const list = await loadHistoryOnly();
+      applyLatestHeightToForm(list, customer.height || "");
     } catch (e) {
       console.error(e);
-      setError(`履歴取得エラー: ${extractErrorMessage(e)}`);
+      setError(`取得エラー: ${extractErrorMessage(e)}`);
     } finally {
       setLoading(false);
     }
@@ -431,16 +501,7 @@ export default function TrainingPage() {
   function resetForm(clearMessage = false) {
     setEditingSessionId(null);
     setSessionDate(new Date().toISOString().slice(0, 10));
-
-    const latest = history.find(
-      (item) => item.body_height !== null && item.body_height !== undefined
-    );
-    setBodyHeight(
-      latest && latest.body_height !== null && latest.body_height !== undefined
-        ? String(latest.body_height)
-        : ""
-    );
-
+    setBodyHeight(customerBaseHeight || "");
     setBodyWeight("");
     setBodyFat("");
     setMuscleMass("");
@@ -459,7 +520,7 @@ export default function TrainingPage() {
     const form = sessionToForm(session);
 
     setSessionDate(form.sessionDate || new Date().toISOString().slice(0, 10));
-    setBodyHeight(form.bodyHeight);
+    setBodyHeight(form.bodyHeight || customerBaseHeight || "");
     setBodyWeight(form.bodyWeight);
     setBodyFat(form.bodyFat);
     setMuscleMass(form.muscleMass);
@@ -668,7 +729,7 @@ export default function TrainingPage() {
         if (rowsError) throw rowsError;
       }
 
-      await loadHistory();
+      await loadAll();
       resetForm(false);
       setSuccess(
         editingSessionId
@@ -710,7 +771,7 @@ export default function TrainingPage() {
       if (editingSessionId === sessionId) resetForm(true);
 
       setSuccess("履歴を削除しました。");
-      await loadHistory();
+      await loadAll();
     } catch (e) {
       console.error(e);
       setError(`削除エラー: ${extractErrorMessage(e)}`);
@@ -766,6 +827,10 @@ export default function TrainingPage() {
                   ? "トレーニング履歴を編集"
                   : "トレーニング履歴を登録"}
               </h1>
+              <div style={{ marginTop: 10, color: "#334155", fontSize: 15, fontWeight: 700 }}>
+                顧客名：{customerName}
+                {customerKana ? `（${customerKana}）` : ""}
+              </div>
             </div>
 
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -805,6 +870,15 @@ export default function TrainingPage() {
                 gap: 14,
               }}
             >
+              <label style={{ display: "grid", gap: 8 }}>
+                <span style={labelStyle}>顧客名</span>
+                <input
+                  value={customerName}
+                  readOnly
+                  style={{ ...inputStyle, background: "#f8fafc" }}
+                />
+              </label>
+
               <label style={{ display: "grid", gap: 8 }}>
                 <span style={labelStyle}>身長（cm）</span>
                 <input
@@ -1183,7 +1257,7 @@ export default function TrainingPage() {
                         alt={`posture-${idx + 1}`}
                         style={{
                           width: "100%",
-                          aspectRatio: "3 / 4",
+                          aspectRatio: "1 / 1",
                           objectFit: "cover",
                           display: "block",
                         }}
@@ -1200,48 +1274,36 @@ export default function TrainingPage() {
                 </div>
               )}
             </div>
+          </section>
 
+          <section style={{ ...CARD_STYLE, borderRadius: 24, padding: 20 }}>
             <div
               style={{
                 display: "flex",
                 gap: 12,
+                justifyContent: "flex-end",
                 flexWrap: "wrap",
-                marginTop: 20,
               }}
             >
               <button
                 type="button"
-                onClick={() => void handleSave()}
+                onClick={handleSave}
                 disabled={saving}
                 style={{
-                  ...BUTTON_PRIMARY_STYLE,
+                  ...primaryButtonStyle,
                   opacity: saving ? 0.7 : 1,
-                  cursor: saving ? "not-allowed" : "pointer",
                 }}
               >
                 {saving
                   ? "保存中..."
                   : editingSessionId
-                  ? "更新して保存"
-                  : "新規保存"}
+                  ? "更新する"
+                  : "保存する"}
               </button>
-
-              {editingSessionId && (
-                <button
-                  type="button"
-                  onClick={() => resetForm(true)}
-                  style={secondaryButtonStyle}
-                >
-                  編集をやめる
-                </button>
-              )}
             </div>
           </section>
 
-          <section
-            id="history"
-            style={{ ...CARD_STYLE, borderRadius: 24, padding: 20 }}
-          >
+          <section style={{ ...CARD_STYLE, borderRadius: 24, padding: 20 }}>
             <div
               style={{
                 display: "flex",
@@ -1249,170 +1311,108 @@ export default function TrainingPage() {
                 alignItems: "center",
                 gap: 12,
                 flexWrap: "wrap",
-                marginBottom: 16,
+                marginBottom: 14,
               }}
             >
               <h2 style={sectionTitleStyle}>履歴一覧</h2>
-              <div style={{ fontSize: 13, color: "#64748b", fontWeight: 700 }}>
-                {loading ? "読み込み中..." : `履歴 ${history.length}件`}
+              <div style={{ fontSize: 13, color: "#64748b" }}>
+                件数：{history.length}
               </div>
             </div>
 
-            {loading ? (
-              <div style={{ color: "#475569" }}>読み込み中です...</div>
-            ) : history.length === 0 ? (
-              <div style={emptyBoxStyle}>まだ履歴はありません。</div>
+            {history.length === 0 ? (
+              <div style={emptyStateStyle}>まだ履歴がありません。</div>
             ) : (
-              <div style={{ display: "grid", gap: 16 }}>
-                {history.map((session) => {
-                  const sets = safeArray(session.training_sets).sort(
-                    (a, b) => (a.row_order ?? 0) - (b.row_order ?? 0)
-                  );
-                  const images = safeArray(session.posture_image_urls);
-
-                  return (
-                    <article key={session.id} style={historyCardStyle}>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "flex-start",
-                          flexWrap: "wrap",
-                          gap: 12,
-                          marginBottom: 14,
-                        }}
-                      >
-                        <div>
-                          <div style={historyDateStyle}>
-                            {formatDate(session.session_date)}
-                          </div>
-                          <div style={historySubStyle}>
-                            身長 {session.body_height ?? "—"}cm / 体重{" "}
-                            {session.body_weight ?? "—"}kg
-                          </div>
-                          <div style={historySubStyle}>
-                            体脂肪 {session.body_fat ?? "—"}% / 筋肉量{" "}
-                            {session.muscle_mass ?? "—"}kg
-                          </div>
-                          <div style={historySubStyle}>
-                            内臓脂肪 {session.visceral_fat ?? "—"}
-                          </div>
-                          <div style={historySubStyle}>
-                            更新日時{" "}
-                            {formatDateTime(
-                              session.updated_at || session.created_at
-                            )}
-                          </div>
+              <div style={{ display: "grid", gap: 12 }}>
+                {history.map((item) => (
+                  <div key={item.id} style={historyCardStyle}>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        flexWrap: "wrap",
+                        marginBottom: 12,
+                      }}
+                    >
+                      <div>
+                        <div style={historyDateStyle}>
+                          {formatDate(item.session_date)}
                         </div>
-
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                          <button
-                            type="button"
-                            onClick={() => applySessionToForm(session, true)}
-                            style={smallActionButtonStyle}
-                          >
-                            編集
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => applySessionToForm(session, false)}
-                            style={smallActionButtonStyle}
-                          >
-                            コピー
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void handleDelete(session.id)}
-                            style={smallDeleteButtonStyle}
-                          >
-                            削除
-                          </button>
+                        <div style={historyMetaStyle}>
+                          作成：{formatDateTime(item.created_at)}
                         </div>
                       </div>
 
-                      {sets.length > 0 && (
-                        <div style={{ display: "grid", gap: 10, marginBottom: 14 }}>
-                          {sets.map((set, idx) => (
-                            <div key={set.id || idx} style={historySetRowStyle}>
-                              <div style={historySetTitleStyle}>
-                                {idx + 1}. {set.exercise_name || "種目未設定"}
-                              </div>
-                              <div style={historySubStyle}>
-                                カテゴリ {set.category || "—"} / セット数{" "}
-                                {set.set_count ?? "—"} / 回数 {set.reps || "—"} /
-                                重量 {set.weight || "—"} / 秒数{" "}
-                                {set.seconds || "—"}
-                              </div>
-                              {set.memo ? (
-                                <div style={historyMemoStyle}>{set.memo}</div>
-                              ) : null}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {session.summary ? (
-                        <div style={{ marginTop: 10 }}>
-                          <div style={historyLabelStyle}>総評</div>
-                          <div style={historyTextBlockStyle}>{session.summary}</div>
-                        </div>
-                      ) : null}
-
-                      {session.next_task ? (
-                        <div style={{ marginTop: 10 }}>
-                          <div style={historyLabelStyle}>次回課題</div>
-                          <div style={historyTextBlockStyle}>{session.next_task}</div>
-                        </div>
-                      ) : null}
-
-                      {session.posture_note ? (
-                        <div style={{ marginTop: 10 }}>
-                          <div style={historyLabelStyle}>姿勢メモ</div>
-                          <div style={historyTextBlockStyle}>
-                            {session.posture_note}
-                          </div>
-                        </div>
-                      ) : null}
-
-                      {safeArray(session.stretch_menu).length > 0 ? (
-                        <div style={{ marginTop: 10 }}>
-                          <div style={historyLabelStyle}>ストレッチ項目</div>
-                          <div style={historyTextBlockStyle}>
-                            {safeArray(session.stretch_menu).join(" / ")}
-                          </div>
-                        </div>
-                      ) : null}
-
-                      {images.length > 0 ? (
-                        <div
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns:
-                              "repeat(auto-fit, minmax(140px, 1fr))",
-                            gap: 10,
-                            marginTop: 14,
-                          }}
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <button
+                          type="button"
+                          onClick={() => applySessionToForm(item, true)}
+                          style={secondaryButtonMiniStyle}
                         >
-                          {images.map((url, idx) => (
-                            <img
-                              key={`${url}-${idx}`}
-                              src={url}
-                              alt={`history-${idx + 1}`}
-                              style={{
-                                width: "100%",
-                                aspectRatio: "3 / 4",
-                                objectFit: "cover",
-                                borderRadius: 16,
-                                border: "1px solid rgba(226,232,240,0.95)",
-                                background: "#fff",
-                              }}
-                            />
-                          ))}
-                        </div>
-                      ) : null}
-                    </article>
-                  );
-                })}
+                          編集
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => applySessionToForm(item, false)}
+                          style={secondaryButtonMiniStyle}
+                        >
+                          コピー
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDelete(item.id)}
+                          style={dangerButtonMiniStyle}
+                        >
+                          削除
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style={historyMetricGridStyle}>
+                      <MetricPill
+                        label="身長"
+                        value={
+                          item.body_height !== null && item.body_height !== undefined
+                            ? `${item.body_height}cm`
+                            : "—"
+                        }
+                      />
+                      <MetricPill
+                        label="体重"
+                        value={
+                          item.body_weight !== null && item.body_weight !== undefined
+                            ? `${item.body_weight}kg`
+                            : "—"
+                        }
+                      />
+                      <MetricPill
+                        label="体脂肪"
+                        value={
+                          item.body_fat !== null && item.body_fat !== undefined
+                            ? `${item.body_fat}%`
+                            : "—"
+                        }
+                      />
+                      <MetricPill
+                        label="筋肉量"
+                        value={
+                          item.muscle_mass !== null && item.muscle_mass !== undefined
+                            ? `${item.muscle_mass}kg`
+                            : "—"
+                        }
+                      />
+                    </div>
+
+                    {(item.summary || item.next_task || item.posture_note) && (
+                      <div style={{ marginTop: 14, display: "grid", gap: 10 }}>
+                        <InfoBlock title="総評" text={item.summary} />
+                        <InfoBlock title="次回課題" text={item.next_task} />
+                        <InfoBlock title="姿勢メモ" text={item.posture_note} />
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </section>
@@ -1422,122 +1422,172 @@ export default function TrainingPage() {
   );
 }
 
+function MetricPill({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div style={metricPillStyle}>
+      <div style={metricPillLabelStyle}>{label}</div>
+      <div style={metricPillValueStyle}>{value}</div>
+    </div>
+  );
+}
+
+function InfoBlock({
+  title,
+  text,
+}: {
+  title: string;
+  text?: string | null;
+}) {
+  if (!text?.trim()) return null;
+
+  return (
+    <div style={infoBlockStyle}>
+      <div style={infoBlockTitleStyle}>{title}</div>
+      <div style={infoBlockTextStyle}>{text}</div>
+    </div>
+  );
+}
+
 const sectionTitleStyle: CSSProperties = {
-  margin: "0 0 16px",
-  fontSize: 20,
-  fontWeight: 800,
+  margin: "0 0 14px",
+  fontSize: 22,
   color: "#0f172a",
 };
 
 const labelStyle: CSSProperties = {
   fontSize: 13,
-  fontWeight: 700,
   color: "#334155",
+  fontWeight: 700,
 };
 
 const inputStyle: CSSProperties = {
   width: "100%",
-  height: 46,
+  minHeight: 46,
   borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.95)",
-  background: "rgba(255,255,255,0.96)",
+  border: "1px solid rgba(148,163,184,0.28)",
+  background: "#fff",
   padding: "0 14px",
   fontSize: 14,
-  color: "#0f172a",
   outline: "none",
   boxSizing: "border-box",
-};
-
-const tableInputStyle: CSSProperties = {
-  ...inputStyle,
 };
 
 const textareaStyle: CSSProperties = {
   width: "100%",
   borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.95)",
-  background: "rgba(255,255,255,0.96)",
+  border: "1px solid rgba(148,163,184,0.28)",
+  background: "#fff",
   padding: "12px 14px",
   fontSize: 14,
-  color: "#0f172a",
   outline: "none",
   resize: "vertical",
   boxSizing: "border-box",
 };
 
-const secondaryButtonStyle: CSSProperties = {
-  height: 42,
+const tableInputStyle: CSSProperties = {
+  ...inputStyle,
+  minHeight: 42,
+};
+
+const primaryButtonStyle: CSSProperties = {
+  ...(BUTTON_PRIMARY_STYLE || {}),
+  minHeight: 46,
+  padding: "0 18px",
   borderRadius: 14,
-  border: "1px solid rgba(148,163,184,0.24)",
-  background: "rgba(255,255,255,0.86)",
-  color: "#334155",
-  fontSize: 14,
-  fontWeight: 700,
+  border: "none",
   cursor: "pointer",
+  fontWeight: 700,
+};
+
+const secondaryButtonStyle: CSSProperties = {
+  minHeight: 44,
   padding: "0 16px",
+  borderRadius: 12,
+  border: "1px solid rgba(148,163,184,0.28)",
+  background: "#fff",
+  color: "#0f172a",
+  cursor: "pointer",
+  fontWeight: 700,
+};
+
+const secondaryButtonMiniStyle: CSSProperties = {
+  minHeight: 36,
+  padding: "0 12px",
+  borderRadius: 10,
+  border: "1px solid rgba(148,163,184,0.28)",
+  background: "#fff",
+  color: "#0f172a",
+  cursor: "pointer",
+  fontWeight: 700,
+  fontSize: 13,
+};
+
+const dangerButtonMiniStyle: CSSProperties = {
+  ...secondaryButtonMiniStyle,
+  color: "#b91c1c",
+  border: "1px solid rgba(239,68,68,0.28)",
+  background: "rgba(254,242,242,0.9)",
 };
 
 const alertErrorStyle: CSSProperties = {
-  padding: "14px 16px",
   borderRadius: 16,
-  background: "rgba(254,242,242,0.98)",
-  border: "1px solid rgba(239,68,68,0.22)",
+  padding: "14px 16px",
+  background: "rgba(254,242,242,0.95)",
+  border: "1px solid rgba(239,68,68,0.20)",
   color: "#b91c1c",
   fontSize: 14,
-  fontWeight: 700,
+  fontWeight: 600,
 };
 
 const alertSuccessStyle: CSSProperties = {
-  padding: "14px 16px",
   borderRadius: 16,
-  background: "rgba(240,253,244,0.98)",
+  padding: "14px 16px",
+  background: "rgba(240,253,244,0.95)",
   border: "1px solid rgba(34,197,94,0.18)",
   color: "#15803d",
   fontSize: 14,
-  fontWeight: 700,
+  fontWeight: 600,
 };
 
 const countBadgeStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
-  minHeight: 40,
-  borderRadius: 9999,
-  background: "rgba(255,255,255,0.9)",
-  border: "1px solid rgba(226,232,240,0.95)",
-  color: "#334155",
-  padding: "0 14px",
+  minHeight: 36,
+  padding: "0 12px",
+  borderRadius: 999,
+  background: "rgba(59,130,246,0.08)",
+  color: "#1d4ed8",
   fontSize: 13,
   fontWeight: 700,
 };
 
 const addRowButtonTopStyle: CSSProperties = {
-  ...BUTTON_PRIMARY_STYLE,
-  minHeight: 48,
-  padding: "12px 18px",
-  borderRadius: 14,
-  fontWeight: 800,
-  fontSize: 15,
-  minWidth: 150,
+  minHeight: 38,
+  padding: "0 14px",
+  borderRadius: 12,
+  border: "1px solid rgba(59,130,246,0.18)",
+  background: "rgba(239,246,255,0.96)",
+  color: "#1d4ed8",
+  cursor: "pointer",
+  fontWeight: 700,
 };
 
 const addRowButtonBottomStyle: CSSProperties = {
-  ...BUTTON_PRIMARY_STYLE,
-  minHeight: 56,
-  padding: "14px 22px",
-  borderRadius: 16,
-  fontWeight: 800,
-  fontSize: 16,
-  width: "100%",
-  maxWidth: 340,
-  justifyContent: "center",
+  ...addRowButtonTopStyle,
+  minHeight: 42,
 };
 
 const exerciseCardStyle: CSSProperties = {
-  background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(226,232,240,0.92)",
   borderRadius: 20,
+  background: "rgba(248,250,252,0.88)",
+  border: "1px solid rgba(148,163,184,0.14)",
   padding: 16,
-  boxShadow: "0 12px 30px rgba(15,23,42,0.05)",
 };
 
 const exerciseCardHeaderStyle: CSSProperties = {
@@ -1556,127 +1606,110 @@ const exerciseCardIndexStyle: CSSProperties = {
 };
 
 const trainingDeleteButtonStyle: CSSProperties = {
-  minHeight: 38,
-  borderRadius: 12,
+  minHeight: 34,
+  padding: "0 12px",
+  borderRadius: 10,
   border: "1px solid rgba(239,68,68,0.22)",
   background: "rgba(254,242,242,0.95)",
   color: "#b91c1c",
+  cursor: "pointer",
+  fontWeight: 700,
   fontSize: 13,
-  fontWeight: 700,
-  cursor: "pointer",
-  padding: "0 14px",
-};
-
-const removeImageButtonStyle: CSSProperties = {
-  position: "absolute",
-  right: 10,
-  bottom: 10,
-  minHeight: 34,
-  borderRadius: 10,
-  border: "1px solid rgba(239,68,68,0.25)",
-  background: "rgba(255,255,255,0.95)",
-  color: "#b91c1c",
-  fontWeight: 700,
-  fontSize: 12,
-  cursor: "pointer",
-  padding: "0 12px",
 };
 
 const exerciseCardGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gap: 12,
+  gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+  gap: 14,
 };
 
-const emptyBoxStyle: CSSProperties = {
-  padding: "18px 16px",
-  borderRadius: 16,
-  background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(226,232,240,0.95)",
-  color: "#475569",
+const removeImageButtonStyle: CSSProperties = {
+  position: "absolute",
+  top: 8,
+  right: 8,
+  minHeight: 30,
+  padding: "0 10px",
+  borderRadius: 999,
+  border: "none",
+  background: "rgba(15,23,42,0.82)",
+  color: "#fff",
+  fontSize: 12,
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+const emptyStateStyle: CSSProperties = {
+  minHeight: 120,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  borderRadius: 18,
+  background: "rgba(248,250,252,0.92)",
+  color: "#64748b",
   fontSize: 14,
 };
 
 const historyCardStyle: CSSProperties = {
-  background: "rgba(255,255,255,0.82)",
-  border: "1px solid rgba(226,232,240,0.95)",
-  borderRadius: 22,
-  padding: 18,
-  boxShadow: "0 12px 30px rgba(15,23,42,0.05)",
+  borderRadius: 20,
+  background: "rgba(248,250,252,0.90)",
+  border: "1px solid rgba(148,163,184,0.14)",
+  padding: 16,
 };
 
 const historyDateStyle: CSSProperties = {
   fontSize: 18,
   fontWeight: 800,
   color: "#0f172a",
-  marginBottom: 6,
 };
 
-const historySubStyle: CSSProperties = {
-  fontSize: 13,
-  color: "#64748b",
-  lineHeight: 1.8,
-};
-
-const smallActionButtonStyle: CSSProperties = {
-  minHeight: 36,
-  borderRadius: 12,
-  border: "1px solid rgba(148,163,184,0.2)",
-  background: "rgba(255,255,255,0.96)",
-  color: "#334155",
-  fontSize: 13,
-  fontWeight: 700,
-  cursor: "pointer",
-  padding: "0 12px",
-};
-
-const smallDeleteButtonStyle: CSSProperties = {
-  minHeight: 36,
-  borderRadius: 12,
-  border: "1px solid rgba(239,68,68,0.22)",
-  background: "rgba(254,242,242,0.98)",
-  color: "#b91c1c",
-  fontSize: 13,
-  fontWeight: 700,
-  cursor: "pointer",
-  padding: "0 12px",
-};
-
-const historySetRowStyle: CSSProperties = {
-  padding: "12px 14px",
-  borderRadius: 14,
-  background: "rgba(248,250,252,0.9)",
-  border: "1px solid rgba(226,232,240,0.95)",
-};
-
-const historySetTitleStyle: CSSProperties = {
-  fontSize: 14,
-  fontWeight: 800,
-  color: "#0f172a",
-  marginBottom: 4,
-};
-
-const historyMemoStyle: CSSProperties = {
-  marginTop: 6,
-  fontSize: 13,
-  color: "#334155",
-  lineHeight: 1.7,
-};
-
-const historyLabelStyle: CSSProperties = {
+const historyMetaStyle: CSSProperties = {
   fontSize: 12,
-  fontWeight: 800,
   color: "#64748b",
-  marginBottom: 6,
-  letterSpacing: "0.04em",
+  marginTop: 4,
 };
 
-const historyTextBlockStyle: CSSProperties = {
-  padding: "12px 14px",
+const historyMetricGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+  gap: 10,
+};
+
+const metricPillStyle: CSSProperties = {
   borderRadius: 14,
-  background: "rgba(248,250,252,0.92)",
-  border: "1px solid rgba(226,232,240,0.95)",
-  color: "#334155",
+  padding: "12px 12px 10px",
+  background: "#fff",
+  border: "1px solid rgba(148,163,184,0.16)",
+};
+
+const metricPillLabelStyle: CSSProperties = {
+  fontSize: 11,
+  color: "#64748b",
+  marginBottom: 4,
+  fontWeight: 700,
+};
+
+const metricPillValueStyle: CSSProperties = {
+  fontSize: 15,
+  color: "#0f172a",
+  fontWeight: 800,
+};
+
+const infoBlockStyle: CSSProperties = {
+  borderRadius: 14,
+  padding: 14,
+  background: "#fff",
+  border: "1px solid rgba(148,163,184,0.14)",
+};
+
+const infoBlockTitleStyle: CSSProperties = {
+  fontSize: 12,
+  color: "#64748b",
+  fontWeight: 700,
+  marginBottom: 6,
+};
+
+const infoBlockTextStyle: CSSProperties = {
   fontSize: 14,
+  color: "#0f172a",
   lineHeight: 1.8,
 };
