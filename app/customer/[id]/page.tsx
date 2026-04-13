@@ -629,12 +629,12 @@ export default function CustomerDetailPage() {
   }}
 >
   <button
-    type="button"
-    
-    style={{ ...secondaryButtonStyle, width: mobile ? "100%" : "auto" }}
-  >
-    顧客一覧へ戻る
-  </button>
+  type="button"
+  onClick={() => router.push("/customer")}
+  style={{ ...secondaryButtonStyle, width: mobile ? "100%" : "auto" }}
+>
+  顧客一覧へ戻る
+</button>
 
   <button
     type="button"
