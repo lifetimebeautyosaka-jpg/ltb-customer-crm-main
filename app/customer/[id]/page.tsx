@@ -687,6 +687,7 @@ export default function CustomerDetailPage() {
     トレーニング履歴へ
   </Link>
 </div>
+</div>
 
         {error ? <div style={alertErrorStyle}>{error}</div> : null}
         {ticketError ? <div style={alertErrorStyle}>{ticketError}</div> : null}
