@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { createClient } from "@supabase/supabase-js";
 
 type SignupRow = {
-  id: number;
+  id: number | string;
   created_at: string | null;
-  updated_at: string | null;
   full_name: string | null;
   full_name_kana: string | null;
   gender: string | null;
@@ -17,7 +16,7 @@ type SignupRow = {
   postal_code: string | null;
   address: string | null;
   store_name: string | null;
-  plan_id: string | null;
+  plan_id: number | string | null;
   plan_name: string | null;
   monthly_price: number | null;
   visit_style: string | null;
@@ -29,526 +28,1045 @@ type SignupRow = {
   memo: string | null;
 };
 
-type CustomerInsertPayload = {
-  name: string;
-  kana?: string | null;
-  phone?: string | null;
+type CustomerRow = {
+  id: number | string;
+  name: string | null;
+  phone: string | null;
   email?: string | null;
-  gender?: string | null;
-  birth_date?: string | null;
-  postal_code?: string | null;
-  address?: string | null;
-  memo?: string | null;
 };
 
-function formatDate(value?: string | null) {
-  if (!value) return "—";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleString("ja-JP", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+type MonthlyContractRow = {
+  id: number | string;
+  customer_id: number | string;
+  signup_id: number | string | null;
+  course_name: string;
+  plan_id: string | null;
+  plan_name: string;
+  monthly_price: number;
+  payment_method: string;
+  store_name: string | null;
+  visit_style: string | null;
+  start_date: string;
+  billing_day: number;
+  next_billing_date: string;
+  contract_status: string;
+  note: string | null;
+  created_at: string | null;
+};
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+const STATUS_OPTIONS = [
+  "未対応",
+  "確認中",
+  "顧客登録済",
+  "売上登録待ち",
+  "売上登録済",
+  "契約作成済",
+  "完了",
+  "キャンセル",
+];
+
+function trimmed(value: unknown) {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
 }
 
-function formatDateOnly(value?: string | null) {
-  if (!value) return "—";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleDateString("ja-JP");
-}
-
-function formatPrice(value?: number | null) {
-  if (value == null) return "—";
-  return `¥${value.toLocaleString("ja-JP")}`;
+function normalizeText(value?: string | null) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, "")
+    .replace(/[‐-‒–—―ー－]/g, "-")
+    .toLowerCase();
 }
 
 function normalizePhone(value?: string | null) {
-  return (value || "").replace(/[^\d]/g, "");
+  return String(value || "").replace(/[^\d]/g, "");
 }
 
-function buildCustomerMemo(signup: SignupRow) {
+function formatDateTime(value?: string | null) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  const y = d.getFullYear();
+  const m = `${d.getMonth() + 1}`.padStart(2, "0");
+  const day = `${d.getDate()}`.padStart(2, "0");
+  const h = `${d.getHours()}`.padStart(2, "0");
+  const min = `${d.getMinutes()}`.padStart(2, "0");
+  return `${y}/${m}/${day} ${h}:${min}`;
+}
+
+function formatYmd(date: Date) {
+  const y = date.getFullYear();
+  const m = `${date.getMonth() + 1}`.padStart(2, "0");
+  const d = `${date.getDate()}`.padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function formatBillingMonth(date: Date) {
+  const y = date.getFullYear();
+  const m = `${date.getMonth() + 1}`.padStart(2, "0");
+  return `${y}-${m}`;
+}
+
+function normalizePaymentMethodForSales(value?: string | null) {
+  const v = trimmed(value);
+  if (v === "現金" || v === "カード" || v === "銀行振込" || v === "その他") {
+    return v;
+  }
+  if (v === "クレジットカード") return "カード";
+  return "その他";
+}
+
+function normalizePaymentMethodForContract(value?: string | null) {
+  const v = trimmed(value);
+  if (
+    v === "カード" ||
+    v === "クレジットカード" ||
+    v === "口座振替" ||
+    v === "現金" ||
+    v === "銀行振込" ||
+    v === "店頭決済" ||
+    v === "その他"
+  ) {
+    return v;
+  }
+  return "クレジットカード";
+}
+
+function detectServiceTypeFromSignup(signup: SignupRow): "ストレッチ" | "トレーニング" {
+  const joined = `${trimmed(signup.plan_name)} ${trimmed(signup.visit_style)} ${trimmed(
+    signup.memo
+  )}`;
+  if (joined.includes("ストレッチ")) return "ストレッチ";
+  return "トレーニング";
+}
+
+function buildMenuName(signup: SignupRow) {
+  const planName = trimmed(signup.plan_name);
+  const visitStyle = trimmed(signup.visit_style);
+
+  if (planName && visitStyle) return `${planName} / ${visitStyle}`;
+  if (planName) return planName;
+  if (visitStyle) return visitStyle;
+  return "オンライン入会";
+}
+
+function buildSalesMemo(signup: SignupRow) {
   const lines = [
-    "【online_signups から登録】",
-    `申請ID: ${signup.id}`,
-    `申請日時: ${formatDate(signup.created_at)}`,
-    `希望店舗: ${signup.store_name || "—"}`,
-    `申込プラン: ${signup.plan_name || "—"}`,
-    `月額料金: ${formatPrice(signup.monthly_price)}`,
-    `利用形態: ${signup.visit_style || "—"}`,
-    `支払方法: ${signup.payment_method || "—"}`,
-    `体験状況: ${signup.trial_status || "—"}`,
-    `新規フラグ: ${signup.is_new_customer ? "新規" : "—"}`,
+    "オンライン入会申請から作成",
     signup.memo ? `申請メモ: ${signup.memo}` : "",
+    signup.visit_style ? `通い方: ${signup.visit_style}` : "",
+    signup.trial_status ? `体験状況: ${signup.trial_status}` : "",
+    signup.is_new_customer === true
+      ? "新規区分: 新規"
+      : signup.is_new_customer === false
+      ? "新規区分: 既存"
+      : "",
+    signup.address ? `住所: ${signup.address}` : "",
+    signup.birth_date ? `生年月日: ${signup.birth_date}` : "",
+    signup.gender ? `性別: ${signup.gender}` : "",
   ].filter(Boolean);
 
   return lines.join("\n");
 }
 
-export default function SignupListPage() {
-  const [rows, setRows] = useState<SignupRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [storeFilter, setStoreFilter] = useState("all");
-  const [processingId, setProcessingId] = useState<number | null>(null);
+function buildContractNote(signup: SignupRow) {
+  const lines = [
+    "online_signups から月額契約作成",
+    `signup_id: ${signup.id}`,
+    signup.memo ? `申請メモ: ${signup.memo}` : "",
+    signup.trial_status ? `体験状況: ${signup.trial_status}` : "",
+    signup.full_name_kana ? `氏名カナ: ${signup.full_name_kana}` : "",
+    signup.phone ? `電話番号: ${signup.phone}` : "",
+    signup.email ? `メール: ${signup.email}` : "",
+  ].filter(Boolean);
 
-  const loadRows = async () => {
+  return lines.join("\n");
+}
+
+function deriveCourseName(signup: SignupRow) {
+  const planName = trimmed(signup.plan_name);
+
+  if (planName.includes("ボディメイク")) return "ボディメイクコース";
+  if (planName.includes("ストレッチ")) return "ストレッチコース";
+  if (planName.includes("トレーニング")) return "トレーニングコース";
+  if (planName.includes("ペア")) return "ペアコース";
+  if (planName.includes("通い放題")) return "通い放題コース";
+  return "月額コース";
+}
+
+function findExistingCustomer(signup: SignupRow, customers: CustomerRow[]) {
+  const signupName = normalizeText(signup.full_name);
+  const signupPhone = normalizePhone(signup.phone);
+  const signupEmail = normalizeText(signup.email);
+
+  const byPhone = customers.find((c) => {
+    const phone = normalizePhone(c.phone);
+    return !!signupPhone && !!phone && phone === signupPhone;
+  });
+  if (byPhone) return byPhone;
+
+  const byNameExact = customers.find(
+    (c) => normalizeText(c.name) === signupName && !!signupName
+  );
+  if (byNameExact) return byNameExact;
+
+  const byNamePartial = customers.find((c) => {
+    const candidate = normalizeText(c.name);
+    return !!signupName && (candidate.includes(signupName) || signupName.includes(candidate));
+  });
+  if (byNamePartial) return byNamePartial;
+
+  const byEmail = customers.find(
+    (c) => normalizeText(c.email) === signupEmail && !!signupEmail
+  );
+  if (byEmail) return byEmail;
+
+  return null;
+}
+
+function findExistingContract(signup: SignupRow, contracts: MonthlyContractRow[]) {
+  return contracts.find((row) => String(row.signup_id) === String(signup.id)) || null;
+}
+
+export default function SignupListPage() {
+  const [mounted, setMounted] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(1400);
+
+  const [signups, setSignups] = useState<SignupRow[]>([]);
+  const [customers, setCustomers] = useState<CustomerRow[]>([]);
+  const [contracts, setContracts] = useState<MonthlyContractRow[]>([]);
+
+  const [loading, setLoading] = useState(true);
+  const [customerLoading, setCustomerLoading] = useState(true);
+  const [contractLoading, setContractLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [savingId, setSavingId] = useState<string>("");
+
+  useEffect(() => {
+    setMounted(true);
+
+    const isLoggedIn =
+      localStorage.getItem("gymup_logged_in") || localStorage.getItem("isLoggedIn");
+
+    if (isLoggedIn !== "true") {
+      window.location.href = "/login";
+      return;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const updateWidth = () => setWindowWidth(window.innerWidth);
+    updateWidth();
+    window.addEventListener("resize", updateWidth);
+    return () => window.removeEventListener("resize", updateWidth);
+  }, []);
+
+  const mobile = windowWidth < 768;
+
+  const fetchSignups = async () => {
     try {
       setLoading(true);
-      setError("");
 
       const { data, error } = await supabase
         .from("online_signups")
-        .select("*")
+        .select(
+          "id, created_at, full_name, full_name_kana, gender, birth_date, phone, email, postal_code, address, store_name, plan_id, plan_name, monthly_price, visit_style, payment_method, trial_status, agree_terms, status, is_new_customer, memo"
+        )
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        alert(`入会申請取得エラー: ${error.message}`);
+        setSignups([]);
+        return;
+      }
 
-      setRows((data as SignupRow[]) || []);
-    } catch (e: any) {
-      setError(e?.message || "入会申請一覧の取得に失敗しました。");
+      setSignups((data as SignupRow[] | null) || []);
+    } catch (error) {
+      console.error("fetchSignups error:", error);
+      setSignups([]);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadRows();
-  }, []);
-
-  const storeOptions = useMemo(() => {
-    const unique = Array.from(
-      new Set(rows.map((row) => row.store_name).filter(Boolean))
-    ) as string[];
-    return unique;
-  }, [rows]);
-
-  const filteredRows = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
-
-    return rows.filter((row) => {
-      const matchKeyword =
-        !keyword ||
-        (row.full_name || "").toLowerCase().includes(keyword) ||
-        (row.full_name_kana || "").toLowerCase().includes(keyword) ||
-        (row.phone || "").toLowerCase().includes(keyword) ||
-        (row.email || "").toLowerCase().includes(keyword) ||
-        (row.plan_name || "").toLowerCase().includes(keyword) ||
-        (row.store_name || "").toLowerCase().includes(keyword);
-
-      const matchStatus =
-        statusFilter === "all" ? true : (row.status || "pending") === statusFilter;
-
-      const matchStore =
-        storeFilter === "all" ? true : (row.store_name || "") === storeFilter;
-
-      return matchKeyword && matchStatus && matchStore;
-    });
-  }, [rows, search, statusFilter, storeFilter]);
-
-  const stats = useMemo(() => {
-    const total = rows.length;
-    const pending = rows.filter((r) => (r.status || "pending") === "pending").length;
-    const approved = rows.filter((r) => r.status === "approved").length;
-    const converted = rows.filter((r) => r.status === "converted").length;
-    const cancelled = rows.filter((r) => r.status === "cancelled").length;
-    return { total, pending, approved, converted, cancelled };
-  }, [rows]);
-
-  const updateStatus = async (id: number, nextStatus: string) => {
+  const fetchCustomers = async () => {
     try {
-      setProcessingId(id);
-      setError("");
+      setCustomerLoading(true);
+
+      const { data, error } = await supabase
+        .from("customers")
+        .select("id, name, phone, email")
+        .order("name", { ascending: true });
+
+      if (error) {
+        console.warn("customers fetch error:", error.message);
+        setCustomers([]);
+        return;
+      }
+
+      setCustomers((data as CustomerRow[] | null) || []);
+    } catch (error) {
+      console.error("fetchCustomers error:", error);
+      setCustomers([]);
+    } finally {
+      setCustomerLoading(false);
+    }
+  };
+
+  const fetchContracts = async () => {
+    try {
+      setContractLoading(true);
+
+      const { data, error } = await supabase
+        .from("monthly_contracts")
+        .select(
+          "id, customer_id, signup_id, course_name, plan_id, plan_name, monthly_price, payment_method, store_name, visit_style, start_date, billing_day, next_billing_date, contract_status, note, created_at"
+        )
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.warn("contracts fetch error:", error.message);
+        setContracts([]);
+        return;
+      }
+
+      setContracts((data as MonthlyContractRow[] | null) || []);
+    } catch (error) {
+      console.error("fetchContracts error:", error);
+      setContracts([]);
+    } finally {
+      setContractLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!mounted) return;
+    void fetchSignups();
+    void fetchCustomers();
+    void fetchContracts();
+  }, [mounted]);
+
+  const filteredSignups = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+    if (!keyword) return signups;
+
+    return signups.filter((row) => {
+      return (
+        trimmed(row.full_name).toLowerCase().includes(keyword) ||
+        trimmed(row.full_name_kana).toLowerCase().includes(keyword) ||
+        trimmed(row.phone).toLowerCase().includes(keyword) ||
+        trimmed(row.email).toLowerCase().includes(keyword) ||
+        trimmed(row.store_name).toLowerCase().includes(keyword) ||
+        trimmed(row.plan_name).toLowerCase().includes(keyword) ||
+        trimmed(row.status).toLowerCase().includes(keyword) ||
+        trimmed(row.memo).toLowerCase().includes(keyword)
+      );
+    });
+  }, [signups, search]);
+
+  const statusCounts = useMemo(() => {
+    const grouped: Record<string, number> = {};
+    signups.forEach((row) => {
+      const key = trimmed(row.status) || "未設定";
+      grouped[key] = (grouped[key] || 0) + 1;
+    });
+    return grouped;
+  }, [signups]);
+
+  const contractCounts = useMemo(() => {
+    return {
+      total: contracts.length,
+      active: contracts.filter((c) => c.contract_status === "有効").length,
+    };
+  }, [contracts]);
+
+  const handleChangeStatus = async (signupId: string | number, nextStatus: string) => {
+    try {
+      setSavingId(String(signupId));
 
       const { error } = await supabase
         .from("online_signups")
-        .update({
-          status: nextStatus,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id);
+        .update({ status: nextStatus })
+        .eq("id", signupId);
 
-      if (error) throw error;
+      if (error) {
+        throw new Error(error.message);
+      }
 
-      await loadRows();
-    } catch (e: any) {
-      setError(e?.message || "ステータス更新に失敗しました。");
+      setSignups((prev) =>
+        prev.map((row) =>
+          String(row.id) === String(signupId) ? { ...row, status: nextStatus } : row
+        )
+      );
+    } catch (error) {
+      console.error("handleChangeStatus error:", error);
+      alert(error instanceof Error ? error.message : "ステータス更新に失敗しました");
     } finally {
-      setProcessingId(null);
+      setSavingId("");
     }
   };
 
-  const handleConvertToCustomer = async (signup: SignupRow) => {
+  const handleRegisterCustomer = async (signup: SignupRow) => {
+    const existing = findExistingCustomer(signup, customers);
+
+    if (existing) {
+      alert(`すでに顧客登録済みの可能性があります: ${existing.name || "顧客名未設定"}`);
+      return;
+    }
+
+    const fullName = trimmed(signup.full_name);
+    if (!fullName) {
+      alert("氏名がないため顧客登録できません");
+      return;
+    }
+
     try {
-      setProcessingId(signup.id);
-      setError("");
+      setSavingId(String(signup.id));
 
-      if (!signup.full_name?.trim()) {
-        throw new Error("氏名がないため顧客登録できません。");
-      }
-
-      const normalizedPhone = normalizePhone(signup.phone);
-      const normalizedEmail = (signup.email || "").trim().toLowerCase();
-
-      const duplicateChecks: string[] = [];
-      if (normalizedPhone) duplicateChecks.push(`phone.eq.${normalizedPhone}`);
-      if (normalizedEmail) duplicateChecks.push(`email.eq.${normalizedEmail}`);
-
-      if (duplicateChecks.length > 0) {
-        const { data: duplicateCustomers, error: duplicateError } = await supabase
-          .from("customers")
-          .select("id,name,phone,email")
-          .or(duplicateChecks.join(","))
-          .limit(1);
-
-        if (duplicateError) throw duplicateError;
-
-        if (duplicateCustomers && duplicateCustomers.length > 0) {
-          throw new Error("同じ電話番号またはメールアドレスの顧客がすでに存在します。");
-        }
-      }
-
-      const customerPayload: CustomerInsertPayload = {
-        name: signup.full_name.trim(),
-        kana: signup.full_name_kana?.trim() || null,
-        phone: normalizedPhone || null,
-        email: normalizedEmail || null,
-        gender: signup.gender || null,
-        birth_date: signup.birth_date || null,
-        postal_code: signup.postal_code || null,
-        address: signup.address || null,
-        memo: buildCustomerMemo(signup),
+      const payload: Record<string, unknown> = {
+        name: fullName,
+        phone: trimmed(signup.phone) || null,
+        email: trimmed(signup.email) || null,
+        memo: buildSalesMemo(signup) || null,
       };
 
-      const { error: insertError } = await supabase
-        .from("customers")
-        .insert(customerPayload);
+      const { error: insertError } = await supabase.from("customers").insert([payload]);
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        throw new Error(`顧客登録エラー: ${insertError.message}`);
+      }
 
-      const { error: updateError } = await supabase
+      const { error: statusError } = await supabase
         .from("online_signups")
-        .update({
-          status: "converted",
-          updated_at: new Date().toISOString(),
-        })
+        .update({ status: "顧客登録済" })
         .eq("id", signup.id);
 
-      if (updateError) throw updateError;
+      if (statusError) {
+        throw new Error(`申請ステータス更新エラー: ${statusError.message}`);
+      }
 
-      await loadRows();
-      window.alert("customers に登録しました。");
-    } catch (e: any) {
-      setError(e?.message || "顧客登録に失敗しました。");
+      alert("customers に登録しました");
+      await fetchCustomers();
+      await fetchSignups();
+    } catch (error) {
+      console.error("handleRegisterCustomer error:", error);
+      alert(error instanceof Error ? error.message : "顧客登録に失敗しました");
     } finally {
-      setProcessingId(null);
+      setSavingId("");
     }
   };
 
+  const goToSales = async (signup: SignupRow) => {
+    try {
+      setSavingId(String(signup.id));
+
+      const existing = findExistingCustomer(signup, customers);
+      const serviceType = detectServiceTypeFromSignup(signup);
+      const menu = buildMenuName(signup);
+      const memo = buildSalesMemo(signup);
+      const paymentMethod = normalizePaymentMethodForSales(signup.payment_method);
+      const amount = Number(signup.monthly_price || 0);
+
+      const params = new URLSearchParams();
+
+      params.set("from", "signup");
+      params.set("signup_id", String(signup.id));
+      params.set("customer_name", trimmed(signup.full_name));
+      params.set("customer_kana", trimmed(signup.full_name_kana));
+      params.set("phone", trimmed(signup.phone));
+      params.set("email", trimmed(signup.email));
+      params.set("store_name", trimmed(signup.store_name) || "未設定");
+      params.set("menu_type", serviceType);
+      params.set("menu", menu);
+      params.set("payment_method", paymentMethod);
+      params.set("amount", String(amount > 0 ? amount : ""));
+      params.set("sale_type", "前受金");
+      params.set("memo", memo);
+
+      if (existing?.id !== null && existing?.id !== undefined) {
+        params.set("customer_id", String(existing.id));
+      }
+
+      const { error: statusError } = await supabase
+        .from("online_signups")
+        .update({ status: "売上登録待ち" })
+        .eq("id", signup.id);
+
+      if (statusError) {
+        throw new Error(`申請ステータス更新エラー: ${statusError.message}`);
+      }
+
+      window.location.href = `/sales?${params.toString()}`;
+    } catch (error) {
+      console.error("goToSales error:", error);
+      alert(error instanceof Error ? error.message : "売上ページへの遷移に失敗しました");
+    } finally {
+      setSavingId("");
+    }
+  };
+
+  const handleCreateContract = async (signup: SignupRow) => {
+    const existingContract = findExistingContract(signup, contracts);
+    if (existingContract) {
+      alert("この申込はすでに月額契約作成済みです");
+      return;
+    }
+
+    const fullName = trimmed(signup.full_name);
+    if (!fullName) {
+      alert("氏名がないため契約作成できません");
+      return;
+    }
+
+    try {
+      setSavingId(String(signup.id));
+
+      let customer = findExistingCustomer(signup, customers);
+
+      if (!customer) {
+        const customerPayload: Record<string, unknown> = {
+          name: fullName,
+          phone: trimmed(signup.phone) || null,
+          email: trimmed(signup.email) || null,
+          memo: buildSalesMemo(signup) || null,
+        };
+
+        const { data: insertedCustomer, error: insertCustomerError } = await supabase
+          .from("customers")
+          .insert([customerPayload])
+          .select("id, name, phone, email")
+          .single();
+
+        if (insertCustomerError) {
+          throw new Error(`顧客自動作成エラー: ${insertCustomerError.message}`);
+        }
+
+        customer = insertedCustomer as CustomerRow;
+      }
+
+      const today = new Date();
+      const startDate = formatYmd(today);
+      const billingDay = Math.min(today.getDate(), 28);
+      const nextBillingDate = startDate;
+      const billingMonth = formatBillingMonth(today);
+
+      const courseName = deriveCourseName(signup);
+      const contractNote = buildContractNote(signup);
+      const paymentMethod = normalizePaymentMethodForContract(signup.payment_method);
+
+      const contractPayload = {
+        customer_id: Number(customer.id),
+        signup_id: Number(signup.id),
+        course_name: courseName,
+        plan_id: trimmed(signup.plan_id) || null,
+        plan_name: trimmed(signup.plan_name) || courseName,
+        monthly_price: Number(signup.monthly_price || 0),
+        payment_method: paymentMethod,
+        store_name: trimmed(signup.store_name) || null,
+        visit_style: trimmed(signup.visit_style) || null,
+        start_date: startDate,
+        billing_day: billingDay,
+        next_billing_date: nextBillingDate,
+        contract_status: "有効",
+        note: contractNote || null,
+      };
+
+      const { data: insertedContract, error: insertContractError } = await supabase
+        .from("monthly_contracts")
+        .insert([contractPayload])
+        .select(
+          "id, customer_id, signup_id, course_name, plan_id, plan_name, monthly_price, payment_method, store_name, visit_style, start_date, billing_day, next_billing_date, contract_status, note, created_at"
+        )
+        .single();
+
+      if (insertContractError) {
+        throw new Error(`月額契約作成エラー: ${insertContractError.message}`);
+      }
+
+      const contractId = insertedContract?.id;
+      if (!contractId) {
+        throw new Error("月額契約IDの取得に失敗しました");
+      }
+
+      const billingPayload = {
+        contract_id: Number(contractId),
+        customer_id: Number(customer.id),
+        billing_month: billingMonth,
+        billing_date: startDate,
+        due_date: startDate,
+        amount: Number(signup.monthly_price || 0),
+        payment_method: paymentMethod,
+        billing_status: "請求予定",
+        note: `初回請求 / signup_id: ${signup.id}`,
+      };
+
+      const { error: insertBillingError } = await supabase
+        .from("monthly_billings")
+        .insert([billingPayload]);
+
+      if (insertBillingError) {
+        await supabase.from("monthly_contracts").delete().eq("id", contractId);
+        throw new Error(`初回請求作成エラー: ${insertBillingError.message}`);
+      }
+
+      const { error: statusError } = await supabase
+        .from("online_signups")
+        .update({ status: "契約作成済" })
+        .eq("id", signup.id);
+
+      if (statusError) {
+        throw new Error(`申請ステータス更新エラー: ${statusError.message}`);
+      }
+
+      alert("月額契約と初回請求を作成しました");
+      await fetchCustomers();
+      await fetchContracts();
+      await fetchSignups();
+    } catch (error) {
+      console.error("handleCreateContract error:", error);
+      alert(error instanceof Error ? error.message : "契約作成に失敗しました");
+    } finally {
+      setSavingId("");
+    }
+  };
+
+  const pageStyle: CSSProperties = {
+    minHeight: "100vh",
+    background:
+      "linear-gradient(135deg, #f7f7f8 0%, #eceef1 45%, #e7eaef 100%)",
+    padding: mobile ? "16px" : "24px",
+    color: "#111827",
+  };
+
+  const innerStyle: CSSProperties = {
+    maxWidth: "1520px",
+    margin: "0 auto",
+    display: "grid",
+    gap: "18px",
+  };
+
+  const cardStyle: CSSProperties = {
+    background: "rgba(255,255,255,0.84)",
+    border: "1px solid rgba(255,255,255,0.9)",
+    borderRadius: "24px",
+    padding: mobile ? "16px" : "20px",
+    boxShadow: "0 12px 40px rgba(15, 23, 42, 0.08)",
+    backdropFilter: "blur(12px)",
+  };
+
+  const headerStyle: CSSProperties = {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: mobile ? "stretch" : "center",
+    gap: "12px",
+    flexDirection: mobile ? "column" : "row",
+  };
+
+  const titleStyle: CSSProperties = {
+    margin: 0,
+    fontSize: mobile ? "26px" : "34px",
+    fontWeight: 800,
+    letterSpacing: "0.02em",
+  };
+
+  const subTextStyle: CSSProperties = {
+    margin: "6px 0 0",
+    fontSize: "14px",
+    color: "#6b7280",
+  };
+
+  const linkButtonStyle: CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "11px 16px",
+    borderRadius: "14px",
+    textDecoration: "none",
+    fontWeight: 700,
+    fontSize: "14px",
+    border: "1px solid #d1d5db",
+    background: "#fff",
+    color: "#111827",
+  };
+
+  const primaryButtonStyle: CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "11px 16px",
+    borderRadius: "14px",
+    border: "none",
+    background: "linear-gradient(135deg, #111827 0%, #374151 100%)",
+    color: "#fff",
+    fontWeight: 800,
+    fontSize: "14px",
+    cursor: "pointer",
+  };
+
+  const secondaryButtonStyle: CSSProperties = {
+    ...primaryButtonStyle,
+    background: "#fff",
+    color: "#111827",
+    border: "1px solid #d1d5db",
+  };
+
+  const successButtonStyle: CSSProperties = {
+    ...primaryButtonStyle,
+    background: "linear-gradient(135deg, #166534 0%, #16a34a 100%)",
+  };
+
+  const warningButtonStyle: CSSProperties = {
+    ...primaryButtonStyle,
+    background: "linear-gradient(135deg, #92400e 0%, #f59e0b 100%)",
+  };
+
+  const violetButtonStyle: CSSProperties = {
+    ...primaryButtonStyle,
+    background: "linear-gradient(135deg, #5b21b6 0%, #7c3aed 100%)",
+  };
+
+  const inputStyle: CSSProperties = {
+    width: "100%",
+    borderRadius: "14px",
+    border: "1px solid #d1d5db",
+    padding: "12px 14px",
+    fontSize: "14px",
+    outline: "none",
+    background: "#fff",
+    boxSizing: "border-box",
+  };
+
+  const statGridStyle: CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: mobile
+      ? "repeat(2, minmax(0, 1fr))"
+      : "repeat(6, minmax(0, 1fr))",
+    gap: "12px",
+  };
+
+  const statCardStyle: CSSProperties = {
+    borderRadius: "20px",
+    padding: "16px",
+    background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+    border: "1px solid #e5e7eb",
+    boxShadow: "0 6px 18px rgba(15, 23, 42, 0.05)",
+  };
+
+  const statLabelStyle: CSSProperties = {
+    fontSize: "12px",
+    color: "#6b7280",
+    fontWeight: 700,
+    marginBottom: "8px",
+  };
+
+  const statValueStyle: CSSProperties = {
+    fontSize: mobile ? "16px" : "22px",
+    fontWeight: 800,
+  };
+
+  const tableWrapStyle: CSSProperties = {
+    width: "100%",
+    overflowX: "auto",
+    borderRadius: "18px",
+    border: "1px solid #e5e7eb",
+    background: "#fff",
+  };
+
+  const tableStyle: CSSProperties = {
+    width: "100%",
+    minWidth: "1680px",
+    borderCollapse: "collapse",
+    fontSize: "14px",
+  };
+
+  const thStyle: CSSProperties = {
+    textAlign: "left",
+    padding: "13px 14px",
+    fontWeight: 800,
+    color: "#374151",
+    background: "#f9fafb",
+    borderBottom: "1px solid #e5e7eb",
+    whiteSpace: "nowrap",
+  };
+
+  const tdStyle: CSSProperties = {
+    padding: "13px 14px",
+    borderBottom: "1px solid #f1f5f9",
+    verticalAlign: "top",
+  };
+
+  const pillStyle = (bg: string, color = "#111827"): CSSProperties => ({
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "6px 10px",
+    borderRadius: "999px",
+    background: bg,
+    color,
+    fontSize: "12px",
+    fontWeight: 800,
+    whiteSpace: "nowrap",
+  });
+
+  if (!mounted) return null;
+
   return (
-    <main className="min-h-screen bg-[#0b0b12] text-white">
-      <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 md:py-8">
-        <div className="mb-6 rounded-[28px] border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div style={pageStyle}>
+      <div style={innerStyle}>
+        <section style={cardStyle}>
+          <div style={headerStyle}>
             <div>
-              <div className="text-sm tracking-[0.2em] text-violet-200/90">
-                GYMUP CRM
-              </div>
-              <h1 className="mt-2 text-3xl font-black md:text-4xl">
-                入会申請一覧
-              </h1>
-              <p className="mt-2 text-sm leading-7 text-white/65">
-                online_signups に入ったオンライン入会申請を確認し、
-                ステータス変更や customers 登録を行う管理ページです。
+              <h1 style={titleStyle}>オンライン入会申請一覧</h1>
+              <p style={subTextStyle}>
+                online_signups 一覧 / customers登録 / sales連携 / 月額契約作成
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-3">
-              <Link
-                href="/signup"
-                className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/15"
-              >
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+              <Link href="/" style={linkButtonStyle}>
+                TOPへ
+              </Link>
+              <Link href="/signup" style={linkButtonStyle}>
                 入会ページへ
               </Link>
-              <Link
-                href="/"
-                className="rounded-2xl bg-gradient-to-r from-indigo-400 via-violet-400 to-pink-400 px-4 py-3 text-sm font-semibold text-white shadow-[0_0_30px_rgba(176,110,255,0.35)] transition hover:scale-[1.01]"
-              >
-                TOPへ戻る
+              <Link href="/sales" style={linkButtonStyle}>
+                売上管理へ
+              </Link>
+              <Link href="/accounting" style={linkButtonStyle}>
+                会計管理へ
               </Link>
             </div>
           </div>
-        </div>
+        </section>
 
-        <section className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          <div className="rounded-[24px] border border-white/10 bg-white/5 p-5">
-            <div className="text-sm text-white/55">総申請数</div>
-            <div className="mt-2 text-3xl font-black">{stats.total}</div>
-          </div>
-
-          <div className="rounded-[24px] border border-yellow-300/10 bg-yellow-400/5 p-5">
-            <div className="text-sm text-yellow-100/70">未対応</div>
-            <div className="mt-2 text-3xl font-black text-yellow-100">
-              {stats.pending}
+        <section style={cardStyle}>
+          <div style={statGridStyle}>
+            <div style={statCardStyle}>
+              <div style={statLabelStyle}>総件数</div>
+              <div style={statValueStyle}>{signups.length}件</div>
             </div>
-          </div>
-
-          <div className="rounded-[24px] border border-sky-300/10 bg-sky-400/5 p-5">
-            <div className="text-sm text-sky-100/70">承認</div>
-            <div className="mt-2 text-3xl font-black text-sky-100">
-              {stats.approved}
+            <div style={statCardStyle}>
+              <div style={statLabelStyle}>未対応</div>
+              <div style={statValueStyle}>{statusCounts["未対応"] || 0}件</div>
             </div>
-          </div>
-
-          <div className="rounded-[24px] border border-emerald-300/10 bg-emerald-400/5 p-5">
-            <div className="text-sm text-emerald-100/70">顧客登録済</div>
-            <div className="mt-2 text-3xl font-black text-emerald-100">
-              {stats.converted}
+            <div style={statCardStyle}>
+              <div style={statLabelStyle}>顧客登録済</div>
+              <div style={statValueStyle}>{statusCounts["顧客登録済"] || 0}件</div>
             </div>
-          </div>
-
-          <div className="rounded-[24px] border border-rose-300/10 bg-rose-400/5 p-5">
-            <div className="text-sm text-rose-100/70">キャンセル</div>
-            <div className="mt-2 text-3xl font-black text-rose-100">
-              {stats.cancelled}
+            <div style={statCardStyle}>
+              <div style={statLabelStyle}>売上登録待ち</div>
+              <div style={statValueStyle}>{statusCounts["売上登録待ち"] || 0}件</div>
+            </div>
+            <div style={statCardStyle}>
+              <div style={statLabelStyle}>契約作成済</div>
+              <div style={statValueStyle}>{statusCounts["契約作成済"] || 0}件</div>
+            </div>
+            <div style={statCardStyle}>
+              <div style={statLabelStyle}>有効契約</div>
+              <div style={statValueStyle}>
+                {contractLoading ? "..." : `${contractCounts.active}件`}
+              </div>
             </div>
           </div>
         </section>
 
-        <section className="mb-6 rounded-[28px] border border-white/10 bg-white/5 p-5">
-          <div className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr_0.7fr_auto]">
-            <div>
-              <label className="mb-2 block text-sm text-white/70">
-                キーワード検索
-              </label>
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="氏名・カナ・電話・メール・プラン・店舗"
-                className="w-full rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-white placeholder:text-white/40 outline-none transition focus:border-violet-300/50"
-              />
-            </div>
+        <section style={cardStyle}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: mobile ? "stretch" : "center",
+              gap: "12px",
+              flexDirection: mobile ? "column" : "row",
+            }}
+          >
+            <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 800 }}>申請一覧</h2>
 
-            <div>
-              <label className="mb-2 block text-sm text-white/70">
-                ステータス
-              </label>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-white outline-none transition focus:border-violet-300/50"
-              >
-                <option value="all" className="text-black">
-                  すべて
-                </option>
-                <option value="pending" className="text-black">
-                  未対応
-                </option>
-                <option value="approved" className="text-black">
-                  承認
-                </option>
-                <option value="converted" className="text-black">
-                  顧客登録済
-                </option>
-                <option value="cancelled" className="text-black">
-                  キャンセル
-                </option>
-              </select>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm text-white/70">店舗</label>
-              <select
-                value={storeFilter}
-                onChange={(e) => setStoreFilter(e.target.value)}
-                className="w-full rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-white outline-none transition focus:border-violet-300/50"
-              >
-                <option value="all" className="text-black">
-                  すべて
-                </option>
-                {storeOptions.map((store) => (
-                  <option key={store} value={store} className="text-black">
-                    {store}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-end">
-              <button
-                onClick={loadRows}
-                className="w-full rounded-2xl bg-gradient-to-r from-indigo-400 via-violet-400 to-pink-400 px-4 py-3 text-sm font-semibold text-white shadow-[0_0_30px_rgba(176,110,255,0.35)] transition hover:scale-[1.01]"
-              >
-                再読込
-              </button>
-            </div>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="氏名・電話・メール・店舗・プランで検索"
+              style={{ ...inputStyle, maxWidth: mobile ? "100%" : "360px" }}
+            />
           </div>
-        </section>
 
-        {error ? (
-          <div className="mb-6 rounded-2xl border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
-            {error}
-          </div>
-        ) : null}
+          <div style={{ marginTop: "16px", ...tableWrapStyle }}>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>申請日時</th>
+                  <th style={thStyle}>氏名</th>
+                  <th style={thStyle}>カナ</th>
+                  <th style={thStyle}>電話</th>
+                  <th style={thStyle}>メール</th>
+                  <th style={thStyle}>店舗</th>
+                  <th style={thStyle}>プラン</th>
+                  <th style={thStyle}>月額</th>
+                  <th style={thStyle}>支払方法</th>
+                  <th style={thStyle}>新規</th>
+                  <th style={thStyle}>ステータス</th>
+                  <th style={thStyle}>契約状態</th>
+                  <th style={thStyle}>メモ</th>
+                  <th style={thStyle}>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td style={tdStyle} colSpan={14}>
+                      読み込み中...
+                    </td>
+                  </tr>
+                ) : filteredSignups.length === 0 ? (
+                  <tr>
+                    <td style={tdStyle} colSpan={14}>
+                      データがありません
+                    </td>
+                  </tr>
+                ) : (
+                  filteredSignups.map((signup) => {
+                    const existingCustomer = findExistingCustomer(signup, customers);
+                    const existingContract = findExistingContract(signup, contracts);
+                    const isBusy = savingId === String(signup.id);
 
-        <section className="space-y-4">
-          {loading ? (
-            <div className="rounded-[28px] border border-white/10 bg-white/5 p-8 text-center text-white/70">
-              読み込み中...
-            </div>
-          ) : filteredRows.length === 0 ? (
-            <div className="rounded-[28px] border border-white/10 bg-white/5 p-8 text-center text-white/70">
-              該当する入会申請がありません。
-            </div>
-          ) : (
-            filteredRows.map((row) => {
-              const currentStatus = row.status || "pending";
-              const isBusy = processingId === row.id;
-
-              return (
-                <div
-                  key={row.id}
-                  className="rounded-[28px] border border-white/10 bg-white/5 p-5 backdrop-blur-xl"
-                >
-                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="text-2xl font-black">
-                          {row.full_name || "氏名未設定"}
-                        </div>
-
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                            currentStatus === "pending"
-                              ? "border border-yellow-300/20 bg-yellow-400/10 text-yellow-100"
-                              : currentStatus === "approved"
-                              ? "border border-sky-300/20 bg-sky-400/10 text-sky-100"
-                              : currentStatus === "converted"
-                              ? "border border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
-                              : "border border-rose-300/20 bg-rose-400/10 text-rose-100"
-                          }`}
-                        >
-                          {currentStatus === "pending"
-                            ? "未対応"
-                            : currentStatus === "approved"
-                            ? "承認"
-                            : currentStatus === "converted"
-                            ? "顧客登録済"
-                            : "キャンセル"}
-                        </span>
-
-                        {row.is_new_customer ? (
-                          <span className="rounded-full border border-violet-300/20 bg-violet-400/10 px-3 py-1 text-xs font-semibold text-violet-100">
-                            新規
-                          </span>
-                        ) : null}
-                      </div>
-
-                      <div className="mt-2 text-sm text-white/50">
-                        申請日時：{formatDate(row.created_at)}
-                      </div>
-
-                      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                        <InfoCard label="カナ" value={row.full_name_kana || "—"} />
-                        <InfoCard label="電話番号" value={row.phone || "—"} />
-                        <InfoCard label="メール" value={row.email || "—"} />
-                        <InfoCard label="生年月日" value={formatDateOnly(row.birth_date)} />
-                        <InfoCard label="希望店舗" value={row.store_name || "—"} />
-                        <InfoCard label="利用形態" value={row.visit_style || "—"} />
-                        <InfoCard label="体験状況" value={row.trial_status || "—"} />
-                        <InfoCard label="支払方法" value={row.payment_method || "—"} />
-                        <InfoCard label="プラン" value={row.plan_name || "—"} />
-                        <InfoCard label="月額料金" value={formatPrice(row.monthly_price)} />
-                        <InfoCard label="郵便番号" value={row.postal_code || "—"} />
-                        <InfoCard label="規約同意" value={row.agree_terms ? "同意済" : "未同意"} />
-                      </div>
-
-                      <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                          <div className="text-xs text-white/50">住所</div>
-                          <div className="mt-2 whitespace-pre-wrap break-words text-sm leading-7 text-white/85">
-                            {row.address || "—"}
+                    return (
+                      <tr key={String(signup.id)}>
+                        <td style={tdStyle}>{formatDateTime(signup.created_at)}</td>
+                        <td style={tdStyle}>
+                          <div style={{ fontWeight: 800 }}>{trimmed(signup.full_name) || "—"}</div>
+                          {existingCustomer && (
+                            <div style={{ marginTop: "6px" }}>
+                              <span style={pillStyle("#dcfce7", "#166534")}>
+                                顧客一致あり
+                              </span>
+                            </div>
+                          )}
+                        </td>
+                        <td style={tdStyle}>{trimmed(signup.full_name_kana) || "—"}</td>
+                        <td style={tdStyle}>{trimmed(signup.phone) || "—"}</td>
+                        <td style={tdStyle}>{trimmed(signup.email) || "—"}</td>
+                        <td style={tdStyle}>{trimmed(signup.store_name) || "—"}</td>
+                        <td style={tdStyle}>
+                          <div>{trimmed(signup.plan_name) || "—"}</div>
+                          <div style={{ marginTop: "6px", color: "#6b7280", fontSize: "12px" }}>
+                            {trimmed(signup.visit_style) || "—"}
                           </div>
-                        </div>
+                        </td>
+                        <td style={tdStyle}>
+                          {signup.monthly_price !== null && signup.monthly_price !== undefined
+                            ? `¥${Number(signup.monthly_price).toLocaleString()}`
+                            : "—"}
+                        </td>
+                        <td style={tdStyle}>{trimmed(signup.payment_method) || "—"}</td>
+                        <td style={tdStyle}>
+                          {signup.is_new_customer === true ? (
+                            <span style={pillStyle("#ede9fe", "#6d28d9")}>新規</span>
+                          ) : signup.is_new_customer === false ? (
+                            <span style={pillStyle("#f3f4f6", "#374151")}>既存</span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td style={tdStyle}>
+                          <select
+                            value={trimmed(signup.status) || "未対応"}
+                            onChange={(e) => handleChangeStatus(signup.id, e.target.value)}
+                            style={{ ...inputStyle, minWidth: "150px", padding: "10px 12px" }}
+                            disabled={isBusy}
+                          >
+                            {STATUS_OPTIONS.map((status) => (
+                              <option key={status} value={status}>
+                                {status}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td style={tdStyle}>
+                          {existingContract ? (
+                            <div style={{ display: "grid", gap: "6px" }}>
+                              <span
+                                style={pillStyle(
+                                  existingContract.contract_status === "有効"
+                                    ? "#dcfce7"
+                                    : "#f3f4f6",
+                                  existingContract.contract_status === "有効"
+                                    ? "#166534"
+                                    : "#374151"
+                                )}
+                              >
+                                {existingContract.contract_status}
+                              </span>
+                              <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                                次回: {existingContract.next_billing_date || "—"}
+                              </div>
+                            </div>
+                          ) : (
+                            <span style={pillStyle("#fef3c7", "#92400e")}>未作成</span>
+                          )}
+                        </td>
+                        <td style={{ ...tdStyle, whiteSpace: "pre-wrap", minWidth: "220px" }}>
+                          {trimmed(signup.memo) || "—"}
+                        </td>
+                        <td style={tdStyle}>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "8px",
+                              minWidth: "210px",
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => handleRegisterCustomer(signup)}
+                              disabled={isBusy}
+                              style={{
+                                ...(existingCustomer ? secondaryButtonStyle : successButtonStyle),
+                                opacity: isBusy ? 0.7 : 1,
+                              }}
+                            >
+                              {existingCustomer ? "顧客一致あり" : "customers登録"}
+                            </button>
 
-                        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                          <div className="text-xs text-white/50">備考</div>
-                          <div className="mt-2 whitespace-pre-wrap break-words text-sm leading-7 text-white/85">
-                            {row.memo || "—"}
+                            <button
+                              type="button"
+                              onClick={() => handleCreateContract(signup)}
+                              disabled={isBusy || !!existingContract}
+                              style={{
+                                ...(existingContract ? secondaryButtonStyle : violetButtonStyle),
+                                opacity: isBusy || existingContract ? 0.7 : 1,
+                              }}
+                            >
+                              {existingContract ? "契約作成済み" : "月額契約作成"}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => goToSales(signup)}
+                              disabled={isBusy}
+                              style={{
+                                ...warningButtonStyle,
+                                opacity: isBusy ? 0.7 : 1,
+                              }}
+                            >
+                              売上登録へ
+                            </button>
                           </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="w-full xl:w-[320px]">
-                      <div className="rounded-[24px] border border-white/10 bg-black/15 p-4">
-                        <div className="mb-3 text-sm font-semibold text-white/80">
-                          操作
-                        </div>
-
-                        <div className="grid gap-3">
-                          <button
-                            disabled={isBusy}
-                            onClick={() => updateStatus(row.id, "approved")}
-                            className="rounded-2xl border border-sky-300/20 bg-sky-400/10 px-4 py-3 text-sm font-semibold text-sky-100 transition hover:bg-sky-400/15 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {isBusy ? "処理中..." : "承認にする"}
-                          </button>
-
-                          <button
-                            disabled={isBusy}
-                            onClick={() => handleConvertToCustomer(row)}
-                            className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/15 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {isBusy ? "処理中..." : "customers に登録"}
-                          </button>
-
-                          <button
-                            disabled={isBusy}
-                            onClick={() => updateStatus(row.id, "pending")}
-                            className="rounded-2xl border border-yellow-300/20 bg-yellow-400/10 px-4 py-3 text-sm font-semibold text-yellow-100 transition hover:bg-yellow-400/15 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {isBusy ? "処理中..." : "未対応に戻す"}
-                          </button>
-
-                          <button
-                            disabled={isBusy}
-                            onClick={() => updateStatus(row.id, "cancelled")}
-                            className="rounded-2xl border border-rose-300/20 bg-rose-400/10 px-4 py-3 text-sm font-semibold text-rose-100 transition hover:bg-rose-400/15 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {isBusy ? "処理中..." : "キャンセルにする"}
-                          </button>
-                        </div>
-
-                        <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-3 text-xs leading-6 text-white/55">
-                          「customers に登録」を押すと、
-                          online_signups の内容を customers に追加し、
-                          この申請の status を converted に更新します。
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </section>
-      </div>
-    </main>
-  );
-}
-
-function InfoCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
-      <div className="text-xs text-white/50">{label}</div>
-      <div className="mt-2 break-words text-sm font-medium text-white">
-        {value}
       </div>
     </div>
   );
