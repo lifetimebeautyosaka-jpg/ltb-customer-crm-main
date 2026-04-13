@@ -1104,13 +1104,57 @@ export default function CustomerDetailPage() {
   );
 }
 
-function InfoItem({
+(function InfoItem({
   label,
   value,
 }: {
   label: string;
   value: string;
 }) {
+  return (
+    <div style={infoCardStyle}>
+      <div style={infoLabelStyle}>{label}</div>
+      <div style={infoValueStyle}>{value || "—"}</div>
+    </div>
+  );
+}
+
+function TextBlock({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div>
+      <div style={historyLabelStyle}>{label}</div>
+      <div style={textBlockStyle}>{value}</div>
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  sub,
+  subColor,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  subColor?: string;
+}) {
+  return (
+    <div style={metricCardStyle}>
+      <div style={metricLabelStyle}>{label}</div>
+      <div style={metricValueStyle}>{value}</div>
+      <div style={{ ...metricSubStyle, color: subColor || "#64748b" }}>
+        {sub}
+      </div>
+    </div>
+  );
+}
   return (
     <div style={infoCardStyle}>
       <div style={infoLabelStyle}>{label}</div>
