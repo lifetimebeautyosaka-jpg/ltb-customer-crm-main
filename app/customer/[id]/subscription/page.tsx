@@ -1,954 +1,1312 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
+import { BG, CARD, BUTTON_PRIMARY } from "../../../styles/theme";
 
 type CustomerRow = {
-  id: number | string;
-  name: string | null;
-  phone: string | null;
-  email: string | null;
+  id: string | number;
+  name?: string | null;
+  customer_name?: string | null;
+  kana?: string | null;
+  furigana?: string | null;
+  phone?: string | null;
+  phone_number?: string | null;
+  email?: string | null;
+  created_at?: string | null;
+};
+
+type SubscriptionRow = {
+  id: string;
+  customer_id: string;
+  customer_name?: string | null;
+  plan_name?: string | null;
+  plan_type?: string | null;
+  plan_style?: string | null;
+  service_type?: string | null;
+  monthly_count?: number | null;
+  used_count?: number | null;
+  carry_over?: number | null;
+  remaining_count?: number | null;
+  price?: number | null;
+  status?: string | null;
+  start_date?: string | null;
+  next_payment_date?: string | null;
+  last_reset_month?: string | null;
   memo?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
-type ContractStatus = "有効" | "停止" | "休会" | "解約";
-type BillingStatus = "請求予定" | "決済済" | "未払い" | "失敗" | "キャンセル";
-type PaymentMethod =
-  | "カード"
-  | "クレジットカード"
-  | "口座振替"
-  | "現金"
-  | "銀行振込"
-  | "店頭決済"
-  | "その他";
+type NormalizedCustomer = {
+  id: string;
+  name: string;
+  kana: string;
+  phone: string;
+  email: string;
+  createdAt: string;
+};
 
-type MonthlyContractRow = {
-  id: number | string;
-  customer_id: number | string;
-  signup_id: number | string | null;
-  course_name: string;
-  plan_id: string | null;
+type SubscriptionForm = {
   plan_name: string;
-  monthly_price: number;
-  payment_method: PaymentMethod;
-  store_name: string | null;
-  visit_style: string | null;
+  plan_type: string;
+  plan_style: "マンツーマン" | "ペア";
+  service_type: "ストレッチ" | "トレーニング" | "両方";
+  monthly_count: string;
+  used_count: string;
+  carry_over: string;
+  price: string;
+  status: "有効" | "停止";
   start_date: string;
-  billing_day: number;
-  next_billing_date: string;
-  contract_status: ContractStatus;
-  end_date: string | null;
-  cancel_requested_at: string | null;
-  note: string | null;
-  created_at: string | null;
-  updated_at: string | null;
+  next_payment_date: string;
+  memo: string;
 };
 
-type MonthlyBillingRow = {
-  id: number | string;
-  contract_id: number | string;
-  customer_id: number | string;
-  billing_month: string;
-  billing_date: string;
-  due_date: string | null;
-  amount: number;
-  payment_method: PaymentMethod;
-  billing_status: BillingStatus;
-  paid_at: string | null;
-  sales_id: number | string | null;
-  note: string | null;
-  created_at: string | null;
-  updated_at: string | null;
+const initialForm: SubscriptionForm = {
+  plan_name: "",
+  plan_type: "月4回",
+  plan_style: "マンツーマン",
+  service_type: "ストレッチ",
+  monthly_count: "4",
+  used_count: "0",
+  carry_over: "0",
+  price: "",
+  status: "有効",
+  start_date: "",
+  next_payment_date: "",
+  memo: "",
 };
 
-type ContractForm = {
-  course_name: string;
-  plan_id: string;
-  plan_name: string;
-  monthly_price: string;
-  payment_method: PaymentMethod;
-  store_name: string;
-  visit_style: string;
-  start_date: string;
-  billing_day: string;
-  contract_status: ContractStatus;
-  note: string;
-};
+const supabase =
+  process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    ? createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      )
+    : null;
 
-function trimmed(value: unknown) {
-  if (value === null || value === undefined) return "";
-  return String(value).trim();
+function toStyle(value: unknown): CSSProperties {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as CSSProperties;
+  }
+  if (typeof value === "string" && value.trim()) {
+    return { background: value };
+  }
+  return {};
 }
 
-function todayString() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = `${d.getMonth() + 1}`.padStart(2, "0");
-  const day = `${d.getDate()}`.padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
+const BG_STYLE = toStyle(BG);
+const CARD_STYLE = toStyle(CARD);
+const BUTTON_PRIMARY_STYLE = toStyle(BUTTON_PRIMARY);
 
-function formatDateJP(value?: string | null) {
+function formatDate(value?: string | null) {
   if (!value) return "—";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
-  return `${d.getFullYear()}/${`${d.getMonth() + 1}`.padStart(2, "0")}/${`${d.getDate()}`.padStart(2, "0")}`;
+  return d.toLocaleDateString("ja-JP");
 }
 
-function formatCurrency(value: number) {
-  return `¥${Number(value || 0).toLocaleString("ja-JP")}`;
+function formatDateTime(value?: string | null) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleString("ja-JP");
 }
 
-function buildBillingMonth(dateString: string) {
-  return dateString.slice(0, 7);
+function formatCurrency(value?: number | null) {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  return `¥${Number(value).toLocaleString()}`;
 }
 
-function buildNextBillingDate(startDate: string, billingDay: number) {
-  const base = new Date(startDate);
-  if (Number.isNaN(base.getTime())) return startDate;
+function normalizeCustomer(row: CustomerRow): NormalizedCustomer {
+  return {
+    id: String(row.id),
+    name: row.name || row.customer_name || "—",
+    kana: row.kana || row.furigana || "",
+    phone: row.phone || row.phone_number || "",
+    email: row.email || "",
+    createdAt: row.created_at || "",
+  };
+}
 
-  const year = base.getFullYear();
-  const month = base.getMonth();
-  const next = new Date(year, month + 1, Math.min(billingDay, 28));
-  const y = next.getFullYear();
-  const m = `${next.getMonth() + 1}`.padStart(2, "0");
-  const d = `${next.getDate()}`.padStart(2, "0");
-  return `${y}-${m}-${d}`;
+function safeNumber(value: string | number | null | undefined, fallback = 0) {
+  const n = Number(value);
+  return Number.isNaN(n) ? fallback : n;
+}
+
+function calcRemaining(
+  monthlyCount: number,
+  usedCount: number,
+  carryOver: number
+) {
+  return Math.max(monthlyCount + carryOver - usedCount, 0);
+}
+
+function getStorageKey(customerId: string) {
+  return `gymup_subscription_${customerId}`;
+}
+
+function readLocalSubscription(customerId: string): SubscriptionRow | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(getStorageKey(customerId));
+    if (!raw) return null;
+    return JSON.parse(raw) as SubscriptionRow;
+  } catch {
+    return null;
+  }
+}
+
+function saveLocalSubscription(customerId: string, data: SubscriptionRow) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(getStorageKey(customerId), JSON.stringify(data));
+}
+
+function createId() {
+  return `sub_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
 export default function CustomerSubscriptionPage() {
   const params = useParams();
   const router = useRouter();
-  const customerId = String(params?.id || "");
+
+  const rawId = params?.id;
+  const customerId = Array.isArray(rawId) ? rawId[0] : String(rawId ?? "");
 
   const [mounted, setMounted] = useState(false);
-  const [customer, setCustomer] = useState<CustomerRow | null>(null);
-  const [contracts, setContracts] = useState<MonthlyContractRow[]>([]);
-  const [billings, setBillings] = useState<MonthlyBillingRow[]>([]);
+  const [windowWidth, setWindowWidth] = useState(1400);
 
-  const [loadingCustomer, setLoadingCustomer] = useState(true);
-  const [loadingContracts, setLoadingContracts] = useState(true);
-  const [loadingBillings, setLoadingBillings] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const [form, setForm] = useState<ContractForm>({
-    course_name: "ボディメイクコース",
-    plan_id: "bodymake_monthly",
-    plan_name: "ボディメイク月額コース",
-    monthly_price: "36000",
-    payment_method: "クレジットカード",
-    store_name: "江戸堀",
-    visit_style: "マンツーマン",
-    start_date: todayString(),
-    billing_day: `${Math.min(new Date().getDate(), 28)}`,
-    contract_status: "有効",
-    note: "",
-  });
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [notice, setNotice] = useState("");
+
+  const [customer, setCustomer] = useState<NormalizedCustomer | null>(null);
+  const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
+  const [form, setForm] = useState<SubscriptionForm>(initialForm);
+
+  const mobile = windowWidth < 768;
+  const compact = windowWidth < 1100;
 
   useEffect(() => {
     setMounted(true);
-
-    const isLoggedIn =
-      localStorage.getItem("gymup_logged_in") || localStorage.getItem("isLoggedIn");
-
-    if (isLoggedIn !== "true") {
-      window.location.href = "/login";
-      return;
-    }
   }, []);
 
-  const fetchCustomer = async () => {
-    try {
-      setLoadingCustomer(true);
-
-      const { data, error } = await supabase
-        .from("customers")
-        .select("id, name, phone, email, memo")
-        .eq("id", Number(customerId))
-        .maybeSingle();
-
-      if (error) {
-        alert(`顧客取得エラー: ${error.message}`);
-        setCustomer(null);
-        return;
-      }
-
-      setCustomer((data as CustomerRow | null) || null);
-    } catch (error) {
-      console.error("fetchCustomer error:", error);
-      setCustomer(null);
-    } finally {
-      setLoadingCustomer(false);
-    }
-  };
-
-  const fetchContracts = async () => {
-    try {
-      setLoadingContracts(true);
-
-      const { data, error } = await supabase
-        .from("monthly_contracts")
-        .select(
-          "id, customer_id, signup_id, course_name, plan_id, plan_name, monthly_price, payment_method, store_name, visit_style, start_date, billing_day, next_billing_date, contract_status, end_date, cancel_requested_at, note, created_at, updated_at"
-        )
-        .eq("customer_id", Number(customerId))
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        alert(`契約取得エラー: ${error.message}`);
-        setContracts([]);
-        return;
-      }
-
-      setContracts((data as MonthlyContractRow[] | null) || []);
-    } catch (error) {
-      console.error("fetchContracts error:", error);
-      setContracts([]);
-    } finally {
-      setLoadingContracts(false);
-    }
-  };
-
-  const fetchBillings = async () => {
-    try {
-      setLoadingBillings(true);
-
-      const { data, error } = await supabase
-        .from("monthly_billings")
-        .select(
-          "id, contract_id, customer_id, billing_month, billing_date, due_date, amount, payment_method, billing_status, paid_at, sales_id, note, created_at, updated_at"
-        )
-        .eq("customer_id", Number(customerId))
-        .order("billing_date", { ascending: false })
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        alert(`請求取得エラー: ${error.message}`);
-        setBillings([]);
-        return;
-      }
-
-      setBillings((data as MonthlyBillingRow[] | null) || []);
-    } catch (error) {
-      console.error("fetchBillings error:", error);
-      setBillings([]);
-    } finally {
-      setLoadingBillings(false);
-    }
-  };
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const updateWidth = () => setWindowWidth(window.innerWidth);
+    updateWidth();
+    window.addEventListener("resize", updateWidth);
+    return () => window.removeEventListener("resize", updateWidth);
+  }, []);
 
   useEffect(() => {
-    if (!mounted || !customerId) return;
-    void fetchCustomer();
-    void fetchContracts();
-    void fetchBillings();
-  }, [mounted, customerId]);
+    if (!mounted) return;
 
-  const contractMap = useMemo(() => {
-    const map = new Map<string, MonthlyContractRow>();
-    contracts.forEach((row) => map.set(String(row.id), row));
-    return map;
-  }, [contracts]);
+    const loggedIn =
+      localStorage.getItem("gymup_logged_in") ||
+      localStorage.getItem("isLoggedIn");
 
-  const activeContracts = useMemo(() => {
-    return contracts.filter((c) => c.contract_status === "有効");
-  }, [contracts]);
-
-  const totalActiveMonthlyAmount = useMemo(() => {
-    return activeContracts.reduce((sum, row) => sum + Number(row.monthly_price || 0), 0);
-  }, [activeContracts]);
-
-  const unpaidBillings = useMemo(() => {
-    return billings.filter((b) => b.billing_status === "未払い");
-  }, [billings]);
-
-  const totalUnpaidAmount = useMemo(() => {
-    return unpaidBillings.reduce((sum, row) => sum + Number(row.amount || 0), 0);
-  }, [unpaidBillings]);
-
-  const updateForm = <K extends keyof ContractForm>(key: K, value: ContractForm[K]) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const handleCreateContract = async () => {
-    if (!customer) {
-      alert("顧客情報が見つかりません");
+    if (loggedIn !== "true") {
+      router.push("/login");
       return;
     }
 
-    if (!trimmed(form.course_name)) {
-      alert("コース名を入力してください");
+    if (!customerId) {
+      setLoading(false);
+      setError("顧客IDが取得できませんでした。顧客一覧から開き直してください。");
       return;
     }
 
-    if (!trimmed(form.plan_name)) {
-      alert("プラン名を入力してください");
+    void loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, customerId, router]);
+
+  async function loadData() {
+    setLoading(true);
+    setError("");
+    setSuccess("");
+    setNotice("");
+
+    try {
+      await loadCustomer();
+      await loadSubscription();
+    } catch (e: any) {
+      setError(e?.message || "データ取得に失敗しました。");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadCustomer() {
+    if (!supabase) {
+      const fallbackCustomer: NormalizedCustomer = {
+        id: customerId,
+        name: "顧客",
+        kana: "",
+        phone: "",
+        email: "",
+        createdAt: "",
+      };
+      setCustomer(fallbackCustomer);
+      setNotice("Supabase未接続のため、顧客情報は簡易表示です。");
       return;
     }
 
-    if (!form.monthly_price || Number(form.monthly_price) <= 0) {
-      alert("月額料金を入力してください");
+    const numericCustomerId = Number(customerId);
+    const customerIdForQuery = Number.isNaN(numericCustomerId)
+      ? customerId
+      : numericCustomerId;
+
+    const { data, error: customerError } = await supabase
+      .from("customers")
+      .select("*")
+      .eq("id", customerIdForQuery)
+      .single();
+
+    if (customerError) {
+      const fallbackCustomer: NormalizedCustomer = {
+        id: customerId,
+        name: "顧客",
+        kana: "",
+        phone: "",
+        email: "",
+        createdAt: "",
+      };
+      setCustomer(fallbackCustomer);
+      setNotice("customers 取得に失敗したため、簡易表示に切り替えました。");
       return;
     }
 
-    if (!form.start_date) {
-      alert("開始日を入力してください");
-      return;
-    }
+    setCustomer(normalizeCustomer(data as CustomerRow));
+  }
 
-    if (!form.billing_day || Number(form.billing_day) < 1 || Number(form.billing_day) > 28) {
-      alert("課金日は1〜28で入力してください");
+  async function loadSubscription() {
+    const localData = readLocalSubscription(customerId);
+
+    if (!supabase) {
+      if (localData) {
+        setSubscription(localData);
+        setForm(fromRowToForm(localData));
+      } else {
+        setSubscription(null);
+        setForm(initialFormWithToday());
+      }
+      if (!notice) {
+        setNotice("Supabase未接続のため、月額契約は端末保存で動作します。");
+      }
       return;
     }
 
     try {
-      setSaving(true);
+      const { data, error: subError } = await supabase
+        .from("customer_subscriptions")
+        .select("*")
+        .eq("customer_id", String(customerId))
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      const billingDay = Number(form.billing_day);
-      const startDate = form.start_date;
-      const nextBillingDate = startDate;
-      const firstBillingMonth = buildBillingMonth(startDate);
+      if (subError) {
+        if (localData) {
+          setSubscription(localData);
+          setForm(fromRowToForm(localData));
+          setNotice(
+            "customer_subscriptions テーブル取得に失敗したため、端末保存データを表示しています。"
+          );
+          return;
+        }
 
-      const contractPayload = {
-        customer_id: Number(customer.id),
-        signup_id: null,
-        course_name: trimmed(form.course_name),
-        plan_id: trimmed(form.plan_id) || null,
-        plan_name: trimmed(form.plan_name),
-        monthly_price: Number(form.monthly_price),
-        payment_method: form.payment_method,
-        store_name: trimmed(form.store_name) || null,
-        visit_style: trimmed(form.visit_style) || null,
-        start_date: startDate,
-        billing_day: billingDay,
-        next_billing_date: nextBillingDate,
-        contract_status: form.contract_status,
-        note: trimmed(form.note) || null,
-      };
-
-      const { data: insertedContract, error: contractError } = await supabase
-        .from("monthly_contracts")
-        .insert([contractPayload])
-        .select(
-          "id, customer_id, signup_id, course_name, plan_id, plan_name, monthly_price, payment_method, store_name, visit_style, start_date, billing_day, next_billing_date, contract_status, end_date, cancel_requested_at, note, created_at, updated_at"
-        )
-        .single();
-
-      if (contractError) {
-        throw new Error(`契約作成エラー: ${contractError.message}`);
+        setSubscription(null);
+        setForm(initialFormWithToday());
+        setNotice(
+          "customer_subscriptions テーブルが未作成、または取得できないため、端末保存モードで利用できます。"
+        );
+        return;
       }
 
-      const contractId = insertedContract?.id;
-      if (!contractId) {
-        throw new Error("契約IDの取得に失敗しました");
+      const row = (data as SubscriptionRow | null) || null;
+
+      if (!row) {
+        if (localData) {
+          setSubscription(localData);
+          setForm(fromRowToForm(localData));
+          setNotice("Supabaseに契約データがないため、端末保存データを表示しています。");
+          return;
+        }
+
+        setSubscription(null);
+        setForm(initialFormWithToday());
+        return;
       }
 
-      const billingPayload = {
-        contract_id: Number(contractId),
-        customer_id: Number(customer.id),
-        billing_month: firstBillingMonth,
-        billing_date: startDate,
-        due_date: startDate,
-        amount: Number(form.monthly_price),
-        payment_method: form.payment_method,
-        billing_status: "請求予定",
-        note: `顧客詳細から初回請求作成 / customer_id: ${customer.id}`,
-      };
+      setSubscription(row);
+      setForm(fromRowToForm(row));
+    } catch {
+      if (localData) {
+        setSubscription(localData);
+        setForm(fromRowToForm(localData));
+        setNotice("月額契約は端末保存データを表示しています。");
+      } else {
+        setSubscription(null);
+        setForm(initialFormWithToday());
+      }
+    }
+  }
 
-      const { error: billingError } = await supabase
-        .from("monthly_billings")
-        .insert([billingPayload]);
+  function initialFormWithToday(): SubscriptionForm {
+    const today = new Date().toISOString().slice(0, 10);
+    return {
+      ...initialForm,
+      start_date: today,
+      next_payment_date: today,
+    };
+  }
 
-      if (billingError) {
-        await supabase.from("monthly_contracts").delete().eq("id", contractId);
-        throw new Error(`初回請求作成エラー: ${billingError.message}`);
+  function fromRowToForm(row: SubscriptionRow): SubscriptionForm {
+    return {
+      plan_name: row.plan_name || "",
+      plan_type: row.plan_type || "月4回",
+      plan_style:
+        row.plan_style === "ペア" ? "ペア" : "マンツーマン",
+      service_type:
+        row.service_type === "トレーニング" ||
+        row.service_type === "両方"
+          ? (row.service_type as "トレーニング" | "両方")
+          : "ストレッチ",
+      monthly_count: String(row.monthly_count ?? 4),
+      used_count: String(row.used_count ?? 0),
+      carry_over: String(row.carry_over ?? 0),
+      price: row.price !== null && row.price !== undefined ? String(row.price) : "",
+      status: row.status === "停止" ? "停止" : "有効",
+      start_date: row.start_date || "",
+      next_payment_date: row.next_payment_date || "",
+      memo: row.memo || "",
+    };
+  }
+
+  function updateForm<K extends keyof SubscriptionForm>(
+    key: K,
+    value: SubscriptionForm[K]
+  ) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  const monthlyCountNum = safeNumber(form.monthly_count, 0);
+  const usedCountNum = safeNumber(form.used_count, 0);
+  const carryOverNum = safeNumber(form.carry_over, 0);
+  const priceNum = safeNumber(form.price, 0);
+  const previewRemaining = calcRemaining(
+    monthlyCountNum,
+    usedCountNum,
+    carryOverNum
+  );
+
+  const usageRate = useMemo(() => {
+    const total = monthlyCountNum + carryOverNum;
+    if (total <= 0) return 0;
+    return Math.min(Math.round((usedCountNum / total) * 100), 100);
+  }, [monthlyCountNum, usedCountNum, carryOverNum]);
+
+  async function handleSave() {
+    setError("");
+    setSuccess("");
+    setNotice("");
+
+    if (!customerId) {
+      setError("顧客IDが見つかりません。");
+      return;
+    }
+
+    if (!form.plan_name.trim()) {
+      setError("プラン名を入力してください。");
+      return;
+    }
+
+    if (!form.monthly_count || safeNumber(form.monthly_count, -1) < 0) {
+      setError("月回数を正しく入力してください。");
+      return;
+    }
+
+    if (!form.used_count || safeNumber(form.used_count, -1) < 0) {
+      setError("消化回数を正しく入力してください。");
+      return;
+    }
+
+    if (!form.carry_over || safeNumber(form.carry_over, -1) < 0) {
+      setError("繰越回数を正しく入力してください。");
+      return;
+    }
+
+    setSaving(true);
+
+    const payload: SubscriptionRow = {
+      id: subscription?.id || createId(),
+      customer_id: String(customerId),
+      customer_name: customer?.name || "顧客",
+      plan_name: form.plan_name.trim(),
+      plan_type: form.plan_type,
+      plan_style: form.plan_style,
+      service_type: form.service_type,
+      monthly_count: safeNumber(form.monthly_count, 0),
+      used_count: safeNumber(form.used_count, 0),
+      carry_over: safeNumber(form.carry_over, 0),
+      remaining_count: previewRemaining,
+      price: form.price.trim() ? safeNumber(form.price, 0) : null,
+      status: form.status,
+      start_date: form.start_date || null,
+      next_payment_date: form.next_payment_date || null,
+      last_reset_month:
+        subscription?.last_reset_month ||
+        new Date().toISOString().slice(0, 7),
+      memo: form.memo.trim() || null,
+      created_at: subscription?.created_at || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    try {
+      saveLocalSubscription(customerId, payload);
+
+      if (supabase) {
+        const { error: upsertError } = await supabase
+          .from("customer_subscriptions")
+          .upsert(payload, { onConflict: "id" });
+
+        if (upsertError) {
+          setSubscription(payload);
+          setSuccess("端末保存で月額契約を保存しました。");
+          setNotice(
+            "Supabase保存は失敗しましたが、画面上では利用できます。テーブル未作成の可能性があります。"
+          );
+          setSaving(false);
+          return;
+        }
+      } else {
+        setNotice("Supabase未接続のため、端末保存で保存しました。");
       }
 
-      const previewNextDate = buildNextBillingDate(startDate, billingDay);
-
-      const { error: updateContractError } = await supabase
-        .from("monthly_contracts")
-        .update({
-          next_billing_date: previewNextDate,
-        })
-        .eq("id", Number(contractId));
-
-      if (updateContractError) {
-        throw new Error(`次回請求日更新エラー: ${updateContractError.message}`);
-      }
-
-      alert("月額契約と初回請求を作成しました");
-
-      setForm((prev) => ({
-        ...prev,
-        note: "",
-        start_date: todayString(),
-        billing_day: `${Math.min(new Date().getDate(), 28)}`,
-      }));
-
-      await fetchContracts();
-      await fetchBillings();
-    } catch (error) {
-      console.error("handleCreateContract error:", error);
-      alert(error instanceof Error ? error.message : "契約作成に失敗しました");
+      setSubscription(payload);
+      setSuccess("月額契約を保存しました。");
+    } catch (e: any) {
+      setError(e?.message || "月額契約の保存に失敗しました。");
     } finally {
       setSaving(false);
     }
-  };
+  }
 
-  const pageStyle: CSSProperties = {
-    minHeight: "100vh",
-    background:
-      "linear-gradient(135deg, #f7f7f8 0%, #eceef1 45%, #e7eaef 100%)",
-    padding: mobile ? "16px" : "24px",
-    color: "#111827",
-  };
+  async function handleToggleStatus() {
+    const nextStatus = form.status === "有効" ? "停止" : "有効";
+    setForm((prev) => ({ ...prev, status: nextStatus }));
+  }
 
-  const innerStyle: CSSProperties = {
-    maxWidth: "1480px",
-    margin: "0 auto",
-    display: "grid",
-    gap: "18px",
-  };
+  async function handleResetMonth() {
+    const updatedCarry = previewRemaining;
+    setForm((prev) => ({
+      ...prev,
+      carry_over: String(updatedCarry),
+      used_count: "0",
+    }));
+    setSuccess("月次リセット用に、残回数を繰越へ反映しました。保存して確定してください。");
+    setError("");
+  }
 
-  const cardStyle: CSSProperties = {
-    background: "rgba(255,255,255,0.84)",
-    border: "1px solid rgba(255,255,255,0.9)",
-    borderRadius: "24px",
-    padding: mobile ? "16px" : "20px",
-    boxShadow: "0 12px 40px rgba(15, 23, 42, 0.08)",
-    backdropFilter: "blur(12px)",
-  };
+  async function handleUseOne() {
+    setForm((prev) => ({
+      ...prev,
+      used_count: String(Math.max(safeNumber(prev.used_count, 0) + 1, 0)),
+    }));
+    setError("");
+    setSuccess("");
+  }
 
-  const headerStyle: CSSProperties = {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: mobile ? "stretch" : "center",
-    gap: "12px",
-    flexDirection: mobile ? "column" : "row",
-  };
-
-  const titleStyle: CSSProperties = {
-    margin: 0,
-    fontSize: mobile ? "26px" : "34px",
-    fontWeight: 800,
-    letterSpacing: "0.02em",
-  };
-
-  const subTextStyle: CSSProperties = {
-    margin: "6px 0 0",
-    fontSize: "14px",
-    color: "#6b7280",
-  };
-
-  const linkButtonStyle: CSSProperties = {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "11px 16px",
-    borderRadius: "14px",
-    textDecoration: "none",
-    fontWeight: 700,
-    fontSize: "14px",
-    border: "1px solid #d1d5db",
-    background: "#fff",
-    color: "#111827",
-  };
-
-  const primaryButtonStyle: CSSProperties = {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "12px 18px",
-    borderRadius: "16px",
-    border: "none",
-    background: "linear-gradient(135deg, #111827 0%, #374151 100%)",
-    color: "#fff",
-    fontWeight: 800,
-    fontSize: "14px",
-    cursor: "pointer",
-  };
-
-  const inputStyle: CSSProperties = {
-    width: "100%",
-    borderRadius: "14px",
-    border: "1px solid #d1d5db",
-    padding: "12px 14px",
-    fontSize: "14px",
-    outline: "none",
-    background: "#fff",
-    boxSizing: "border-box",
-  };
-
-  const textareaStyle: CSSProperties = {
-    ...inputStyle,
-    minHeight: "110px",
-    resize: "vertical",
-    lineHeight: 1.6,
-  };
-
-  const labelStyle: CSSProperties = {
-    display: "block",
-    fontSize: "12px",
-    fontWeight: 700,
-    color: "#6b7280",
-    marginBottom: "7px",
-  };
-
-  const miniTitleStyle: CSSProperties = {
-    margin: 0,
-    fontSize: "18px",
-    fontWeight: 800,
-  };
-
-  const statGridStyle: CSSProperties = {
-    display: "grid",
-    gridTemplateColumns: mobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))",
-    gap: "12px",
-  };
-
-  const statCardStyle: CSSProperties = {
-    borderRadius: "20px",
-    padding: "16px",
-    background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-    border: "1px solid #e5e7eb",
-    boxShadow: "0 6px 18px rgba(15, 23, 42, 0.05)",
-  };
-
-  const statLabelStyle: CSSProperties = {
-    fontSize: "12px",
-    color: "#6b7280",
-    fontWeight: 700,
-    marginBottom: "8px",
-  };
-
-  const statValueStyle: CSSProperties = {
-    fontSize: mobile ? "16px" : "22px",
-    fontWeight: 800,
-  };
-
-  const formGridStyle: CSSProperties = {
-    display: "grid",
-    gridTemplateColumns: mobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
-    gap: "14px",
-  };
-
-  const tableWrapStyle: CSSProperties = {
-    width: "100%",
-    overflowX: "auto",
-    borderRadius: "18px",
-    border: "1px solid #e5e7eb",
-    background: "#fff",
-  };
-
-  const tableStyle: CSSProperties = {
-    width: "100%",
-    minWidth: "1240px",
-    borderCollapse: "collapse",
-    fontSize: "14px",
-  };
-
-  const thStyle: CSSProperties = {
-    textAlign: "left",
-    padding: "13px 14px",
-    fontWeight: 800,
-    color: "#374151",
-    background: "#f9fafb",
-    borderBottom: "1px solid #e5e7eb",
-    whiteSpace: "nowrap",
-  };
-
-  const tdStyle: CSSProperties = {
-    padding: "13px 14px",
-    borderBottom: "1px solid #f1f5f9",
-    verticalAlign: "top",
-  };
-
-  const pillStyle = (bg: string, color = "#111827"): CSSProperties => ({
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "6px 10px",
-    borderRadius: "999px",
-    background: bg,
-    color,
-    fontSize: "12px",
-    fontWeight: 800,
-    whiteSpace: "nowrap",
-  });
+  async function handleBackOne() {
+    setForm((prev) => ({
+      ...prev,
+      used_count: String(Math.max(safeNumber(prev.used_count, 0) - 1, 0)),
+    }));
+    setError("");
+    setSuccess("");
+  }
 
   if (!mounted) return null;
 
+  if (loading) {
+    return (
+      <main style={{ ...BG_STYLE, minHeight: "100vh", padding: "24px 16px 80px" }}>
+        <div style={{ maxWidth: 1180, margin: "0 auto" }}>
+          <div style={{ ...CARD_STYLE, borderRadius: 24, padding: 24 }}>
+            読み込み中...
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
-    <div style={pageStyle}>
-      <div style={innerStyle}>
-        <section style={cardStyle}>
-          <div style={headerStyle}>
+    <main
+      style={{
+        ...BG_STYLE,
+        minHeight: "100vh",
+        padding: mobile ? "16px 12px 72px" : "24px 16px 80px",
+        color: "#111827",
+      }}
+    >
+      <div style={{ maxWidth: 1180, margin: "0 auto", display: "grid", gap: 18 }}>
+        <section
+          style={{
+            ...CARD_STYLE,
+            borderRadius: 24,
+            padding: mobile ? 16 : 20,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: mobile ? "stretch" : "center",
+              gap: 16,
+              flexWrap: "wrap",
+              flexDirection: mobile ? "column" : "row",
+            }}
+          >
             <div>
-              <h1 style={titleStyle}>月額契約追加</h1>
-              <p style={subTextStyle}>既存顧客から月額契約を作成し、初回請求まで作成します</p>
+              <div style={eyebrowStyle}>SUBSCRIPTION</div>
+              <h1 style={{ ...pageTitleStyle, fontSize: mobile ? 24 : 30 }}>
+                月額契約管理
+              </h1>
+              <div style={subTitleStyle}>
+                {customer?.name || "顧客"} のサブスク管理
+              </div>
             </div>
 
-            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                flexWrap: "wrap",
+                width: mobile ? "100%" : "auto",
+                flexDirection: mobile ? "column" : "row",
+              }}
+            >
               <button
                 type="button"
-                onClick={() => router.back()}
-                style={linkButtonStyle}
+                onClick={() => router.push(`/customer/${customerId}`)}
+                style={{
+                  ...secondaryButtonStyle,
+                  width: mobile ? "100%" : "auto",
+                }}
               >
-                戻る
+                顧客詳細へ戻る
               </button>
-              <Link href={`/customer/${customerId}`} style={linkButtonStyle}>
-                顧客詳細へ
+
+              <Link
+                href={`/customer/${customerId}/training`}
+                style={{
+                  ...buttonLinkStyle,
+                  ...BUTTON_PRIMARY_STYLE,
+                  width: mobile ? "100%" : "auto",
+                }}
+              >
+                トレーニング履歴へ
               </Link>
-              <Link href="/accounting" style={linkButtonStyle}>
-                会計管理へ
-              </Link>
             </div>
           </div>
         </section>
 
-        <section style={cardStyle}>
-          <h2 style={miniTitleStyle}>顧客情報</h2>
-          <div style={{ marginTop: "14px", ...statGridStyle }}>
-            <div style={statCardStyle}>
-              <div style={statLabelStyle}>顧客名</div>
-              <div style={statValueStyle}>
-                {loadingCustomer ? "..." : customer?.name || "未設定"}
+        {error ? <div style={alertErrorStyle}>{error}</div> : null}
+        {success ? <div style={alertSuccessStyle}>{success}</div> : null}
+        {notice ? <div style={alertNoticeStyle}>{notice}</div> : null}
+
+        <section
+          style={{
+            ...CARD_STYLE,
+            borderRadius: 24,
+            padding: mobile ? 16 : 20,
+          }}
+        >
+          <h2 style={sectionTitleStyle}>顧客情報</h2>
+
+          <div style={infoGridStyle}>
+            <InfoItem label="氏名" value={customer?.name || "—"} />
+            <InfoItem label="かな" value={customer?.kana || "—"} />
+            <InfoItem label="電話" value={customer?.phone || "—"} />
+            <InfoItem label="メール" value={customer?.email || "—"} />
+          </div>
+        </section>
+
+        <section
+          style={{
+            ...CARD_STYLE,
+            borderRadius: 24,
+            padding: mobile ? 16 : 20,
+          }}
+        >
+          <h2 style={sectionTitleStyle}>現在の契約サマリー</h2>
+
+          <div style={metricsGridStyle}>
+            <MetricCard
+              label="プラン"
+              value={form.plan_name || "未設定"}
+              sub={form.plan_type || "—"}
+            />
+            <MetricCard
+              label="契約金額"
+              value={form.price ? formatCurrency(priceNum) : "未設定"}
+              sub={form.plan_style}
+            />
+            <MetricCard
+              label="残回数"
+              value={`${previewRemaining}回`}
+              sub={`消化 ${usedCountNum}回 / 月回数 ${monthlyCountNum}回`}
+            />
+            <MetricCard
+              label="繰越"
+              value={`${carryOverNum}回`}
+              sub={`利用率 ${usageRate}%`}
+            />
+            <MetricCard
+              label="状態"
+              value={form.status}
+              sub={`次回決済日 ${formatDate(form.next_payment_date)}`}
+            />
+            <MetricCard
+              label="開始日"
+              value={formatDate(form.start_date)}
+              sub={
+                subscription?.updated_at
+                  ? `最終更新 ${formatDateTime(subscription.updated_at)}`
+                  : "新規登録"
+              }
+            />
+          </div>
+
+          <div style={{ marginTop: 18 }}>
+            <div style={progressWrapStyle}>
+              <div style={progressLabelStyle}>消化率</div>
+              <div style={progressBarBgStyle}>
+                <div
+                  style={{
+                    ...progressBarFillStyle,
+                    width: `${Math.max(0, Math.min(usageRate, 100))}%`,
+                  }}
+                />
               </div>
-            </div>
-            <div style={statCardStyle}>
-              <div style={statLabelStyle}>電話番号</div>
-              <div style={statValueStyle}>
-                {loadingCustomer ? "..." : customer?.phone || "—"}
-              </div>
-            </div>
-            <div style={statCardStyle}>
-              <div style={statLabelStyle}>メール</div>
-              <div style={statValueStyle}>
-                {loadingCustomer ? "..." : customer?.email || "—"}
-              </div>
-            </div>
-            <div style={statCardStyle}>
-              <div style={statLabelStyle}>顧客ID</div>
-              <div style={statValueStyle}>{customerId}</div>
+              <div style={progressValueStyle}>{usageRate}%</div>
             </div>
           </div>
         </section>
 
-        <section style={cardStyle}>
-          <div style={statGridStyle}>
-            <div style={statCardStyle}>
-              <div style={statLabelStyle}>契約数</div>
-              <div style={statValueStyle}>{contracts.length}件</div>
-            </div>
-            <div style={statCardStyle}>
-              <div style={statLabelStyle}>有効契約</div>
-              <div style={statValueStyle}>{activeContracts.length}件</div>
-            </div>
-            <div style={statCardStyle}>
-              <div style={statLabelStyle}>有効月額合計</div>
-              <div style={statValueStyle}>{formatCurrency(totalActiveMonthlyAmount)}</div>
-            </div>
-            <div style={statCardStyle}>
-              <div style={statLabelStyle}>未払い合計</div>
-              <div style={statValueStyle}>{formatCurrency(totalUnpaidAmount)}</div>
+        <section
+          style={{
+            ...CARD_STYLE,
+            borderRadius: 24,
+            padding: mobile ? 16 : 20,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: compact ? "stretch" : "center",
+              gap: 12,
+              flexWrap: "wrap",
+              flexDirection: compact ? "column" : "row",
+              marginBottom: 16,
+            }}
+          >
+            <h2 style={sectionTitleStyle}>月額契約入力</h2>
+
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                flexWrap: "wrap",
+                width: compact ? "100%" : "auto",
+                flexDirection: mobile ? "column" : "row",
+              }}
+            >
+              <button
+                type="button"
+                onClick={handleUseOne}
+                style={{
+                  ...secondaryButtonStyle,
+                  width: mobile ? "100%" : "auto",
+                }}
+              >
+                消化 +1
+              </button>
+
+              <button
+                type="button"
+                onClick={handleBackOne}
+                style={{
+                  ...secondaryButtonStyle,
+                  width: mobile ? "100%" : "auto",
+                }}
+              >
+                消化 -1
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResetMonth}
+                style={{
+                  ...secondaryButtonStyle,
+                  width: mobile ? "100%" : "auto",
+                }}
+              >
+                月次リセット準備
+              </button>
+
+              <button
+                type="button"
+                onClick={handleToggleStatus}
+                style={{
+                  ...secondaryButtonStyle,
+                  width: mobile ? "100%" : "auto",
+                }}
+              >
+                {form.status === "有効" ? "停止に切替" : "有効に切替"}
+              </button>
             </div>
           </div>
-        </section>
 
-        <section style={cardStyle}>
-          <h2 style={miniTitleStyle}>月額契約を追加</h2>
-
-          <div style={{ marginTop: "16px", ...formGridStyle }}>
-            <div>
-              <label style={labelStyle}>コース名</label>
-              <input
-                value={form.course_name}
-                onChange={(e) => updateForm("course_name", e.target.value)}
-                placeholder="例：ボディメイクコース"
-                style={inputStyle}
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>プランID</label>
-              <input
-                value={form.plan_id}
-                onChange={(e) => updateForm("plan_id", e.target.value)}
-                placeholder="例：bodymake_monthly"
-                style={inputStyle}
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>プラン名</label>
+          <div style={formGridStyle}>
+            <Field label="プラン名">
               <input
                 value={form.plan_name}
                 onChange={(e) => updateForm("plan_name", e.target.value)}
-                placeholder="例：ボディメイク月額コース"
+                placeholder="例：ストレッチ月4回プラン"
                 style={inputStyle}
               />
-            </div>
+            </Field>
 
-            <div>
-              <label style={labelStyle}>月額料金</label>
-              <input
-                inputMode="numeric"
-                value={form.monthly_price}
-                onChange={(e) => updateForm("monthly_price", e.target.value)}
-                placeholder="例：36000"
-                style={inputStyle}
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>支払方法</label>
+            <Field label="プラン種別">
               <select
-                value={form.payment_method}
-                onChange={(e) => updateForm("payment_method", e.target.value as PaymentMethod)}
+                value={form.plan_type}
+                onChange={(e) => updateForm("plan_type", e.target.value)}
                 style={inputStyle}
               >
-                <option value="クレジットカード">クレジットカード</option>
-                <option value="カード">カード</option>
-                <option value="口座振替">口座振替</option>
-                <option value="現金">現金</option>
-                <option value="銀行振込">銀行振込</option>
-                <option value="店頭決済">店頭決済</option>
+                <option value="月2回">月2回</option>
+                <option value="月4回">月4回</option>
+                <option value="月8回">月8回</option>
+                <option value="通い放題">通い放題</option>
                 <option value="その他">その他</option>
               </select>
-            </div>
+            </Field>
 
-            <div>
-              <label style={labelStyle}>店舗</label>
-              <input
-                value={form.store_name}
-                onChange={(e) => updateForm("store_name", e.target.value)}
-                placeholder="例：江戸堀"
-                style={inputStyle}
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>利用形態</label>
+            <Field label="契約形態">
               <select
-                value={form.visit_style}
-                onChange={(e) => updateForm("visit_style", e.target.value)}
+                value={form.plan_style}
+                onChange={(e) =>
+                  updateForm(
+                    "plan_style",
+                    e.target.value as "マンツーマン" | "ペア"
+                  )
+                }
                 style={inputStyle}
               >
                 <option value="マンツーマン">マンツーマン</option>
                 <option value="ペア">ペア</option>
-                <option value="未定">未定</option>
               </select>
-            </div>
+            </Field>
 
-            <div>
-              <label style={labelStyle}>契約開始日</label>
+            <Field label="サービス種別">
+              <select
+                value={form.service_type}
+                onChange={(e) =>
+                  updateForm(
+                    "service_type",
+                    e.target.value as "ストレッチ" | "トレーニング" | "両方"
+                  )
+                }
+                style={inputStyle}
+              >
+                <option value="ストレッチ">ストレッチ</option>
+                <option value="トレーニング">トレーニング</option>
+                <option value="両方">両方</option>
+              </select>
+            </Field>
+
+            <Field label="月回数">
+              <input
+                type="number"
+                min="0"
+                value={form.monthly_count}
+                onChange={(e) => updateForm("monthly_count", e.target.value)}
+                style={inputStyle}
+              />
+            </Field>
+
+            <Field label="消化回数">
+              <input
+                type="number"
+                min="0"
+                value={form.used_count}
+                onChange={(e) => updateForm("used_count", e.target.value)}
+                style={inputStyle}
+              />
+            </Field>
+
+            <Field label="繰越回数">
+              <input
+                type="number"
+                min="0"
+                value={form.carry_over}
+                onChange={(e) => updateForm("carry_over", e.target.value)}
+                style={inputStyle}
+              />
+            </Field>
+
+            <Field label="残回数">
+              <div style={readonlyBoxStyle}>{previewRemaining}回</div>
+            </Field>
+
+            <Field label="月額料金（税込）">
+              <input
+                type="number"
+                min="0"
+                value={form.price}
+                onChange={(e) => updateForm("price", e.target.value)}
+                placeholder="例：29800"
+                style={inputStyle}
+              />
+            </Field>
+
+            <Field label="状態">
+              <select
+                value={form.status}
+                onChange={(e) =>
+                  updateForm("status", e.target.value as "有効" | "停止")
+                }
+                style={inputStyle}
+              >
+                <option value="有効">有効</option>
+                <option value="停止">停止</option>
+              </select>
+            </Field>
+
+            <Field label="開始日">
               <input
                 type="date"
                 value={form.start_date}
                 onChange={(e) => updateForm("start_date", e.target.value)}
                 style={inputStyle}
               />
-            </div>
+            </Field>
 
-            <div>
-              <label style={labelStyle}>課金日（1〜28）</label>
+            <Field label="次回決済日">
               <input
-                inputMode="numeric"
-                value={form.billing_day}
-                onChange={(e) => updateForm("billing_day", e.target.value)}
-                placeholder="例：5"
+                type="date"
+                value={form.next_payment_date}
+                onChange={(e) => updateForm("next_payment_date", e.target.value)}
                 style={inputStyle}
               />
-            </div>
+            </Field>
 
-            <div>
-              <label style={labelStyle}>契約状態</label>
-              <select
-                value={form.contract_status}
-                onChange={(e) => updateForm("contract_status", e.target.value as ContractStatus)}
-                style={inputStyle}
-              >
-                <option value="有効">有効</option>
-                <option value="停止">停止</option>
-                <option value="休会">休会</option>
-                <option value="解約">解約</option>
-              </select>
-            </div>
-
-            <div style={{ gridColumn: mobile ? "auto" : "1 / -1" }}>
-              <label style={labelStyle}>備考</label>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <div style={labelStyle}>メモ</div>
               <textarea
-                value={form.note}
-                onChange={(e) => updateForm("note", e.target.value)}
-                placeholder="例：店頭でカード登録済み / 初月説明済み"
+                value={form.memo}
+                onChange={(e) => updateForm("memo", e.target.value)}
+                placeholder="例：1ヶ月繰越あり、毎月5日決済、家族共有なし など"
                 style={textareaStyle}
               />
             </div>
           </div>
 
-          <div style={{ marginTop: "18px" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              flexWrap: "wrap",
+              marginTop: 18,
+              flexDirection: mobile ? "column" : "row",
+            }}
+          >
             <button
               type="button"
-              onClick={handleCreateContract}
+              onClick={handleSave}
               disabled={saving}
               style={{
-                ...primaryButtonStyle,
-                opacity: saving ? 0.7 : 1,
+                ...buttonLinkStyle,
+                ...BUTTON_PRIMARY_STYLE,
+                border: "none",
+                cursor: "pointer",
+                width: mobile ? "100%" : "auto",
               }}
             >
-              {saving ? "作成中..." : "月額契約と初回請求を作成"}
+              {saving ? "保存中..." : "月額契約を保存"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (subscription) {
+                  setForm(fromRowToForm(subscription));
+                } else {
+                  setForm(initialFormWithToday());
+                }
+                setError("");
+                setSuccess("");
+              }}
+              style={{
+                ...secondaryButtonStyle,
+                width: mobile ? "100%" : "auto",
+              }}
+            >
+              入力を元に戻す
             </button>
           </div>
         </section>
 
-        <section style={cardStyle}>
-          <h2 style={miniTitleStyle}>既存契約一覧</h2>
+        <section
+          style={{
+            ...CARD_STYLE,
+            borderRadius: 24,
+            padding: mobile ? 16 : 20,
+          }}
+        >
+          <h2 style={sectionTitleStyle}>運用メモ</h2>
 
-          <div style={{ marginTop: "14px", ...tableWrapStyle }}>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <th style={thStyle}>コース</th>
-                  <th style={thStyle}>プラン</th>
-                  <th style={thStyle}>月額</th>
-                  <th style={thStyle}>支払方法</th>
-                  <th style={thStyle}>店舗</th>
-                  <th style={thStyle}>開始日</th>
-                  <th style={thStyle}>課金日</th>
-                  <th style={thStyle}>次回請求日</th>
-                  <th style={thStyle}>状態</th>
-                  <th style={thStyle}>備考</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loadingContracts ? (
-                  <tr>
-                    <td style={tdStyle} colSpan={10}>
-                      読み込み中...
-                    </td>
-                  </tr>
-                ) : contracts.length === 0 ? (
-                  <tr>
-                    <td style={tdStyle} colSpan={10}>
-                      契約はまだありません
-                    </td>
-                  </tr>
-                ) : (
-                  contracts.map((row) => (
-                    <tr key={String(row.id)}>
-                      <td style={tdStyle}>{row.course_name}</td>
-                      <td style={tdStyle}>{row.plan_name}</td>
-                      <td style={{ ...tdStyle, fontWeight: 800 }}>
-                        {formatCurrency(row.monthly_price)}
-                      </td>
-                      <td style={tdStyle}>{row.payment_method}</td>
-                      <td style={tdStyle}>{trimmed(row.store_name) || "—"}</td>
-                      <td style={tdStyle}>{formatDateJP(row.start_date)}</td>
-                      <td style={tdStyle}>{row.billing_day}日</td>
-                      <td style={tdStyle}>{formatDateJP(row.next_billing_date)}</td>
-                      <td style={tdStyle}>
-                        <span
-                          style={pillStyle(
-                            row.contract_status === "有効" ? "#dcfce7" : "#f3f4f6",
-                            row.contract_status === "有効" ? "#166534" : "#374151"
-                          )}
-                        >
-                          {row.contract_status}
-                        </span>
-                      </td>
-                      <td style={{ ...tdStyle, whiteSpace: "pre-wrap" }}>
-                        {row.note || "—"}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section style={cardStyle}>
-          <h2 style={miniTitleStyle}>請求一覧</h2>
-
-          <div style={{ marginTop: "14px", ...tableWrapStyle }}>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <th style={thStyle}>請求月</th>
-                  <th style={thStyle}>契約</th>
-                  <th style={thStyle}>請求日</th>
-                  <th style={thStyle}>金額</th>
-                  <th style={thStyle}>支払方法</th>
-                  <th style={thStyle}>状態</th>
-                  <th style={thStyle}>売上連携</th>
-                  <th style={thStyle}>備考</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loadingBillings ? (
-                  <tr>
-                    <td style={tdStyle} colSpan={8}>
-                      読み込み中...
-                    </td>
-                  </tr>
-                ) : billings.length === 0 ? (
-                  <tr>
-                    <td style={tdStyle} colSpan={8}>
-                      請求はまだありません
-                    </td>
-                  </tr>
-                ) : (
-                  billings.map((row) => {
-                    const contract = contractMap.get(String(row.contract_id));
-                    return (
-                      <tr key={String(row.id)}>
-                        <td style={tdStyle}>{row.billing_month}</td>
-                        <td style={tdStyle}>
-                          {contract?.plan_name || contract?.course_name || "未設定"}
-                        </td>
-                        <td style={tdStyle}>{formatDateJP(row.billing_date)}</td>
-                        <td style={{ ...tdStyle, fontWeight: 800 }}>
-                          {formatCurrency(row.amount)}
-                        </td>
-                        <td style={tdStyle}>{row.payment_method}</td>
-                        <td style={tdStyle}>
-                          <span
-                            style={pillStyle(
-                              row.billing_status === "決済済"
-                                ? "#dcfce7"
-                                : row.billing_status === "未払い"
-                                ? "#fee2e2"
-                                : row.billing_status === "請求予定"
-                                ? "#dbeafe"
-                                : "#f3f4f6",
-                              row.billing_status === "決済済"
-                                ? "#166534"
-                                : row.billing_status === "未払い"
-                                ? "#991b1b"
-                                : row.billing_status === "請求予定"
-                                ? "#1d4ed8"
-                                : "#374151"
-                            )}
-                          >
-                            {row.billing_status}
-                          </span>
-                        </td>
-                        <td style={tdStyle}>{row.sales_id ? `sales:${row.sales_id}` : "未連携"}</td>
-                        <td style={{ ...tdStyle, whiteSpace: "pre-wrap" }}>
-                          {row.note || "—"}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+          <div style={{ display: "grid", gap: 12 }}>
+            <TextBlock
+              label="おすすめ運用"
+              value={
+                "月初または決済日に『月次リセット準備』→ 保存 の流れで使うと、残回数を繰越へ反映しやすいです。予約詳細や売上登録とつなげる場合は、次に reservation / sales 連動を追加するとかなり強くなります。"
+              }
+            />
+            <TextBlock
+              label="現在の保存先"
+              value={
+                notice.includes("端末保存") || notice.includes("local")
+                  ? "現在は端末保存モードを含みます。Supabase テーブル作成後に本保存へ移行できます。"
+                  : "現在は Supabase 保存を優先して動作します。"
+              }
+            />
           </div>
         </section>
       </div>
+    </main>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div style={labelStyle}>{label}</div>
+      {children}
     </div>
   );
 }
+
+function InfoItem({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div style={infoCardStyle}>
+      <div style={infoLabelStyle}>{label}</div>
+      <div style={infoValueStyle}>{value || "—"}</div>
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+}) {
+  return (
+    <div style={metricCardStyle}>
+      <div style={metricLabelStyle}>{label}</div>
+      <div style={metricValueStyle}>{value}</div>
+      <div style={metricSubStyle}>{sub}</div>
+    </div>
+  );
+}
+
+function TextBlock({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div>
+      <div style={labelStyle}>{label}</div>
+      <div style={textBlockStyle}>{value || "—"}</div>
+    </div>
+  );
+}
+
+const eyebrowStyle: CSSProperties = {
+  fontSize: 12,
+  fontWeight: 800,
+  letterSpacing: "0.12em",
+  color: "#64748b",
+  marginBottom: 4,
+};
+
+const pageTitleStyle: CSSProperties = {
+  margin: 0,
+  lineHeight: 1.2,
+  color: "#0f172a",
+  fontWeight: 800,
+};
+
+const subTitleStyle: CSSProperties = {
+  marginTop: 8,
+  fontSize: 14,
+  color: "#475569",
+  fontWeight: 600,
+};
+
+const sectionTitleStyle: CSSProperties = {
+  margin: "0 0 16px 0",
+  fontSize: 20,
+  color: "#0f172a",
+  fontWeight: 800,
+};
+
+const buttonLinkStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 44,
+  padding: "10px 16px",
+  borderRadius: 14,
+  textDecoration: "none",
+  fontWeight: 800,
+  fontSize: 14,
+};
+
+const secondaryButtonStyle: CSSProperties = {
+  minHeight: 44,
+  borderRadius: 14,
+  border: "1px solid rgba(203,213,225,0.95)",
+  background: "rgba(255,255,255,0.92)",
+  color: "#334155",
+  fontWeight: 700,
+  fontSize: 14,
+  cursor: "pointer",
+  padding: "10px 16px",
+};
+
+const alertErrorStyle: CSSProperties = {
+  padding: "14px 16px",
+  borderRadius: 16,
+  background: "rgba(254,242,242,0.98)",
+  border: "1px solid rgba(239,68,68,0.22)",
+  color: "#b91c1c",
+  fontSize: 14,
+  fontWeight: 700,
+};
+
+const alertSuccessStyle: CSSProperties = {
+  padding: "14px 16px",
+  borderRadius: 16,
+  background: "rgba(240,253,244,0.98)",
+  border: "1px solid rgba(22,163,74,0.22)",
+  color: "#15803d",
+  fontSize: 14,
+  fontWeight: 700,
+};
+
+const alertNoticeStyle: CSSProperties = {
+  padding: "14px 16px",
+  borderRadius: 16,
+  background: "rgba(239,246,255,0.98)",
+  border: "1px solid rgba(59,130,246,0.2)",
+  color: "#1d4ed8",
+  fontSize: 14,
+  fontWeight: 700,
+};
+
+const infoGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: 12,
+};
+
+const metricsGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: 12,
+};
+
+const formGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: 14,
+};
+
+const infoCardStyle: CSSProperties = {
+  padding: "14px 16px",
+  borderRadius: 16,
+  background: "rgba(255,255,255,0.82)",
+  border: "1px solid rgba(226,232,240,0.95)",
+};
+
+const infoLabelStyle: CSSProperties = {
+  fontSize: 12,
+  fontWeight: 800,
+  color: "#64748b",
+  marginBottom: 6,
+  letterSpacing: "0.04em",
+};
+
+const infoValueStyle: CSSProperties = {
+  fontSize: 15,
+  fontWeight: 700,
+  color: "#0f172a",
+  lineHeight: 1.6,
+  wordBreak: "break-word",
+};
+
+const metricCardStyle: CSSProperties = {
+  padding: "16px 16px 14px",
+  borderRadius: 18,
+  background: "rgba(255,255,255,0.82)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  boxShadow: "0 8px 24px rgba(15,23,42,0.04)",
+};
+
+const metricLabelStyle: CSSProperties = {
+  fontSize: 12,
+  fontWeight: 800,
+  color: "#64748b",
+  marginBottom: 8,
+  letterSpacing: "0.05em",
+};
+
+const metricValueStyle: CSSProperties = {
+  fontSize: 26,
+  fontWeight: 900,
+  color: "#0f172a",
+  lineHeight: 1.15,
+  marginBottom: 8,
+  wordBreak: "break-word",
+};
+
+const metricSubStyle: CSSProperties = {
+  fontSize: 13,
+  fontWeight: 700,
+  color: "#64748b",
+  lineHeight: 1.5,
+};
+
+const labelStyle: CSSProperties = {
+  fontSize: 13,
+  fontWeight: 800,
+  color: "#64748b",
+  marginBottom: 8,
+};
+
+const inputStyle: CSSProperties = {
+  width: "100%",
+  height: 46,
+  borderRadius: 14,
+  border: "1px solid rgba(203,213,225,0.9)",
+  background: "rgba(255,255,255,0.95)",
+  color: "#0f172a",
+  padding: "0 14px",
+  outline: "none",
+  fontSize: 14,
+  boxSizing: "border-box",
+};
+
+const textareaStyle: CSSProperties = {
+  width: "100%",
+  minHeight: 120,
+  borderRadius: 14,
+  border: "1px solid rgba(203,213,225,0.9)",
+  background: "rgba(255,255,255,0.95)",
+  color: "#0f172a",
+  padding: "12px 14px",
+  outline: "none",
+  fontSize: 14,
+  resize: "vertical",
+  boxSizing: "border-box",
+};
+
+const readonlyBoxStyle: CSSProperties = {
+  width: "100%",
+  minHeight: 46,
+  borderRadius: 14,
+  border: "1px solid rgba(226,232,240,0.95)",
+  background: "rgba(248,250,252,0.95)",
+  color: "#0f172a",
+  padding: "12px 14px",
+  fontSize: 14,
+  fontWeight: 800,
+  boxSizing: "border-box",
+  display: "flex",
+  alignItems: "center",
+};
+
+const textBlockStyle: CSSProperties = {
+  padding: "14px 16px",
+  borderRadius: 16,
+  background: "rgba(255,255,255,0.82)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  fontSize: 14,
+  lineHeight: 1.8,
+  color: "#334155",
+  whiteSpace: "pre-wrap",
+  wordBreak: "break-word",
+};
+
+const progressWrapStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "90px 1fr 60px",
+  gap: 12,
+  alignItems: "center",
+};
+
+const progressLabelStyle: CSSProperties = {
+  fontSize: 13,
+  fontWeight: 800,
+  color: "#475569",
+};
+
+const progressBarBgStyle: CSSProperties = {
+  width: "100%",
+  height: 12,
+  borderRadius: 999,
+  background: "rgba(226,232,240,0.95)",
+  overflow: "hidden",
+};
+
+const progressBarFillStyle: CSSProperties = {
+  height: "100%",
+  borderRadius: 999,
+  background:
+    "linear-gradient(90deg, rgba(59,130,246,1) 0%, rgba(16,185,129,1) 100%)",
+};
+
+const progressValueStyle: CSSProperties = {
+  fontSize: 13,
+  fontWeight: 800,
+  color: "#0f172a",
+  textAlign: "right",
+};
