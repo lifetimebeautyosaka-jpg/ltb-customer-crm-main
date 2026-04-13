@@ -620,64 +620,73 @@ export default function CustomerDetailPage() {
             </div>
 
             <div
-              style={{
-                display: "flex",
-                gap: 10,
-                flexWrap: "wrap",
-                width: mobile ? "100%" : "auto",
-                flexDirection: mobile ? "column" : "row",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => router.push("/customer")}
-                style={{ ...secondaryButtonStyle, width: mobile ? "100%" : "auto" }}
-              >
-                顧客一覧へ戻る
-              </button>
+  style={{
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    width: mobile ? "100%" : "auto",
+    flexDirection: mobile ? "column" : "row",
+  }}
+>
+  <button
+    type="button"
+    
+    style={{ ...secondaryButtonStyle, width: mobile ? "100%" : "auto" }}
+  >
+    顧客一覧へ戻る
+  </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setShowTicketForm((prev) => !prev);
-                  setTicketError("");
-                  setTicketSuccess("");
-                }}
-                style={{
-                  ...buttonLinkStyle,
-                  ...BUTTON_PRIMARY_STYLE,
-                  border: "none",
-                  cursor: "pointer",
-                  width: mobile ? "100%" : "auto",
-                }}
-              >
-                ＋ 回数券追加
-              </button>
+  <button
+    type="button"
+    onClick={() => {
+      setShowTicketForm((prev) => !prev);
+      setTicketError("");
+      setTicketSuccess("");
+    }}
+    style={{
+      ...buttonLinkStyle,
+      ...BUTTON_PRIMARY_STYLE,
+      border: "none",
+      cursor: "pointer",
+      width: mobile ? "100%" : "auto",
+    }}
+  >
+    ＋ 回数券追加
+  </button>
 
-              <Link
-                href={`/customer/${customerId}/counseling`}
-                style={{
-                  ...buttonLinkStyle,
-                  ...BUTTON_PRIMARY_STYLE,
-                  width: mobile ? "100%" : "auto",
-                }}
-              >
-                カウンセリングシート
-              </Link>
+  <Link
+    href={`/customer/${customerId}/counseling`}
+    style={{
+      ...buttonLinkStyle,
+      ...BUTTON_PRIMARY_STYLE,
+      width: mobile ? "100%" : "auto",
+    }}
+  >
+    カウンセリングシート
+  </Link>
 
-              <Link
-                href={`/customer/${customerId}/training`}
-                style={{
-                  ...buttonLinkStyle,
-                  ...BUTTON_PRIMARY_STYLE,
-                  width: mobile ? "100%" : "auto",
-                }}
-              >
-                トレーニング履歴へ
-              </Link>
-            </div>
-          </div>
-        </div>
+  <Link
+    href={`/customer/${customerId}/subscription`}
+    style={{
+      ...buttonLinkStyle,
+      ...BUTTON_PRIMARY_STYLE,
+      width: mobile ? "100%" : "auto",
+    }}
+  >
+    月額契約
+  </Link>
+
+  <Link
+    href={`/customer/${customerId}/training`}
+    style={{
+      ...buttonLinkStyle,
+      ...BUTTON_PRIMARY_STYLE,
+      width: mobile ? "100%" : "auto",
+    }}
+  >
+    トレーニング履歴へ
+  </Link>
+</div>
 
         {error ? <div style={alertErrorStyle}>{error}</div> : null}
         {ticketError ? <div style={alertErrorStyle}>{ticketError}</div> : null}
