@@ -578,7 +578,7 @@ export default function CustomerSubscriptionPage() {
             <div>
               <div style={eyebrowStyle}>SUBSCRIPTION</div>
               <h1 style={{ ...pageTitleStyle, fontSize: mobile ? 24 : 30 }}>
-                月額契約管理
+                サブスク（定額プラン）を管理
               </h1>
               <div style={subTitleStyle}>
                 {customer?.name || "顧客"} のサブスク管理
