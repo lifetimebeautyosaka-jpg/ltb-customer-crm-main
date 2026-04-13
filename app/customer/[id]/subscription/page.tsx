@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
-import { BG, CARD, BUTTON_PRIMARY } from "../../../styles/theme";
 
 type CustomerRow = {
   id: string | number;
@@ -88,19 +87,25 @@ const supabase =
       )
     : null;
 
-function toStyle(value: unknown): CSSProperties {
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    return value as CSSProperties;
-  }
-  if (typeof value === "string" && value.trim()) {
-    return { background: value };
-  }
-  return {};
-}
+const BG_STYLE: CSSProperties = {
+  minHeight: "100vh",
+  background:
+    "linear-gradient(135deg, #f7f7f8 0%, #eceef1 45%, #e7eaef 100%)",
+};
 
-const BG_STYLE = toStyle(BG);
-const CARD_STYLE = toStyle(CARD);
-const BUTTON_PRIMARY_STYLE = toStyle(BUTTON_PRIMARY);
+const CARD_STYLE: CSSProperties = {
+  background: "rgba(255,255,255,0.78)",
+  border: "1px solid rgba(255,255,255,0.65)",
+  boxShadow: "0 18px 50px rgba(15,23,42,0.08)",
+  backdropFilter: "blur(16px)",
+  WebkitBackdropFilter: "blur(16px)",
+};
+
+const BUTTON_PRIMARY_STYLE: CSSProperties = {
+  background: "linear-gradient(135deg, #111827 0%, #374151 100%)",
+  color: "#ffffff",
+  boxShadow: "0 10px 24px rgba(17,24,39,0.22)",
+};
 
 function formatDate(value?: string | null) {
   if (!value) return "—";
@@ -372,11 +377,9 @@ export default function CustomerSubscriptionPage() {
     return {
       plan_name: row.plan_name || "",
       plan_type: row.plan_type || "月4回",
-      plan_style:
-        row.plan_style === "ペア" ? "ペア" : "マンツーマン",
+      plan_style: row.plan_style === "ペア" ? "ペア" : "マンツーマン",
       service_type:
-        row.service_type === "トレーニング" ||
-        row.service_type === "両方"
+        row.service_type === "トレーニング" || row.service_type === "両方"
           ? (row.service_type as "トレーニング" | "両方")
           : "ストレッチ",
       monthly_count: String(row.monthly_count ?? 4),
@@ -462,8 +465,7 @@ export default function CustomerSubscriptionPage() {
       start_date: form.start_date || null,
       next_payment_date: form.next_payment_date || null,
       last_reset_month:
-        subscription?.last_reset_month ||
-        new Date().toISOString().slice(0, 7),
+        subscription?.last_reset_month || new Date().toISOString().slice(0, 7),
       memo: form.memo.trim() || null,
       created_at: subscription?.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -499,12 +501,12 @@ export default function CustomerSubscriptionPage() {
     }
   }
 
-  async function handleToggleStatus() {
+  function handleToggleStatus() {
     const nextStatus = form.status === "有効" ? "停止" : "有効";
     setForm((prev) => ({ ...prev, status: nextStatus }));
   }
 
-  async function handleResetMonth() {
+  function handleResetMonth() {
     const updatedCarry = previewRemaining;
     setForm((prev) => ({
       ...prev,
@@ -515,7 +517,7 @@ export default function CustomerSubscriptionPage() {
     setError("");
   }
 
-  async function handleUseOne() {
+  function handleUseOne() {
     setForm((prev) => ({
       ...prev,
       used_count: String(Math.max(safeNumber(prev.used_count, 0) + 1, 0)),
@@ -524,7 +526,7 @@ export default function CustomerSubscriptionPage() {
     setSuccess("");
   }
 
-  async function handleBackOne() {
+  function handleBackOne() {
     setForm((prev) => ({
       ...prev,
       used_count: String(Math.max(safeNumber(prev.used_count, 0) - 1, 0)),
@@ -537,7 +539,7 @@ export default function CustomerSubscriptionPage() {
 
   if (loading) {
     return (
-      <main style={{ ...BG_STYLE, minHeight: "100vh", padding: "24px 16px 80px" }}>
+      <main style={{ ...BG_STYLE, padding: "24px 16px 80px" }}>
         <div style={{ maxWidth: 1180, margin: "0 auto" }}>
           <div style={{ ...CARD_STYLE, borderRadius: 24, padding: 24 }}>
             読み込み中...
@@ -551,7 +553,6 @@ export default function CustomerSubscriptionPage() {
     <main
       style={{
         ...BG_STYLE,
-        minHeight: "100vh",
         padding: mobile ? "16px 12px 72px" : "24px 16px 80px",
         color: "#111827",
       }}
@@ -977,15 +978,13 @@ export default function CustomerSubscriptionPage() {
           <div style={{ display: "grid", gap: 12 }}>
             <TextBlock
               label="おすすめ運用"
-              value={
-                "月初または決済日に『月次リセット準備』→ 保存 の流れで使うと、残回数を繰越へ反映しやすいです。予約詳細や売上登録とつなげる場合は、次に reservation / sales 連動を追加するとかなり強くなります。"
-              }
+              value="月初または決済日に『月次リセット準備』→ 保存 の流れで使うと、残回数を繰越へ反映しやすいです。"
             />
             <TextBlock
               label="現在の保存先"
               value={
-                notice.includes("端末保存") || notice.includes("local")
-                  ? "現在は端末保存モードを含みます。Supabase テーブル作成後に本保存へ移行できます。"
+                notice.includes("端末保存")
+                  ? "現在は端末保存モードを含みます。"
                   : "現在は Supabase 保存を優先して動作します。"
               }
             />
