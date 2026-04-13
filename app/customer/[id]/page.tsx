@@ -192,7 +192,10 @@ function normalizeCustomer(row: CustomerRow): NormalizedCustomer {
   };
 }
 
-function calcDiff(latest?: number | null, previous?: number | null): number | null {
+function calcDiff(
+  latest?: number | null,
+  previous?: number | null
+): number | null {
   if (
     latest === null ||
     latest === undefined ||
@@ -315,6 +318,196 @@ function summarizeCounseling(sheet: CounselingSheetRow | null) {
   };
 }
 
+function InfoItem({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div style={infoCardStyle}>
+      <div style={infoLabelStyle}>{label}</div>
+      <div style={infoValueStyle}>{value || "—"}</div>
+    </div>
+  );
+}
+
+function TextBlock({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div>
+      <div style={historyLabelStyle}>{label}</div>
+      <div style={textBlockStyle}>{value}</div>
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  sub,
+  subColor,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  subColor?: string;
+}) {
+  return (
+    <div style={metricCardStyle}>
+      <div style={metricLabelStyle}>{label}</div>
+      <div style={metricValueStyle}>{value}</div>
+      <div style={{ ...metricSubStyle, color: subColor || "#64748b" }}>
+        {sub}
+      </div>
+    </div>
+  );
+}
+
+function ChartSection({
+  title,
+  sessions,
+  values,
+  points,
+  unit,
+  lineId,
+  startColor,
+  endColor,
+  emptyLabel,
+}: {
+  title: string;
+  sessions: TrainingSessionRow[];
+  values: number[];
+  points: string;
+  unit: string;
+  lineId: string;
+  startColor: string;
+  endColor: string;
+  emptyLabel: string;
+}) {
+  return (
+    <section style={{ ...CARD_STYLE, borderRadius: 24, padding: 20 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+          marginBottom: 16,
+        }}
+      >
+        <h2 style={sectionTitleStyle}>{title}</h2>
+        <div style={{ fontSize: 13, color: "#64748b", fontWeight: 700 }}>
+          データ {sessions.length}件
+        </div>
+      </div>
+
+      {sessions.length === 0 ? (
+        <div style={emptyBoxStyle}>{emptyLabel}</div>
+      ) : sessions.length === 1 ? (
+        <div style={singleChartBoxStyle}>
+          <div style={singleChartValueStyle}>{formatMetric(values[0], unit)}</div>
+          <div style={singleChartDateStyle}>
+            {formatDate(sessions[0].session_date)}
+          </div>
+        </div>
+      ) : (
+        <div style={chartWrapStyle}>
+          <svg
+            viewBox="0 0 560 220"
+            style={{ width: "100%", height: "auto", display: "block" }}
+          >
+            <defs>
+              <linearGradient id={lineId} x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor={startColor} />
+                <stop offset="100%" stopColor={endColor} />
+              </linearGradient>
+            </defs>
+
+            {[0, 1, 2, 3, 4].map((i) => {
+              const y = 20 + i * 40;
+              return (
+                <line
+                  key={i}
+                  x1="20"
+                  y1={y}
+                  x2="540"
+                  y2={y}
+                  stroke="rgba(203,213,225,0.6)"
+                  strokeWidth="1"
+                />
+              );
+            })}
+
+            <polyline
+              fill="none"
+              stroke={`url(#${lineId})`}
+              strokeWidth="4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              points={points}
+              transform="translate(20,20)"
+            />
+
+            {values.map((value, index) => {
+              const min = Math.min(...values);
+              const max = Math.max(...values);
+              const range = max - min || 1;
+              const x = (index / (values.length - 1)) * 520 + 20;
+              const y = 20 + (180 - ((value - min) / range) * 180);
+
+              return (
+                <g key={`${lineId}-${index}`}>
+                  <circle
+                    cx={x}
+                    cy={y}
+                    r="5"
+                    fill="#ffffff"
+                    stroke={`url(#${lineId})`}
+                    strokeWidth="3"
+                  />
+                  <text
+                    x={x}
+                    y={y - 12}
+                    textAnchor="middle"
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 800,
+                      fill: "#334155",
+                    }}
+                  >
+                    {value}
+                    {unit}
+                  </text>
+                  <text
+                    x={x}
+                    y={212}
+                    textAnchor="middle"
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      fill: "#64748b",
+                    }}
+                  >
+                    {formatDate(sessions[index]?.session_date)}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function CustomerDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -332,7 +525,8 @@ export default function CustomerDetailPage() {
   const [sessions, setSessions] = useState<TrainingSessionRow[]>([]);
   const [sales, setSales] = useState<SaleRow[]>([]);
   const [tickets, setTickets] = useState<CustomerTicketRow[]>([]);
-  const [counselingSheet, setCounselingSheet] = useState<CounselingSheetRow | null>(null);
+  const [counselingSheet, setCounselingSheet] =
+    useState<CounselingSheetRow | null>(null);
 
   const [showTicketForm, setShowTicketForm] = useState(false);
   const [ticketForm, setTicketForm] = useState<TicketForm>(initialTicketForm);
@@ -366,11 +560,14 @@ export default function CustomerDetailPage() {
 
     if (!customerId) {
       setLoading(false);
-      setError("顧客IDが取得できませんでした。顧客一覧から開き直してください。");
+      setError(
+        "顧客IDが取得できませんでした。顧客一覧から開き直してください。"
+      );
       return;
     }
 
     void loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted, customerId, router]);
 
   async function loadData() {
@@ -438,7 +635,10 @@ export default function CustomerDetailPage() {
         .order("created_at", { ascending: false });
 
       if (ticketFetchError) {
-        console.warn("customer_tickets取得エラー:", ticketFetchError.message);
+        console.warn(
+          "customer_tickets取得エラー:",
+          ticketFetchError.message
+        );
       }
 
       const { data: counselingData, error: counselingError } = await supabase
@@ -448,7 +648,10 @@ export default function CustomerDetailPage() {
         .maybeSingle();
 
       if (counselingError && counselingError.code !== "PGRST116") {
-        console.warn("counseling_sheets取得エラー:", counselingError.message);
+        console.warn(
+          "counseling_sheets取得エラー:",
+          counselingError.message
+        );
       }
 
       setCustomer(normalizeCustomer(customerData as CustomerRow));
@@ -533,8 +736,14 @@ export default function CustomerDetailPage() {
     return sessions[sessions.length - 2];
   }, [sessions]);
 
-  const weightDiff = calcDiff(latestSession?.body_weight, previousSession?.body_weight);
-  const muscleDiff = calcDiff(latestSession?.muscle_mass, previousSession?.muscle_mass);
+  const weightDiff = calcDiff(
+    latestSession?.body_weight,
+    previousSession?.body_weight
+  );
+  const muscleDiff = calcDiff(
+    latestSession?.muscle_mass,
+    previousSession?.muscle_mass
+  );
 
   const visitCount = sessions.length;
 
@@ -584,13 +793,14 @@ export default function CustomerDetailPage() {
   const counselingSummary = summarizeCounseling(counselingSheet);
 
   const mobile = windowWidth < 768;
-  const tablet = windowWidth < 1100;
 
   if (!mounted) return null;
 
   if (loading) {
     return (
-      <main style={{ ...BG_STYLE, minHeight: "100vh", padding: "24px 16px 80px" }}>
+      <main
+        style={{ ...BG_STYLE, minHeight: "100vh", padding: "24px 16px 80px" }}
+      >
         <div style={{ maxWidth: 1180, margin: "0 auto" }}>
           <div style={{ ...CARD_STYLE, borderRadius: 24, padding: 24 }}>
             読み込み中...
@@ -601,9 +811,17 @@ export default function CustomerDetailPage() {
   }
 
   return (
-    <main style={{ ...BG_STYLE, minHeight: "100vh", padding: mobile ? "16px 12px 72px" : "24px 16px 80px" }}>
+    <main
+      style={{
+        ...BG_STYLE,
+        minHeight: "100vh",
+        padding: mobile ? "16px 12px 72px" : "24px 16px 80px",
+      }}
+    >
       <div style={{ maxWidth: 1180, margin: "0 auto", display: "grid", gap: 18 }}>
-        <div style={{ ...CARD_STYLE, borderRadius: 24, padding: mobile ? 16 : 20 }}>
+        <section
+          style={{ ...CARD_STYLE, borderRadius: 24, padding: mobile ? 16 : 20 }}
+        >
           <div
             style={{
               display: "flex",
@@ -616,84 +834,92 @@ export default function CustomerDetailPage() {
           >
             <div>
               <div style={eyebrowStyle}>CUSTOMER DETAIL</div>
-              <h1 style={{ ...pageTitleStyle, fontSize: mobile ? 24 : 30 }}>顧客詳細</h1>
+              <h1 style={{ ...pageTitleStyle, fontSize: mobile ? 24 : 30 }}>
+                顧客詳細
+              </h1>
             </div>
 
             <div
-  style={{
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-    width: mobile ? "100%" : "auto",
-    flexDirection: mobile ? "column" : "row",
-  }}
->
-  <button
-  type="button"
-  onClick={() => router.push("/customer")}
-  style={{ ...secondaryButtonStyle, width: mobile ? "100%" : "auto" }}
->
-  顧客一覧へ戻る
-</button>
+              style={{
+                display: "flex",
+                gap: 10,
+                flexWrap: "wrap",
+                width: mobile ? "100%" : "auto",
+                flexDirection: mobile ? "column" : "row",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => router.push("/customer")}
+                style={{
+                  ...secondaryButtonStyle,
+                  width: mobile ? "100%" : "auto",
+                }}
+              >
+                顧客一覧へ戻る
+              </button>
 
-  <button
-    type="button"
-    onClick={() => {
-      setShowTicketForm((prev) => !prev);
-      setTicketError("");
-      setTicketSuccess("");
-    }}
-    style={{
-      ...buttonLinkStyle,
-      ...BUTTON_PRIMARY_STYLE,
-      border: "none",
-      cursor: "pointer",
-      width: mobile ? "100%" : "auto",
-    }}
-  >
-    ＋ 回数券追加
-  </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTicketForm((prev) => !prev);
+                  setTicketError("");
+                  setTicketSuccess("");
+                }}
+                style={{
+                  ...buttonLinkStyle,
+                  ...BUTTON_PRIMARY_STYLE,
+                  border: "none",
+                  cursor: "pointer",
+                  width: mobile ? "100%" : "auto",
+                }}
+              >
+                ＋ 回数券追加
+              </button>
 
-  <Link
-    href={`/customer/${customerId}/counseling`}
-    style={{
-      ...buttonLinkStyle,
-      ...BUTTON_PRIMARY_STYLE,
-      width: mobile ? "100%" : "auto",
-    }}
-  >
-    カウンセリングシート
-  </Link>
+              <Link
+                href={`/customer/${customerId}/counseling`}
+                style={{
+                  ...buttonLinkStyle,
+                  ...BUTTON_PRIMARY_STYLE,
+                  width: mobile ? "100%" : "auto",
+                }}
+              >
+                カウンセリングシート
+              </Link>
 
-  <Link
-    href={`/customer/${customerId}/subscription`}
-    style={{
-      ...buttonLinkStyle,
-      ...BUTTON_PRIMARY_STYLE,
-      width: mobile ? "100%" : "auto",
-    }}
-  >
-    月額契約
-  </Link>
+              <Link
+                href={`/customer/${customerId}/subscription`}
+                style={{
+                  ...buttonLinkStyle,
+                  ...BUTTON_PRIMARY_STYLE,
+                  width: mobile ? "100%" : "auto",
+                }}
+              >
+                月額契約
+              </Link>
 
-  <Link
-    href={`/customer/${customerId}/training`}
-    style={{
-      ...buttonLinkStyle,
-      ...BUTTON_PRIMARY_STYLE,
-      width: mobile ? "100%" : "auto",
-    }}
-  >
-    トレーニング履歴へ
-  </Link>
-</div>
-</div>
+              <Link
+                href={`/customer/${customerId}/training`}
+                style={{
+                  ...buttonLinkStyle,
+                  ...BUTTON_PRIMARY_STYLE,
+                  width: mobile ? "100%" : "auto",
+                }}
+              >
+                トレーニング履歴へ
+              </Link>
+            </div>
+          </div>
+        </section>
 
         {error ? <div style={alertErrorStyle}>{error}</div> : null}
         {ticketError ? <div style={alertErrorStyle}>{ticketError}</div> : null}
         {ticketSuccess ? <div style={alertSuccessStyle}>{ticketSuccess}</div> : null}
 
-        <section style={{ ...CARD_STYLE, borderRadius: 24, padding: mobile ? 16 : 20 }}>
+        <section
+          style={{ ...CARD_STYLE, borderRadius: 24, padding: mobile ? 16 : 20 }}
+        >
           <h2 style={sectionTitleStyle}>基本情報</h2>
 
           <div style={infoGridStyle}>
@@ -714,7 +940,9 @@ export default function CustomerDetailPage() {
           </div>
         </section>
 
-        <section style={{ ...CARD_STYLE, borderRadius: 24, padding: mobile ? 16 : 20 }}>
+        <section
+          style={{ ...CARD_STYLE, borderRadius: 24, padding: mobile ? 16 : 20 }}
+        >
           <div
             style={{
               display: "flex",
@@ -737,30 +965,42 @@ export default function CustomerDetailPage() {
           </div>
 
           {!counselingSheet ? (
-            <div style={emptyBoxStyle}>まだカウンセリングシートは登録されていません。</div>
+            <div style={emptyBoxStyle}>
+              まだカウンセリングシートは登録されていません。
+            </div>
           ) : (
             <div style={counselingSummaryGridStyle}>
               <div style={metricCardStyle}>
                 <div style={metricLabelStyle}>職業</div>
-                <div style={metricValueSmallStyle}>{counselingSummary.occupation}</div>
-                <div style={metricSubStyle}>最終更新 {counselingSummary.updatedAt}</div>
+                <div style={metricValueSmallStyle}>
+                  {counselingSummary.occupation}
+                </div>
+                <div style={metricSubStyle}>
+                  最終更新 {counselingSummary.updatedAt}
+                </div>
               </div>
 
               <div style={metricCardStyle}>
                 <div style={metricLabelStyle}>来店目的</div>
-                <div style={metricValueSmallStyle}>{counselingSummary.purposes}</div>
+                <div style={metricValueSmallStyle}>
+                  {counselingSummary.purposes}
+                </div>
                 <div style={metricSubStyle}>visit_purposes</div>
               </div>
 
               <div style={metricCardStyle}>
                 <div style={metricLabelStyle}>主な症状</div>
-                <div style={metricValueSmallStyle}>{counselingSummary.symptoms}</div>
+                <div style={metricValueSmallStyle}>
+                  {counselingSummary.symptoms}
+                </div>
                 <div style={metricSubStyle}>symptoms</div>
               </div>
 
               <div style={metricCardStyle}>
                 <div style={metricLabelStyle}>気になる部位</div>
-                <div style={metricValueSmallStyle}>{counselingSummary.bodyAreas}</div>
+                <div style={metricValueSmallStyle}>
+                  {counselingSummary.bodyAreas}
+                </div>
                 <div style={metricSubStyle}>body_areas</div>
               </div>
 
@@ -773,7 +1013,9 @@ export default function CustomerDetailPage() {
         </section>
 
         {showTicketForm ? (
-          <section style={{ ...CARD_STYLE, borderRadius: 24, padding: mobile ? 16 : 20 }}>
+          <section
+            style={{ ...CARD_STYLE, borderRadius: 24, padding: mobile ? 16 : 20 }}
+          >
             <h2 style={sectionTitleStyle}>回数券追加</h2>
 
             <div style={ticketFormGridStyle}>
@@ -868,7 +1110,10 @@ export default function CustomerDetailPage() {
                   setTicketForm(initialTicketForm);
                   setTicketError("");
                 }}
-                style={{ ...secondaryButtonStyle, width: mobile ? "100%" : "auto" }}
+                style={{
+                  ...secondaryButtonStyle,
+                  width: mobile ? "100%" : "auto",
+                }}
               >
                 キャンセル
               </button>
@@ -876,18 +1121,38 @@ export default function CustomerDetailPage() {
           </section>
         ) : null}
 
-        <section style={{ ...CARD_STYLE, borderRadius: 24, padding: mobile ? 16 : 20 }}>
+        <section
+          style={{ ...CARD_STYLE, borderRadius: 24, padding: mobile ? 16 : 20 }}
+        >
           <h2 style={sectionTitleStyle}>KPI</h2>
 
           <div style={metricsGridStyle}>
-            <MetricCard label="来店回数" value={`${visitCount}回`} sub="training_sessions件数" />
-            <MetricCard label="LTV" value={`¥${ltv.toLocaleString()}`} sub={`${sales.length}件の売上`} />
-            <MetricCard label="回数券残数" value={`${remainingTickets}回`} sub={`${tickets.length}件の回数券`} />
-            <MetricCard label="有効回数券" value={`${activeTickets.length}件`} sub="現在利用可能" />
+            <MetricCard
+              label="来店回数"
+              value={`${visitCount}回`}
+              sub="training_sessions件数"
+            />
+            <MetricCard
+              label="LTV"
+              value={`¥${ltv.toLocaleString()}`}
+              sub={`${sales.length}件の売上`}
+            />
+            <MetricCard
+              label="回数券残数"
+              value={`${remainingTickets}回`}
+              sub={`${tickets.length}件の回数券`}
+            />
+            <MetricCard
+              label="有効回数券"
+              value={`${activeTickets.length}件`}
+              sub="現在利用可能"
+            />
           </div>
         </section>
 
-        <section style={{ ...CARD_STYLE, borderRadius: 24, padding: mobile ? 16 : 20 }}>
+        <section
+          style={{ ...CARD_STYLE, borderRadius: 24, padding: mobile ? 16 : 20 }}
+        >
           <div
             style={{
               display: "flex",
@@ -950,10 +1215,12 @@ export default function CustomerDetailPage() {
                           サービス種別 {ticket.service_type || "—"}
                         </div>
                         <div style={historySubStyle}>
-                          残数 {Number(ticket.remaining_count || 0)} / {Number(ticket.total_count || 0)}
+                          残数 {Number(ticket.remaining_count || 0)} /{" "}
+                          {Number(ticket.total_count || 0)}
                         </div>
                         <div style={historySubStyle}>
-                          購入日 {formatDate(ticket.purchase_date)} / 有効期限 {formatDate(ticket.expiry_date)}
+                          購入日 {formatDate(ticket.purchase_date)} / 有効期限{" "}
+                          {formatDate(ticket.expiry_date)}
                         </div>
                         <div style={historySubStyle}>
                           メモ {ticket.note || "—"}
@@ -967,36 +1234,58 @@ export default function CustomerDetailPage() {
           )}
         </section>
 
-        <section style={{ ...CARD_STYLE, borderRadius: 24, padding: mobile ? 16 : 20 }}>
+        <section
+          style={{ ...CARD_STYLE, borderRadius: 24, padding: mobile ? 16 : 20 }}
+        >
           <h2 style={sectionTitleStyle}>最新トレーニングデータ</h2>
 
           <div style={metricsGridStyle}>
             <MetricCard
               label="身長"
               value={formatMetric(latestSession?.body_height, "cm")}
-              sub={latestSession?.session_date ? `最新日: ${formatDate(latestSession.session_date)}` : "未登録"}
+              sub={
+                latestSession?.session_date
+                  ? `最新日: ${formatDate(latestSession.session_date)}`
+                  : "未登録"
+              }
             />
             <MetricCard
               label="体重"
               value={formatMetric(latestSession?.body_weight, "kg")}
-              sub={weightDiff !== null ? `前回比 ${diffLabel(weightDiff, "kg")}` : "比較データなし"}
+              sub={
+                weightDiff !== null
+                  ? `前回比 ${diffLabel(weightDiff, "kg")}`
+                  : "比較データなし"
+              }
               subColor={diffColor(weightDiff)}
             />
             <MetricCard
               label="体脂肪"
               value={formatMetric(latestSession?.body_fat, "%")}
-              sub={latestSession?.session_date ? `更新日: ${formatDate(latestSession.session_date)}` : "未登録"}
+              sub={
+                latestSession?.session_date
+                  ? `更新日: ${formatDate(latestSession.session_date)}`
+                  : "未登録"
+              }
             />
             <MetricCard
               label="筋肉量"
               value={formatMetric(latestSession?.muscle_mass, "kg")}
-              sub={muscleDiff !== null ? `前回比 ${diffLabel(muscleDiff, "kg")}` : "比較データなし"}
+              sub={
+                muscleDiff !== null
+                  ? `前回比 ${diffLabel(muscleDiff, "kg")}`
+                  : "比較データなし"
+              }
               subColor={diffColor(muscleDiff)}
             />
             <MetricCard
               label="内臓脂肪"
               value={formatMetric(latestSession?.visceral_fat)}
-              sub={latestSession?.session_date ? `更新日: ${formatDate(latestSession.session_date)}` : "未登録"}
+              sub={
+                latestSession?.session_date
+                  ? `更新日: ${formatDate(latestSession.session_date)}`
+                  : "未登録"
+              }
             />
             <MetricCard
               label="履歴件数"
@@ -1007,8 +1296,14 @@ export default function CustomerDetailPage() {
 
           <div style={{ display: "grid", gap: 14, marginTop: 18 }}>
             <TextBlock label="最新総評" value={latestSession?.summary || "未登録"} />
-            <TextBlock label="最新の次回課題" value={latestSession?.next_task || "未登録"} />
-            <TextBlock label="最新の姿勢メモ" value={latestSession?.posture_note || "未登録"} />
+            <TextBlock
+              label="最新の次回課題"
+              value={latestSession?.next_task || "未登録"}
+            />
+            <TextBlock
+              label="最新の姿勢メモ"
+              value={latestSession?.posture_note || "未登録"}
+            />
           </div>
         </section>
 
@@ -1036,7 +1331,9 @@ export default function CustomerDetailPage() {
           emptyLabel="体脂肪データがまだありません。"
         />
 
-        <section style={{ ...CARD_STYLE, borderRadius: 24, padding: mobile ? 16 : 20 }}>
+        <section
+          style={{ ...CARD_STYLE, borderRadius: 24, padding: mobile ? 16 : 20 }}
+        >
           <div
             style={{
               display: "flex",
@@ -1073,23 +1370,37 @@ export default function CustomerDetailPage() {
                       }}
                     >
                       <div style={{ flex: 1, minWidth: 220 }}>
-                        <div style={historyDateStyle}>{formatDate(session.session_date)}</div>
-                        <div style={historySubStyle}>
-                          身長 {formatMetric(session.body_height, "cm")} / 体重 {formatMetric(session.body_weight, "kg")}
+                        <div style={historyDateStyle}>
+                          {formatDate(session.session_date)}
                         </div>
                         <div style={historySubStyle}>
-                          体脂肪 {formatMetric(session.body_fat, "%")} / 筋肉量 {formatMetric(session.muscle_mass, "kg")} / 内臓脂肪 {formatMetric(session.visceral_fat)}
+                          身長 {formatMetric(session.body_height, "cm")} / 体重{" "}
+                          {formatMetric(session.body_weight, "kg")}
+                        </div>
+                        <div style={historySubStyle}>
+                          体脂肪 {formatMetric(session.body_fat, "%")} / 筋肉量{" "}
+                          {formatMetric(session.muscle_mass, "kg")} / 内臓脂肪{" "}
+                          {formatMetric(session.visceral_fat)}
                         </div>
                         <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
                           <TextBlock label="総評" value={session.summary || "未登録"} />
-                          <TextBlock label="次回課題" value={session.next_task || "未登録"} />
-                          <TextBlock label="姿勢メモ" value={session.posture_note || "未登録"} />
+                          <TextBlock
+                            label="次回課題"
+                            value={session.next_task || "未登録"}
+                          />
+                          <TextBlock
+                            label="姿勢メモ"
+                            value={session.posture_note || "未登録"}
+                          />
                         </div>
                       </div>
 
                       <Link
                         href={`/customer/${customerId}/training?edit=${session.id}`}
-                        style={{ ...miniButtonLinkStyle, width: mobile ? "100%" : "auto" }}
+                        style={{
+                          ...miniButtonLinkStyle,
+                          width: mobile ? "100%" : "auto",
+                        }}
                       >
                         この履歴を編集
                       </Link>
@@ -1101,227 +1412,6 @@ export default function CustomerDetailPage() {
         </section>
       </div>
     </main>
-  );
-}
-
-(function InfoItem({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div style={infoCardStyle}>
-      <div style={infoLabelStyle}>{label}</div>
-      <div style={infoValueStyle}>{value || "—"}</div>
-    </div>
-  );
-}
-
-function TextBlock({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div>
-      <div style={historyLabelStyle}>{label}</div>
-      <div style={textBlockStyle}>{value}</div>
-    </div>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  sub,
-  subColor,
-}: {
-  label: string;
-  value: string;
-  sub: string;
-  subColor?: string;
-}) {
-  return (
-    <div style={metricCardStyle}>
-      <div style={metricLabelStyle}>{label}</div>
-      <div style={metricValueStyle}>{value}</div>
-      <div style={{ ...metricSubStyle, color: subColor || "#64748b" }}>
-        {sub}
-      </div>
-    </div>
-  );
-}
-  return (
-    <div style={infoCardStyle}>
-      <div style={infoLabelStyle}>{label}</div>
-      <div style={infoValueStyle}>{value || "—"}</div>
-    </div>
-  );
-}
-
-function TextBlock({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div>
-      <div style={historyLabelStyle}>{label}</div>
-      <div style={textBlockStyle}>{value}</div>
-    </div>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  sub,
-  subColor,
-}: {
-  label: string;
-  value: string;
-  sub: string;
-  subColor?: string;
-}) {
-  return (
-    <div style={metricCardStyle}>
-      <div style={metricLabelStyle}>{label}</div>
-      <div style={metricValueStyle}>{value}</div>
-      <div style={{ ...metricSubStyle, color: subColor || "#64748b" }}>
-        {sub}
-      </div>
-    </div>
-  );
-}
-
-function ChartSection({
-  title,
-  sessions,
-  values,
-  points,
-  unit,
-  lineId,
-  startColor,
-  endColor,
-  emptyLabel,
-}: {
-  title: string;
-  sessions: TrainingSessionRow[];
-  values: number[];
-  points: string;
-  unit: string;
-  lineId: string;
-  startColor: string;
-  endColor: string;
-  emptyLabel: string;
-}) {
-  return (
-    <section style={{ ...CARD_STYLE, borderRadius: 24, padding: 20 }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 12,
-          flexWrap: "wrap",
-          marginBottom: 16,
-        }}
-      >
-        <h2 style={sectionTitleStyle}>{title}</h2>
-        <div style={{ fontSize: 13, color: "#64748b", fontWeight: 700 }}>
-          データ {sessions.length}件
-        </div>
-      </div>
-
-      {sessions.length === 0 ? (
-        <div style={emptyBoxStyle}>{emptyLabel}</div>
-      ) : sessions.length === 1 ? (
-        <div style={singleChartBoxStyle}>
-          <div style={singleChartValueStyle}>{formatMetric(values[0], unit)}</div>
-          <div style={singleChartDateStyle}>{formatDate(sessions[0].session_date)}</div>
-        </div>
-      ) : (
-        <div style={chartWrapStyle}>
-          <svg viewBox="0 0 560 220" style={{ width: "100%", height: "auto", display: "block" }}>
-            <defs>
-              <linearGradient id={lineId} x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor={startColor} />
-                <stop offset="100%" stopColor={endColor} />
-              </linearGradient>
-            </defs>
-
-            {[0, 1, 2, 3, 4].map((i) => {
-              const y = 20 + i * 40;
-              return (
-                <line
-                  key={i}
-                  x1="20"
-                  y1={y}
-                  x2="540"
-                  y2={y}
-                  stroke="rgba(203,213,225,0.6)"
-                  strokeWidth="1"
-                />
-              );
-            })}
-
-            <polyline
-              fill="none"
-              stroke={`url(#${lineId})`}
-              strokeWidth="4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              points={points}
-              transform="translate(20,20)"
-            />
-
-            {values.map((value, index) => {
-              const min = Math.min(...values);
-              const max = Math.max(...values);
-              const range = max - min || 1;
-              const x = (index / (values.length - 1)) * 520 + 20;
-              const y = 20 + (180 - ((value - min) / range) * 180);
-
-              return (
-                <g key={`${lineId}-${index}`}>
-                  <circle cx={x} cy={y} r="5" fill="#ffffff" stroke={`url(#${lineId})`} strokeWidth="3" />
-                  <text
-                    x={x}
-                    y={y - 12}
-                    textAnchor="middle"
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      fill: "#334155",
-                    }}
-                  >
-                    {value}{unit}
-                  </text>
-                  <text
-                    x={x}
-                    y={212}
-                    textAnchor="middle"
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      fill: "#64748b",
-                    }}
-                  >
-                    {formatDate(sessions[index]?.session_date)}
-                  </text>
-                </g>
-              );
-            })}
-          </svg>
-        </div>
-      )}
-    </section>
   );
 }
 
@@ -1629,7 +1719,3 @@ const singleChartDateStyle: CSSProperties = {
   fontWeight: 700,
   color: "#64748b",
 };
-
-function dummy() {
-  return null;
-}
