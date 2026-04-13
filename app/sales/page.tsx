@@ -1103,6 +1103,10 @@ export default function SalesPage() {
     setReservationStatus("");
     setExistingSalesForReservation([]);
     setPayments([createPaymentRow()]);
+
+    if (typeof window !== "undefined") {
+      window.history.replaceState({}, "", "/sales");
+    }
   };
 
   const handleAddSale = async () => {
@@ -1139,11 +1143,17 @@ export default function SalesPage() {
       }
     }
 
+    const queryFrom = getQueryParam("from");
+    const querySignupId = getQueryParam("signup_id");
+    const isFromSignup = queryFrom === "signup" && !!querySignupId;
+    const previousReservationStatus = reservationStatus;
+
     try {
       setSaving(true);
 
       const insertedSaleIds: Array<number | string> = [];
       const consumedTickets: TicketConsumeResult[] = [];
+      let reservationUpdated = false;
 
       for (const row of payments) {
         const isTicket = row.saleType === "回数券消化";
@@ -1167,6 +1177,7 @@ export default function SalesPage() {
 
         const mergedNote = [
           baseNote,
+          isFromSignup ? `signup_id: ${querySignupId}` : "",
           isTicket && ticketResult
             ? `回数券消化: ${ticketResult.ticketName} / 残数 ${ticketResult.beforeCount} → ${ticketResult.afterCount}`
             : "",
@@ -1234,7 +1245,44 @@ export default function SalesPage() {
           throw new Error(`予約ステータス更新エラー: ${reservationUpdateError.message}`);
         }
 
+        reservationUpdated = true;
         setReservationStatus("売上済");
+      }
+
+      if (isFromSignup) {
+        const { error: signupUpdateError } = await supabase
+          .from("online_signups")
+          .update({
+            status: "売上登録済",
+          })
+          .eq("id", Number(querySignupId));
+
+        if (signupUpdateError) {
+          for (const consumed of consumedTickets) {
+            await rollbackConsumedTicket({
+              ticketId: consumed.ticketId,
+              beforeCount: consumed.beforeCount,
+              reservationId,
+            });
+          }
+
+          for (const saleId of insertedSaleIds) {
+            await supabase.from("sales").delete().eq("id", saleId);
+          }
+
+          if (reservationId && reservationUpdated) {
+            await supabase
+              .from("reservations")
+              .update({
+                reservation_status: previousReservationStatus || null,
+              })
+              .eq("id", Number(reservationId));
+
+            setReservationStatus(previousReservationStatus);
+          }
+
+          throw new Error(`online_signups 更新エラー: ${signupUpdateError.message}`);
+        }
       }
 
       await fetchSales();
@@ -1243,7 +1291,12 @@ export default function SalesPage() {
         await loadExistingSalesForReservation(reservationId);
       }
 
-      alert("売上を登録しました");
+      alert(
+        isFromSignup
+          ? "売上を登録し、入会申請も売上登録済に更新しました"
+          : "売上を登録しました"
+      );
+
       resetForm();
       await fetchCustomers();
       await fetchSales();
@@ -1305,7 +1358,9 @@ export default function SalesPage() {
         "店舗",
         "予約ID",
         "メモ",
-      ].map(toCsvValue).join(","),
+      ]
+        .map(toCsvValue)
+        .join(","),
       ...filteredSales.map((sale) =>
         [
           sale.date,
@@ -1337,8 +1392,7 @@ export default function SalesPage() {
 
   const pageStyle: CSSProperties = {
     minHeight: "100vh",
-    background:
-      "linear-gradient(135deg, #f7f7f8 0%, #eceef1 45%, #e7eaef 100%)",
+    background: "linear-gradient(135deg, #f7f7f8 0%, #eceef1 45%, #e7eaef 100%)",
     padding: mobile ? "16px" : "24px",
     color: "#111827",
   };
@@ -1579,9 +1633,7 @@ export default function SalesPage() {
           <div style={headerStyle}>
             <div>
               <h1 style={titleStyle}>売上管理</h1>
-              <p style={subTextStyle}>
-                予約連動・回数券消化・signup自動入力対応
-              </p>
+              <p style={subTextStyle}>予約連動・回数券消化・signup自動入力対応</p>
             </div>
 
             <div style={topActionsStyle}>
@@ -1624,7 +1676,12 @@ export default function SalesPage() {
             </div>
             <div style={statCardStyle}>
               <div style={statLabelStyle}>予約ステータス</div>
-              <div style={statValueStyle} style={{ ...statValueStyle, fontSize: mobile ? "16px" : "20px" }}>
+              <div
+                style={{
+                  ...statValueStyle,
+                  fontSize: mobile ? "16px" : "20px",
+                }}
+              >
                 {reservationStatus || "—"}
               </div>
             </div>
