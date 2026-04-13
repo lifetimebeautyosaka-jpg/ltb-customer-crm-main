@@ -80,6 +80,29 @@ function calcRemaining(subscription?: CustomerSubscriptionRow | null) {
   return Math.max(monthly + carry - used, 0);
 }
 
+function getSubscriptionBadgeInfo(
+  subscription?: CustomerSubscriptionRow | null
+): {
+  label: string;
+  tone: "green" | "red" | "gray" | "orange";
+} {
+  if (!subscription) {
+    return { label: "契約なし", tone: "gray" };
+  }
+
+  if (subscription.status === "停止") {
+    return { label: "停止中", tone: "orange" };
+  }
+
+  const remaining = calcRemaining(subscription);
+
+  if ((remaining ?? 0) > 0) {
+    return { label: `残回数あり（${remaining}回）`, tone: "green" };
+  }
+
+  return { label: "残回数なし", tone: "red" };
+}
+
 export default function ReservationNewPage() {
   return (
     <Suspense fallback={<ReservationNewPageFallback />}>
@@ -165,6 +188,8 @@ function ReservationNewPageInner() {
 
   const selectedSubscription = selectedCustomer?.subscription || null;
   const remainingCount = calcRemaining(selectedSubscription);
+  const subscriptionBadge = getSubscriptionBadgeInfo(selectedSubscription);
+  const isSubscriptionPayment = paymentMethod === "サブスク";
 
   useEffect(() => {
     void fetchCustomersAndRelated();
@@ -396,7 +421,7 @@ function ReservationNewPageInner() {
                   <div style={searchEmptyStyle}>該当する顧客がいません。</div>
                 ) : (
                   filteredCustomers.map((customer) => {
-                    const remaining = calcRemaining(customer.subscription);
+                    const badge = getSubscriptionBadgeInfo(customer.subscription);
 
                     return (
                       <button
@@ -418,9 +443,9 @@ function ReservationNewPageInner() {
                           </div>
                           <div style={searchSubStyle}>
                             サブスク：
-                            {customer.subscription
-                              ? `${customer.subscription.status || "有効"} / 残${remaining ?? 0}回`
-                              : "未登録"}
+                            <span style={{ ...badgeStyleBase, ...badgeStyleByTone(badge.tone), marginLeft: 6 }}>
+                              {badge.label}
+                            </span>
                           </div>
                         </div>
                       </button>
@@ -587,8 +612,43 @@ function ReservationNewPageInner() {
           </div>
 
           <div style={{ marginTop: 18 }}>
-            <div style={subscriptionCardStyle}>
-              <div style={sectionMiniTitleStyle}>サブスク情報</div>
+            <div
+              style={{
+                ...subscriptionCardStyle,
+                border:
+                  isSubscriptionPayment
+                    ? "2px solid rgba(34,197,94,0.28)"
+                    : subscriptionCardStyle.border,
+                boxShadow: isSubscriptionPayment
+                  ? "0 0 0 4px rgba(34,197,94,0.08)"
+                  : "none",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 12,
+                  flexWrap: "wrap",
+                  marginBottom: 12,
+                }}
+              >
+                <div style={sectionMiniTitleStyle}>サブスク情報</div>
+
+                {isSubscriptionPayment ? (
+                  <span
+                    style={{
+                      ...badgeStyleBase,
+                      ...badgeStyleByTone(subscriptionBadge.tone),
+                      fontSize: 13,
+                      padding: "8px 12px",
+                    }}
+                  >
+                    {subscriptionBadge.label}
+                  </span>
+                ) : null}
+              </div>
 
               {!selectedCustomer ? (
                 <div style={subscriptionEmptyStyle}>
@@ -642,6 +702,21 @@ function ReservationNewPageInner() {
                   />
                 </div>
               )}
+
+              {isSubscriptionPayment ? (
+                <div
+                  style={{
+                    marginTop: 14,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: "#475569",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  支払方法が「サブスク」になっています。保存前に、
+                  契約状態と残回数を確認してください。
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -697,6 +772,35 @@ function InfoBox({
   );
 }
 
+function badgeStyleByTone(tone: "green" | "red" | "gray" | "orange") {
+  switch (tone) {
+    case "green":
+      return {
+        background: "rgba(22,163,74,0.12)",
+        color: "#15803d",
+        border: "1px solid rgba(22,163,74,0.18)",
+      };
+    case "red":
+      return {
+        background: "rgba(239,68,68,0.10)",
+        color: "#b91c1c",
+        border: "1px solid rgba(239,68,68,0.18)",
+      };
+    case "orange":
+      return {
+        background: "rgba(245,158,11,0.14)",
+        color: "#b45309",
+        border: "1px solid rgba(245,158,11,0.22)",
+      };
+    default:
+      return {
+        background: "rgba(100,116,139,0.12)",
+        color: "#475569",
+        border: "1px solid rgba(100,116,139,0.18)",
+      };
+  }
+}
+
 const cardStyle: React.CSSProperties = {
   background: "rgba(255,255,255,0.78)",
   border: "1px solid rgba(255,255,255,0.7)",
@@ -715,7 +819,6 @@ const sectionTitleStyle: React.CSSProperties = {
 const sectionMiniTitleStyle: React.CSSProperties = {
   fontSize: 16,
   fontWeight: 800,
-  marginBottom: 12,
   color: "#111827",
 };
 
@@ -804,7 +907,6 @@ const saveBtnStyle: React.CSSProperties = {
 const searchResultWrapStyle: React.CSSProperties = {
   marginTop: 10,
   borderRadius: 18,
-  overflow: "hidden",
   border: "1px solid #e5e7eb",
   background: "#fff",
   boxShadow: "0 10px 30px rgba(0,0,0,0.06)",
@@ -877,4 +979,17 @@ const infoBoxValueStyle: React.CSSProperties = {
   fontWeight: 800,
   color: "#111827",
   lineHeight: 1.5,
+};
+
+const badgeStyleBase: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 28,
+  padding: "6px 10px",
+  borderRadius: 999,
+  fontSize: 12,
+  fontWeight: 800,
+  lineHeight: 1.2,
+  whiteSpace: "nowrap",
 };
