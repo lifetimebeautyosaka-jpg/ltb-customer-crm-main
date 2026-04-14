@@ -6,22 +6,23 @@ export default function Home() {
   return (
     <main className="page">
 
-      {/* 背景 */}
       <div className="bg" />
 
-      <div className="wrap">
+      <div className="container">
 
-        {/* ===== HEADER ===== */}
+        {/* HEADER */}
         <header className="header">
           <img src="/logo.png" className="logo" />
 
           <div className="nav">
             <Link href="/login">Login</Link>
-            <Link href="/mypage" className="btn">My Page</Link>
+            <Link href="/mypage" className="btn">
+              My Page
+            </Link>
           </div>
         </header>
 
-        {/* ===== HERO ===== */}
+        {/* HERO */}
         <section className="hero">
 
           <div className="left">
@@ -30,17 +31,13 @@ export default function Home() {
               GYMUP CRM
             </h1>
 
-            <div className="line" />
-
             <p className="desc">
-              Premium CRM for Gym / Pilates / Stretch
-              <br />
-              Clean. Fast. Beautiful.
+              Premium Gym Management Platform
             </p>
 
             <div className="cta">
               <Link href="/reservation" className="primary">
-                Open Dashboard
+                Dashboard
               </Link>
               <Link href="/login" className="ghost">
                 Member Login
@@ -49,23 +46,25 @@ export default function Home() {
 
           </div>
 
-          {/* ===== DASHBOARD MOCK ===== */}
+          {/* DASHBOARD */}
           <div className="right">
 
-            <div className="glass">
+            <div className="dashboard">
 
-              <div className="card big">
-                <div className="shineBar" />
-                Dashboard Overview
+              <div className="topCard">
+                <div className="shine" />
+                <div className="topText">
+                  Optimize Your Metrics
+                </div>
               </div>
 
-              <div className="row">
-                <div className="card">Customers</div>
-                <div className="card">Reservations</div>
-                <div className="card">Sales</div>
+              <div className="grid3">
+                <div className="mini">Customers</div>
+                <div className="mini">Reservations</div>
+                <div className="mini">Sales</div>
               </div>
 
-              <div className="card chart" />
+              <div className="chart" />
 
             </div>
 
@@ -75,7 +74,6 @@ export default function Home() {
 
       </div>
 
-      {/* ===== STYLE ===== */}
       <style jsx>{`
 
         .page {
@@ -88,12 +86,12 @@ export default function Home() {
           position: absolute;
           inset: 0;
           background:
-            radial-gradient(circle at 20% 20%, rgba(255,140,0,0.15), transparent 40%),
-            radial-gradient(circle at 80% 30%, rgba(0,120,255,0.1), transparent 40%);
-          filter: blur(60px);
+            radial-gradient(circle at 20% 20%, rgba(255,140,0,0.2), transparent 40%),
+            radial-gradient(circle at 80% 30%, rgba(0,120,255,0.15), transparent 40%);
+          filter: blur(80px);
         }
 
-        .wrap {
+        .container {
           position: relative;
           max-width: 1200px;
           margin: auto;
@@ -127,25 +125,18 @@ export default function Home() {
         .hero {
           display: grid;
           gap: 40px;
-          margin-top: 60px;
+          margin-top: 80px;
         }
 
         .title {
-          font-size: clamp(40px, 6vw, 70px);
-          font-weight: 800;
-          letter-spacing: -2px;
-        }
-
-        .line {
-          width: 60px;
-          height: 2px;
-          background: linear-gradient(90deg, #ff9a00, transparent);
-          margin: 20px 0;
+          font-size: clamp(36px, 5vw, 60px);
+          font-weight: 700;
+          letter-spacing: -1px;
         }
 
         .desc {
           color: #aaa;
-          line-height: 1.6;
+          margin-top: 10px;
         }
 
         .cta {
@@ -167,8 +158,8 @@ export default function Home() {
           border-radius: 999px;
         }
 
-        /* RIGHT */
-        .glass {
+        /* DASHBOARD */
+        .dashboard {
           background: rgba(255,255,255,0.05);
           border: 1px solid rgba(255,255,255,0.1);
           backdrop-filter: blur(20px);
@@ -176,31 +167,23 @@ export default function Home() {
           border-radius: 20px;
         }
 
-        .card {
-          background: rgba(255,255,255,0.04);
-          padding: 16px;
-          border-radius: 12px;
-        }
-
-        .big {
-          height: 120px;
+        .topCard {
           position: relative;
+          height: 120px;
+          border-radius: 14px;
+          background: rgba(255,255,255,0.05);
+          overflow: hidden;
+          display: flex;
+          align-items: center;
+          padding: 16px;
         }
 
-        .row {
-          display: grid;
-          grid-template-columns: repeat(3,1fr);
-          gap: 10px;
-          margin-top: 10px;
+        .topText {
+          z-index: 2;
         }
 
-        .chart {
-          height: 100px;
-          margin-top: 10px;
-        }
-
-        /* キラッ（控えめ） */
-        .shineBar {
+        /* 控えめキラ */
+        .shine {
           position: absolute;
           top: 0;
           left: -50%;
@@ -212,8 +195,28 @@ export default function Home() {
         }
 
         @keyframes shine {
-          0% { left:-50% }
-          100% { left:150% }
+          0% { left: -50% }
+          100% { left: 150% }
+        }
+
+        .grid3 {
+          display: grid;
+          grid-template-columns: repeat(3,1fr);
+          gap: 10px;
+          margin-top: 10px;
+        }
+
+        .mini {
+          background: rgba(255,255,255,0.04);
+          padding: 14px;
+          border-radius: 12px;
+        }
+
+        .chart {
+          height: 100px;
+          margin-top: 10px;
+          background: rgba(255,255,255,0.04);
+          border-radius: 12px;
         }
 
         /* PC */
@@ -225,6 +228,7 @@ export default function Home() {
         }
 
       `}</style>
+
     </main>
   );
 }
