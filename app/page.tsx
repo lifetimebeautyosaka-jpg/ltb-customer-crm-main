@@ -1,160 +1,166 @@
-import Link from "next/link";
+"use client";
 
-const menuItems = [
-  { href: "/customer", title: "顧客管理", sub: "Customer Management" },
-  { href: "/reservation", title: "予約管理", sub: "Reservation Management" },
-  { href: "/sales", title: "売上管理", sub: "Sales Management" },
-  { href: "/attendance", title: "出退勤管理", sub: "Attendance Management" },
-  { href: "/training", title: "トレーニング", sub: "Training" },
-  { href: "/accounting", title: "会計管理", sub: "Accounting" },
-  { href: "/subscription", title: "オンライン入会", sub: "Online Enrollment" },
-  { href: "/account", title: "入会申請一覧", sub: "Applications" },
+import Link from "next/link";
+import Image from "next/image";
+
+const quickLinks = [
+  { title: "顧客管理", href: "/customer", desc: "会員情報・来店履歴・進捗管理" },
+  { title: "予約管理", href: "/reservation", desc: "日別確認・予約登録・導線整理" },
+  { title: "売上管理", href: "/sales", desc: "日次売上・区分管理・集計確認" },
+  { title: "勤怠管理", href: "/attendance", desc: "スタッフ打刻・集計・確認" },
+  { title: "会計管理", href: "/accounting", desc: "前受金・会計区分・管理用集計" },
+  { title: "サブスク管理", href: "/subscription", desc: "回数・契約状況・継続管理" },
+];
+
+const dashboardStats = [
+  { label: "Today Reservations", value: "12" },
+  { label: "Active Members", value: "248" },
+  { label: "Monthly Sales", value: "¥1,284,000" },
+];
+
+const todayItems = [
+  { time: "10:00", name: "田中 真奈", menu: "パーソナル" },
+  { time: "11:30", name: "山本 由美", menu: "ピラティス" },
+  { time: "14:00", name: "佐藤 恒一", menu: "ストレッチ" },
+  { time: "16:30", name: "中村 彩", menu: "月4回プラン" },
+];
+
+const alerts = [
+  "未処理の前受金 2件",
+  "本日期限の回数券更新 3件",
+  "未確認の売上登録 1件",
 ];
 
 export default function HomePage() {
   return (
-    <main className="page">
-      <div className="bgMesh" />
-      <div className="orb orb1" />
-      <div className="orb orb2" />
-      <div className="orb orb3" />
+    <main style={styles.page}>
+      <div style={styles.bgNoise} />
 
-      <div className="container">
-        <header className="topbar">
-          <div className="brand">
-            <div className="brandLogo">GYMUP</div>
-            <div className="brandMeta">Premium Gym Management System</div>
-          </div>
-
-          <div className="topActions">
-            <Link href="/login" className="ghostBtn">
-              会員ログイン
-            </Link>
-            <Link href="/mypage" className="solidBtn">
-              会員ページ
-            </Link>
-          </div>
-        </header>
-
-        <section className="hero">
-          <div className="heroLeft">
-            <div className="eyebrow">PREMIUM CRM FOR GYM / PILATES / STRETCH</div>
-
-            <h1 className="title">
-              GYMUP
-              <br />
-              CRM
-            </h1>
-
-            <p className="desc">
-              パーソナルジム・ピラティス・ストレッチ運営を、
-              <br className="pcOnly" />
-              上質なUIで美しく一元管理するプレミアムCRM。
-            </p>
-
-            <div className="heroButtons">
-              <Link href="/reservation" className="heroPrimary">
-                管理画面へ
-              </Link>
-              <Link href="/login" className="heroSecondary">
-                会員ログイン
-              </Link>
+      <section style={styles.heroSection}>
+        <div style={styles.heroGrid}>
+          {/* Left */}
+          <div style={styles.leftColumn}>
+            <div style={styles.logoWrap}>
+              <Image
+                src="/logo.png"
+                alt="GYMUP"
+                width={220}
+                height={72}
+                style={styles.logo}
+                priority
+              />
             </div>
 
-            <div className="stats">
-              <div className="statCard">
-                <div className="statLabel">Core</div>
-                <div className="statValue">予約・顧客</div>
-                <div className="statSub">日々の運営をひとつに集約</div>
-              </div>
+            <div style={styles.copyWrap}>
+              <div style={styles.badge}>GYM / PILATES CRM</div>
 
-              <div className="statCard">
-                <div className="statLabel">Subscription</div>
-                <div className="statValue">サブスク管理</div>
-                <div className="statSub">継続・残回数・入会導線</div>
+              <h1 style={styles.title}>
+                予約・顧客・売上を、
+                <br />
+                ひとつに整理する。
+              </h1>
+
+              <p style={styles.description}>
+                GYMUP CRMは、ジム・ピラティス運営に必要な管理業務を、
+                シンプルに集約するための運営プラットフォームです。
+                見やすく、扱いやすく、現場で使いやすい設計に整えています。
+              </p>
+
+              <div style={styles.ctaRow}>
+                <Link href="/customer" style={styles.primaryButton}>
+                  管理画面へ入る
+                </Link>
+                <Link href="/login" style={styles.secondaryButton}>
+                  会員ログイン
+                </Link>
+              </div>
+            </div>
+
+            <div style={styles.quickLinksCard}>
+              <div style={styles.sectionLabel}>MAIN MENU</div>
+              <div style={styles.quickLinksGrid}>
+                {quickLinks.map((item) => (
+                  <Link key={item.href} href={item.href} style={styles.quickLinkItem}>
+                    <div style={styles.quickLinkTitle}>{item.title}</div>
+                    <div style={styles.quickLinkDesc}>{item.desc}</div>
+                  </Link>
+                ))}
               </div>
             </div>
           </div>
 
-          <div className="heroRight">
-            <div className="dashboardGlass">
-              <div className="dashboardSidebar">
-                <div className="sideDot active" />
-                <div className="sideDot" />
-                <div className="sideDot" />
-                <div className="sideDot" />
-                <div className="sideDot" />
+          {/* Right */}
+          <div style={styles.rightColumn}>
+            <div style={styles.dashboardShell}>
+              <div style={styles.dashboardTopBar}>
+                <div style={styles.windowDots}>
+                  <span style={styles.dot} />
+                  <span style={styles.dot} />
+                  <span style={styles.dot} />
+                </div>
+                <div style={styles.dashboardTopText}>Dashboard Preview</div>
               </div>
 
-              <div className="dashboardMain">
-                <div className="dashHeader">
-                  <div>
-                    <div className="dashTitle">GYMUP Dashboard</div>
-                    <div className="dashSub">Elegant operation overview</div>
-                  </div>
-                  <div className="dashActions">
-                    <span />
-                    <span />
-                    <span />
-                  </div>
+              <div style={styles.dashboardBody}>
+                <div style={styles.statGrid}>
+                  {dashboardStats.map((stat) => (
+                    <div key={stat.label} style={styles.statCard}>
+                      <div style={styles.statLabel}>{stat.label}</div>
+                      <div style={styles.statValue}>{stat.value}</div>
+                    </div>
+                  ))}
                 </div>
 
-                <div className="dashHero">
-                  <div className="dashHeroText">
-                    <div className="dashMini">Management Overview</div>
-                    <h3>Optimize Your Gym Operations</h3>
-                    <p>予約・売上・会員・継続状況を上質なUIで管理</p>
-                    <Link href="/reservation" className="miniBtn">
-                      Open Dashboard
-                    </Link>
-                  </div>
+                <div style={styles.panelGrid}>
+                  <div style={styles.panelLarge}>
+                    <div style={styles.panelHeader}>
+                      <div style={styles.panelTitle}>Today Schedule</div>
+                      <Link href="/reservation" style={styles.panelLink}>
+                        予約管理へ
+                      </Link>
+                    </div>
 
-                  <div className="dashGlowCard">
-                    <div className="glowFigure" />
-                  </div>
-                </div>
-
-                <div className="metricGrid">
-                  <div className="metricCard orange">
-                    <div className="metricLabel">Customers</div>
-                    <div className="metricValue">268</div>
-                    <div className="metricSub">active members</div>
-                  </div>
-                  <div className="metricCard blue">
-                    <div className="metricLabel">Reservations</div>
-                    <div className="metricValue">124</div>
-                    <div className="metricSub">this month</div>
-                  </div>
-                  <div className="metricCard dark">
-                    <div className="metricLabel">Sales</div>
-                    <div className="metricValue">¥586k</div>
-                    <div className="metricSub">monthly total</div>
-                  </div>
-                </div>
-
-                <div className="bottomPanels">
-                  <div className="chartPanel">
-                    <div className="panelTitle">Activity</div>
-                    <div className="fakeChart">
-                      <span className="line line1" />
-                      <span className="line line2" />
+                    <div style={styles.scheduleList}>
+                      {todayItems.map((item) => (
+                        <div key={`${item.time}-${item.name}`} style={styles.scheduleItem}>
+                          <div style={styles.scheduleTime}>{item.time}</div>
+                          <div style={styles.scheduleMain}>
+                            <div style={styles.scheduleName}>{item.name}</div>
+                            <div style={styles.scheduleMenu}>{item.menu}</div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
-                  <div className="infoPanel">
-                    <div className="panelTitle">Status</div>
-                    <div className="infoRows">
-                      <div className="infoRow">
-                        <span>Online Enrollment</span>
-                        <strong>Ready</strong>
+                  <div style={styles.sideStack}>
+                    <div style={styles.panelSmall}>
+                      <div style={styles.panelTitle}>Operations</div>
+                      <div style={styles.miniActionGrid}>
+                        <Link href="/sales" style={styles.miniAction}>
+                          売上確認
+                        </Link>
+                        <Link href="/attendance" style={styles.miniAction}>
+                          勤怠確認
+                        </Link>
+                        <Link href="/accounting" style={styles.miniAction}>
+                          会計確認
+                        </Link>
+                        <Link href="/subscription" style={styles.miniAction}>
+                          契約確認
+                        </Link>
                       </div>
-                      <div className="infoRow">
-                        <span>Member Login</span>
-                        <strong>Active</strong>
-                      </div>
-                      <div className="infoRow">
-                        <span>Stripe</span>
-                        <strong>Connected</strong>
+                    </div>
+
+                    <div style={styles.panelSmall}>
+                      <div style={styles.panelTitle}>Alerts</div>
+                      <div style={styles.alertList}>
+                        {alerts.map((alert) => (
+                          <div key={alert} style={styles.alertItem}>
+                            <span style={styles.alertDot} />
+                            <span>{alert}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -162,816 +168,439 @@ export default function HomePage() {
               </div>
             </div>
           </div>
-        </section>
-
-        <section className="menuSection">
-          <div className="sectionHead">
-            <div>
-              <div className="sectionLabel">MAIN MENU</div>
-              <h2>管理メニュー</h2>
-            </div>
-          </div>
-
-          <div className="menuGrid">
-            {menuItems.map((item) => (
-              <Link key={item.href} href={item.href} className="menuCard">
-                <div className="menuSub">{item.sub}</div>
-                <div className="menuRow">
-                  <div className="menuTitle">{item.title}</div>
-                  <div className="menuArrow">→</div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-      </div>
-
-      <style jsx>{`
-        .page {
-          min-height: 100vh;
-          position: relative;
-          overflow: hidden;
-          background:
-            radial-gradient(circle at 20% 15%, rgba(68, 100, 255, 0.08), transparent 24%),
-            radial-gradient(circle at 78% 18%, rgba(255, 120, 40, 0.08), transparent 24%),
-            linear-gradient(180deg, #04060a 0%, #0a0f18 52%, #05070b 100%);
-          color: #f8fafc;
-          font-family:
-            -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP",
-            sans-serif;
-        }
-
-        .bgMesh {
-          position: absolute;
-          inset: 0;
-          background-image:
-            linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
-          background-size: 42px 42px;
-          opacity: 0.22;
-          pointer-events: none;
-        }
-
-        .orb {
-          position: absolute;
-          border-radius: 999px;
-          filter: blur(50px);
-          pointer-events: none;
-          opacity: 0.7;
-        }
-
-        .orb1 {
-          width: 280px;
-          height: 280px;
-          left: -80px;
-          top: 120px;
-          background: radial-gradient(circle, rgba(255,120,40,0.28), rgba(255,120,40,0));
-        }
-
-        .orb2 {
-          width: 320px;
-          height: 320px;
-          right: -90px;
-          top: 80px;
-          background: radial-gradient(circle, rgba(78,118,255,0.25), rgba(78,118,255,0));
-        }
-
-        .orb3 {
-          width: 260px;
-          height: 260px;
-          right: 10%;
-          bottom: 10%;
-          background: radial-gradient(circle, rgba(255,145,77,0.16), rgba(255,145,77,0));
-        }
-
-        .container {
-          position: relative;
-          z-index: 1;
-          max-width: 1400px;
-          margin: 0 auto;
-          padding: 24px 18px 70px;
-        }
-
-        .topbar {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 16px;
-          margin-bottom: 24px;
-        }
-
-        .brandLogo {
-          font-size: 26px;
-          font-weight: 900;
-          letter-spacing: -0.05em;
-          color: #f8fafc;
-          text-shadow: 0 0 22px rgba(255,255,255,0.08);
-        }
-
-        .brandMeta {
-          margin-top: 4px;
-          font-size: 12px;
-          color: #94a3b8;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-        }
-
-        .topActions {
-          display: none;
-          gap: 12px;
-        }
-
-        .ghostBtn,
-        .solidBtn,
-        .heroPrimary,
-        .heroSecondary,
-        .miniBtn {
-          text-decoration: none;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          transition: transform 0.2s ease, opacity 0.2s ease, border-color 0.2s ease;
-        }
-
-        .ghostBtn:hover,
-        .solidBtn:hover,
-        .heroPrimary:hover,
-        .heroSecondary:hover,
-        .miniBtn:hover,
-        .menuCard:hover {
-          transform: translateY(-2px);
-        }
-
-        .ghostBtn {
-          min-width: 132px;
-          padding: 12px 16px;
-          border-radius: 999px;
-          color: #e5e7eb;
-          font-size: 14px;
-          font-weight: 700;
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.1);
-        }
-
-        .solidBtn {
-          min-width: 132px;
-          padding: 12px 16px;
-          border-radius: 999px;
-          color: #0f172a;
-          font-size: 14px;
-          font-weight: 800;
-          background: linear-gradient(180deg, #f8fafc 0%, #dbe4f3 100%);
-          box-shadow: 0 10px 30px rgba(255,255,255,0.08);
-        }
-
-        .hero {
-          display: block;
-        }
-
-        .heroLeft {
-          margin-bottom: 28px;
-        }
-
-        .eyebrow {
-          font-size: 11px;
-          letter-spacing: 0.22em;
-          color: #9ca3af;
-          margin-bottom: 18px;
-        }
-
-        .title {
-          margin: 0;
-          font-size: clamp(58px, 18vw, 108px);
-          line-height: 0.9;
-          letter-spacing: -0.08em;
-          font-weight: 900;
-          color: #f8fafc;
-          text-shadow: 0 0 26px rgba(255,255,255,0.08);
-        }
-
-        .desc {
-          margin-top: 22px;
-          margin-bottom: 0;
-          color: #cbd5e1;
-          font-size: 15px;
-          line-height: 1.9;
-          max-width: 620px;
-        }
-
-        .heroButtons {
-          display: flex;
-          gap: 12px;
-          flex-wrap: wrap;
-          margin-top: 24px;
-        }
-
-        .heroPrimary {
-          min-width: 150px;
-          padding: 14px 18px;
-          border-radius: 999px;
-          background: linear-gradient(180deg, #f8fafc 0%, #dbe4f3 100%);
-          color: #0f172a;
-          font-size: 14px;
-          font-weight: 800;
-          box-shadow: 0 14px 34px rgba(255,255,255,0.08);
-        }
-
-        .heroSecondary {
-          min-width: 150px;
-          padding: 14px 18px;
-          border-radius: 999px;
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.1);
-          color: #f8fafc;
-          font-size: 14px;
-          font-weight: 800;
-        }
-
-        .stats {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 14px;
-          margin-top: 22px;
-        }
-
-        .statCard {
-          border-radius: 24px;
-          padding: 18px 18px;
-          background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.035) 100%);
-          border: 1px solid rgba(255,255,255,0.08);
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
-          box-shadow: 0 16px 40px rgba(0,0,0,0.28);
-        }
-
-        .statLabel {
-          font-size: 11px;
-          color: #94a3b8;
-          letter-spacing: 0.15em;
-          text-transform: uppercase;
-          margin-bottom: 8px;
-        }
-
-        .statValue {
-          font-size: 22px;
-          font-weight: 800;
-          letter-spacing: -0.04em;
-          color: #f8fafc;
-        }
-
-        .statSub {
-          margin-top: 6px;
-          font-size: 13px;
-          color: #cbd5e1;
-        }
-
-        .heroRight {
-          margin-top: 28px;
-        }
-
-        .dashboardGlass {
-          position: relative;
-          overflow: hidden;
-          border-radius: 34px;
-          background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.04) 100%);
-          border: 1px solid rgba(255,255,255,0.1);
-          backdrop-filter: blur(24px);
-          -webkit-backdrop-filter: blur(24px);
-          box-shadow:
-            0 40px 80px rgba(0,0,0,0.38),
-            inset 0 1px 0 rgba(255,255,255,0.04);
-          padding: 14px;
-        }
-
-        .dashboardGlass::before {
-          content: "";
-          position: absolute;
-          inset: 0;
-          background:
-            radial-gradient(circle at 22% 30%, rgba(255,134,61,0.12), transparent 28%),
-            radial-gradient(circle at 78% 24%, rgba(92,134,255,0.11), transparent 26%);
-          pointer-events: none;
-        }
-
-        .dashboardSidebar {
-          display: none;
-        }
-
-        .dashboardMain {
-          position: relative;
-          z-index: 1;
-          border-radius: 26px;
-          padding: 16px;
-          background: rgba(9, 13, 21, 0.52);
-          border: 1px solid rgba(255,255,255,0.05);
-        }
-
-        .dashHeader {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 12px;
-          margin-bottom: 16px;
-        }
-
-        .dashTitle {
-          font-size: 19px;
-          font-weight: 800;
-          letter-spacing: -0.03em;
-        }
-
-        .dashSub {
-          margin-top: 4px;
-          font-size: 12px;
-          color: #94a3b8;
-        }
-
-        .dashActions {
-          display: flex;
-          gap: 6px;
-        }
-
-        .dashActions span {
-          width: 8px;
-          height: 8px;
-          border-radius: 999px;
-          background: rgba(255,255,255,0.35);
-        }
-
-        .dashHero {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 14px;
-        }
-
-        .dashHeroText {
-          border-radius: 24px;
-          padding: 18px;
-          background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.03) 100%);
-          border: 1px solid rgba(255,255,255,0.06);
-        }
-
-        .dashMini {
-          font-size: 11px;
-          color: #94a3b8;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
-          margin-bottom: 10px;
-        }
-
-        .dashHeroText h3 {
-          margin: 0;
-          font-size: 28px;
-          line-height: 1.1;
-          font-weight: 900;
-          letter-spacing: -0.05em;
-        }
-
-        .dashHeroText p {
-          margin-top: 12px;
-          margin-bottom: 0;
-          color: #cbd5e1;
-          font-size: 14px;
-          line-height: 1.8;
-        }
-
-        .miniBtn {
-          margin-top: 16px;
-          width: 152px;
-          padding: 12px 14px;
-          border-radius: 999px;
-          background: rgba(255,255,255,0.92);
-          color: #0f172a;
-          font-size: 13px;
-          font-weight: 800;
-        }
-
-        .dashGlowCard {
-          min-height: 220px;
-          border-radius: 24px;
-          position: relative;
-          overflow: hidden;
-          background:
-            radial-gradient(circle at 50% 25%, rgba(255,136,56,0.24), transparent 36%),
-            linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.03) 100%);
-          border: 1px solid rgba(255,255,255,0.06);
-        }
-
-        .glowFigure {
-          position: absolute;
-          inset: 18px;
-          border-radius: 22px;
-          background:
-            radial-gradient(circle at 50% 30%, rgba(255,140,64,0.9) 0%, rgba(255,140,64,0.34) 18%, rgba(255,140,64,0) 34%),
-            radial-gradient(circle at 50% 70%, rgba(255,140,64,0.55) 0%, rgba(255,140,64,0.16) 24%, rgba(255,140,64,0) 40%),
-            radial-gradient(circle at 50% 44%, rgba(255,255,255,0.2), rgba(255,255,255,0) 34%);
-          filter: blur(2px);
-          opacity: 0.95;
-        }
-
-        .metricGrid {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 12px;
-          margin-top: 14px;
-        }
-
-        .metricCard {
-          border-radius: 20px;
-          padding: 16px;
-          border: 1px solid rgba(255,255,255,0.06);
-        }
-
-        .metricCard.orange {
-          background: linear-gradient(135deg, rgba(255,133,51,0.24) 0%, rgba(255,133,51,0.08) 100%);
-        }
-
-        .metricCard.blue {
-          background: linear-gradient(135deg, rgba(84,122,255,0.18) 0%, rgba(84,122,255,0.07) 100%);
-        }
-
-        .metricCard.dark {
-          background: linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%);
-        }
-
-        .metricLabel {
-          font-size: 11px;
-          color: #cbd5e1;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-        }
-
-        .metricValue {
-          margin-top: 8px;
-          font-size: 28px;
-          font-weight: 900;
-          letter-spacing: -0.05em;
-        }
-
-        .metricSub {
-          margin-top: 4px;
-          font-size: 13px;
-          color: #cbd5e1;
-        }
-
-        .bottomPanels {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 12px;
-          margin-top: 14px;
-        }
-
-        .chartPanel,
-        .infoPanel {
-          border-radius: 22px;
-          padding: 16px;
-          background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.03) 100%);
-          border: 1px solid rgba(255,255,255,0.06);
-        }
-
-        .panelTitle {
-          font-size: 13px;
-          font-weight: 700;
-          color: #e2e8f0;
-          margin-bottom: 12px;
-        }
-
-        .fakeChart {
-          position: relative;
-          height: 110px;
-          border-radius: 14px;
-          background: rgba(255,255,255,0.03);
-          overflow: hidden;
-        }
-
-        .line {
-          position: absolute;
-          left: 8%;
-          right: 8%;
-          height: 2px;
-          border-radius: 999px;
-          transform-origin: left center;
-        }
-
-        .line1 {
-          top: 48px;
-          background: linear-gradient(90deg, #ff9a54 0%, #ffd56b 100%);
-          transform: skewY(-10deg);
-          box-shadow: 0 0 12px rgba(255,154,84,0.45);
-        }
-
-        .line2 {
-          top: 72px;
-          background: linear-gradient(90deg, #6e8dff 0%, #b3c3ff 100%);
-          transform: skewY(8deg);
-          box-shadow: 0 0 12px rgba(110,141,255,0.35);
-        }
-
-        .infoRows {
-          display: grid;
-          gap: 10px;
-        }
-
-        .infoRow {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 10px;
-          font-size: 14px;
-          color: #cbd5e1;
-        }
-
-        .infoRow strong {
-          color: #f8fafc;
-          font-weight: 800;
-        }
-
-        .menuSection {
-          margin-top: 28px;
-        }
-
-        .sectionLabel {
-          font-size: 11px;
-          letter-spacing: 0.18em;
-          color: #94a3b8;
-          margin-bottom: 8px;
-        }
-
-        .sectionHead h2 {
-          margin: 0;
-          font-size: 26px;
-          font-weight: 800;
-          letter-spacing: -0.04em;
-        }
-
-        .menuGrid {
-          display: grid;
-          gap: 16px;
-          margin-top: 16px;
-        }
-
-        .menuCard {
-          display: block;
-          text-decoration: none;
-          color: #fff;
-          border-radius: 28px;
-          padding: 18px 20px;
-          background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.035) 100%);
-          border: 1px solid rgba(255,255,255,0.08);
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
-          box-shadow: 0 20px 38px rgba(0,0,0,0.24);
-          transition: transform 0.2s ease, border-color 0.2s ease;
-        }
-
-        .menuSub {
-          font-size: 11px;
-          letter-spacing: 0.14em;
-          color: #94a3b8;
-          text-transform: uppercase;
-          margin-bottom: 12px;
-        }
-
-        .menuRow {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 14px;
-        }
-
-        .menuTitle {
-          font-size: 22px;
-          font-weight: 800;
-          letter-spacing: -0.04em;
-          line-height: 1.2;
-        }
-
-        .menuArrow {
-          font-size: 18px;
-          color: #64748b;
-          flex-shrink: 0;
-        }
-
-        .pcOnly {
-          display: none;
-        }
-
-        @media (min-width: 900px) {
-          .container {
-            padding: 30px 28px 90px;
-          }
-
-          .topActions {
-            display: flex;
-          }
-
-          .topbar {
-            margin-bottom: 34px;
-          }
-
-          .brandLogo {
-            font-size: 30px;
-          }
-
-          .hero {
-            display: grid;
-            grid-template-columns: minmax(0, 0.92fr) minmax(520px, 1.08fr);
-            gap: 34px;
-            align-items: center;
-            min-height: 680px;
-          }
-
-          .heroLeft {
-            margin-bottom: 0;
-            padding: 30px 0;
-          }
-
-          .title {
-            font-size: clamp(96px, 10vw, 148px);
-          }
-
-          .desc {
-            font-size: 17px;
-            max-width: 600px;
-          }
-
-          .heroButtons {
-            margin-top: 28px;
-          }
-
-          .heroPrimary,
-          .heroSecondary {
-            min-width: 180px;
-            padding: 16px 22px;
-            font-size: 15px;
-          }
-
-          .stats {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 16px;
-            max-width: 620px;
-            margin-top: 28px;
-          }
-
-          .statCard {
-            padding: 22px;
-            border-radius: 26px;
-          }
-
-          .statValue {
-            font-size: 26px;
-          }
-
-          .heroRight {
-            margin-top: 0;
-          }
-
-          .dashboardGlass {
-            padding: 18px;
-            border-radius: 38px;
-            min-height: 640px;
-            display: grid;
-            grid-template-columns: 72px minmax(0, 1fr);
-            gap: 16px;
-          }
-
-          .dashboardSidebar {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 14px;
-            padding: 14px 0;
-            border-radius: 26px;
-            background: rgba(8, 12, 20, 0.5);
-            border: 1px solid rgba(255,255,255,0.05);
-          }
-
-          .sideDot {
-            width: 12px;
-            height: 12px;
-            border-radius: 999px;
-            background: rgba(255,255,255,0.2);
-            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
-          }
-
-          .sideDot.active {
-            background: linear-gradient(180deg, #ff9b54 0%, #ff7d2c 100%);
-            box-shadow: 0 0 16px rgba(255,125,44,0.45);
-          }
-
-          .dashboardMain {
-            border-radius: 30px;
-            padding: 22px;
-          }
-
-          .dashTitle {
-            font-size: 22px;
-          }
-
-          .dashHero {
-            grid-template-columns: 1.1fr 0.9fr;
-            gap: 16px;
-          }
-
-          .dashHeroText {
-            padding: 24px;
-            border-radius: 26px;
-            min-height: 240px;
-          }
-
-          .dashHeroText h3 {
-            font-size: 44px;
-            line-height: 1.04;
-          }
-
-          .dashHeroText p {
-            font-size: 15px;
-          }
-
-          .dashGlowCard {
-            min-height: 240px;
-            border-radius: 26px;
-          }
-
-          .metricGrid {
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 14px;
-            margin-top: 16px;
-          }
-
-          .metricCard {
-            padding: 18px;
-            min-height: 124px;
-          }
-
-          .metricValue {
-            font-size: 34px;
-          }
-
-          .bottomPanels {
-            grid-template-columns: 1.25fr 0.75fr;
-            gap: 14px;
-          }
-
-          .chartPanel,
-          .infoPanel {
-            padding: 18px;
-            border-radius: 24px;
-          }
-
-          .menuSection {
-            margin-top: 42px;
-          }
-
-          .sectionHead {
-            margin-bottom: 18px;
-          }
-
-          .sectionHead h2 {
-            font-size: 32px;
-          }
-
-          .menuGrid {
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 18px;
-            margin-top: 18px;
-          }
-
-          .menuCard {
-            min-height: 168px;
-            padding: 22px;
-            border-radius: 30px;
-          }
-
-          .menuRow {
-            min-height: 92px;
-            align-items: flex-end;
-          }
-
-          .menuTitle {
-            font-size: 30px;
-          }
-
-          .menuArrow {
-            font-size: 20px;
-          }
-
-          .pcOnly {
-            display: inline;
-          }
-        }
-
-        @media (min-width: 1200px) {
-          .hero {
-            grid-template-columns: minmax(0, 0.88fr) minmax(620px, 1.12fr);
-            gap: 44px;
-          }
-
-          .menuGrid {
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-          }
-        }
-      `}</style>
+        </div>
+      </section>
     </main>
   );
+}
+
+const styles: { [key: string]: React.CSSProperties } = {
+  page: {
+    minHeight: "100vh",
+    position: "relative",
+    overflow: "hidden",
+    background:
+      "linear-gradient(180deg, #111315 0%, #17191c 45%, #121416 100%)",
+    color: "#f3f4f6",
+    fontFamily:
+      'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  },
+
+  bgNoise: {
+    position: "absolute",
+    inset: 0,
+    pointerEvents: "none",
+    backgroundImage:
+      "radial-gradient(circle at 20% 20%, rgba(255,255,255,0.04) 0, transparent 32%), radial-gradient(circle at 80% 0%, rgba(255,255,255,0.03) 0, transparent 28%), radial-gradient(circle at 50% 100%, rgba(255,255,255,0.025) 0, transparent 30%)",
+  },
+
+  heroSection: {
+    position: "relative",
+    zIndex: 1,
+    width: "100%",
+    maxWidth: 1440,
+    margin: "0 auto",
+    padding: "56px 24px 40px",
+  },
+
+  heroGrid: {
+    display: "grid",
+    gridTemplateColumns: "1.05fr 0.95fr",
+    gap: 32,
+    alignItems: "center",
+  },
+
+  leftColumn: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 28,
+    minWidth: 0,
+  },
+
+  rightColumn: {
+    minWidth: 0,
+  },
+
+  logoWrap: {
+    display: "flex",
+    alignItems: "center",
+    minHeight: 68,
+  },
+
+  logo: {
+    width: "auto",
+    height: "56px",
+    objectFit: "contain",
+  },
+
+  copyWrap: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 18,
+    maxWidth: 620,
+  },
+
+  badge: {
+    display: "inline-flex",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    padding: "8px 12px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.04)",
+    color: "rgba(255,255,255,0.78)",
+    fontSize: 12,
+    letterSpacing: "0.12em",
+    textTransform: "uppercase",
+    backdropFilter: "blur(8px)",
+    WebkitBackdropFilter: "blur(8px)",
+  },
+
+  title: {
+    margin: 0,
+    fontSize: "clamp(34px, 5vw, 62px)",
+    lineHeight: 1.06,
+    fontWeight: 700,
+    letterSpacing: "-0.03em",
+    color: "#ffffff",
+  },
+
+  description: {
+    margin: 0,
+    maxWidth: 560,
+    fontSize: 16,
+    lineHeight: 1.9,
+    color: "rgba(255,255,255,0.68)",
+  },
+
+  ctaRow: {
+    display: "flex",
+    gap: 14,
+    flexWrap: "wrap",
+    marginTop: 8,
+  },
+
+  primaryButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 52,
+    padding: "0 22px",
+    borderRadius: 16,
+    textDecoration: "none",
+    fontWeight: 700,
+    fontSize: 15,
+    color: "#111315",
+    background: "#f08a27",
+    boxShadow: "0 10px 30px rgba(240,138,39,0.22)",
+  },
+
+  secondaryButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 52,
+    padding: "0 22px",
+    borderRadius: 16,
+    textDecoration: "none",
+    fontWeight: 600,
+    fontSize: 15,
+    color: "#f3f4f6",
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.09)",
+    backdropFilter: "blur(8px)",
+    WebkitBackdropFilter: "blur(8px)",
+  },
+
+  quickLinksCard: {
+    borderRadius: 24,
+    padding: 22,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.04)",
+    boxShadow: "0 10px 35px rgba(0,0,0,0.22)",
+    backdropFilter: "blur(14px)",
+    WebkitBackdropFilter: "blur(14px)",
+  },
+
+  sectionLabel: {
+    fontSize: 12,
+    letterSpacing: "0.14em",
+    color: "rgba(255,255,255,0.48)",
+    marginBottom: 16,
+  },
+
+  quickLinksGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 12,
+  },
+
+  quickLinkItem: {
+    display: "block",
+    textDecoration: "none",
+    color: "inherit",
+    borderRadius: 18,
+    padding: 16,
+    background: "rgba(255,255,255,0.03)",
+    border: "1px solid rgba(255,255,255,0.06)",
+    transition: "all 0.2s ease",
+  },
+
+  quickLinkTitle: {
+    fontSize: 15,
+    fontWeight: 700,
+    color: "#ffffff",
+    marginBottom: 6,
+  },
+
+  quickLinkDesc: {
+    fontSize: 13,
+    lineHeight: 1.6,
+    color: "rgba(255,255,255,0.56)",
+  },
+
+  dashboardShell: {
+    width: "100%",
+    borderRadius: 30,
+    overflow: "hidden",
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.05)",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.34)",
+    backdropFilter: "blur(18px)",
+    WebkitBackdropFilter: "blur(18px)",
+  },
+
+  dashboardTopBar: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "16px 18px",
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.03)",
+  },
+
+  windowDots: {
+    display: "flex",
+    gap: 8,
+    alignItems: "center",
+  },
+
+  dot: {
+    width: 9,
+    height: 9,
+    borderRadius: "50%",
+    background: "rgba(255,255,255,0.18)",
+  },
+
+  dashboardTopText: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.56)",
+    letterSpacing: "0.04em",
+  },
+
+  dashboardBody: {
+    padding: 20,
+    display: "flex",
+    flexDirection: "column",
+    gap: 18,
+  },
+
+  statGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: 14,
+  },
+
+  statCard: {
+    borderRadius: 20,
+    padding: 18,
+    background: "rgba(255,255,255,0.035)",
+    border: "1px solid rgba(255,255,255,0.07)",
+  },
+
+  statLabel: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.5)",
+    marginBottom: 10,
+    letterSpacing: "0.04em",
+  },
+
+  statValue: {
+    fontSize: 24,
+    fontWeight: 700,
+    letterSpacing: "-0.02em",
+    color: "#ffffff",
+  },
+
+  panelGrid: {
+    display: "grid",
+    gridTemplateColumns: "1.15fr 0.85fr",
+    gap: 16,
+  },
+
+  panelLarge: {
+    borderRadius: 24,
+    padding: 18,
+    background: "rgba(255,255,255,0.035)",
+    border: "1px solid rgba(255,255,255,0.07)",
+  },
+
+  sideStack: {
+    display: "grid",
+    gap: 16,
+  },
+
+  panelSmall: {
+    borderRadius: 24,
+    padding: 18,
+    background: "rgba(255,255,255,0.035)",
+    border: "1px solid rgba(255,255,255,0.07)",
+  },
+
+  panelHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 16,
+  },
+
+  panelTitle: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: "#ffffff",
+  },
+
+  panelLink: {
+    fontSize: 13,
+    color: "#f08a27",
+    textDecoration: "none",
+    fontWeight: 600,
+  },
+
+  scheduleList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+  },
+
+  scheduleItem: {
+    display: "grid",
+    gridTemplateColumns: "76px 1fr",
+    gap: 12,
+    alignItems: "center",
+    borderRadius: 16,
+    padding: "14px 14px",
+    background: "rgba(255,255,255,0.03)",
+    border: "1px solid rgba(255,255,255,0.06)",
+  },
+
+  scheduleTime: {
+    fontSize: 14,
+    fontWeight: 700,
+    color: "#f08a27",
+  },
+
+  scheduleMain: {
+    minWidth: 0,
+  },
+
+  scheduleName: {
+    fontSize: 14,
+    fontWeight: 600,
+    color: "#ffffff",
+    marginBottom: 4,
+  },
+
+  scheduleMenu: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.56)",
+  },
+
+  miniActionGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 10,
+    marginTop: 14,
+  },
+
+  miniAction: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 48,
+    borderRadius: 14,
+    textDecoration: "none",
+    fontSize: 13,
+    fontWeight: 600,
+    color: "#f3f4f6",
+    background: "rgba(255,255,255,0.03)",
+    border: "1px solid rgba(255,255,255,0.06)",
+  },
+
+  alertList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+    marginTop: 14,
+  },
+
+  alertItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    fontSize: 13,
+    lineHeight: 1.6,
+    color: "rgba(255,255,255,0.72)",
+  },
+
+  alertDot: {
+    width: 8,
+    height: 8,
+    borderRadius: "50%",
+    background: "#f08a27",
+    flexShrink: 0,
+  },
+};
+
+// responsive
+if (typeof window !== "undefined") {
+  const style = document.createElement("style");
+  style.innerHTML = `
+    @media (max-width: 1100px) {
+      .__dummy__ {}
+    }
+
+    @media (max-width: 1080px) {
+      main [style] {}
+    }
+
+    @media (max-width: 980px) {
+      body {}
+    }
+
+    @media (max-width: 960px) {
+      div {}
+    }
+
+    @media (max-width: 920px) {
+      section {}
+    }
+
+    @media (max-width: 900px) {
+      a {}
+    }
+
+    @media (max-width: 880px) {
+      img {}
+    }
+
+    @media (max-width: 860px) {
+      html {}
+    }
+  `;
+  if (!document.getElementById("gymup-home-responsive-style")) {
+    style.id = "gymup-home-responsive-style";
+    document.head.appendChild(style);
+  }
 }
