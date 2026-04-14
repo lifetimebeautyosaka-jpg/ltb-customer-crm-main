@@ -2,33 +2,22 @@
 
 import Link from "next/link";
 
-const menuItems = [
-  { href: "/customer", title: "Customers", sub: "顧客管理" },
-  { href: "/reservation", title: "Reservations", sub: "予約管理" },
-  { href: "/sales", title: "Sales", sub: "売上管理" },
-  { href: "/attendance", title: "Attendance", sub: "出退勤管理" },
-  { href: "/training", title: "Training", sub: "トレーニング" },
-  { href: "/accounting", title: "Accounting", sub: "会計管理" },
-  { href: "/subscription", title: "Enrollment", sub: "オンライン入会" },
-  { href: "/account", title: "Applications", sub: "申請一覧" },
-];
-
-export default function HomePage() {
+export default function Home() {
   return (
     <main className="page">
-      <div className="bgMesh" />
-      <div className="orb orb1" />
-      <div className="orb orb2" />
 
-      <div className="container">
+      {/* 背景 */}
+      <div className="bg" />
+
+      <div className="wrap">
 
         {/* ===== HEADER ===== */}
         <header className="header">
           <img src="/logo.png" className="logo" />
 
-          <div className="actions">
-            <Link href="/login" className="ghost">Login</Link>
-            <Link href="/mypage" className="solid">My Page</Link>
+          <div className="nav">
+            <Link href="/login">Login</Link>
+            <Link href="/mypage" className="btn">My Page</Link>
           </div>
         </header>
 
@@ -36,122 +25,79 @@ export default function HomePage() {
         <section className="hero">
 
           <div className="left">
-            <h1 className="title shine">
+
+            <h1 className="title">
               GYMUP CRM
             </h1>
 
-            <div className="goldLine" />
+            <div className="line" />
 
             <p className="desc">
-              Premium CRM for Gym / Pilates / Stretch.
+              Premium CRM for Gym / Pilates / Stretch
               <br />
-              Customers, reservations, sales and subscriptions
-              in one elegant system.
+              Clean. Fast. Beautiful.
             </p>
 
-            <div className="buttons">
+            <div className="cta">
               <Link href="/reservation" className="primary">
-                Dashboard
+                Open Dashboard
               </Link>
-              <Link href="/login" className="ghostBtn">
+              <Link href="/login" className="ghost">
                 Member Login
               </Link>
             </div>
 
-            {/* KPI */}
-            <div className="stats">
-              <div>
-                <div className="statValue">268</div>
-                <div className="statLabel">Customers</div>
-              </div>
-              <div>
-                <div className="statValue">124</div>
-                <div className="statLabel">Reservations</div>
-              </div>
-              <div>
-                <div className="statValue">¥586k</div>
-                <div className="statLabel">Sales</div>
-              </div>
-            </div>
           </div>
 
-          {/* ===== RIGHT DASHBOARD ===== */}
+          {/* ===== DASHBOARD MOCK ===== */}
           <div className="right">
 
-            <div className="panel large shineCard">
-              <div className="panelTitle">Optimize Your Gym</div>
-              <div className="panelSub">All-in-one management UI</div>
-            </div>
+            <div className="glass">
 
-            <div className="row">
-              <div className="panel small shineCard">Customers</div>
-              <div className="panel small shineCard">Reservations</div>
-              <div className="panel small shineCard">Sales</div>
-            </div>
+              <div className="card big">
+                <div className="shineBar" />
+                Dashboard Overview
+              </div>
 
-            <div className="panel chart shineCard">
-              Activity
+              <div className="row">
+                <div className="card">Customers</div>
+                <div className="card">Reservations</div>
+                <div className="card">Sales</div>
+              </div>
+
+              <div className="card chart" />
+
             </div>
 
           </div>
 
-        </section>
-
-        {/* ===== MENU ===== */}
-        <section className="menu">
-          {menuItems.map((item) => (
-            <Link key={item.href} href={item.href} className="card shineCard">
-              <div className="sub">{item.sub}</div>
-              <div className="title2 shine">{item.title}</div>
-            </Link>
-          ))}
         </section>
 
       </div>
 
+      {/* ===== STYLE ===== */}
       <style jsx>{`
 
         .page {
           min-height: 100vh;
-          background: linear-gradient(180deg, #03050a, #0a0f18);
+          background: #05070b;
           color: white;
-          overflow: hidden;
         }
 
-        .container {
-          max-width: 1300px;
-          margin: auto;
-          padding: 24px;
-        }
-
-        /* 背景 */
-        .bgMesh {
+        .bg {
           position: absolute;
           inset: 0;
-          background-size: 40px 40px;
-          opacity: 0.1;
-        }
-
-        .orb {
-          position: absolute;
-          width: 300px;
-          height: 300px;
-          border-radius: 50%;
+          background:
+            radial-gradient(circle at 20% 20%, rgba(255,140,0,0.15), transparent 40%),
+            radial-gradient(circle at 80% 30%, rgba(0,120,255,0.1), transparent 40%);
           filter: blur(60px);
         }
 
-        .orb1 {
-          background: orange;
-          top: 100px;
-          left: -80px;
-          opacity: 0.15;
-        }
-
-        .orb2 {
-          background: blue;
-          right: -80px;
-          top: 60px;
-          opacity: 0.15;
+        .wrap {
+          position: relative;
+          max-width: 1200px;
+          margin: auto;
+          padding: 24px;
         }
 
         /* HEADER */
@@ -159,29 +105,21 @@ export default function HomePage() {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 40px;
         }
 
         .logo {
           width: 120px;
-          filter: drop-shadow(0 0 10px rgba(255,140,0,0.3));
         }
 
-        .actions {
+        .nav {
           display: flex;
-          gap: 10px;
+          gap: 12px;
         }
 
-        .solid {
+        .btn {
           background: white;
           color: black;
-          padding: 10px 16px;
-          border-radius: 999px;
-        }
-
-        .ghost {
-          border: 1px solid rgba(255,255,255,0.2);
-          padding: 10px 16px;
+          padding: 8px 14px;
           border-radius: 999px;
         }
 
@@ -189,25 +127,28 @@ export default function HomePage() {
         .hero {
           display: grid;
           gap: 40px;
+          margin-top: 60px;
         }
 
         .title {
-          font-size: clamp(40px, 6vw, 72px);
+          font-size: clamp(40px, 6vw, 70px);
           font-weight: 800;
+          letter-spacing: -2px;
         }
 
-        .goldLine {
+        .line {
           width: 60px;
           height: 2px;
-          background: linear-gradient(90deg, gold, transparent);
-          margin: 16px 0;
+          background: linear-gradient(90deg, #ff9a00, transparent);
+          margin: 20px 0;
         }
 
         .desc {
-          color: #cbd5e1;
+          color: #aaa;
+          line-height: 1.6;
         }
 
-        .buttons {
+        .cta {
           margin-top: 20px;
           display: flex;
           gap: 10px;
@@ -220,104 +161,59 @@ export default function HomePage() {
           border-radius: 999px;
         }
 
-        .ghostBtn {
+        .ghost {
           border: 1px solid rgba(255,255,255,0.2);
           padding: 12px 18px;
           border-radius: 999px;
         }
 
-        /* KPI */
-        .stats {
-          display: flex;
-          gap: 20px;
-          margin-top: 30px;
-        }
-
-        .statValue {
-          font-weight: bold;
-          font-size: 18px;
-        }
-
-        .statLabel {
-          font-size: 12px;
-          opacity: 0.6;
-        }
-
         /* RIGHT */
-        .right {
-          display: grid;
-          gap: 12px;
-        }
-
-        .panel {
+        .glass {
           background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 16px;
-          padding: 16px;
+          border: 1px solid rgba(255,255,255,0.1);
+          backdrop-filter: blur(20px);
+          padding: 20px;
+          border-radius: 20px;
         }
 
-        .large { height: 120px; }
-        .small { height: 80px; }
-        .chart { height: 100px; }
+        .card {
+          background: rgba(255,255,255,0.04);
+          padding: 16px;
+          border-radius: 12px;
+        }
+
+        .big {
+          height: 120px;
+          position: relative;
+        }
 
         .row {
           display: grid;
           grid-template-columns: repeat(3,1fr);
           gap: 10px;
+          margin-top: 10px;
         }
 
-        /* MENU */
-        .menu {
-          margin-top: 50px;
-          display: grid;
-          gap: 14px;
+        .chart {
+          height: 100px;
+          margin-top: 10px;
         }
 
-        .card {
-          padding: 18px;
-          border-radius: 20px;
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.08);
-        }
-
-        .sub {
-          font-size: 12px;
-          opacity: 0.6;
-        }
-
-        .title2 {
-          font-size: 22px;
-          margin-top: 8px;
-        }
-
-        /* キラッ */
-        .shine {
-          background: linear-gradient(90deg, #fff, #aaa, #fff);
-          -webkit-background-clip: text;
-          color: transparent;
+        /* キラッ（控えめ） */
+        .shineBar {
+          position: absolute;
+          top: 0;
+          left: -50%;
+          width: 40%;
+          height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+          transform: skewX(-20deg);
           animation: shine 4s infinite;
         }
 
-        .shineCard::after {
-          content: "";
-          position: absolute;
-          top: -100%;
-          left: -50%;
-          width: 40%;
-          height: 300%;
-          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-          transform: rotate(25deg);
-          animation: shineMove 5s infinite;
-        }
-
         @keyframes shine {
-          0% {background-position:-100%}
-          100% {background-position:200%}
-        }
-
-        @keyframes shineMove {
-          0% {left:-50%}
-          100% {left:150%}
+          0% { left:-50% }
+          100% { left:150% }
         }
 
         /* PC */
@@ -325,10 +221,6 @@ export default function HomePage() {
           .hero {
             grid-template-columns: 1fr 1fr;
             align-items: center;
-          }
-
-          .menu {
-            grid-template-columns: repeat(4,1fr);
           }
         }
 
