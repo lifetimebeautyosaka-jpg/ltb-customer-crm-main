@@ -61,7 +61,9 @@ function formatTodayLabel() {
 function normalizeReservation(raw: any): ReservationItem | null {
   if (!raw) return null;
 
-  const id = String(raw.id ?? `${raw.date ?? ""}-${raw.start_time ?? ""}-${raw.customer_name ?? ""}`);
+  const id = String(
+    raw.id ?? `${raw.date ?? ""}-${raw.start_time ?? raw.startTime ?? ""}-${raw.customer_name ?? raw.customerName ?? raw.name ?? ""}`
+  );
   const date = String(raw.date ?? "");
   const startTime = String(raw.start_time ?? raw.startTime ?? "");
   const customerName = String(raw.customer_name ?? raw.customerName ?? raw.name ?? "");
@@ -103,11 +105,7 @@ function sortReservations(list: ReservationItem[]) {
 function parseLocalReservations(): ReservationItem[] {
   if (typeof window === "undefined") return [];
 
-  const possibleKeys = [
-    "reservations",
-    "gymup_reservations",
-    "ltb_reservations",
-  ];
+  const possibleKeys = ["reservations", "gymup_reservations", "ltb_reservations"];
 
   for (const key of possibleKeys) {
     try {
@@ -121,9 +119,7 @@ function parseLocalReservations(): ReservationItem[] {
         .map(normalizeReservation)
         .filter(Boolean) as ReservationItem[];
 
-      if (normalized.length > 0) {
-        return normalized;
-      }
+      if (normalized.length > 0) return normalized;
     } catch (error) {
       console.error(`localStorage parse error: ${key}`, error);
     }
@@ -154,18 +150,13 @@ export default function HomePage() {
         const supabase = getSupabaseClient();
 
         if (supabase) {
-          const [
-            reservationsResult,
-            customersResult,
-          ] = await Promise.all([
+          const [reservationsResult, customersResult] = await Promise.all([
             supabase
               .from("reservations")
               .select("id, date, start_time, customer_name, menu, staff_name, store_name")
               .eq("date", today)
               .order("start_time", { ascending: true }),
-            supabase
-              .from("customers")
-              .select("id", { count: "exact", head: true }),
+            supabase.from("customers").select("id", { count: "exact", head: true }),
           ]);
 
           if (reservationsResult.error) {
@@ -189,9 +180,7 @@ export default function HomePage() {
         }
 
         const localReservations = parseLocalReservations();
-        const todayLocal = sortReservations(
-          localReservations.filter((item) => item.date === today)
-        );
+        const todayLocal = sortReservations(localReservations.filter((item) => item.date === today));
         const display = todayLocal.slice(0, 6).map(toDisplayReservation);
 
         if (!mounted) return;
@@ -206,9 +195,7 @@ export default function HomePage() {
         try {
           const today = getTodayDateString();
           const localReservations = parseLocalReservations();
-          const todayLocal = sortReservations(
-            localReservations.filter((item) => item.date === today)
-          );
+          const todayLocal = sortReservations(localReservations.filter((item) => item.date === today));
           const display = todayLocal.slice(0, 6).map(toDisplayReservation);
 
           if (!mounted) return;
@@ -224,6 +211,7 @@ export default function HomePage() {
           console.error("fallback load error:", fallbackError);
 
           if (!mounted) return;
+
           setTodayReservations([]);
           setTodayCount(0);
           setLoadingReservations(false);
@@ -300,13 +288,19 @@ export default function HomePage() {
         .gymup-home__logo-wrap {
           display: flex;
           align-items: center;
-          min-height: 86px;
+          min-height: 110px;
+        }
+
+        .gymup-home__logo-box {
+          position: relative;
+          width: 420px;
+          max-width: 100%;
+          aspect-ratio: 1536 / 1024;
         }
 
         .gymup-home__logo {
-          width: auto;
-          height: 86px;
           object-fit: contain;
+          object-position: left center;
           filter: drop-shadow(0 12px 34px rgba(0,0,0,0.28));
         }
 
@@ -680,10 +674,12 @@ export default function HomePage() {
             min-height: auto;
           }
 
-          .gymup-home__logo {
-            height: auto;
+          .gymup-home__logo-box {
             width: min(88vw, 340px);
-            max-width: 100%;
+          }
+
+          .gymup-home__logo {
+            object-position: center;
           }
 
           .gymup-home__copy {
@@ -743,17 +739,17 @@ export default function HomePage() {
       <main className="gymup-home">
         <div className="gymup-home__container">
           <div className="gymup-home__grid">
-            {/* LEFT */}
             <div className="gymup-home__left">
               <div className="gymup-home__logo-wrap">
-                <Image
-                  src="/logo.png"
-                  alt="GYMUP"
-                  width={420}
-                  height={150}
-                  className="gymup-home__logo"
-                  priority
-                />
+                <div className="gymup-home__logo-box">
+                  <Image
+                    src="/logo.png"
+                    alt="GYMUP"
+                    fill
+                    className="gymup-home__logo"
+                    priority
+                  />
+                </div>
               </div>
 
               <div className="gymup-home__copy">
@@ -795,7 +791,6 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* RIGHT */}
             <div className="gymup-home__right">
               <div className="gymup-home__dashboard">
                 <div className="gymup-home__dashboard-top">
@@ -874,7 +869,7 @@ export default function HomePage() {
                         <div className="gymup-home__alerts">
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
-                            <span>ロゴ中心のシンプル構成</span>
+                            <span>ロゴ比率を保持して表示</span>
                           </div>
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
@@ -891,7 +886,6 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
-            {/* RIGHT END */}
           </div>
         </div>
       </main>
