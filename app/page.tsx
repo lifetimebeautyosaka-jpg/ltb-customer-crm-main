@@ -16,18 +16,15 @@ const menuItems = [
 export default function HomePage() {
   return (
     <main className="page">
+      <div className="bgMesh" />
+      <div className="orb orb1" />
+      <div className="orb orb2" />
 
       <div className="container">
 
         {/* ===== HEADER ===== */}
         <header className="header">
-          <div className="logoWrap">
-            <img src="/logo.png" className="logo" />
-            <div>
-              <div className="logoText shine">GYMUP</div>
-              <div className="logoSub">CRM PLATFORM</div>
-            </div>
-          </div>
+          <img src="/logo.png" className="logo" />
 
           <div className="actions">
             <Link href="/login" className="ghost">Login</Link>
@@ -38,93 +35,87 @@ export default function HomePage() {
         {/* ===== HERO ===== */}
         <section className="hero">
 
-          <div className="heroLeft">
-            <h1 className="title shineBig">
+          <div className="left">
+            <h1 className="title shine">
               GYMUP CRM
             </h1>
 
             <div className="goldLine" />
 
             <p className="desc">
-              Premium CRM for Personal Gym, Pilates & Stretch.
+              Premium CRM for Gym / Pilates / Stretch.
               <br />
-              Manage customers, reservations, sales and subscriptions
-              in one elegant platform.
+              Customers, reservations, sales and subscriptions
+              in one elegant system.
             </p>
 
             <div className="buttons">
-              <Link href="/reservation" className="btnPrimary">
+              <Link href="/reservation" className="primary">
                 Dashboard
               </Link>
-              <Link href="/login" className="btnGhost">
+              <Link href="/login" className="ghostBtn">
                 Member Login
               </Link>
             </div>
 
-            {/* KPI風 */}
+            {/* KPI */}
             <div className="stats">
-              <div className="stat">
+              <div>
                 <div className="statValue">268</div>
                 <div className="statLabel">Customers</div>
               </div>
-              <div className="stat">
+              <div>
                 <div className="statValue">124</div>
                 <div className="statLabel">Reservations</div>
               </div>
-              <div className="stat">
+              <div>
                 <div className="statValue">¥586k</div>
                 <div className="statLabel">Sales</div>
               </div>
             </div>
-
           </div>
 
-          {/* ===== 右側ダッシュボード ===== */}
-          <div className="heroRight">
-            <div className="dashboard">
+          {/* ===== RIGHT DASHBOARD ===== */}
+          <div className="right">
 
-              <div className="dashCard large">
-                <div className="shineOverlay" />
-                <h3>Optimize Your Gym</h3>
-                <p>All-in-one management UI</p>
-              </div>
-
-              <div className="dashRow">
-                <div className="dashCard small">Customers</div>
-                <div className="dashCard small">Reservations</div>
-                <div className="dashCard small">Sales</div>
-              </div>
-
-              <div className="dashCard chart">
-                Activity Graph
-              </div>
-
+            <div className="panel large shineCard">
+              <div className="panelTitle">Optimize Your Gym</div>
+              <div className="panelSub">All-in-one management UI</div>
             </div>
+
+            <div className="row">
+              <div className="panel small shineCard">Customers</div>
+              <div className="panel small shineCard">Reservations</div>
+              <div className="panel small shineCard">Sales</div>
+            </div>
+
+            <div className="panel chart shineCard">
+              Activity
+            </div>
+
           </div>
 
         </section>
 
-        {/* ===== MENU GRID ===== */}
+        {/* ===== MENU ===== */}
         <section className="menu">
-
           {menuItems.map((item) => (
-            <Link key={item.href} href={item.href} className="card">
-              <div className="cardSub">{item.sub}</div>
-              <div className="cardTitle shine">{item.title}</div>
+            <Link key={item.href} href={item.href} className="card shineCard">
+              <div className="sub">{item.sub}</div>
+              <div className="title2 shine">{item.title}</div>
             </Link>
           ))}
-
         </section>
 
       </div>
 
-      {/* ===== STYLE ===== */}
       <style jsx>{`
 
         .page {
           min-height: 100vh;
-          background: linear-gradient(180deg, #04060a, #0a0f18);
+          background: linear-gradient(180deg, #03050a, #0a0f18);
           color: white;
+          overflow: hidden;
         }
 
         .container {
@@ -133,31 +124,47 @@ export default function HomePage() {
           padding: 24px;
         }
 
-        /* ===== HEADER ===== */
+        /* 背景 */
+        .bgMesh {
+          position: absolute;
+          inset: 0;
+          background-size: 40px 40px;
+          opacity: 0.1;
+        }
+
+        .orb {
+          position: absolute;
+          width: 300px;
+          height: 300px;
+          border-radius: 50%;
+          filter: blur(60px);
+        }
+
+        .orb1 {
+          background: orange;
+          top: 100px;
+          left: -80px;
+          opacity: 0.15;
+        }
+
+        .orb2 {
+          background: blue;
+          right: -80px;
+          top: 60px;
+          opacity: 0.15;
+        }
+
+        /* HEADER */
         .header {
           display: flex;
           justify-content: space-between;
+          align-items: center;
           margin-bottom: 40px;
         }
 
-        .logoWrap {
-          display: flex;
-          gap: 10px;
-          align-items: center;
-        }
-
         .logo {
-          width: 36px;
-        }
-
-        .logoText {
-          font-size: 14px;
-          font-weight: 700;
-        }
-
-        .logoSub {
-          font-size: 10px;
-          opacity: 0.6;
+          width: 120px;
+          filter: drop-shadow(0 0 10px rgba(255,140,0,0.3));
         }
 
         .actions {
@@ -165,63 +172,58 @@ export default function HomePage() {
           gap: 10px;
         }
 
-        .ghost {
-          padding: 10px 14px;
-          border: 1px solid rgba(255,255,255,0.2);
-          border-radius: 999px;
-          text-decoration: none;
-        }
-
         .solid {
-          padding: 10px 14px;
-          border-radius: 999px;
           background: white;
           color: black;
-          text-decoration: none;
+          padding: 10px 16px;
+          border-radius: 999px;
         }
 
-        /* ===== HERO ===== */
+        .ghost {
+          border: 1px solid rgba(255,255,255,0.2);
+          padding: 10px 16px;
+          border-radius: 999px;
+        }
+
+        /* HERO */
         .hero {
           display: grid;
           gap: 40px;
         }
 
         .title {
-          font-size: clamp(36px, 6vw, 72px);
+          font-size: clamp(40px, 6vw, 72px);
           font-weight: 800;
-        }
-
-        .desc {
-          margin-top: 16px;
-          color: #cbd5e1;
         }
 
         .goldLine {
           width: 60px;
           height: 2px;
+          background: linear-gradient(90deg, gold, transparent);
           margin: 16px 0;
-          background: linear-gradient(90deg, #c9a96e, transparent);
+        }
+
+        .desc {
+          color: #cbd5e1;
         }
 
         .buttons {
+          margin-top: 20px;
           display: flex;
           gap: 10px;
-          margin-top: 20px;
         }
 
-        .btnPrimary {
+        .primary {
           background: white;
           color: black;
           padding: 12px 18px;
           border-radius: 999px;
-          text-decoration: none;
         }
 
-        .btnGhost {
+        .ghostBtn {
           border: 1px solid rgba(255,255,255,0.2);
           padding: 12px 18px;
           border-radius: 999px;
-          text-decoration: none;
         }
 
         /* KPI */
@@ -232,8 +234,8 @@ export default function HomePage() {
         }
 
         .statValue {
-          font-size: 20px;
           font-weight: bold;
+          font-size: 18px;
         }
 
         .statLabel {
@@ -241,38 +243,30 @@ export default function HomePage() {
           opacity: 0.6;
         }
 
-        /* ===== DASHBOARD ===== */
-        .dashboard {
+        /* RIGHT */
+        .right {
           display: grid;
           gap: 12px;
         }
 
-        .dashCard {
-          padding: 16px;
-          border-radius: 16px;
+        .panel {
           background: rgba(255,255,255,0.05);
           border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 16px;
+          padding: 16px;
         }
 
-        .large {
-          height: 120px;
-        }
+        .large { height: 120px; }
+        .small { height: 80px; }
+        .chart { height: 100px; }
 
-        .dashRow {
+        .row {
           display: grid;
-          grid-template-columns: repeat(3, 1fr);
+          grid-template-columns: repeat(3,1fr);
           gap: 10px;
         }
 
-        .small {
-          height: 80px;
-        }
-
-        .chart {
-          height: 100px;
-        }
-
-        /* ===== MENU ===== */
+        /* MENU */
         .menu {
           margin-top: 50px;
           display: grid;
@@ -284,55 +278,61 @@ export default function HomePage() {
           border-radius: 20px;
           background: rgba(255,255,255,0.05);
           border: 1px solid rgba(255,255,255,0.08);
-          text-decoration: none;
         }
 
-        .cardSub {
+        .sub {
           font-size: 12px;
           opacity: 0.6;
         }
 
-        .cardTitle {
+        .title2 {
           font-size: 22px;
           margin-top: 8px;
         }
 
-        /* ===== SHINE ===== */
+        /* キラッ */
         .shine {
           background: linear-gradient(90deg, #fff, #aaa, #fff);
           -webkit-background-clip: text;
           color: transparent;
-          animation: shine 3s linear infinite;
+          animation: shine 4s infinite;
         }
 
-        .shineBig {
-          background: linear-gradient(90deg, #fff, #aaa, #fff);
-          -webkit-background-clip: text;
-          color: transparent;
-          animation: shine 4s linear infinite;
+        .shineCard::after {
+          content: "";
+          position: absolute;
+          top: -100%;
+          left: -50%;
+          width: 40%;
+          height: 300%;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+          transform: rotate(25deg);
+          animation: shineMove 5s infinite;
         }
 
         @keyframes shine {
-          0% { background-position: -100%; }
-          100% { background-position: 200%; }
+          0% {background-position:-100%}
+          100% {background-position:200%}
         }
 
-        /* ===== PC ===== */
-        @media (min-width: 900px) {
+        @keyframes shineMove {
+          0% {left:-50%}
+          100% {left:150%}
+        }
 
+        /* PC */
+        @media(min-width:900px){
           .hero {
             grid-template-columns: 1fr 1fr;
             align-items: center;
           }
 
           .menu {
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(4,1fr);
           }
-
         }
 
       `}</style>
-
     </main>
   );
 }
