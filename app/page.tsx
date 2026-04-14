@@ -24,8 +24,17 @@ export default function HomePage() {
       <div className="container">
         <header className="topbar">
           <div className="brand">
-            <div className="brandLogo shineText">GYMUP CRM</div>
-            <div className="brandMeta">Premium Gym Management Platform</div>
+            <div className="brandRow">
+              <img
+                src="/logo.png"
+                alt="GYMUP Logo"
+                className="brandImage"
+              />
+              <div>
+                <div className="brandLogo shineText">GYMUP CRM</div>
+                <div className="brandMeta">Premium Gym Management Platform</div>
+              </div>
+            </div>
           </div>
 
           <div className="topActions">
@@ -262,19 +271,34 @@ export default function HomePage() {
           margin-bottom: 24px;
         }
 
+        .brandRow {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .brandImage {
+          width: 34px;
+          height: 34px;
+          object-fit: contain;
+          flex-shrink: 0;
+          filter: drop-shadow(0 0 10px rgba(255,255,255,0.08));
+        }
+
         .brandLogo {
-          font-size: 26px;
-          font-weight: 900;
-          letter-spacing: -0.05em;
+          font-size: 18px;
+          font-weight: 800;
+          letter-spacing: -0.04em;
           color: #f8fafc;
-          text-shadow: 0 0 22px rgba(255,255,255,0.08);
+          line-height: 1;
+          text-shadow: 0 0 18px rgba(255,255,255,0.08);
         }
 
         .brandMeta {
           margin-top: 4px;
-          font-size: 12px;
+          font-size: 10px;
           color: #94a3b8;
-          letter-spacing: 0.08em;
+          letter-spacing: 0.12em;
           text-transform: uppercase;
         }
 
@@ -849,8 +873,21 @@ export default function HomePage() {
             margin-bottom: 34px;
           }
 
+          .brandRow {
+            gap: 12px;
+          }
+
+          .brandImage {
+            width: 40px;
+            height: 40px;
+          }
+
           .brandLogo {
-            font-size: 30px;
+            font-size: 20px;
+          }
+
+          .brandMeta {
+            font-size: 10px;
           }
 
           .hero {
@@ -1044,7 +1081,7 @@ export default function HomePage() {
           }
 
           .menuGrid {
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(4, 1fr);
           }
         }
 
