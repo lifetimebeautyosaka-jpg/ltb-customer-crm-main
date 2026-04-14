@@ -1,39 +1,45 @@
 import Link from "next/link";
 
+const menuItems = [
+  { href: "/customer", title: "顧客管理" },
+  { href: "/reservation", title: "予約管理" },
+  { href: "/sales", title: "売上管理" },
+  { href: "/attendance", title: "出退勤管理" },
+  { href: "/training", title: "トレーニング" },
+  { href: "/accounting", title: "会計管理" },
+  { href: "/subscription", title: "オンライン入会" },
+  { href: "/account", title: "入会申請一覧" },
+  { href: "/mypage", title: "会員マイページ" },
+  { href: "/login", title: "会員ログイン" },
+];
+
 export default function HomePage() {
   return (
     <main style={pageStyle}>
-      <div style={gridStyle} />
-      <div style={topGlowStyle} />
-      <div style={leftGlowStyle} />
-      <div style={rightGlowStyle} />
-      <div style={sparkleOneStyle} />
-      <div style={sparkleTwoStyle} />
-      <div style={sparkleThreeStyle} />
+      <div style={gridBgStyle} />
+      <div style={glowTopStyle} />
+      <div style={glowBottomStyle} />
 
       <div style={containerStyle}>
-        <header style={headerStyle}>
-          <div style={logoWrapStyle}>
-            <img src="/gymup-logo.png" alt="GYMUP" style={logoImageStyle} />
-          </div>
-        </header>
+        <div style={logoWrapStyle}>
+          <div style={logoStyle}>GYMUP</div>
+        </div>
 
-        <section style={heroCardStyle}>
-          <div style={shineOverlayStyle} />
+        <section style={heroStyle}>
           <div style={heroInnerStyle}>
-            <div style={eyebrowStyle}>PREMIUM GYM &amp; PILATES MANAGEMENT SYSTEM</div>
+            <div style={heroLabelStyle}>PREMIUM GYM MANAGEMENT SYSTEM</div>
 
-            <h1 style={titleStyle}>
-              GYMUP CRM
-            </h1>
+            <h1 style={heroTitleStyle}>GYM UP</h1>
 
-            <p style={descStyle}>
-              パーソナルジム・ストレッチ・ピラティス運営を
+            <div style={goldLineStyle} />
+
+            <p style={heroTextStyle}>
+              パーソナルジム・ピラティス・ストレッチ運営を
               <br />
-              美しく一元管理するプレミアムCRM
+              上質なUIで一元管理するCRM
             </p>
 
-            <div style={buttonRowStyle}>
+            <div style={heroButtonWrapStyle}>
               <Link href="/reservation" style={primaryButtonStyle}>
                 管理画面へ
               </Link>
@@ -41,26 +47,17 @@ export default function HomePage() {
                 会員ログイン
               </Link>
             </div>
+          </div>
+        </section>
 
-            <div style={menuGridStyle}>
-              <Link href="/customer" style={menuCardStyle}>
-                <div style={menuLabelStyle}>CUSTOMER</div>
-                <div style={menuTitleStyle}>顧客管理</div>
-                <div style={menuDescStyle}>顧客情報・契約状況・履歴管理</div>
+        <section style={menuSectionStyle}>
+          <div style={menuGridStyle}>
+            {menuItems.map((item) => (
+              <Link key={item.href} href={item.href} style={menuCardStyle}>
+                <span style={menuTitleStyle}>{item.title}</span>
+                <span style={menuArrowStyle}>→</span>
               </Link>
-
-              <Link href="/reservation" style={menuCardStyle}>
-                <div style={menuLabelStyle}>RESERVATION</div>
-                <div style={menuTitleStyle}>予約管理</div>
-                <div style={menuDescStyle}>予約登録・確認・導線管理</div>
-              </Link>
-
-              <Link href="/sales" style={menuCardStyle}>
-                <div style={menuLabelStyle}>SALES</div>
-                <div style={menuTitleStyle}>売上管理</div>
-                <div style={menuDescStyle}>売上入力・集計・分析管理</div>
-              </Link>
-            </div>
+            ))}
           </div>
         </section>
       </div>
@@ -73,247 +70,181 @@ const pageStyle: React.CSSProperties = {
   position: "relative",
   overflow: "hidden",
   background:
-    "radial-gradient(circle at top, rgba(80,80,90,0.25) 0%, rgba(14,16,20,1) 38%), linear-gradient(135deg, #0b0d11 0%, #151922 42%, #0a0c10 100%)",
+    "radial-gradient(circle at top left, rgba(255,255,255,0.04) 0%, transparent 30%), linear-gradient(180deg, #05070b 0%, #0a0d14 45%, #05070b 100%)",
   fontFamily:
-    '-apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif',
+    '-apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif',
   color: "#ffffff",
 };
 
-const gridStyle: React.CSSProperties = {
+const gridBgStyle: React.CSSProperties = {
   position: "absolute",
   inset: 0,
   backgroundImage:
-    "linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px)",
-  backgroundSize: "32px 32px",
-  opacity: 0.55,
+    "linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)",
+  backgroundSize: "36px 36px",
+  opacity: 0.32,
   pointerEvents: "none",
 };
 
-const topGlowStyle: React.CSSProperties = {
+const glowTopStyle: React.CSSProperties = {
   position: "absolute",
-  top: "-120px",
-  left: "50%",
-  transform: "translateX(-50%)",
-  width: "720px",
-  height: "320px",
-  background: "radial-gradient(circle, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0) 72%)",
-  pointerEvents: "none",
-};
-
-const leftGlowStyle: React.CSSProperties = {
-  position: "absolute",
-  left: "-120px",
-  bottom: "80px",
-  width: "340px",
-  height: "340px",
+  top: 120,
+  left: -80,
+  width: 220,
+  height: 220,
   borderRadius: "999px",
-  background: "radial-gradient(circle, rgba(255,168,76,0.16) 0%, rgba(255,168,76,0) 72%)",
-  filter: "blur(10px)",
+  background: "radial-gradient(circle, rgba(255,255,255,0.08), rgba(255,255,255,0))",
+  filter: "blur(24px)",
   pointerEvents: "none",
 };
 
-const rightGlowStyle: React.CSSProperties = {
+const glowBottomStyle: React.CSSProperties = {
   position: "absolute",
-  right: "-100px",
-  top: "160px",
-  width: "320px",
-  height: "320px",
+  right: -100,
+  bottom: 140,
+  width: 240,
+  height: 240,
   borderRadius: "999px",
-  background: "radial-gradient(circle, rgba(122,138,255,0.12) 0%, rgba(122,138,255,0) 70%)",
-  filter: "blur(14px)",
+  background: "radial-gradient(circle, rgba(255,255,255,0.06), rgba(255,255,255,0))",
+  filter: "blur(28px)",
   pointerEvents: "none",
-};
-
-const sparkleBase: React.CSSProperties = {
-  position: "absolute",
-  width: "10px",
-  height: "10px",
-  borderRadius: "999px",
-  background: "#ffffff",
-  boxShadow: "0 0 18px rgba(255,255,255,0.9), 0 0 36px rgba(255,255,255,0.55)",
-  pointerEvents: "none",
-};
-
-const sparkleOneStyle: React.CSSProperties = {
-  ...sparkleBase,
-  top: "110px",
-  right: "22%",
-};
-
-const sparkleTwoStyle: React.CSSProperties = {
-  ...sparkleBase,
-  top: "280px",
-  left: "14%",
-  width: "7px",
-  height: "7px",
-};
-
-const sparkleThreeStyle: React.CSSProperties = {
-  ...sparkleBase,
-  bottom: "180px",
-  right: "12%",
-  width: "8px",
-  height: "8px",
 };
 
 const containerStyle: React.CSSProperties = {
   position: "relative",
-  zIndex: 2,
-  maxWidth: "1180px",
+  zIndex: 1,
+  maxWidth: 460,
   margin: "0 auto",
-  padding: "34px 18px 70px",
-};
-
-const headerStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  marginBottom: "28px",
+  padding: "42px 18px 56px",
 };
 
 const logoWrapStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
+  marginBottom: 34,
 };
 
-const logoImageStyle: React.CSSProperties = {
-  width: "160px",
-  height: "auto",
-  display: "block",
-  objectFit: "contain",
-  filter: "drop-shadow(0 6px 20px rgba(0,0,0,0.35))",
+const logoStyle: React.CSSProperties = {
+  fontSize: 24,
+  fontWeight: 900,
+  letterSpacing: "-0.03em",
+  color: "#f8fafc",
+  textShadow: "0 0 22px rgba(255,255,255,0.08)",
 };
 
-const heroCardStyle: React.CSSProperties = {
-  position: "relative",
-  borderRadius: "34px",
-  overflow: "hidden",
-  background: "linear-gradient(180deg, rgba(25,28,38,0.82) 0%, rgba(19,21,29,0.9) 100%)",
-  border: "1px solid rgba(255,255,255,0.1)",
-  boxShadow:
-    "0 24px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.08)",
-  backdropFilter: "blur(22px)",
-  WebkitBackdropFilter: "blur(22px)",
-};
-
-const shineOverlayStyle: React.CSSProperties = {
-  position: "absolute",
-  top: "-120px",
-  left: "-120px",
-  width: "420px",
-  height: "420px",
-  background:
-    "radial-gradient(circle, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.02) 28%, rgba(255,255,255,0) 72%)",
-  pointerEvents: "none",
+const heroStyle: React.CSSProperties = {
+  marginBottom: 28,
 };
 
 const heroInnerStyle: React.CSSProperties = {
-  position: "relative",
-  zIndex: 1,
-  padding: "34px 22px 26px",
+  padding: "10px 0 6px",
 };
 
-const eyebrowStyle: React.CSSProperties = {
-  color: "rgba(255,255,255,0.62)",
-  fontSize: "11px",
-  letterSpacing: "0.24em",
-  fontWeight: 600,
-  marginBottom: "18px",
+const heroLabelStyle: React.CSSProperties = {
+  fontSize: 11,
+  letterSpacing: "0.22em",
+  color: "#9ca3af",
+  marginBottom: 24,
 };
 
-const titleStyle: React.CSSProperties = {
+const heroTitleStyle: React.CSSProperties = {
   margin: 0,
-  fontSize: "clamp(44px, 12vw, 88px)",
+  fontSize: "clamp(54px, 17vw, 86px)",
   lineHeight: 0.95,
-  letterSpacing: "-0.06em",
   fontWeight: 900,
-  color: "#ffffff",
-  textShadow: "0 0 18px rgba(255,255,255,0.18)",
+  letterSpacing: "-0.07em",
+  color: "#f8fafc",
+  textShadow: "0 0 26px rgba(255,255,255,0.10)",
 };
 
-const descStyle: React.CSSProperties = {
-  marginTop: "26px",
+const goldLineStyle: React.CSSProperties = {
+  width: 112,
+  height: 4,
+  borderRadius: 999,
+  marginTop: 28,
+  background: "linear-gradient(90deg, #d6b25e 0%, #f0d88e 100%)",
+  boxShadow: "0 0 14px rgba(214,178,94,0.28)",
+};
+
+const heroTextStyle: React.CSSProperties = {
+  marginTop: 28,
   marginBottom: 0,
-  color: "rgba(255,255,255,0.82)",
-  fontSize: "clamp(16px, 2.9vw, 20px)",
-  lineHeight: 1.85,
-  fontWeight: 400,
+  color: "#d1d5db",
+  fontSize: 15,
+  lineHeight: 1.95,
+  fontWeight: 500,
 };
 
-const buttonRowStyle: React.CSSProperties = {
+const heroButtonWrapStyle: React.CSSProperties = {
   display: "flex",
+  gap: 10,
   flexWrap: "wrap",
-  gap: "12px",
-  marginTop: "30px",
+  marginTop: 24,
 };
 
 const primaryButtonStyle: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  minWidth: "170px",
-  padding: "14px 22px",
-  borderRadius: "999px",
-  background: "linear-gradient(180deg, #ffffff 0%, #d9d9de 100%)",
-  color: "#111318",
+  minWidth: 150,
+  padding: "14px 18px",
+  borderRadius: 999,
   textDecoration: "none",
-  fontSize: "15px",
+  background: "#f3f4f6",
+  color: "#111827",
   fontWeight: 800,
-  boxShadow: "0 10px 26px rgba(255,255,255,0.16)",
+  fontSize: 14,
+  boxShadow: "0 10px 24px rgba(255,255,255,0.08)",
 };
 
 const secondaryButtonStyle: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  minWidth: "170px",
-  padding: "14px 22px",
-  borderRadius: "999px",
-  background: "rgba(255,255,255,0.06)",
-  color: "#ffffff",
+  minWidth: 150,
+  padding: "14px 18px",
+  borderRadius: 999,
   textDecoration: "none",
-  fontSize: "15px",
+  background: "rgba(255,255,255,0.05)",
+  color: "#f9fafb",
   fontWeight: 800,
-  border: "1px solid rgba(255,255,255,0.12)",
-  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)",
+  fontSize: 14,
+  border: "1px solid rgba(255,255,255,0.10)",
+};
+
+const menuSectionStyle: React.CSSProperties = {
+  marginTop: 8,
 };
 
 const menuGridStyle: React.CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-  gap: "14px",
-  marginTop: "34px",
+  gap: 16,
 };
 
 const menuCardStyle: React.CSSProperties = {
-  display: "block",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
   textDecoration: "none",
   color: "#ffffff",
-  borderRadius: "24px",
-  padding: "18px 16px 20px",
-  minHeight: "174px",
-  background: "linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.03) 100%)",
-  border: "1px solid rgba(255,255,255,0.09)",
-  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
-};
-
-const menuLabelStyle: React.CSSProperties = {
-  fontSize: "11px",
-  letterSpacing: "0.16em",
-  color: "rgba(255,255,255,0.45)",
-  fontWeight: 700,
+  borderRadius: 28,
+  minHeight: 112,
+  padding: "0 22px",
+  background:
+    "linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.035) 100%)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  boxShadow: "0 16px 36px rgba(0,0,0,0.30)",
+  backdropFilter: "blur(14px)",
+  WebkitBackdropFilter: "blur(14px)",
 };
 
 const menuTitleStyle: React.CSSProperties = {
-  marginTop: "14px",
-  fontSize: "clamp(24px, 5.5vw, 38px)",
-  lineHeight: 1.2,
-  fontWeight: 900,
-  letterSpacing: "-0.04em",
+  fontSize: 22,
+  fontWeight: 800,
+  letterSpacing: "-0.03em",
+  color: "#f8fafc",
 };
 
-const menuDescStyle: React.CSSProperties = {
-  marginTop: "12px",
-  color: "rgba(255,255,255,0.6)",
-  fontSize: "13px",
-  lineHeight: 1.7,
+const menuArrowStyle: React.CSSProperties = {
+  fontSize: 18,
+  color: "#6b7280",
+  flexShrink: 0,
 };
