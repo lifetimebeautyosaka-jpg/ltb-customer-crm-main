@@ -7,10 +7,10 @@ const menuItems = [
   { href: "/reservation", title: "予約管理", sub: "Reservation Management" },
   { href: "/sales", title: "売上管理", sub: "Sales Management" },
   { href: "/attendance", title: "出退勤管理", sub: "Attendance Management" },
-  { href: "/training", title: "トレーニング", sub: "Training" },
-  { href: "/accounting", title: "会計管理", sub: "Accounting" },
+  { href: "/training", title: "トレーニング", sub: "Training Management" },
+  { href: "/accounting", title: "会計管理", sub: "Accounting Management" },
   { href: "/subscription", title: "オンライン入会", sub: "Online Enrollment" },
-  { href: "/account", title: "入会申請一覧", sub: "Applications" },
+  { href: "/account", title: "入会申請一覧", sub: "Application List" },
 ];
 
 export default function HomePage() {
@@ -24,8 +24,8 @@ export default function HomePage() {
       <div className="container">
         <header className="topbar">
           <div className="brand">
-            <div className="brandLogo">GYMUP</div>
-            <div className="brandMeta">Premium Gym Management System</div>
+            <div className="brandLogo shineText">GYMUP CRM</div>
+            <div className="brandMeta">Premium Gym Management Platform</div>
           </div>
 
           <div className="topActions">
@@ -42,16 +42,16 @@ export default function HomePage() {
           <div className="heroLeft">
             <div className="eyebrow">PREMIUM CRM FOR GYM / PILATES / STRETCH</div>
 
-            <h1 className="title">
+            <h1 className="title shineTextLarge">
               GYMUP
               <br />
               CRM
             </h1>
 
             <p className="desc">
-              パーソナルジム・ピラティス・ストレッチ運営を、
+              Personal Gym・Pilates・Stretch management
               <br className="pcOnly" />
-              上質なUIで美しく一元管理するプレミアムCRM。
+              in one elegant premium CRM platform.
             </p>
 
             <div className="heroButtons">
@@ -64,16 +64,16 @@ export default function HomePage() {
             </div>
 
             <div className="stats">
-              <div className="statCard">
+              <div className="statCard shinyCard">
                 <div className="statLabel">Core</div>
-                <div className="statValue">予約・顧客</div>
-                <div className="statSub">日々の運営をひとつに集約</div>
+                <div className="statValue">Customers / Reservations</div>
+                <div className="statSub">運営に必要な管理をひとつに集約</div>
               </div>
 
-              <div className="statCard">
+              <div className="statCard shinyCard">
                 <div className="statLabel">Subscription</div>
-                <div className="statValue">サブスク管理</div>
-                <div className="statSub">継続・残回数・入会導線</div>
+                <div className="statValue">Membership Control</div>
+                <div className="statSub">継続・残回数・入会導線を管理</div>
               </div>
             </div>
           </div>
@@ -91,7 +91,7 @@ export default function HomePage() {
               <div className="dashboardMain">
                 <div className="dashHeader">
                   <div>
-                    <div className="dashTitle">GYMUP Dashboard</div>
+                    <div className="dashTitle shineText">GYMUP Dashboard</div>
                     <div className="dashSub">Elegant operation overview</div>
                   </div>
                   <div className="dashActions">
@@ -102,40 +102,40 @@ export default function HomePage() {
                 </div>
 
                 <div className="dashHero">
-                  <div className="dashHeroText">
+                  <div className="dashHeroText shinyCard">
                     <div className="dashMini">Management Overview</div>
-                    <h3>Optimize Your Gym Operations</h3>
+                    <h3 className="shineText">Optimize Your Gym Operations</h3>
                     <p>予約・売上・会員・継続状況を上質なUIで管理</p>
                     <Link href="/reservation" className="miniBtn">
                       Open Dashboard
                     </Link>
                   </div>
 
-                  <div className="dashGlowCard">
+                  <div className="dashGlowCard shinyCard">
                     <div className="glowFigure" />
                   </div>
                 </div>
 
                 <div className="metricGrid">
-                  <div className="metricCard orange">
+                  <div className="metricCard orange shinyCard">
                     <div className="metricLabel">Customers</div>
-                    <div className="metricValue">268</div>
+                    <div className="metricValue shineText">268</div>
                     <div className="metricSub">active members</div>
                   </div>
-                  <div className="metricCard blue">
+                  <div className="metricCard blue shinyCard">
                     <div className="metricLabel">Reservations</div>
-                    <div className="metricValue">124</div>
+                    <div className="metricValue shineText">124</div>
                     <div className="metricSub">this month</div>
                   </div>
-                  <div className="metricCard dark">
+                  <div className="metricCard dark shinyCard">
                     <div className="metricLabel">Sales</div>
-                    <div className="metricValue">¥586k</div>
+                    <div className="metricValue shineText">¥586k</div>
                     <div className="metricSub">monthly total</div>
                   </div>
                 </div>
 
                 <div className="bottomPanels">
-                  <div className="chartPanel">
+                  <div className="chartPanel shinyCard">
                     <div className="panelTitle">Activity</div>
                     <div className="fakeChart">
                       <span className="line line1" />
@@ -143,7 +143,7 @@ export default function HomePage() {
                     </div>
                   </div>
 
-                  <div className="infoPanel">
+                  <div className="infoPanel shinyCard">
                     <div className="panelTitle">Status</div>
                     <div className="infoRows">
                       <div className="infoRow">
@@ -170,16 +170,16 @@ export default function HomePage() {
           <div className="sectionHead">
             <div>
               <div className="sectionLabel">MAIN MENU</div>
-              <h2>管理メニュー</h2>
+              <h2 className="sectionTitle shineText">Management Menu</h2>
             </div>
           </div>
 
           <div className="menuGrid">
             {menuItems.map((item) => (
-              <Link key={item.href} href={item.href} className="menuCard">
+              <Link key={item.href} href={item.href} className="menuCard shinyCard">
                 <div className="menuSub">{item.sub}</div>
                 <div className="menuRow">
-                  <div className="menuTitle">{item.title}</div>
+                  <div className="menuTitle shineText">{item.title}</div>
                   <div className="menuArrow">→</div>
                 </div>
               </Link>
@@ -699,7 +699,7 @@ export default function HomePage() {
           margin-bottom: 8px;
         }
 
-        .sectionHead h2 {
+        .sectionTitle {
           margin: 0;
           font-size: 26px;
           font-weight: 800;
@@ -754,8 +754,86 @@ export default function HomePage() {
           flex-shrink: 0;
         }
 
+        .shineText,
+        .shineTextLarge {
+          position: relative;
+          display: inline-block;
+          background-image: linear-gradient(
+            110deg,
+            rgba(255,255,255,0.88) 0%,
+            rgba(255,255,255,0.88) 42%,
+            rgba(255,255,255,1) 48%,
+            rgba(255,255,255,0.88) 54%,
+            rgba(255,255,255,0.88) 100%
+          );
+          background-size: 220% auto;
+          background-position: -140% center;
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          animation: textShine 4.8s linear infinite;
+        }
+
+        .shineTextLarge {
+          animation-duration: 5.5s;
+        }
+
+        .shinyCard {
+          position: relative;
+          overflow: hidden;
+        }
+
+        .shinyCard::after {
+          content: "";
+          position: absolute;
+          top: -120%;
+          left: -60%;
+          width: 42%;
+          height: 320%;
+          transform: rotate(22deg);
+          background: linear-gradient(
+            90deg,
+            rgba(255,255,255,0) 0%,
+            rgba(255,255,255,0.04) 35%,
+            rgba(255,255,255,0.18) 50%,
+            rgba(255,255,255,0.04) 65%,
+            rgba(255,255,255,0) 100%
+          );
+          animation: cardShine 5.8s ease-in-out infinite;
+          pointer-events: none;
+        }
+
         .pcOnly {
           display: none;
+        }
+
+        @keyframes textShine {
+          0% {
+            background-position: -160% center;
+          }
+          100% {
+            background-position: 220% center;
+          }
+        }
+
+        @keyframes cardShine {
+          0% {
+            left: -70%;
+            opacity: 0;
+          }
+          10% {
+            opacity: 0.35;
+          }
+          35% {
+            opacity: 0.75;
+          }
+          55% {
+            opacity: 0.2;
+          }
+          100% {
+            left: 150%;
+            opacity: 0;
+          }
         }
 
         @media (min-width: 900px) {
@@ -925,11 +1003,7 @@ export default function HomePage() {
             margin-top: 42px;
           }
 
-          .sectionHead {
-            margin-bottom: 18px;
-          }
-
-          .sectionHead h2 {
+          .sectionTitle {
             font-size: 32px;
           }
 
@@ -971,6 +1045,14 @@ export default function HomePage() {
 
           .menuGrid {
             grid-template-columns: repeat(4, minmax(0, 1fr));
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .shineText,
+          .shineTextLarge,
+          .shinyCard::after {
+            animation: none;
           }
         }
       `}</style>
