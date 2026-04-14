@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 
 const menuItems = [
@@ -192,8 +194,8 @@ export default function HomePage() {
           position: relative;
           overflow: hidden;
           background:
-            radial-gradient(circle at 20% 15%, rgba(68, 100, 255, 0.08), transparent 24%),
-            radial-gradient(circle at 78% 18%, rgba(255, 120, 40, 0.08), transparent 24%),
+            radial-gradient(circle at 20% 15%, rgba(68, 100, 255, 0.08) 0%, transparent 24%),
+            radial-gradient(circle at 78% 18%, rgba(255, 120, 40, 0.08) 0%, transparent 24%),
             linear-gradient(180deg, #04060a 0%, #0a0f18 52%, #05070b 100%);
           color: #f8fafc;
           font-family:
