@@ -1121,18 +1121,18 @@ export default function ReservationPage() {
           </div>
 
           <div style={styles.legendBoxStore}>
-            {["江戸堀", "箕面", "福島", "福島P", "天満橋", "中崎町"].map((name) => (
-              <div key={name} style={styles.legendItem}>
-                <span
-                  style={{
-                    ...styles.legendDot,
-                    background: getStoreColor(name),
-                  }}
-                />
-                {name}
-              </div>
-            ))}
-          </div>
+  {["江戸堀", "箕面", "福島", "福島P", "天満橋", "中崎町", "江坂"].map((name) => (
+    <div key={name} style={styles.legendItem}>
+      <span
+        style={{
+          ...styles.legendDot,
+          background: getStoreColor(name),
+        }}
+      />
+      {name}
+    </div>
+  ))}
+</div>
         </section>
 
         {error ? <div style={styles.errorBox}>{error}</div> : null}
