@@ -20,7 +20,10 @@ type DisplayReservation = {
   name: string;
   menu: string;
   staff: string;
+  store: string;
 };
+
+type SystemStatus = "ONLINE" | "FALLBACK" | "OFFLINE";
 
 const quickLinks = [
   { title: "顧客管理", href: "/customer", desc: "会員情報・履歴・進捗管理" },
@@ -34,8 +37,15 @@ const quickLinks = [
 function getSupabaseClient(): SupabaseClient | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
   if (!url || !anonKey) return null;
-  return createClient(url, anonKey);
+
+  try {
+    return createClient(url, anonKey);
+  } catch (error) {
+    console.error("Supabase client create error:", error);
+    return null;
+  }
 }
 
 function getTodayDateString() {
@@ -62,12 +72,14 @@ function normalizeReservation(raw: any): ReservationItem | null {
     raw.id ??
       `${raw.date ?? ""}-${raw.start_time ?? raw.startTime ?? ""}-${raw.customer_name ?? raw.customerName ?? raw.name ?? ""}`
   );
-  const date = String(raw.date ?? "");
-  const startTime = String(raw.start_time ?? raw.startTime ?? "");
-  const customerName = String(raw.customer_name ?? raw.customerName ?? raw.name ?? "");
-  const menu = String(raw.menu ?? raw.menu_name ?? raw.course ?? "予約メニュー");
-  const staffName = String(raw.staff_name ?? raw.staffName ?? "担当未設定");
-  const storeName = String(raw.store_name ?? raw.storeName ?? "");
+  const date = String(raw.date ?? "").trim();
+  const startTime = String(raw.start_time ?? raw.startTime ?? "").trim();
+  const customerName = String(
+    raw.customer_name ?? raw.customerName ?? raw.name ?? ""
+  ).trim();
+  const menu = String(raw.menu ?? raw.menu_name ?? raw.course ?? "予約メニュー").trim();
+  const staffName = String(raw.staff_name ?? raw.staffName ?? "担当未設定").trim();
+  const storeName = String(raw.store_name ?? raw.storeName ?? "").trim();
 
   if (!date || !startTime || !customerName) return null;
 
@@ -89,6 +101,7 @@ function toDisplayReservation(item: ReservationItem): DisplayReservation {
     name: item.customer_name || "名前未設定",
     menu: item.menu || "予約メニュー",
     staff: item.staff_name || "担当未設定",
+    store: item.store_name || "",
   };
 }
 
@@ -104,6 +117,7 @@ function parseLocalReservations(): ReservationItem[] {
   if (typeof window === "undefined") return [];
 
   const possibleKeys = ["reservations", "gymup_reservations", "ltb_reservations"];
+  const merged: ReservationItem[] = [];
 
   for (const key of possibleKeys) {
     try {
@@ -117,18 +131,31 @@ function parseLocalReservations(): ReservationItem[] {
         .map(normalizeReservation)
         .filter(Boolean) as ReservationItem[];
 
-      if (normalized.length > 0) return normalized;
+      merged.push(...normalized);
     } catch (error) {
       console.error(`localStorage parse error: ${key}`, error);
     }
   }
 
-  return [];
-}
+  const uniqueMap = new Map<string, ReservationItem>();
 
-// アップしてくれたロゴをそのまま埋め込み
-const logoBase64 =
-  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABgAAAAQACAYAAAAncZJCAAAAtGVYSWZJSSoACAAAAAYAEgEDAAEAAAABAAAAGgEFAAEAAABWAAAAGwEFAAEAAABeAAAAKAEDAAEAAAACAAAAMQEC...";
+  for (const item of merged) {
+    const uniqueKey = [
+      item.date,
+      item.start_time,
+      item.customer_name,
+      item.menu || "",
+      item.staff_name || "",
+      item.store_name || "",
+    ].join("::");
+
+    if (!uniqueMap.has(uniqueKey)) {
+      uniqueMap.set(uniqueKey, item);
+    }
+  }
+
+  return Array.from(uniqueMap.values());
+}
 
 export default function HomePage() {
   const [todayReservations, setTodayReservations] = useState<DisplayReservation[]>([]);
@@ -136,6 +163,7 @@ export default function HomePage() {
   const [reservationError, setReservationError] = useState("");
   const [activeMembers, setActiveMembers] = useState<number | null>(null);
   const [todayCount, setTodayCount] = useState<number>(0);
+  const [systemStatus, setSystemStatus] = useState<SystemStatus>("OFFLINE");
 
   const todayLabel = useMemo(() => formatTodayLabel(), []);
 
@@ -176,13 +204,16 @@ export default function HomePage() {
 
           setTodayReservations(display);
           setTodayCount(sorted.length);
-          setActiveMembers(customersResult.count ?? null);
+          setActiveMembers(customersResult.count ?? 0);
+          setSystemStatus("ONLINE");
           setLoadingReservations(false);
           return;
         }
 
         const localReservations = parseLocalReservations();
-        const todayLocal = sortReservations(localReservations.filter((item) => item.date === today));
+        const todayLocal = sortReservations(
+          localReservations.filter((item) => item.date === today)
+        );
         const display = todayLocal.slice(0, 6).map(toDisplayReservation);
 
         if (!mounted) return;
@@ -190,6 +221,7 @@ export default function HomePage() {
         setTodayReservations(display);
         setTodayCount(todayLocal.length);
         setActiveMembers(null);
+        setSystemStatus(todayLocal.length > 0 ? "FALLBACK" : "OFFLINE");
         setLoadingReservations(false);
       } catch (error) {
         console.error("TOP data load error:", error);
@@ -197,13 +229,17 @@ export default function HomePage() {
         try {
           const today = getTodayDateString();
           const localReservations = parseLocalReservations();
-          const todayLocal = sortReservations(localReservations.filter((item) => item.date === today));
+          const todayLocal = sortReservations(
+            localReservations.filter((item) => item.date === today)
+          );
           const display = todayLocal.slice(0, 6).map(toDisplayReservation);
 
           if (!mounted) return;
 
           setTodayReservations(display);
           setTodayCount(todayLocal.length);
+          setActiveMembers(null);
+          setSystemStatus(todayLocal.length > 0 ? "FALLBACK" : "OFFLINE");
           setLoadingReservations(false);
 
           if (todayLocal.length === 0) {
@@ -216,6 +252,8 @@ export default function HomePage() {
 
           setTodayReservations([]);
           setTodayCount(0);
+          setActiveMembers(null);
+          setSystemStatus("OFFLINE");
           setLoadingReservations(false);
           setReservationError("予約データの取得に失敗しました");
         }
@@ -229,6 +267,13 @@ export default function HomePage() {
     };
   }, []);
 
+  const statusLabel =
+    systemStatus === "ONLINE"
+      ? "Online"
+      : systemStatus === "FALLBACK"
+      ? "Fallback"
+      : "Offline";
+
   const statCards = [
     {
       label: "Today Reservations",
@@ -240,7 +285,7 @@ export default function HomePage() {
     },
     {
       label: "System Status",
-      value: "Online",
+      value: statusLabel,
     },
   ];
 
@@ -751,7 +796,7 @@ export default function HomePage() {
             <div className="gymup-home__left">
               <div className="gymup-home__logo-wrap">
                 <div className="gymup-home__logo-box">
-                  <img src={logoBase64} alt="GYMUP" className="gymup-home__logo" />
+                  <img src="/logo.png" alt="GYMUP" className="gymup-home__logo" />
                 </div>
               </div>
 
@@ -833,6 +878,7 @@ export default function HomePage() {
                                 <div className="gymup-home__schedule-name">{item.name}</div>
                                 <div className="gymup-home__schedule-sub">
                                   {item.menu} / {item.staff}
+                                  {item.store ? ` / ${item.store}` : ""}
                                 </div>
                               </div>
                             </div>
@@ -870,7 +916,7 @@ export default function HomePage() {
                         <div className="gymup-home__alerts">
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
-                            <span>ロゴは埋め込み済みで崩れません</span>
+                            <span>ロゴは /public/logo.png を表示</span>
                           </div>
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
