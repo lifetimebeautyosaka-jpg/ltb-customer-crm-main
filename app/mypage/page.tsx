@@ -132,7 +132,7 @@ export default function MyPage() {
   }, []);
 
   const reminderText = useMemo(() => {
-    if (!nextReservation) return "現在、予約は入っていません。";
+    if (!nextReservation) return "現在、予約は入っておりません。";
     return `${formatJapaneseDate(nextReservation.date)} ${nextReservation.startTime}〜 のご予約があります。`;
   }, [nextReservation]);
 
@@ -142,19 +142,18 @@ export default function MyPage() {
     <main
       style={{
         minHeight: "100vh",
-        background:
-          "linear-gradient(180deg, #f8fafc 0%, #eef2ff 55%, #f8fafc 100%)",
-        padding: "20px 14px 48px",
+        background: "#f5f7fb",
+        padding: "22px 14px 48px",
       }}
     >
-      <div style={{ maxWidth: 760, margin: "0 auto" }}>
+      <div style={{ maxWidth: 780, margin: "0 auto" }}>
         <section
           style={{
-            background: "rgba(255,255,255,0.82)",
-            border: "1px solid rgba(255,255,255,0.95)",
-            borderRadius: 24,
-            padding: 22,
-            boxShadow: "0 12px 30px rgba(15,23,42,0.06)",
+            background: "#ffffff",
+            border: "1px solid #e5e7eb",
+            borderRadius: 28,
+            padding: 24,
+            boxShadow: "0 10px 26px rgba(15,23,42,0.05)",
             marginBottom: 16,
           }}
         >
@@ -162,9 +161,9 @@ export default function MyPage() {
             style={{
               fontSize: 12,
               fontWeight: 800,
-              letterSpacing: "0.12em",
-              color: "#94a3b8",
-              marginBottom: 8,
+              letterSpacing: "0.14em",
+              color: "#9ca3af",
+              marginBottom: 10,
             }}
           >
             MY PAGE
@@ -173,10 +172,11 @@ export default function MyPage() {
           <h1
             style={{
               margin: 0,
-              fontSize: 28,
+              fontSize: 34,
               fontWeight: 900,
-              color: "#0f172a",
-              lineHeight: 1.3,
+              color: "#111827",
+              lineHeight: 1.25,
+              letterSpacing: "-0.03em",
             }}
           >
             {customerName}様のマイページ
@@ -184,11 +184,11 @@ export default function MyPage() {
 
           <p
             style={{
-              marginTop: 10,
+              marginTop: 12,
               marginBottom: 0,
-              color: "#64748b",
-              fontSize: 14,
-              lineHeight: 1.8,
+              color: "#6b7280",
+              fontSize: 15,
+              lineHeight: 1.9,
             }}
           >
             サブスク状況、次回予約、おすすめ商品をまとめて確認できます。
@@ -197,24 +197,37 @@ export default function MyPage() {
 
         <section
           style={{
-            background: "#111827",
-            color: "#fff",
-            borderRadius: 22,
-            padding: 20,
+            background: "linear-gradient(180deg, #111827 0%, #0f172a 100%)",
+            color: "#ffffff",
+            borderRadius: 28,
+            padding: 22,
             boxShadow: "0 16px 36px rgba(15,23,42,0.14)",
             marginBottom: 16,
+            border: "1px solid #1f2937",
           }}
         >
           <div
             style={{
               fontSize: 12,
               fontWeight: 800,
-              letterSpacing: "0.12em",
-              color: "rgba(255,255,255,0.58)",
-              marginBottom: 10,
+              letterSpacing: "0.14em",
+              color: "rgba(255,255,255,0.56)",
+              marginBottom: 12,
             }}
           >
             SUBSCRIPTION
+          </div>
+
+          <div
+            style={{
+              fontSize: 28,
+              fontWeight: 900,
+              lineHeight: 1.25,
+              marginBottom: 14,
+              letterSpacing: "-0.03em",
+            }}
+          >
+            サブスクリプション
           </div>
 
           <div
@@ -227,7 +240,7 @@ export default function MyPage() {
             <StatusCardDark label="現在のプラン" value={subscription.planName} />
             <StatusCardDark label="契約状況" value={subscription.status} />
             <StatusCardDark
-              label="残り回数"
+              label="残りの回数"
               value={`${subscription.remainingCount}回`}
               accent="#f59e0b"
             />
@@ -239,27 +252,26 @@ export default function MyPage() {
 
           <div
             style={{
-              display: "flex",
-              gap: 10,
-              flexWrap: "wrap",
+              display: "grid",
+              gap: 12,
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
               marginTop: 16,
             }}
           >
             <Link
               href="/subscription"
               style={{
-                flex: 1,
-                minWidth: 180,
-                minHeight: 46,
+                minHeight: 52,
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
                 textDecoration: "none",
-                borderRadius: 14,
-                background: "linear-gradient(135deg, #f59e0b, #d97706)",
+                borderRadius: 16,
+                background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
                 color: "#111827",
-                fontWeight: 800,
-                fontSize: 14,
+                fontWeight: 900,
+                fontSize: 15,
+                boxShadow: "0 10px 22px rgba(245,158,11,0.22)",
               }}
             >
               サブスク申込・確認
@@ -268,19 +280,17 @@ export default function MyPage() {
             <Link
               href="/customer"
               style={{
-                flex: 1,
-                minWidth: 180,
-                minHeight: 46,
+                minHeight: 52,
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
                 textDecoration: "none",
-                borderRadius: 14,
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(255,255,255,0.06)",
-                color: "#fff",
+                borderRadius: 16,
+                background: "#1f2937",
+                color: "#ffffff",
                 fontWeight: 700,
-                fontSize: 14,
+                fontSize: 15,
+                border: "1px solid #374151",
               }}
             >
               契約内容を見る
@@ -290,11 +300,11 @@ export default function MyPage() {
 
         <section
           style={{
-            background: "rgba(255,255,255,0.88)",
-            border: "1px solid rgba(255,255,255,0.95)",
-            borderRadius: 22,
-            padding: 20,
-            boxShadow: "0 10px 28px rgba(15,23,42,0.05)",
+            background: "#ffffff",
+            border: "1px solid #e5e7eb",
+            borderRadius: 28,
+            padding: 22,
+            boxShadow: "0 10px 26px rgba(15,23,42,0.05)",
             marginBottom: 16,
           }}
         >
@@ -302,9 +312,9 @@ export default function MyPage() {
             style={{
               fontSize: 12,
               fontWeight: 800,
-              letterSpacing: "0.12em",
-              color: "#94a3b8",
-              marginBottom: 10,
+              letterSpacing: "0.14em",
+              color: "#9ca3af",
+              marginBottom: 12,
             }}
           >
             NEXT RESERVATION
@@ -312,11 +322,12 @@ export default function MyPage() {
 
           <div
             style={{
-              fontSize: 22,
+              fontSize: 30,
               fontWeight: 900,
-              color: "#0f172a",
-              lineHeight: 1.4,
-              marginBottom: 8,
+              color: "#111827",
+              lineHeight: 1.25,
+              marginBottom: 10,
+              letterSpacing: "-0.03em",
             }}
           >
             次回予約・リマインド
@@ -324,10 +335,11 @@ export default function MyPage() {
 
           <p
             style={{
-              margin: 0,
-              color: "#475569",
-              lineHeight: 1.8,
-              fontSize: 15,
+              marginTop: 0,
+              marginBottom: 0,
+              color: "#4b5563",
+              lineHeight: 1.85,
+              fontSize: 16,
             }}
           >
             {reminderText}
@@ -336,15 +348,19 @@ export default function MyPage() {
           {nextReservation ? (
             <div
               style={{
-                marginTop: 14,
-                background: "#f8fafc",
-                borderRadius: 16,
-                padding: 14,
+                marginTop: 16,
+                background: "#f9fafb",
+                borderRadius: 18,
+                padding: 16,
+                border: "1px solid #eef2f7",
                 display: "grid",
-                gap: 8,
+                gap: 10,
               }}
             >
-              <ReserveRow label="日時" value={`${formatJapaneseDate(nextReservation.date)} ${nextReservation.startTime}〜`} />
+              <ReserveRow
+                label="日時"
+                value={`${formatJapaneseDate(nextReservation.date)} ${nextReservation.startTime}〜`}
+              />
               <ReserveRow label="店舗" value={nextReservation.storeName} />
               <ReserveRow label="担当" value={nextReservation.staffName} />
               <ReserveRow label="メニュー" value={nextReservation.menu} />
@@ -352,12 +368,13 @@ export default function MyPage() {
           ) : (
             <div
               style={{
-                marginTop: 14,
-                background: "#f8fafc",
-                borderRadius: 16,
-                padding: 14,
-                color: "#64748b",
-                fontSize: 14,
+                marginTop: 16,
+                background: "#f9fafb",
+                borderRadius: 18,
+                padding: 16,
+                border: "1px solid #eef2f7",
+                color: "#6b7280",
+                fontSize: 15,
               }}
             >
               予約がまだ入っていません。
@@ -366,27 +383,26 @@ export default function MyPage() {
 
           <div
             style={{
-              display: "flex",
-              gap: 10,
-              flexWrap: "wrap",
+              display: "grid",
+              gap: 12,
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
               marginTop: 16,
             }}
           >
             <Link
               href="/reservation"
               style={{
-                flex: 1,
-                minWidth: 180,
-                minHeight: 46,
+                minHeight: 52,
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
                 textDecoration: "none",
-                borderRadius: 14,
+                borderRadius: 16,
                 background: "#111827",
-                color: "#fff",
+                color: "#ffffff",
                 fontWeight: 800,
-                fontSize: 14,
+                fontSize: 15,
+                boxShadow: "0 10px 22px rgba(15,23,42,0.12)",
               }}
             >
               予約を確認する
@@ -395,19 +411,17 @@ export default function MyPage() {
             <Link
               href="/reservation"
               style={{
-                flex: 1,
-                minWidth: 180,
-                minHeight: 46,
+                minHeight: 52,
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
                 textDecoration: "none",
-                borderRadius: 14,
-                border: "1px solid #e2e8f0",
-                background: "#fff",
-                color: "#334155",
+                borderRadius: 16,
+                background: "#ffffff",
+                color: "#374151",
                 fontWeight: 700,
-                fontSize: 14,
+                fontSize: 15,
+                border: "1px solid #d1d5db",
               }}
             >
               次回予約を入れる
@@ -417,20 +431,20 @@ export default function MyPage() {
 
         <section
           style={{
-            background: "rgba(255,255,255,0.88)",
-            border: "1px solid rgba(255,255,255,0.95)",
-            borderRadius: 22,
-            padding: 20,
-            boxShadow: "0 10px 28px rgba(15,23,42,0.05)",
+            background: "#ffffff",
+            border: "1px solid #e5e7eb",
+            borderRadius: 28,
+            padding: 22,
+            boxShadow: "0 10px 26px rgba(15,23,42,0.05)",
           }}
         >
           <div
             style={{
               fontSize: 12,
               fontWeight: 800,
-              letterSpacing: "0.12em",
-              color: "#94a3b8",
-              marginBottom: 10,
+              letterSpacing: "0.14em",
+              color: "#9ca3af",
+              marginBottom: 12,
             }}
           >
             SHOP
@@ -438,11 +452,12 @@ export default function MyPage() {
 
           <div
             style={{
-              fontSize: 22,
+              fontSize: 30,
               fontWeight: 900,
-              color: "#0f172a",
-              lineHeight: 1.4,
-              marginBottom: 8,
+              color: "#111827",
+              lineHeight: 1.25,
+              marginBottom: 10,
+              letterSpacing: "-0.03em",
             }}
           >
             おすすめ商品
@@ -451,10 +466,10 @@ export default function MyPage() {
           <p
             style={{
               marginTop: 0,
-              color: "#475569",
-              lineHeight: 1.8,
-              fontSize: 15,
-              marginBottom: 16,
+              color: "#4b5563",
+              lineHeight: 1.85,
+              fontSize: 16,
+              marginBottom: 18,
             }}
           >
             トレーニングやボディメイクをサポートするおすすめ商品です。
@@ -463,7 +478,7 @@ export default function MyPage() {
           <div
             style={{
               display: "grid",
-              gap: 14,
+              gap: 16,
               gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
             }}
           >
@@ -471,11 +486,11 @@ export default function MyPage() {
               <div
                 key={product.id}
                 style={{
-                  background: "#fff",
-                  borderRadius: 18,
+                  background: "#ffffff",
+                  borderRadius: 22,
                   overflow: "hidden",
-                  boxShadow: "0 8px 24px rgba(15,23,42,0.05)",
-                  border: "1px solid #eef2f7",
+                  border: "1px solid #e5e7eb",
+                  boxShadow: "0 8px 22px rgba(15,23,42,0.05)",
                 }}
               >
                 <img
@@ -483,19 +498,20 @@ export default function MyPage() {
                   alt={product.name}
                   style={{
                     width: "100%",
-                    height: 170,
+                    height: 176,
                     objectFit: "cover",
                     display: "block",
+                    background: "#f3f4f6",
                   }}
                 />
 
-                <div style={{ padding: 14 }}>
+                <div style={{ padding: 16 }}>
                   <div
                     style={{
-                      fontSize: 16,
+                      fontSize: 17,
                       fontWeight: 800,
-                      color: "#0f172a",
-                      lineHeight: 1.5,
+                      color: "#111827",
+                      lineHeight: 1.55,
                       marginBottom: 8,
                     }}
                   >
@@ -504,10 +520,11 @@ export default function MyPage() {
 
                   <div
                     style={{
-                      fontSize: 20,
+                      fontSize: 22,
                       fontWeight: 900,
                       color: "#111827",
                       marginBottom: 8,
+                      letterSpacing: "-0.02em",
                     }}
                   >
                     {yen(product.price)}
@@ -516,9 +533,9 @@ export default function MyPage() {
                   <div
                     style={{
                       fontSize: 13,
-                      color: "#64748b",
-                      lineHeight: 1.7,
-                      marginBottom: 12,
+                      color: "#6b7280",
+                      lineHeight: 1.75,
+                      marginBottom: 14,
                     }}
                   >
                     {product.description}
@@ -528,14 +545,14 @@ export default function MyPage() {
                     href="/shop"
                     style={{
                       width: "100%",
-                      minHeight: 42,
+                      minHeight: 44,
                       display: "inline-flex",
                       alignItems: "center",
                       justifyContent: "center",
                       textDecoration: "none",
-                      borderRadius: 12,
+                      borderRadius: 14,
                       background: "#111827",
-                      color: "#fff",
+                      color: "#ffffff",
                       fontWeight: 700,
                       fontSize: 14,
                     }}
@@ -550,18 +567,19 @@ export default function MyPage() {
           <Link
             href="/shop"
             style={{
-              marginTop: 16,
+              marginTop: 18,
               width: "100%",
-              minHeight: 50,
+              minHeight: 54,
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
               textDecoration: "none",
-              borderRadius: 14,
-              background: "linear-gradient(135deg, #111827, #334155)",
-              color: "#fff",
+              borderRadius: 16,
+              background: "linear-gradient(135deg, #111827 0%, #1f2937 100%)",
+              color: "#ffffff",
               fontWeight: 800,
               fontSize: 15,
+              boxShadow: "0 12px 26px rgba(15,23,42,0.12)",
             }}
           >
             物販ページへ進む
@@ -584,18 +602,19 @@ function StatusCardDark({
   return (
     <div
       style={{
-        background: "rgba(255,255,255,0.06)",
-        border: "1px solid rgba(255,255,255,0.08)",
-        borderRadius: 16,
-        padding: 14,
+        background: "#1f2937",
+        border: "1px solid #374151",
+        borderRadius: 18,
+        padding: 16,
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
       }}
     >
       <div
         style={{
           fontSize: 12,
-          color: "rgba(255,255,255,0.56)",
+          color: "#9ca3af",
           fontWeight: 700,
-          marginBottom: 6,
+          marginBottom: 8,
         }}
       >
         {label}
@@ -604,9 +623,10 @@ function StatusCardDark({
         style={{
           fontSize: 22,
           fontWeight: 900,
-          color: accent || "#fff",
-          lineHeight: 1.3,
+          color: accent || "#ffffff",
+          lineHeight: 1.35,
           wordBreak: "break-word",
+          letterSpacing: "-0.02em",
         }}
       >
         {value}
@@ -635,7 +655,7 @@ function ReserveRow({
         style={{
           fontSize: 13,
           fontWeight: 700,
-          color: "#94a3b8",
+          color: "#9ca3af",
         }}
       >
         {label}
@@ -644,8 +664,8 @@ function ReserveRow({
         style={{
           fontSize: 14,
           fontWeight: 700,
-          color: "#0f172a",
-          lineHeight: 1.6,
+          color: "#111827",
+          lineHeight: 1.7,
           wordBreak: "break-word",
         }}
       >
