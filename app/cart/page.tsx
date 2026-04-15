@@ -52,17 +52,18 @@ export default function CartPage() {
 
   return (
     <main style={{ padding: 20, maxWidth: 600, margin: "0 auto" }}>
-      <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 20 }}>
+      <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 20 }}>
         カート
       </h1>
 
       {remaining > 0 && (
         <div
           style={{
-            background: "#e0f2f1",
-            padding: 10,
+            background: "#e6f4f1",
+            padding: 12,
             marginBottom: 20,
-            borderRadius: 10,
+            borderRadius: 12,
+            fontWeight: 600,
           }}
         >
           あと {remaining.toLocaleString()} 円で送料無料
@@ -74,37 +75,83 @@ export default function CartPage() {
           key={item.id}
           style={{
             display: "flex",
-            gap: 10,
+            gap: 15,
             marginBottom: 20,
-            borderBottom: "1px solid #ddd",
-            paddingBottom: 10,
+            background: "#fff",
+            padding: 15,
+            borderRadius: 16,
+            boxShadow: "0 4px 20px rgba(0,0,0,0.05)",
           }}
         >
-          <img src={item.image} width={80} height={80} />
+          <img
+            src={item.image}
+            width={80}
+            height={80}
+            style={{ borderRadius: 10 }}
+          />
 
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 600 }}>{item.name}</div>
-            <div>{item.price.toLocaleString()}円</div>
+            <div style={{ fontWeight: 700, marginBottom: 5 }}>
+              {item.name}
+            </div>
 
-            <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
-              <button onClick={() => updateQuantity(item.id, -1)}>
+            <div style={{ color: "#666", marginBottom: 10 }}>
+              {item.price.toLocaleString()}円
+            </div>
+
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <button
+                onClick={() => updateQuantity(item.id, -1)}
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 6,
+                  border: "1px solid #ddd",
+                }}
+              >
                 −
               </button>
-              <div>{item.quantity}</div>
-              <button onClick={() => updateQuantity(item.id, 1)}>
+
+              <div style={{ fontWeight: 600 }}>{item.quantity}</div>
+
+              <button
+                onClick={() => updateQuantity(item.id, 1)}
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 6,
+                  border: "1px solid #ddd",
+                }}
+              >
                 ＋
               </button>
-              <button onClick={() => removeItem(item.id)}>削除</button>
+
+              <button
+                onClick={() => removeItem(item.id)}
+                style={{
+                  marginLeft: 10,
+                  color: "red",
+                  fontSize: 12,
+                }}
+              >
+                削除
+              </button>
             </div>
           </div>
 
-          <div style={{ fontWeight: 600 }}>
+          <div style={{ fontWeight: 700 }}>
             {(item.price * item.quantity).toLocaleString()}円
           </div>
         </div>
       ))}
 
-      <div style={{ fontSize: 18, fontWeight: 700 }}>
+      <div
+        style={{
+          fontSize: 20,
+          fontWeight: 800,
+          marginTop: 20,
+        }}
+      >
         合計: {subtotal.toLocaleString()}円
       </div>
 
@@ -112,10 +159,12 @@ export default function CartPage() {
         style={{
           width: "100%",
           marginTop: 20,
-          height: 50,
-          background: "black",
+          height: 55,
+          background: "linear-gradient(90deg,#000,#333)",
           color: "#fff",
-          borderRadius: 10,
+          borderRadius: 14,
+          fontWeight: 700,
+          fontSize: 16,
         }}
       >
         注文に進む
