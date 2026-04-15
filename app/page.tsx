@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
@@ -35,9 +34,7 @@ const quickLinks = [
 function getSupabaseClient(): SupabaseClient | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
   if (!url || !anonKey) return null;
-
   return createClient(url, anonKey);
 }
 
@@ -62,7 +59,8 @@ function normalizeReservation(raw: any): ReservationItem | null {
   if (!raw) return null;
 
   const id = String(
-    raw.id ?? `${raw.date ?? ""}-${raw.start_time ?? raw.startTime ?? ""}-${raw.customer_name ?? raw.customerName ?? raw.name ?? ""}`
+    raw.id ??
+      `${raw.date ?? ""}-${raw.start_time ?? raw.startTime ?? ""}-${raw.customer_name ?? raw.customerName ?? raw.name ?? ""}`
   );
   const date = String(raw.date ?? "");
   const startTime = String(raw.start_time ?? raw.startTime ?? "");
@@ -127,6 +125,10 @@ function parseLocalReservations(): ReservationItem[] {
 
   return [];
 }
+
+// アップしてくれたロゴをそのまま埋め込み
+const logoBase64 =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABgAAAAQACAYAAAAncZJCAAAAtGVYSWZJSSoACAAAAAYAEgEDAAEAAAABAAAAGgEFAAEAAABWAAAAGwEFAAEAAABeAAAAKAEDAAEAAAACAAAAMQEC...";
 
 export default function HomePage() {
   const [todayReservations, setTodayReservations] = useState<DisplayReservation[]>([]);
@@ -250,11 +252,21 @@ export default function HomePage() {
           position: relative;
           overflow: hidden;
           background:
-            radial-gradient(circle at top left, rgba(255,255,255,0.04) 0%, transparent 28%),
-            radial-gradient(circle at bottom right, rgba(255,255,255,0.03) 0%, transparent 22%),
-            linear-gradient(180deg, #121314 0%, #181a1d 48%, #111214 100%);
+            radial-gradient(circle at top left, rgba(255,255,255,0.035) 0%, transparent 28%),
+            radial-gradient(circle at bottom right, rgba(255,255,255,0.025) 0%, transparent 22%),
+            linear-gradient(180deg, #101112 0%, #17191c 48%, #111214 100%);
           color: #f5f7fa;
           font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .gymup-home::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background:
+            linear-gradient(120deg, rgba(240,138,39,0.05), transparent 34%),
+            linear-gradient(300deg, rgba(240,138,39,0.04), transparent 28%);
+          pointer-events: none;
         }
 
         .gymup-home__container {
@@ -292,16 +304,17 @@ export default function HomePage() {
         }
 
         .gymup-home__logo-box {
-          position: relative;
-          width: 420px;
-          max-width: 100%;
-          aspect-ratio: 1536 / 1024;
+          width: min(100%, 500px);
         }
 
         .gymup-home__logo {
+          display: block;
+          width: 100%;
+          height: auto;
           object-fit: contain;
-          object-position: left center;
           filter: drop-shadow(0 12px 34px rgba(0,0,0,0.28));
+          user-select: none;
+          pointer-events: none;
         }
 
         .gymup-home__copy {
@@ -675,11 +688,7 @@ export default function HomePage() {
           }
 
           .gymup-home__logo-box {
-            width: min(88vw, 340px);
-          }
-
-          .gymup-home__logo {
-            object-position: center;
+            width: min(92vw, 360px);
           }
 
           .gymup-home__copy {
@@ -742,13 +751,7 @@ export default function HomePage() {
             <div className="gymup-home__left">
               <div className="gymup-home__logo-wrap">
                 <div className="gymup-home__logo-box">
-                  <Image
-                    src="/logo.png"
-                    alt="GYMUP"
-                    fill
-                    className="gymup-home__logo"
-                    priority
-                  />
+                  <img src={logoBase64} alt="GYMUP" className="gymup-home__logo" />
                 </div>
               </div>
 
@@ -821,9 +824,7 @@ export default function HomePage() {
 
                       <div className="gymup-home__schedule">
                         {loadingReservations ? (
-                          <div className="gymup-home__empty">
-                            今日の予約を読み込み中です...
-                          </div>
+                          <div className="gymup-home__empty">今日の予約を読み込み中です...</div>
                         ) : todayReservations.length > 0 ? (
                           todayReservations.map((item) => (
                             <div key={item.id} className="gymup-home__schedule-item">
@@ -869,7 +870,7 @@ export default function HomePage() {
                         <div className="gymup-home__alerts">
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
-                            <span>ロゴ比率を保持して表示</span>
+                            <span>ロゴは埋め込み済みで崩れません</span>
                           </div>
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
@@ -877,7 +878,7 @@ export default function HomePage() {
                           </div>
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
-                            <span>SPでも縦積みで見やすく表示</span>
+                            <span>スマホでは縦積みで見やすく表示</span>
                           </div>
                         </div>
                       </div>
