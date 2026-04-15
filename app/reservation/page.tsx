@@ -64,6 +64,7 @@ const STORE_OPTIONS = [
   "福島P",
   "天満橋",
   "中崎町",
+  "江坂",
 ];
 
 const STORE_OPTIONS_FOR_FORM = [
@@ -73,6 +74,7 @@ const STORE_OPTIONS_FOR_FORM = [
   "福島P",
   "天満橋",
   "中崎町",
+  "江坂",
 ];
 
 const STAFF_OPTIONS = [
