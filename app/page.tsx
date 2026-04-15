@@ -3,9 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-const pageBg =
-  "linear-gradient(135deg, #f4f6f8 0%, #e9edf2 45%, #f8fafc 100%)";
-
 export default function LoginPage() {
   const router = useRouter();
 
@@ -24,428 +21,544 @@ export default function LoginPage() {
     setTimeout(() => {
       localStorage.setItem("gymup_member_logged_in", "true");
       localStorage.setItem("gymup_member_id", memberId);
-
       localStorage.removeItem("gymup_staff_logged_in");
-
       router.push("/mypage");
     }, 700);
   };
 
   const handleStaffEnter = () => {
     localStorage.setItem("gymup_staff_logged_in", "true");
-
     localStorage.removeItem("gymup_member_logged_in");
     localStorage.removeItem("gymup_member_id");
-
     router.push("/dashboard");
   };
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background: pageBg,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "20px 14px",
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 1100,
-          display: "grid",
-          gridTemplateColumns: "1.05fr 0.95fr",
-          gap: 18,
-        }}
-      >
-        <section
-          className="login-left"
-          style={{
-            position: "relative",
-            overflow: "hidden",
-            borderRadius: 28,
-            padding: "34px 28px",
-            background:
-              "linear-gradient(135deg, rgba(255,255,255,0.82) 0%, rgba(255,255,255,0.66) 100%)",
-            backdropFilter: "blur(16px)",
-            WebkitBackdropFilter: "blur(16px)",
-            border: "1px solid rgba(255,255,255,0.74)",
-            boxShadow: "0 18px 50px rgba(15,23,42,0.08)",
-            minHeight: 520,
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              top: -70,
-              right: -40,
-              width: 220,
-              height: 220,
-              borderRadius: "50%",
-              background:
-                "radial-gradient(circle, rgba(220,38,38,0.10) 0%, rgba(220,38,38,0) 72%)",
-              pointerEvents: "none",
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              bottom: -90,
-              left: -40,
-              width: 240,
-              height: 240,
-              borderRadius: "50%",
-              background:
-                "radial-gradient(circle, rgba(17,24,39,0.08) 0%, rgba(17,24,39,0) 72%)",
-              pointerEvents: "none",
-            }}
-          />
+    <>
+      <style jsx>{`
+        .login-page {
+          min-height: 100vh;
+          position: relative;
+          overflow: hidden;
+          background:
+            radial-gradient(circle at 18% 72%, rgba(255, 132, 92, 0.42) 0%, rgba(255, 132, 92, 0.12) 16%, transparent 38%),
+            radial-gradient(circle at 78% 26%, rgba(96, 132, 255, 0.42) 0%, rgba(96, 132, 255, 0.12) 16%, transparent 34%),
+            radial-gradient(circle at 82% 78%, rgba(255, 132, 92, 0.26) 0%, rgba(255, 132, 92, 0.08) 16%, transparent 30%),
+            linear-gradient(180deg, #05070d 0%, #090d18 48%, #05070d 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 28px 16px;
+        }
 
-          <div
-            style={{
-              position: "relative",
-              height: "100%",
-              display: "grid",
-              alignContent: "space-between",
-              gap: 24,
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "8px 12px",
-                  borderRadius: 999,
-                  background: "rgba(255,255,255,0.8)",
-                  border: "1px solid rgba(226,232,240,0.95)",
-                  color: "#64748b",
-                  fontSize: 12,
-                  fontWeight: 800,
-                  letterSpacing: "0.08em",
-                  marginBottom: 16,
-                }}
-              >
-                GYMUP PORTAL
-              </div>
+        .login-page::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background:
+            radial-gradient(circle at 50% 50%, rgba(255,255,255,0.03), transparent 42%);
+          pointer-events: none;
+        }
 
-              <h1
-                style={{
-                  margin: 0,
-                  fontSize: "clamp(30px, 5vw, 44px)",
-                  lineHeight: 1.15,
-                  fontWeight: 900,
-                  letterSpacing: "-0.02em",
-                  color: "#111827",
-                }}
-              >
+        .login-shell {
+          position: relative;
+          z-index: 1;
+          width: 100%;
+          max-width: 1180px;
+          display: grid;
+          grid-template-columns: 1.08fr 0.92fr;
+          gap: 28px;
+          align-items: center;
+        }
+
+        .brand-panel {
+          min-height: 720px;
+          border-radius: 36px;
+          padding: 38px;
+          position: relative;
+          overflow: hidden;
+          border: 1px solid rgba(255,255,255,0.08);
+          background:
+            linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.03) 100%);
+          box-shadow:
+            0 30px 80px rgba(0,0,0,0.42),
+            inset 0 1px 0 rgba(255,255,255,0.08);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+        }
+
+        .brand-panel::before {
+          content: "";
+          position: absolute;
+          top: -120px;
+          left: -80px;
+          width: 320px;
+          height: 320px;
+          border-radius: 999px;
+          background: radial-gradient(circle, rgba(95,126,255,0.25) 0%, rgba(95,126,255,0.08) 34%, transparent 68%);
+          filter: blur(6px);
+        }
+
+        .brand-panel::after {
+          content: "";
+          position: absolute;
+          right: -100px;
+          bottom: -120px;
+          width: 340px;
+          height: 340px;
+          border-radius: 999px;
+          background: radial-gradient(circle, rgba(255,128,88,0.28) 0%, rgba(255,128,88,0.08) 36%, transparent 70%);
+          filter: blur(6px);
+        }
+
+        .brand-content {
+          position: relative;
+          z-index: 1;
+        }
+
+        .portal-badge {
+          display: inline-flex;
+          align-items: center;
+          min-height: 40px;
+          padding: 0 16px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,0.10);
+          background: rgba(255,255,255,0.05);
+          color: rgba(255,255,255,0.74);
+          font-size: 12px;
+          font-weight: 800;
+          letter-spacing: 0.12em;
+          margin-bottom: 22px;
+        }
+
+        .brand-title {
+          margin: 0;
+          color: #ffffff;
+          font-size: clamp(42px, 6vw, 74px);
+          line-height: 0.98;
+          letter-spacing: -0.05em;
+          font-weight: 900;
+        }
+
+        .brand-subtitle {
+          margin: 18px 0 0;
+          max-width: 560px;
+          color: rgba(255,255,255,0.70);
+          font-size: 16px;
+          line-height: 1.9;
+          font-weight: 500;
+        }
+
+        .brand-card {
+          position: relative;
+          z-index: 1;
+          margin-top: 30px;
+          border-radius: 28px;
+          padding: 26px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(7, 12, 24, 0.42);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+        }
+
+        .brand-card-title {
+          color: #ffffff;
+          font-size: 18px;
+          font-weight: 800;
+          margin-bottom: 14px;
+        }
+
+        .brand-list {
+          display: grid;
+          gap: 12px;
+        }
+
+        .brand-list-item {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          color: rgba(255,255,255,0.76);
+          font-size: 14px;
+          line-height: 1.8;
+          font-weight: 500;
+        }
+
+        .brand-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 999px;
+          background: linear-gradient(135deg, #7f9bff 0%, #ff845c 100%);
+          margin-top: 9px;
+          flex-shrink: 0;
+          box-shadow: 0 0 18px rgba(127,155,255,0.45);
+        }
+
+        .brand-mini-grid {
+          position: relative;
+          z-index: 1;
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 14px;
+          margin-top: 18px;
+        }
+
+        .brand-mini-card {
+          border-radius: 24px;
+          padding: 20px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.04);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+        }
+
+        .brand-mini-label {
+          color: rgba(255,255,255,0.52);
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          margin-bottom: 10px;
+        }
+
+        .brand-mini-value {
+          color: #ffffff;
+          font-size: 20px;
+          line-height: 1.35;
+          font-weight: 800;
+        }
+
+        .login-panel {
+          min-height: 720px;
+          border-radius: 36px;
+          padding: 38px 34px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(10, 14, 25, 0.52);
+          box-shadow:
+            0 30px 80px rgba(0,0,0,0.42),
+            inset 0 1px 0 rgba(255,255,255,0.07);
+          backdrop-filter: blur(24px);
+          -webkit-backdrop-filter: blur(24px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .login-inner {
+          width: 100%;
+          max-width: 420px;
+        }
+
+        .welcome {
+          text-align: center;
+          margin-bottom: 26px;
+        }
+
+        .welcome-title {
+          margin: 0;
+          color: #ffffff;
+          font-size: 38px;
+          line-height: 1.1;
+          font-weight: 900;
+          letter-spacing: -0.04em;
+        }
+
+        .welcome-sub {
+          margin-top: 10px;
+          color: rgba(255,255,255,0.56);
+          font-size: 14px;
+          line-height: 1.8;
+          font-weight: 500;
+        }
+
+        .social-boxes {
+          display: grid;
+          gap: 12px;
+          margin-bottom: 20px;
+        }
+
+        .social-box {
+          height: 54px;
+          border-radius: 16px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.04);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: rgba(255,255,255,0.72);
+          font-size: 18px;
+          font-weight: 800;
+        }
+
+        .divider {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin: 20px 0;
+          color: rgba(255,255,255,0.34);
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          justify-content: center;
+        }
+
+        .divider::before,
+        .divider::after {
+          content: "";
+          height: 1px;
+          flex: 1;
+          background: rgba(255,255,255,0.08);
+        }
+
+        .field-group {
+          display: grid;
+          gap: 14px;
+        }
+
+        .field-label {
+          color: rgba(255,255,255,0.64);
+          font-size: 12px;
+          font-weight: 800;
+          letter-spacing: 0.08em;
+          margin-bottom: 8px;
+        }
+
+        .field-input {
+          width: 100%;
+          height: 56px;
+          border-radius: 16px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.05);
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+          padding: 0 16px;
+          color: #ffffff;
+          font-size: 15px;
+          outline: none;
+          transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+        }
+
+        .field-input::placeholder {
+          color: rgba(255,255,255,0.28);
+        }
+
+        .field-input:focus {
+          border-color: rgba(127,155,255,0.48);
+          background: rgba(255,255,255,0.07);
+          box-shadow:
+            0 0 0 4px rgba(127,155,255,0.10),
+            inset 0 1px 0 rgba(255,255,255,0.05);
+        }
+
+        .member-btn {
+          width: 100%;
+          height: 58px;
+          border: none;
+          border-radius: 18px;
+          background: linear-gradient(135deg, #1d2f7f 0%, #8a1320 100%);
+          color: #ffffff;
+          font-size: 16px;
+          font-weight: 900;
+          cursor: pointer;
+          box-shadow: 0 18px 34px rgba(28, 41, 110, 0.28);
+          transition: transform 0.2s ease, opacity 0.2s ease;
+          margin-top: 6px;
+        }
+
+        .member-btn:hover {
+          transform: translateY(-1px);
+        }
+
+        .member-btn:disabled {
+          opacity: 0.72;
+          cursor: not-allowed;
+          transform: none;
+        }
+
+        .staff-btn {
+          width: 100%;
+          height: 58px;
+          border-radius: 18px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.05);
+          color: #ffffff;
+          font-size: 16px;
+          font-weight: 800;
+          cursor: pointer;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+          transition: transform 0.2s ease, background 0.2s ease;
+        }
+
+        .staff-btn:hover {
+          transform: translateY(-1px);
+          background: rgba(255,255,255,0.07);
+        }
+
+        .help-text {
+          margin-top: 18px;
+          color: rgba(255,255,255,0.42);
+          font-size: 12px;
+          line-height: 1.9;
+          text-align: center;
+          font-weight: 500;
+        }
+
+        @media (max-width: 980px) {
+          .login-shell {
+            grid-template-columns: 1fr;
+            max-width: 720px;
+          }
+
+          .brand-panel,
+          .login-panel {
+            min-height: auto;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .login-page {
+            padding: 16px;
+          }
+
+          .brand-panel,
+          .login-panel {
+            border-radius: 28px;
+            padding: 24px 20px;
+          }
+
+          .brand-title {
+            font-size: 44px;
+          }
+
+          .welcome-title {
+            font-size: 32px;
+          }
+
+          .brand-mini-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
+
+      <main className="login-page">
+        <div className="login-shell">
+          <section className="brand-panel">
+            <div className="brand-content">
+              <div className="portal-badge">GYMUP PORTAL</div>
+
+              <h1 className="brand-title">
                 Life Time Beauty
                 <br />
                 ログインポータル
               </h1>
 
-              <p
-                style={{
-                  marginTop: 16,
-                  maxWidth: 540,
-                  fontSize: 14,
-                  lineHeight: 1.9,
-                  color: "#64748b",
-                  fontWeight: 600,
-                }}
-              >
-                会員様はマイページへログイン、スタッフは管理画面へそのまま入れます。
+              <p className="brand-subtitle">
+                会員様はマイページへログイン。スタッフはそのまま管理画面へ。
+                サブスク状況、予約確認、商品導線までひとつの入口にまとめています。
               </p>
-            </div>
 
-            <div style={{ display: "grid", gap: 14 }}>
-              <InfoCard
-                title="この画面からできること"
-                items={[
-                  "会員様マイページへログイン",
-                  "サブスク状況・予約確認",
-                  "商品購入ページへの移動",
-                  "スタッフ管理画面への入場",
-                ]}
-              />
+              <div className="brand-card">
+                <div className="brand-card-title">この画面からできること</div>
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                  gap: 12,
-                }}
-              >
-                <MiniCard label="会員様" value="ID・パスワードでログイン" />
-                <MiniCard label="スタッフ" value="クリックで管理画面へ" />
+                <div className="brand-list">
+                  <div className="brand-list-item">
+                    <span className="brand-dot" />
+                    <span>会員様マイページへログイン</span>
+                  </div>
+                  <div className="brand-list-item">
+                    <span className="brand-dot" />
+                    <span>サブスク状況・予約確認</span>
+                  </div>
+                  <div className="brand-list-item">
+                    <span className="brand-dot" />
+                    <span>商品購入ページへの移動</span>
+                  </div>
+                  <div className="brand-list-item">
+                    <span className="brand-dot" />
+                    <span>スタッフ管理画面への入場</span>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
 
-        <section
-          className="login-right"
-          style={{
-            borderRadius: 28,
-            padding: "28px 22px",
-            background:
-              "linear-gradient(135deg, rgba(255,255,255,0.84) 0%, rgba(255,255,255,0.7) 100%)",
-            backdropFilter: "blur(16px)",
-            WebkitBackdropFilter: "blur(16px)",
-            border: "1px solid rgba(255,255,255,0.75)",
-            boxShadow: "0 18px 50px rgba(15,23,42,0.08)",
-            display: "grid",
-            alignContent: "center",
-          }}
-        >
-          <div
-            style={{
-              maxWidth: 420,
-              width: "100%",
-              margin: "0 auto",
-            }}
-          >
-            <div
-              style={{
-                fontSize: 28,
-                fontWeight: 900,
-                color: "#111827",
-                textAlign: "center",
-                marginBottom: 8,
-              }}
-            >
-              会員様ログイン
-            </div>
-
-            <div
-              style={{
-                fontSize: 14,
-                lineHeight: 1.8,
-                color: "#64748b",
-                fontWeight: 600,
-                textAlign: "center",
-                marginBottom: 24,
-              }}
-            >
-              会員IDとパスワードを入力してください
-            </div>
-
-            <div style={{ display: "grid", gap: 14 }}>
-              <div>
-                <div style={labelStyle}>会員ID</div>
-                <input
-                  type="text"
-                  placeholder="会員IDを入力"
-                  value={memberId}
-                  onChange={(e) => setMemberId(e.target.value)}
-                  style={inputStyle}
-                />
+            <div className="brand-mini-grid">
+              <div className="brand-mini-card">
+                <div className="brand-mini-label">MEMBER</div>
+                <div className="brand-mini-value">ID・パスワードでログイン</div>
               </div>
 
-              <div>
-                <div style={labelStyle}>パスワード</div>
-                <input
-                  type="password"
-                  placeholder="パスワードを入力"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  style={inputStyle}
-                />
+              <div className="brand-mini-card">
+                <div className="brand-mini-label">STAFF</div>
+                <div className="brand-mini-value">クリックで管理画面へ</div>
+              </div>
+            </div>
+          </section>
+
+          <section className="login-panel">
+            <div className="login-inner">
+              <div className="welcome">
+                <h2 className="welcome-title">Welcome Back!</h2>
+                <div className="welcome-sub">
+                  Enter your info to Sign In
+                </div>
               </div>
 
-              <button
-                onClick={handleMemberLogin}
-                disabled={loading}
-                style={{
-                  marginTop: 4,
-                  width: "100%",
-                  height: 52,
-                  border: "none",
-                  borderRadius: 16,
-                  background:
-                    loading
-                      ? "#94a3b8"
-                      : "linear-gradient(135deg, #111827 0%, #dc2626 100%)",
-                  color: "#fff",
-                  fontSize: 15,
-                  fontWeight: 800,
-                  cursor: loading ? "not-allowed" : "pointer",
-                  boxShadow: "0 12px 28px rgba(17,24,39,0.18)",
-                }}
-              >
-                {loading ? "ログイン中..." : "会員ログイン"}
-              </button>
-
-              <div
-                style={{
-                  position: "relative",
-                  textAlign: "center",
-                  margin: "6px 0",
-                  color: "#94a3b8",
-                  fontSize: 12,
-                  fontWeight: 700,
-                }}
-              >
-                または
+              <div className="social-boxes">
+                <div className="social-box"></div>
+                <div className="social-box">G</div>
               </div>
 
-              <button
-                onClick={handleStaffEnter}
-                style={{
-                  width: "100%",
-                  height: 52,
-                  border: "1px solid #dbe2ea",
-                  borderRadius: 16,
-                  background: "#ffffff",
-                  color: "#111827",
-                  fontSize: 15,
-                  fontWeight: 800,
-                  cursor: "pointer",
-                  boxShadow: "0 12px 28px rgba(15,23,42,0.08)",
-                }}
-              >
-                スタッフ管理画面へ
-              </button>
+              <div className="divider">Or</div>
+
+              <div className="field-group">
+                <div>
+                  <div className="field-label">会員ID</div>
+                  <input
+                    type="text"
+                    placeholder="会員IDを入力"
+                    value={memberId}
+                    onChange={(e) => setMemberId(e.target.value)}
+                    className="field-input"
+                  />
+                </div>
+
+                <div>
+                  <div className="field-label">パスワード</div>
+                  <input
+                    type="password"
+                    placeholder="パスワードを入力"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="field-input"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  className="member-btn"
+                  onClick={handleMemberLogin}
+                  disabled={loading}
+                >
+                  {loading ? "ログイン中..." : "会員ログイン"}
+                </button>
+
+                <div className="divider">Or</div>
+
+                <button
+                  type="button"
+                  className="staff-btn"
+                  onClick={handleStaffEnter}
+                >
+                  スタッフ管理画面へ
+                </button>
+              </div>
+
+              <div className="help-text">
+                ※ 会員ログイン情報が不明な場合は店舗スタッフまでご連絡ください。
+              </div>
             </div>
-
-            <div
-              style={{
-                marginTop: 18,
-                textAlign: "center",
-                fontSize: 12,
-                lineHeight: 1.8,
-                color: "#64748b",
-                fontWeight: 600,
-              }}
-            >
-              ※ 会員ログイン情報が不明な場合は店舗スタッフまでご連絡ください。
-            </div>
-          </div>
-        </section>
-      </div>
-
-      <style jsx>{`
-        @media (max-width: 900px) {
-          .login-left,
-          .login-right {
-            min-height: auto !important;
-          }
-
-          main > div {
-            grid-template-columns: 1fr !important;
-          }
-        }
-      `}</style>
-    </main>
+          </section>
+        </div>
+      </main>
+    </>
   );
 }
-
-function InfoCard({
-  title,
-  items,
-}: {
-  title: string;
-  items: string[];
-}) {
-  return (
-    <div
-      style={{
-        borderRadius: 22,
-        padding: 18,
-        background: "rgba(255,255,255,0.72)",
-        border: "1px solid rgba(226,232,240,0.88)",
-      }}
-    >
-      <div
-        style={{
-          fontSize: 16,
-          fontWeight: 900,
-          color: "#111827",
-          marginBottom: 12,
-        }}
-      >
-        {title}
-      </div>
-
-      <div style={{ display: "grid", gap: 8 }}>
-        {items.map((item) => (
-          <div
-            key={item}
-            style={{
-              fontSize: 14,
-              color: "#475569",
-              fontWeight: 600,
-              lineHeight: 1.8,
-            }}
-          >
-            ・{item}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function MiniCard({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div
-      style={{
-        borderRadius: 20,
-        padding: 16,
-        background: "rgba(255,255,255,0.74)",
-        border: "1px solid rgba(226,232,240,0.88)",
-      }}
-    >
-      <div
-        style={{
-          fontSize: 12,
-          fontWeight: 800,
-          color: "#64748b",
-          marginBottom: 8,
-          letterSpacing: "0.06em",
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          fontSize: 15,
-          fontWeight: 900,
-          color: "#111827",
-          lineHeight: 1.5,
-        }}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
-
-const labelStyle: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 800,
-  color: "#64748b",
-  marginBottom: 8,
-  letterSpacing: "0.06em",
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  height: 50,
-  borderRadius: 14,
-  border: "1px solid #dbe2ea",
-  background: "rgba(255,255,255,0.95)",
-  padding: "0 14px",
-  fontSize: 14,
-  color: "#111827",
-  outline: "none",
-};
