@@ -1,9 +1,45 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 export default function CheckoutPage() {
-  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+
+  const handleCheckout = async () => {
+    try {
+      setLoading(true);
+
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          plan: "monthly_2", // 仮（あとでcart連携できる）
+          customerName: "テストユーザー",
+          customerEmail: "test@example.com",
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data?.error || "決済作成失敗");
+        return;
+      }
+
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        alert("URL取得失敗");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("通信エラー");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <main style={{ padding: 20, maxWidth: 600, margin: "0 auto" }}>
@@ -20,11 +56,12 @@ export default function CheckoutPage() {
         }}
       >
         <p style={{ marginBottom: 20 }}>
-          ご注文内容を確認して決済へ進んでください。
+          内容を確認して決済へ進んでください
         </p>
 
         <button
-          onClick={() => alert("ここでStripe決済に接続")}
+          onClick={handleCheckout}
+          disabled={loading}
           style={{
             width: "100%",
             height: 50,
@@ -34,16 +71,9 @@ export default function CheckoutPage() {
             fontWeight: 700,
           }}
         >
-          決済に進む
+          {loading ? "処理中..." : "決済に進む"}
         </button>
       </div>
-
-      <button
-        onClick={() => router.push("/cart")}
-        style={{ marginTop: 20 }}
-      >
-        ← カートに戻る
-      </button>
     </main>
   );
 }
