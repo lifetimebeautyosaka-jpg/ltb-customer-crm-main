@@ -165,6 +165,7 @@ export default function HomePage() {
   const [activeMembers, setActiveMembers] = useState<number | null>(null);
   const [todayCount, setTodayCount] = useState<number>(0);
   const [systemStatus, setSystemStatus] = useState<SystemStatus>("OFFLINE");
+  const [logoError, setLogoError] = useState(false);
 
   const todayLabel = useMemo(() => formatTodayLabel(), []);
 
@@ -376,7 +377,7 @@ export default function HomePage() {
         }
 
         .gymup-home__logo-box {
-          width: min(100%, 420px);
+          width: min(100%, 520px);
         }
 
         .gymup-home__logo {
@@ -387,6 +388,31 @@ export default function HomePage() {
           filter: drop-shadow(0 12px 34px rgba(0,0,0,0.28));
           user-select: none;
           pointer-events: none;
+        }
+
+        .gymup-home__text-logo {
+          display: inline-flex;
+          align-items: flex-end;
+          gap: 10px;
+          padding: 8px 0;
+          border-bottom: 1px solid rgba(240,138,39,0.35);
+        }
+
+        .gymup-home__text-logo-main {
+          font-size: clamp(38px, 5vw, 72px);
+          line-height: 1;
+          font-weight: 900;
+          letter-spacing: 0.08em;
+          color: #ffffff;
+        }
+
+        .gymup-home__text-logo-sub {
+          font-size: clamp(15px, 2vw, 24px);
+          line-height: 1.1;
+          font-weight: 700;
+          letter-spacing: 0.28em;
+          color: #f08a27;
+          padding-bottom: 8px;
         }
 
         .gymup-home__copy {
@@ -774,7 +800,7 @@ export default function HomePage() {
           }
 
           .gymup-home__logo-box {
-            width: min(88vw, 300px);
+            width: min(88vw, 320px);
           }
 
           .gymup-home__copy {
@@ -826,6 +852,10 @@ export default function HomePage() {
           .gymup-home__stat-value {
             font-size: 22px;
           }
+
+          .gymup-home__text-logo {
+            justify-content: center;
+          }
         }
       `}</style>
 
@@ -836,7 +866,19 @@ export default function HomePage() {
               <div className="gymup-home__hero-card">
                 <div className="gymup-home__logo-wrap">
                   <div className="gymup-home__logo-box">
-                    <img src="/logo.png" alt="GYMUP" className="gymup-home__logo" />
+                    {!logoError ? (
+                      <img
+                        src="/logo.png"
+                        alt="GYMUP"
+                        className="gymup-home__logo"
+                        onError={() => setLogoError(true)}
+                      />
+                    ) : (
+                      <div className="gymup-home__text-logo" aria-label="GYMUP CRM">
+                        <div className="gymup-home__text-logo-main">GYMUP</div>
+                        <div className="gymup-home__text-logo-sub">CRM</div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -957,7 +999,7 @@ export default function HomePage() {
                         <div className="gymup-home__alerts">
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
-                            <span>ロゴは /public/logo.png を表示</span>
+                            <span>ロゴ画像が読めない時は文字ロゴへ自動切替</span>
                           </div>
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
