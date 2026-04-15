@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { BG, CARD, BUTTON_PRIMARY } from "../../styles/theme";
+
+const STORE_OPTIONS = ["江戸堀", "箕面", "福島", "福島P", "天満橋", "中崎町", "江坂"];
 
 type Customer = {
   id: number | string;
@@ -32,6 +34,7 @@ type Customer = {
   nextPayment?: string | null;
   lastVisitDate?: string | null;
   ltv?: number | string | null;
+  storeName?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -72,6 +75,7 @@ const emptyForm: Customer = {
   nextPayment: "",
   lastVisitDate: "",
   ltv: "",
+  storeName: "",
 };
 
 function toNullableNumber(value: any) {
@@ -109,6 +113,7 @@ function normalizeCustomer(item: any): Customer {
     nextPayment: item?.nextPayment ?? item?.next_payment_date ?? "",
     lastVisitDate: item?.lastVisitDate ?? item?.last_visit_date ?? "",
     ltv: item?.ltv ?? "",
+    storeName: item?.storeName ?? item?.store_name ?? "",
     created_at: item?.created_at ?? null,
     updated_at: item?.updated_at ?? null,
   };
@@ -142,6 +147,7 @@ function buildDbPayload(customer: Customer) {
     next_payment_date: customer.nextPayment || null,
     last_visit_date: customer.lastVisitDate || null,
     ltv: toNullableNumber(customer.ltv),
+    store_name: customer.storeName || null,
     updated_at: new Date().toISOString(),
   };
 }
@@ -261,6 +267,7 @@ export default function CustomerPage() {
         customer.planType,
         customer.planStyle,
         customer.status,
+        customer.storeName,
       ]
         .map((v) => String(v || "").toLowerCase())
         .some((v) => v.includes(q));
@@ -523,6 +530,23 @@ export default function CustomerPage() {
                     placeholder="例 sample@mail.com"
                     style={styles.input}
                   />
+                }
+              />
+              <Field
+                label="店舗"
+                input={
+                  <select
+                    value={String(form.storeName || "")}
+                    onChange={(e) => handleChange("storeName", e.target.value)}
+                    style={styles.input}
+                  >
+                    <option value="">選択してください</option>
+                    {STORE_OPTIONS.map((store) => (
+                      <option key={store} value={store}>
+                        {store}
+                      </option>
+                    ))}
+                  </select>
                 }
               />
               <Field
@@ -820,7 +844,7 @@ export default function CustomerPage() {
                 <input
                   value={keyword}
                   onChange={(e) => setKeyword(e.target.value)}
-                  placeholder="名前・電話・プランで検索"
+                  placeholder="名前・電話・プラン・店舗で検索"
                   style={styles.input}
                 />
               </div>
@@ -849,7 +873,7 @@ export default function CustomerPage() {
                           ID: {customer.id} / 電話: {customer.phone || "—"}
                         </div>
                         <div style={styles.customerMeta}>
-                          プラン: {customer.planType || "—"} / 状態: {customer.status || "—"}
+                          店舗: {customer.storeName || "—"} / プラン: {customer.planType || "—"} / 状態: {customer.status || "—"}
                         </div>
                         <div style={styles.customerMeta}>
                           登録日: {formatDate(customer.created_at)}
@@ -908,6 +932,7 @@ export default function CustomerPage() {
                           : "repeat(auto-fit, minmax(140px, 1fr))",
                       }}
                     >
+                      <MiniInfo label="店舗" value={customer.storeName || "未設定"} />
                       <MiniInfo label="身長" value={withUnit(customer.height, "cm")} />
                       <MiniInfo label="体重" value={withUnit(customer.weight, "kg")} />
                       <MiniInfo label="目標" value={customer.goal || "未設定"} />
