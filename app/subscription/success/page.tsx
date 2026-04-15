@@ -1,24 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
-export default function SuccessPage() {
+function SubscriptionSuccessContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
-
-  const [status, setStatus] = useState<"saving" | "done" | "error">("saving");
-  const [message, setMessage] = useState("注文情報を保存しています...");
+  const sessionId = searchParams.get("session_id");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+  const hasSavedRef = useRef(false);
 
   useEffect(() => {
-    const sessionId = searchParams.get("session_id");
-
     async function saveOrder() {
-      if (!sessionId) {
-        setStatus("error");
-        setMessage("session_id が見つかりませんでした。");
-        return;
-      }
+      if (!sessionId || hasSavedRef.current) return;
+
+      hasSavedRef.current = true;
+      setSaving(true);
+      setError("");
 
       try {
         const res = await fetch("/api/orders/save", {
@@ -27,72 +27,220 @@ export default function SuccessPage() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            sessionId,
+            session_id: sessionId,
           }),
         });
 
         const data = await res.json();
 
-        if (!res.ok) {
-          setStatus("error");
-          setMessage(data?.error || "注文保存に失敗しました。");
-          return;
+        if (!res.ok || !data.ok) {
+          throw new Error(data?.error || "注文保存に失敗しました");
         }
 
-        setStatus("done");
-        setMessage("ご利用ありがとうございます。注文を保存しました。");
-        localStorage.removeItem("cart");
-      } catch (error) {
-        console.error(error);
-        setStatus("error");
-        setMessage("通信エラーが発生しました。");
+        setSaved(true);
+      } catch (err) {
+        console.error(err);
+        setError(err instanceof Error ? err.message : "注文保存に失敗しました");
+      } finally {
+        setSaving(false);
       }
     }
 
-    void saveOrder();
-  }, [searchParams]);
+    saveOrder();
+  }, [sessionId]);
 
   return (
-    <main style={{ padding: 20, maxWidth: 600, margin: "0 auto" }}>
-      <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 16 }}>
-        決済完了
-      </h1>
-
-      <p style={{ fontSize: 16, lineHeight: 1.8, marginBottom: 20 }}>
-        {message}
-      </p>
-
-      {status === "done" && (
-        <button
-          onClick={() => router.push("/orders")}
+    <main
+      style={{
+        minHeight: "100vh",
+        background: "#0f1012",
+        color: "#ffffff",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "24px",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 680,
+          borderRadius: 28,
+          padding: "32px 24px",
+          background: "rgba(255,255,255,0.04)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          boxShadow: "0 18px 48px rgba(0,0,0,0.24)",
+          textAlign: "center",
+        }}
+      >
+        <div
           style={{
-            width: "100%",
-            height: 50,
-            background: "black",
-            color: "#fff",
-            borderRadius: 12,
-            fontWeight: 700,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 72,
+            height: 72,
+            borderRadius: "50%",
+            background: "rgba(240,138,39,0.14)",
+            color: "#f08a27",
+            fontSize: 32,
+            fontWeight: 900,
+            marginBottom: 18,
           }}
         >
-          注文履歴へ
-        </button>
-      )}
+          ✓
+        </div>
 
-      {status === "error" && (
-        <button
-          onClick={() => router.push("/shop")}
+        <h1
           style={{
-            width: "100%",
-            height: 50,
-            background: "#444",
-            color: "#fff",
-            borderRadius: 12,
-            fontWeight: 700,
+            margin: 0,
+            fontSize: 32,
+            lineHeight: 1.2,
+            fontWeight: 800,
+            marginBottom: 12,
           }}
         >
-          商品一覧へ戻る
-        </button>
-      )}
+          お申し込みありがとうございます
+        </h1>
+
+        <p
+          style={{
+            margin: "0 auto 22px",
+            maxWidth: 520,
+            fontSize: 15,
+            lineHeight: 1.9,
+            color: "rgba(255,255,255,0.72)",
+          }}
+        >
+          サブスクリプションのお申し込みが完了しました。
+          内容確認後、会員ページからご利用状況をご確認いただけます。
+        </p>
+
+        {sessionId && (
+          <div
+            style={{
+              marginBottom: 18,
+              fontSize: 12,
+              color: "rgba(255,255,255,0.48)",
+              wordBreak: "break-all",
+            }}
+          >
+            session_id: {sessionId}
+          </div>
+        )}
+
+        {saving && (
+          <div
+            style={{
+              marginBottom: 16,
+              fontSize: 14,
+              color: "#f08a27",
+              fontWeight: 700,
+            }}
+          >
+            注文情報を保存中です...
+          </div>
+        )}
+
+        {saved && (
+          <div
+            style={{
+              marginBottom: 16,
+              fontSize: 14,
+              color: "#22c55e",
+              fontWeight: 700,
+            }}
+          >
+            注文情報の保存が完了しました
+          </div>
+        )}
+
+        {error && (
+          <div
+            style={{
+              marginBottom: 16,
+              fontSize: 14,
+              color: "#f87171",
+              fontWeight: 700,
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        <div
+          style={{
+            display: "flex",
+            gap: 12,
+            justifyContent: "center",
+            flexWrap: "wrap",
+            marginTop: 18,
+          }}
+        >
+          <Link href="/mypage" style={primaryButtonStyle}>
+            会員マイページへ
+          </Link>
+
+          <Link href="/subscription" style={secondaryButtonStyle}>
+            サブスク一覧へ戻る
+          </Link>
+        </div>
+      </div>
     </main>
   );
 }
+
+export default function SubscriptionSuccessPage() {
+  return (
+    <Suspense
+      fallback={
+        <main
+          style={{
+            minHeight: "100vh",
+            background: "#0f1012",
+            color: "#ffffff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "24px",
+            fontSize: 14,
+          }}
+        >
+          読み込み中...
+        </main>
+      }
+    >
+      <SubscriptionSuccessContent />
+    </Suspense>
+  );
+}
+
+const primaryButtonStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 48,
+  padding: "0 18px",
+  borderRadius: 16,
+  background: "#f08a27",
+  color: "#141414",
+  textDecoration: "none",
+  fontSize: 14,
+  fontWeight: 800,
+  boxShadow: "0 12px 28px rgba(240,138,39,0.22)",
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 48,
+  padding: "0 18px",
+  borderRadius: 16,
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  color: "#f5f7fa",
+  textDecoration: "none",
+  fontSize: 14,
+  fontWeight: 700,
+};
