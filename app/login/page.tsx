@@ -9,23 +9,37 @@ const pageBg =
 export default function LoginPage() {
   const router = useRouter();
 
-  const [email, setEmail] = useState("");
+  const [memberId, setMemberId] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      alert("メールアドレスとパスワードを入力してください");
+  const handleMemberLogin = async () => {
+    if (!memberId || !password) {
+      alert("会員IDとパスワードを入力してください");
       return;
     }
 
     setLoading(true);
 
     setTimeout(() => {
-      localStorage.setItem("gymup_user_logged_in", "true");
-      localStorage.setItem("gymup_user_email", email);
+      localStorage.setItem("gymup_member_logged_in", "true");
+      localStorage.setItem("gymup_member_id", memberId);
+
+      // スタッフ状態は消しておく
+      localStorage.removeItem("gymup_staff_logged_in");
+
       router.push("/mypage");
     }, 700);
+  };
+
+  const handleStaffEnter = () => {
+    localStorage.setItem("gymup_staff_logged_in", "true");
+
+    // 会員状態は消しておく
+    localStorage.removeItem("gymup_member_logged_in");
+    localStorage.removeItem("gymup_member_id");
+
+    router.push("/");
   };
 
   return (
@@ -117,7 +131,7 @@ export default function LoginPage() {
                   marginBottom: 16,
                 }}
               >
-                MEMBER LOGIN
+                GYMUP PORTAL
               </div>
 
               <h1
@@ -132,7 +146,7 @@ export default function LoginPage() {
               >
                 Life Time Beauty
                 <br />
-                会員様ログイン
+                ログインポータル
               </h1>
 
               <p
@@ -145,24 +159,18 @@ export default function LoginPage() {
                   fontWeight: 600,
                 }}
               >
-                ご契約中のプラン確認、残り回数、次回予約、お支払い履歴などを
-                会員様専用ページからご確認いただけます。
+                会員様はマイページへログイン、スタッフは管理画面へそのまま入れます。
               </p>
             </div>
 
-            <div
-              style={{
-                display: "grid",
-                gap: 14,
-              }}
-            >
+            <div style={{ display: "grid", gap: 14 }}>
               <InfoCard
-                title="マイページでできること"
+                title="この画面からできること"
                 items={[
-                  "現在のプラン確認",
-                  "残り回数の確認",
-                  "次回予約・予約履歴の確認",
-                  "お支払い履歴の確認",
+                  "会員様マイページへログイン",
+                  "サブスク状況・予約確認",
+                  "商品購入ページへの移動",
+                  "スタッフ管理画面への入場",
                 ]}
               />
 
@@ -173,8 +181,8 @@ export default function LoginPage() {
                   gap: 12,
                 }}
               >
-                <MiniCard label="契約プラン" value="月2 / 月4 / 月8" />
-                <MiniCard label="確認できる内容" value="予約・回数・決済" />
+                <MiniCard label="会員様" value="ID・パスワードでログイン" />
+                <MiniCard label="スタッフ" value="クリックで管理画面へ" />
               </div>
             </div>
           </div>
@@ -211,7 +219,7 @@ export default function LoginPage() {
                 marginBottom: 8,
               }}
             >
-              ログイン
+              会員様ログイン
             </div>
 
             <div
@@ -224,17 +232,17 @@ export default function LoginPage() {
                 marginBottom: 24,
               }}
             >
-              ご登録メールアドレスとパスワードを入力してください
+              会員IDとパスワードを入力してください
             </div>
 
             <div style={{ display: "grid", gap: 14 }}>
               <div>
-                <div style={labelStyle}>メールアドレス</div>
+                <div style={labelStyle}>会員ID</div>
                 <input
-                  type="email"
-                  placeholder="example@gmail.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  type="text"
+                  placeholder="会員IDを入力"
+                  value={memberId}
+                  onChange={(e) => setMemberId(e.target.value)}
                   style={inputStyle}
                 />
               </div>
@@ -251,7 +259,7 @@ export default function LoginPage() {
               </div>
 
               <button
-                onClick={handleLogin}
+                onClick={handleMemberLogin}
                 disabled={loading}
                 style={{
                   marginTop: 4,
@@ -270,7 +278,38 @@ export default function LoginPage() {
                   boxShadow: "0 12px 28px rgba(17,24,39,0.18)",
                 }}
               >
-                {loading ? "ログイン中..." : "ログインする"}
+                {loading ? "ログイン中..." : "会員ログイン"}
+              </button>
+
+              <div
+                style={{
+                  position: "relative",
+                  textAlign: "center",
+                  margin: "6px 0",
+                  color: "#94a3b8",
+                  fontSize: 12,
+                  fontWeight: 700,
+                }}
+              >
+                または
+              </div>
+
+              <button
+                onClick={handleStaffEnter}
+                style={{
+                  width: "100%",
+                  height: 52,
+                  border: "1px solid #dbe2ea",
+                  borderRadius: 16,
+                  background: "#ffffff",
+                  color: "#111827",
+                  fontSize: 15,
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  boxShadow: "0 12px 28px rgba(15,23,42,0.08)",
+                }}
+              >
+                スタッフ管理画面へ
               </button>
             </div>
 
@@ -284,9 +323,7 @@ export default function LoginPage() {
                 fontWeight: 600,
               }}
             >
-              ※ 初回ログインやパスワードに関するご不明点は
-              <br />
-              店舗スタッフまでご連絡ください。
+              ※ 会員ログイン情報が不明な場合は店舗スタッフまでご連絡ください。
             </div>
           </div>
         </section>
