@@ -59,6 +59,7 @@ function getTodayDateString() {
 function formatTodayLabel() {
   const now = new Date();
   return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
     month: "long",
     day: "numeric",
     weekday: "short",
@@ -299,7 +300,7 @@ export default function HomePage() {
           background:
             radial-gradient(circle at top left, rgba(255,255,255,0.035) 0%, transparent 28%),
             radial-gradient(circle at bottom right, rgba(255,255,255,0.025) 0%, transparent 22%),
-            linear-gradient(180deg, #101112 0%, #17191c 48%, #111214 100%);
+            linear-gradient(180deg, #0f1012 0%, #16181b 48%, #111214 100%);
           color: #f5f7fa;
           font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         }
@@ -309,7 +310,7 @@ export default function HomePage() {
           position: absolute;
           inset: 0;
           background:
-            linear-gradient(120deg, rgba(240,138,39,0.05), transparent 34%),
+            linear-gradient(120deg, rgba(240,138,39,0.06), transparent 34%),
             linear-gradient(300deg, rgba(240,138,39,0.04), transparent 28%);
           pointer-events: none;
         }
@@ -320,36 +321,62 @@ export default function HomePage() {
           width: 100%;
           max-width: 1440px;
           margin: 0 auto;
-          padding: 40px 24px 28px;
+          padding: 34px 24px 28px;
         }
 
         .gymup-home__grid {
           display: grid;
           grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
-          gap: 32px;
-          align-items: center;
-          min-height: calc(100vh - 68px);
+          gap: 28px;
+          align-items: stretch;
+          min-height: calc(100vh - 62px);
         }
 
         .gymup-home__left {
           display: flex;
           flex-direction: column;
-          gap: 28px;
+          gap: 22px;
           min-width: 0;
         }
 
         .gymup-home__right {
           min-width: 0;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .gymup-home__hero-card,
+        .gymup-home__menu-card,
+        .gymup-home__dashboard {
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.045);
+          box-shadow: 0 18px 48px rgba(0,0,0,0.24);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
+          border-radius: 28px;
+        }
+
+        .gymup-home__hero-card {
+          padding: 26px;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          min-height: 420px;
+        }
+
+        .gymup-home__menu-card {
+          padding: 22px;
         }
 
         .gymup-home__logo-wrap {
           display: flex;
           align-items: center;
-          min-height: 110px;
+          min-height: 108px;
+          margin-bottom: 16px;
         }
 
         .gymup-home__logo-box {
-          width: min(100%, 500px);
+          width: min(100%, 420px);
         }
 
         .gymup-home__logo {
@@ -365,7 +392,7 @@ export default function HomePage() {
         .gymup-home__copy {
           display: flex;
           flex-direction: column;
-          gap: 18px;
+          gap: 16px;
           max-width: 620px;
         }
 
@@ -382,14 +409,12 @@ export default function HomePage() {
           font-size: 12px;
           letter-spacing: 0.12em;
           text-transform: uppercase;
-          backdrop-filter: blur(8px);
-          -webkit-backdrop-filter: blur(8px);
         }
 
         .gymup-home__title {
           margin: 0;
-          font-size: clamp(34px, 5vw, 62px);
-          line-height: 1.05;
+          font-size: clamp(34px, 5vw, 60px);
+          line-height: 1.06;
           letter-spacing: -0.04em;
           font-weight: 700;
           color: #ffffff;
@@ -399,7 +424,7 @@ export default function HomePage() {
           margin: 0;
           max-width: 560px;
           color: rgba(255,255,255,0.66);
-          font-size: 16px;
+          font-size: 15px;
           line-height: 1.9;
         }
 
@@ -407,7 +432,7 @@ export default function HomePage() {
           display: flex;
           gap: 14px;
           flex-wrap: wrap;
-          margin-top: 6px;
+          margin-top: 8px;
         }
 
         .gymup-home__btn-primary,
@@ -419,7 +444,7 @@ export default function HomePage() {
           padding: 0 22px;
           border-radius: 16px;
           text-decoration: none;
-          transition: transform 0.2s ease, opacity 0.2s ease, background 0.2s ease;
+          transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
         }
 
         .gymup-home__btn-primary {
@@ -436,27 +461,13 @@ export default function HomePage() {
           color: #f5f7fa;
           font-size: 15px;
           font-weight: 600;
-          backdrop-filter: blur(10px);
-          -webkit-backdrop-filter: blur(10px);
         }
 
         .gymup-home__btn-primary:hover,
-        .gymup-home__btn-secondary:hover {
+        .gymup-home__btn-secondary:hover,
+        .gymup-home__menu-link:hover,
+        .gymup-home__mini-link:hover {
           transform: translateY(-1px);
-        }
-
-        .gymup-home__menu-card,
-        .gymup-home__dashboard {
-          border: 1px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.045);
-          box-shadow: 0 18px 48px rgba(0,0,0,0.24);
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
-        }
-
-        .gymup-home__menu-card {
-          border-radius: 24px;
-          padding: 22px;
         }
 
         .gymup-home__section-label {
@@ -484,7 +495,6 @@ export default function HomePage() {
         }
 
         .gymup-home__menu-link:hover {
-          transform: translateY(-1px);
           background: rgba(255,255,255,0.04);
           border-color: rgba(255,255,255,0.1);
         }
@@ -503,8 +513,10 @@ export default function HomePage() {
         }
 
         .gymup-home__dashboard {
-          border-radius: 30px;
           overflow: hidden;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
         }
 
         .gymup-home__dashboard-top {
@@ -541,6 +553,7 @@ export default function HomePage() {
           display: flex;
           flex-direction: column;
           gap: 18px;
+          flex: 1;
         }
 
         .gymup-home__stats {
@@ -574,6 +587,7 @@ export default function HomePage() {
           display: grid;
           grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
           gap: 16px;
+          flex: 1;
         }
 
         .gymup-home__panel-large,
@@ -637,12 +651,14 @@ export default function HomePage() {
           font-weight: 700;
           color: #ffffff;
           margin-bottom: 4px;
+          word-break: break-word;
         }
 
         .gymup-home__schedule-sub {
           font-size: 12px;
           line-height: 1.6;
           color: rgba(255,255,255,0.56);
+          word-break: break-word;
         }
 
         .gymup-home__empty {
@@ -676,10 +692,10 @@ export default function HomePage() {
           border: 1px solid rgba(255,255,255,0.06);
           background: rgba(255,255,255,0.028);
           transition: transform 0.2s ease, background 0.2s ease;
+          text-align: center;
         }
 
         .gymup-home__mini-link:hover {
-          transform: translateY(-1px);
           background: rgba(255,255,255,0.045);
         }
 
@@ -713,6 +729,10 @@ export default function HomePage() {
             min-height: auto;
           }
 
+          .gymup-home__hero-card {
+            min-height: auto;
+          }
+
           .gymup-home__title {
             font-size: clamp(34px, 7vw, 52px);
           }
@@ -720,20 +740,41 @@ export default function HomePage() {
 
         @media (max-width: 768px) {
           .gymup-home__container {
-            padding: 22px 16px 24px;
+            padding: 18px 14px 22px;
+          }
+
+          .gymup-home__grid {
+            gap: 18px;
           }
 
           .gymup-home__left {
-            gap: 20px;
+            gap: 18px;
+          }
+
+          .gymup-home__hero-card,
+          .gymup-home__menu-card,
+          .gymup-home__dashboard,
+          .gymup-home__panel-large,
+          .gymup-home__panel-small {
+            border-radius: 22px;
+          }
+
+          .gymup-home__hero-card {
+            padding: 20px;
+          }
+
+          .gymup-home__menu-card {
+            padding: 18px;
           }
 
           .gymup-home__logo-wrap {
             justify-content: center;
             min-height: auto;
+            margin-bottom: 10px;
           }
 
           .gymup-home__logo-box {
-            width: min(92vw, 360px);
+            width: min(88vw, 300px);
           }
 
           .gymup-home__copy {
@@ -744,6 +785,11 @@ export default function HomePage() {
 
           .gymup-home__eyebrow {
             align-self: center;
+          }
+
+          .gymup-home__title {
+            font-size: 34px;
+            line-height: 1.12;
           }
 
           .gymup-home__desc {
@@ -772,15 +818,8 @@ export default function HomePage() {
             padding: 16px;
           }
 
-          .gymup-home__menu-card,
-          .gymup-home__dashboard,
-          .gymup-home__panel-large,
-          .gymup-home__panel-small {
-            border-radius: 22px;
-          }
-
           .gymup-home__schedule-item {
-            grid-template-columns: 64px 1fr;
+            grid-template-columns: 62px 1fr;
             padding: 12px;
           }
 
@@ -794,34 +833,36 @@ export default function HomePage() {
         <div className="gymup-home__container">
           <div className="gymup-home__grid">
             <div className="gymup-home__left">
-              <div className="gymup-home__logo-wrap">
-                <div className="gymup-home__logo-box">
-                  <img src="/logo.png" alt="GYMUP" className="gymup-home__logo" />
+              <div className="gymup-home__hero-card">
+                <div className="gymup-home__logo-wrap">
+                  <div className="gymup-home__logo-box">
+                    <img src="/logo.png" alt="GYMUP" className="gymup-home__logo" />
+                  </div>
                 </div>
-              </div>
 
-              <div className="gymup-home__copy">
-                <div className="gymup-home__eyebrow">GYM / PILATES CRM</div>
+                <div className="gymup-home__copy">
+                  <div className="gymup-home__eyebrow">GYM / PILATES CRM</div>
 
-                <h1 className="gymup-home__title">
-                  現場の管理を、
-                  <br />
-                  ひとつに整理する。
-                </h1>
+                  <h1 className="gymup-home__title">
+                    現場の管理を、
+                    <br />
+                    ひとつに整理する。
+                  </h1>
 
-                <p className="gymup-home__desc">
-                  予約、顧客、売上、勤怠、会計、サブスク管理まで。
-                  GYMUP CRMは、ジム・ピラティス運営に必要な業務を見やすく整理し、
-                  日々の現場で使いやすい形にまとめる管理システムです。
-                </p>
+                  <p className="gymup-home__desc">
+                    予約、顧客、売上、勤怠、会計、サブスク管理まで。
+                    GYMUP CRMは、ジム・ピラティス運営に必要な業務を見やすく整理し、
+                    日々の現場で使いやすい形にまとめる管理システムです。
+                  </p>
 
-                <div className="gymup-home__cta-row">
-                  <Link href="/customer" className="gymup-home__btn-primary">
-                    管理画面へ入る
-                  </Link>
-                  <Link href="/login" className="gymup-home__btn-secondary">
-                    会員ログイン
-                  </Link>
+                  <div className="gymup-home__cta-row">
+                    <Link href="/customer" className="gymup-home__btn-primary">
+                      管理画面へ入る
+                    </Link>
+                    <Link href="/login" className="gymup-home__btn-secondary">
+                      会員ログイン
+                    </Link>
+                  </div>
                 </div>
               </div>
 
@@ -924,7 +965,7 @@ export default function HomePage() {
                           </div>
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
-                            <span>スマホでは縦積みで見やすく表示</span>
+                            <span>スマホでも崩れにくい1カラム表示</span>
                           </div>
                         </div>
                       </div>
