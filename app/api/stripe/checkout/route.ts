@@ -52,11 +52,19 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    if (!session.url) {
+      return NextResponse.json(
+        { error: "チェックアウトURLの取得に失敗しました。" },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({ url: session.url });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Stripe checkout session create error:", error);
+
     return NextResponse.json(
-      { error: "チェックアウトの作成に失敗しました。" },
+      { error: error?.message || "チェックアウトの作成に失敗しました。" },
       { status: 500 }
     );
   }
