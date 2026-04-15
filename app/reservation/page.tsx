@@ -196,6 +196,7 @@ function getStoreColor(storeName?: string | null) {
   if (store.includes("福島")) return "#ef4444";
   if (store.includes("天満橋")) return "#14b8a6";
   if (store.includes("中崎町")) return "#eab308";
+  if (store.includes("江坂")) return "#10b981";
   return "#6b7280";
 }
 
