@@ -1,9 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+type CartItem = {
+  id: number;
+  name: string;
+  price: number;
+  quantity: number;
+};
 
 export default function CheckoutPage() {
+  const [items, setItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("cart");
+    if (stored) {
+      setItems(JSON.parse(stored));
+    }
+  }, []);
 
   const handleCheckout = async () => {
     try {
@@ -15,23 +30,19 @@ export default function CheckoutPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          plan: "monthly_2", // 仮（あとでcart連携できる）
-          customerName: "テストユーザー",
-          customerEmail: "test@example.com",
+          items,
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data?.error || "決済作成失敗");
+        alert(data?.error || "決済失敗");
         return;
       }
 
       if (data?.url) {
         window.location.href = data.url;
-      } else {
-        alert("URL取得失敗");
       }
     } catch (error) {
       console.error(error);
@@ -41,39 +52,41 @@ export default function CheckoutPage() {
     }
   };
 
+  const total = items.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
+
   return (
     <main style={{ padding: 20, maxWidth: 600, margin: "0 auto" }}>
-      <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 20 }}>
+      <h1 style={{ fontSize: 28, fontWeight: 800 }}>
         チェックアウト
       </h1>
 
-      <div
+      {items.map((item) => (
+        <div key={item.id} style={{ marginTop: 10 }}>
+          {item.name} × {item.quantity}
+        </div>
+      ))}
+
+      <div style={{ marginTop: 20, fontWeight: 800 }}>
+        合計: {total.toLocaleString()}円
+      </div>
+
+      <button
+        onClick={handleCheckout}
+        disabled={loading}
         style={{
-          background: "#fff",
-          padding: 20,
-          borderRadius: 16,
-          boxShadow: "0 4px 20px rgba(0,0,0,0.05)",
+          width: "100%",
+          height: 50,
+          marginTop: 20,
+          background: "black",
+          color: "#fff",
+          borderRadius: 12,
         }}
       >
-        <p style={{ marginBottom: 20 }}>
-          内容を確認して決済へ進んでください
-        </p>
-
-        <button
-          onClick={handleCheckout}
-          disabled={loading}
-          style={{
-            width: "100%",
-            height: 50,
-            background: "black",
-            color: "#fff",
-            borderRadius: 12,
-            fontWeight: 700,
-          }}
-        >
-          {loading ? "処理中..." : "決済に進む"}
-        </button>
-      </div>
+        {loading ? "処理中..." : "決済に進む"}
+      </button>
     </main>
   );
 }
