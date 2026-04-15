@@ -3,335 +3,238 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-type ReservationItem = {
-  id: string;
+type SubscriptionInfo = {
+  planName: string;
+  status: string;
+  remainingCount: number;
+  nextPaymentDate: string;
+};
+
+type ReservationInfo = {
   date: string;
   startTime: string;
   storeName: string;
   staffName: string;
   menu: string;
-  status: "予定" | "完了" | "キャンセル";
 };
 
-type PaymentItem = {
-  id: string;
-  date: string;
-  amount: number;
-  label: string;
-  status: "支払い済み" | "未払い";
+type ProductInfo = {
+  id: number;
+  name: string;
+  price: number;
+  image: string;
+  description: string;
 };
 
-type MyPageData = {
-  customerName: string;
-  customerCode: string;
-  planName: string;
-  monthlyCount: number;
-  usedCount: number;
-  carryOver: number;
-  nextPaymentDate: string;
-  membershipStatus: "有効" | "停止" | "休会";
-  nextReservation: ReservationItem | null;
-  reservations: ReservationItem[];
-  payments: PaymentItem[];
-  notices: string[];
-};
-
-const demoData: MyPageData = {
-  customerName: "山田 花子",
-  customerCode: "GYMUP-001",
-  planName: "月4回コース",
-  monthlyCount: 4,
-  usedCount: 1,
-  carryOver: 1,
-  nextPaymentDate: "2026-05-01",
-  membershipStatus: "有効",
-  nextReservation: {
-    id: "r1",
-    date: "2026-04-18",
-    startTime: "10:00",
-    storeName: "江戸堀本店",
-    staffName: "山口",
-    menu: "パーソナルトレーニング",
-    status: "予定",
+const recommendedProducts: ProductInfo[] = [
+  {
+    id: 1,
+    name: "WPCプロテイン ヨーグルト風味",
+    price: 2911,
+    image: "https://via.placeholder.com/300x180",
+    description: "飲みやすく続けやすい人気フレーバー",
   },
-  reservations: [
-    {
-      id: "r1",
-      date: "2026-04-18",
-      startTime: "10:00",
-      storeName: "江戸堀本店",
-      staffName: "山口",
-      menu: "パーソナルトレーニング",
-      status: "予定",
-    },
-    {
-      id: "r2",
-      date: "2026-04-11",
-      startTime: "11:00",
-      storeName: "江戸堀本店",
-      staffName: "中西",
-      menu: "ストレッチ",
-      status: "完了",
-    },
-    {
-      id: "r3",
-      date: "2026-04-04",
-      startTime: "13:30",
-      storeName: "福島店",
-      staffName: "池田",
-      menu: "パーソナルトレーニング",
-      status: "完了",
-    },
-  ],
-  payments: [
-    {
-      id: "p1",
-      date: "2026-04-01",
-      amount: 33880,
-      label: "月4回コース 4月分",
-      status: "支払い済み",
-    },
-    {
-      id: "p2",
-      date: "2026-03-01",
-      amount: 33880,
-      label: "月4回コース 3月分",
-      status: "支払い済み",
-    },
-  ],
-  notices: [
-    "次回決済日は 2026-05-01 です。",
-    "予約変更は前日までにご連絡ください。",
-    "当日の体調に不安がある場合は無理をせずご相談ください。",
-  ],
-};
+  {
+    id: 2,
+    name: "WPCプロテイン チョコ風味",
+    price: 3200,
+    image: "https://via.placeholder.com/300x180",
+    description: "満足感があり、トレーニング後にもおすすめ",
+  },
+];
 
-const pageBg =
-  "linear-gradient(135deg, #f8fafc 0%, #eef2f7 50%, #f8fafc 100%)";
+function formatJapaneseDate(dateStr?: string) {
+  if (!dateStr) return "未設定";
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return dateStr;
 
-const cardStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.78)",
-  backdropFilter: "blur(14px)",
-  WebkitBackdropFilter: "blur(14px)",
-  border: "1px solid rgba(255,255,255,0.7)",
-  borderRadius: 24,
-  boxShadow: "0 18px 50px rgba(15,23,42,0.08)",
-};
-
-const sectionTitleStyle: React.CSSProperties = {
-  fontSize: 20,
-  fontWeight: 800,
-  color: "#0f172a",
-  margin: 0,
-};
-
-const labelStyle: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 700,
-  color: "#64748b",
-  letterSpacing: "0.08em",
-};
-
-const valueStyle: React.CSSProperties = {
-  fontSize: 22,
-  fontWeight: 800,
-  color: "#0f172a",
-};
-
-function formatDate(dateStr: string) {
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return dateStr;
-  const y = d.getFullYear();
-  const m = `${d.getMonth() + 1}`.padStart(2, "0");
-  const day = `${d.getDate()}`.padStart(2, "0");
-  return `${y}.${m}.${day}`;
+  return new Intl.DateTimeFormat("ja-JP", {
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+  }).format(date);
 }
 
-function formatYen(amount: number) {
-  return new Intl.NumberFormat("ja-JP", {
-    style: "currency",
-    currency: "JPY",
-    maximumFractionDigits: 0,
-  }).format(amount);
+function formatPaymentDate(dateStr?: string) {
+  if (!dateStr) return "未設定";
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return dateStr;
+
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
 }
 
-function getStatusColor(status: MyPageData["membershipStatus"]) {
-  if (status === "有効") return "#16a34a";
-  if (status === "休会") return "#d97706";
-  return "#dc2626";
-}
-
-function getReservationStatusStyle(status: ReservationItem["status"]) {
-  if (status === "予定") {
-    return {
-      background: "rgba(37,99,235,0.08)",
-      color: "#2563eb",
-      border: "1px solid rgba(37,99,235,0.18)",
-    };
-  }
-  if (status === "完了") {
-    return {
-      background: "rgba(22,163,74,0.08)",
-      color: "#16a34a",
-      border: "1px solid rgba(22,163,74,0.18)",
-    };
-  }
-  return {
-    background: "rgba(220,38,38,0.08)",
-    color: "#dc2626",
-    border: "1px solid rgba(220,38,38,0.18)",
-  };
-}
-
-function SummaryCard({
-  label,
-  value,
-  sub,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-}) {
-  return (
-    <div
-      style={{
-        ...cardStyle,
-        padding: 18,
-        minHeight: 132,
-      }}
-    >
-      <div style={labelStyle}>{label}</div>
-      <div style={{ ...valueStyle, marginTop: 12 }}>{value}</div>
-      {sub ? (
-        <div
-          style={{
-            marginTop: 10,
-            fontSize: 13,
-            lineHeight: 1.7,
-            color: "#64748b",
-            fontWeight: 600,
-          }}
-        >
-          {sub}
-        </div>
-      ) : null}
-    </div>
-  );
+function yen(value: number) {
+  return `¥${value.toLocaleString()}`;
 }
 
 export default function MyPage() {
-  const [data, setData] = useState<MyPageData>(demoData);
+  const [mounted, setMounted] = useState(false);
+  const [customerName, setCustomerName] = useState("お客様");
+  const [subscription, setSubscription] = useState<SubscriptionInfo>({
+    planName: "月4回コース",
+    status: "有効",
+    remainingCount: 2,
+    nextPaymentDate: "",
+  });
+  const [nextReservation, setNextReservation] = useState<ReservationInfo | null>(null);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("gymup_mypage_demo");
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as Partial<MyPageData>;
-      setData({
-        ...demoData,
-        ...parsed,
-        nextReservation:
-          parsed.nextReservation === undefined
-            ? demoData.nextReservation
-            : parsed.nextReservation,
-        reservations: parsed.reservations || demoData.reservations,
-        payments: parsed.payments || demoData.payments,
-        notices: parsed.notices || demoData.notices,
-      });
-    } catch (error) {
-      console.error("マイページデータ読み込みエラー:", error);
+    setMounted(true);
+
+    if (typeof window === "undefined") return;
+
+    const storedName =
+      localStorage.getItem("gymup_mypage_customer_name") ||
+      localStorage.getItem("gymup_current_customer_name") ||
+      localStorage.getItem("gymup_current_staff_name");
+
+    if (storedName) {
+      setCustomerName(storedName);
+    }
+
+    const storedPlan = localStorage.getItem("gymup_mypage_subscription");
+    if (storedPlan) {
+      try {
+        const parsed = JSON.parse(storedPlan);
+        setSubscription({
+          planName: parsed.planName || "月4回コース",
+          status: parsed.status || "有効",
+          remainingCount:
+            typeof parsed.remainingCount === "number" ? parsed.remainingCount : 2,
+          nextPaymentDate: parsed.nextPaymentDate || "",
+        });
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    const storedReservation = localStorage.getItem("gymup_mypage_next_reservation");
+    if (storedReservation) {
+      try {
+        const parsed = JSON.parse(storedReservation);
+        if (parsed?.date && parsed?.startTime) {
+          setNextReservation({
+            date: parsed.date,
+            startTime: parsed.startTime,
+            storeName: parsed.storeName || "店舗未設定",
+            staffName: parsed.staffName || "担当未設定",
+            menu: parsed.menu || "メニュー未設定",
+          });
+        }
+      } catch (error) {
+        console.error(error);
+      }
     }
   }, []);
 
-  const remainingCount = useMemo(() => {
-    return Math.max(data.monthlyCount + data.carryOver - data.usedCount, 0);
-  }, [data]);
+  const reminderText = useMemo(() => {
+    if (!nextReservation) return "現在、予約は入っていません。";
+    return `${formatJapaneseDate(nextReservation.date)} ${nextReservation.startTime}〜 のご予約があります。`;
+  }, [nextReservation]);
+
+  if (!mounted) return null;
 
   return (
     <main
       style={{
         minHeight: "100vh",
-        background: pageBg,
-        padding: "20px 14px 40px",
+        background:
+          "linear-gradient(180deg, #f8fafc 0%, #eef2ff 55%, #f8fafc 100%)",
+        padding: "20px 14px 48px",
       }}
     >
-      <div
-        style={{
-          maxWidth: 1120,
-          margin: "0 auto",
-          display: "grid",
-          gap: 18,
-        }}
-      >
-        <div
+      <div style={{ maxWidth: 760, margin: "0 auto" }}>
+        <section
           style={{
-            ...cardStyle,
-            padding: 20,
-            display: "grid",
-            gap: 16,
+            background: "rgba(255,255,255,0.82)",
+            border: "1px solid rgba(255,255,255,0.95)",
+            borderRadius: 24,
+            padding: 22,
+            boxShadow: "0 12px 30px rgba(15,23,42,0.06)",
+            marginBottom: 16,
           }}
         >
           <div
             style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              gap: 12,
-              flexWrap: "wrap",
+              fontSize: 12,
+              fontWeight: 800,
+              letterSpacing: "0.12em",
+              color: "#94a3b8",
+              marginBottom: 8,
             }}
           >
-            <div>
-              <div
-                style={{
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: "#64748b",
-                  marginBottom: 6,
-                  letterSpacing: "0.08em",
-                }}
-              >
-                MEMBER PAGE
-              </div>
-              <h1
-                style={{
-                  margin: 0,
-                  fontSize: 30,
-                  fontWeight: 900,
-                  color: "#0f172a",
-                  lineHeight: 1.2,
-                }}
-              >
-                こんにちは、{data.customerName} 様
-              </h1>
-              <div
-                style={{
-                  marginTop: 10,
-                  fontSize: 14,
-                  color: "#64748b",
-                  fontWeight: 600,
-                }}
-              >
-                会員番号：{data.customerCode}
-              </div>
-            </div>
+            MY PAGE
+          </div>
 
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "10px 14px",
-                borderRadius: 999,
-                background: "rgba(255,255,255,0.7)",
-                border: `1px solid ${getStatusColor(data.membershipStatus)}22`,
-                fontSize: 14,
-                fontWeight: 800,
-                color: getStatusColor(data.membershipStatus),
-                whiteSpace: "nowrap",
-              }}
-            >
-              ● {data.membershipStatus}
-            </div>
+          <h1
+            style={{
+              margin: 0,
+              fontSize: 28,
+              fontWeight: 900,
+              color: "#0f172a",
+              lineHeight: 1.3,
+            }}
+          >
+            {customerName}様のマイページ
+          </h1>
+
+          <p
+            style={{
+              marginTop: 10,
+              marginBottom: 0,
+              color: "#64748b",
+              fontSize: 14,
+              lineHeight: 1.8,
+            }}
+          >
+            サブスク状況、次回予約、おすすめ商品をまとめて確認できます。
+          </p>
+        </section>
+
+        <section
+          style={{
+            background: "#111827",
+            color: "#fff",
+            borderRadius: 22,
+            padding: 20,
+            boxShadow: "0 16px 36px rgba(15,23,42,0.14)",
+            marginBottom: 16,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 800,
+              letterSpacing: "0.12em",
+              color: "rgba(255,255,255,0.58)",
+              marginBottom: 10,
+            }}
+          >
+            SUBSCRIPTION
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gap: 12,
+              gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+            }}
+          >
+            <StatusCardDark label="現在のプラン" value={subscription.planName} />
+            <StatusCardDark label="契約状況" value={subscription.status} />
+            <StatusCardDark
+              label="残り回数"
+              value={`${subscription.remainingCount}回`}
+              accent="#f59e0b"
+            />
+            <StatusCardDark
+              label="次回決済日"
+              value={formatPaymentDate(subscription.nextPaymentDate)}
+            />
           </div>
 
           <div
@@ -339,309 +242,415 @@ export default function MyPage() {
               display: "flex",
               gap: 10,
               flexWrap: "wrap",
+              marginTop: 16,
+            }}
+          >
+            <Link
+              href="/subscription"
+              style={{
+                flex: 1,
+                minWidth: 180,
+                minHeight: 46,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                textDecoration: "none",
+                borderRadius: 14,
+                background: "linear-gradient(135deg, #f59e0b, #d97706)",
+                color: "#111827",
+                fontWeight: 800,
+                fontSize: 14,
+              }}
+            >
+              サブスク申込・確認
+            </Link>
+
+            <Link
+              href="/customer"
+              style={{
+                flex: 1,
+                minWidth: 180,
+                minHeight: 46,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                textDecoration: "none",
+                borderRadius: 14,
+                border: "1px solid rgba(255,255,255,0.18)",
+                background: "rgba(255,255,255,0.06)",
+                color: "#fff",
+                fontWeight: 700,
+                fontSize: 14,
+              }}
+            >
+              契約内容を見る
+            </Link>
+          </div>
+        </section>
+
+        <section
+          style={{
+            background: "rgba(255,255,255,0.88)",
+            border: "1px solid rgba(255,255,255,0.95)",
+            borderRadius: 22,
+            padding: 20,
+            boxShadow: "0 10px 28px rgba(15,23,42,0.05)",
+            marginBottom: 16,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 800,
+              letterSpacing: "0.12em",
+              color: "#94a3b8",
+              marginBottom: 10,
+            }}
+          >
+            NEXT RESERVATION
+          </div>
+
+          <div
+            style={{
+              fontSize: 22,
+              fontWeight: 900,
+              color: "#0f172a",
+              lineHeight: 1.4,
+              marginBottom: 8,
+            }}
+          >
+            次回予約・リマインド
+          </div>
+
+          <p
+            style={{
+              margin: 0,
+              color: "#475569",
+              lineHeight: 1.8,
+              fontSize: 15,
+            }}
+          >
+            {reminderText}
+          </p>
+
+          {nextReservation ? (
+            <div
+              style={{
+                marginTop: 14,
+                background: "#f8fafc",
+                borderRadius: 16,
+                padding: 14,
+                display: "grid",
+                gap: 8,
+              }}
+            >
+              <ReserveRow label="日時" value={`${formatJapaneseDate(nextReservation.date)} ${nextReservation.startTime}〜`} />
+              <ReserveRow label="店舗" value={nextReservation.storeName} />
+              <ReserveRow label="担当" value={nextReservation.staffName} />
+              <ReserveRow label="メニュー" value={nextReservation.menu} />
+            </div>
+          ) : (
+            <div
+              style={{
+                marginTop: 14,
+                background: "#f8fafc",
+                borderRadius: 16,
+                padding: 14,
+                color: "#64748b",
+                fontSize: 14,
+              }}
+            >
+              予約がまだ入っていません。
+            </div>
+          )}
+
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              flexWrap: "wrap",
+              marginTop: 16,
             }}
           >
             <Link
               href="/reservation"
               style={{
-                textDecoration: "none",
-                height: 46,
-                padding: "0 18px",
-                borderRadius: 14,
-                background: "linear-gradient(135deg, #111827 0%, #dc2626 100%)",
-                color: "#fff",
-                fontSize: 14,
-                fontWeight: 800,
+                flex: 1,
+                minWidth: 180,
+                minHeight: 46,
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
+                textDecoration: "none",
+                borderRadius: 14,
+                background: "#111827",
+                color: "#fff",
+                fontWeight: 800,
+                fontSize: 14,
               }}
             >
-              予約画面へ
+              予約を確認する
             </Link>
 
             <Link
-              href="/"
+              href="/reservation"
               style={{
-                textDecoration: "none",
-                height: 46,
-                padding: "0 18px",
-                borderRadius: 14,
-                background: "#fff",
-                color: "#111827",
-                fontSize: 14,
-                fontWeight: 800,
+                flex: 1,
+                minWidth: 180,
+                minHeight: 46,
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
+                textDecoration: "none",
+                borderRadius: 14,
                 border: "1px solid #e2e8f0",
+                background: "#fff",
+                color: "#334155",
+                fontWeight: 700,
+                fontSize: 14,
               }}
             >
-              トップへ戻る
+              次回予約を入れる
             </Link>
           </div>
-        </div>
+        </section>
 
-        <div
+        <section
           style={{
-            display: "grid",
-            gap: 14,
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          }}
-        >
-          <SummaryCard
-            label="現在のプラン"
-            value={data.planName}
-            sub={`次回決済日 ${formatDate(data.nextPaymentDate)}`}
-          />
-          <SummaryCard
-            label="残り回数"
-            value={`${remainingCount}回`}
-            sub={`月回数 ${data.monthlyCount}回 / 繰越 ${data.carryOver}回 / 消化 ${data.usedCount}回`}
-          />
-          <SummaryCard
-            label="次回予約"
-            value={
-              data.nextReservation
-                ? `${formatDate(data.nextReservation.date)} ${data.nextReservation.startTime}`
-                : "予約なし"
-            }
-            sub={
-              data.nextReservation
-                ? `${data.nextReservation.storeName} / ${data.nextReservation.staffName}`
-                : "次回予約をお取りください"
-            }
-          />
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gap: 18,
-            gridTemplateColumns: "1.15fr 0.85fr",
+            background: "rgba(255,255,255,0.88)",
+            border: "1px solid rgba(255,255,255,0.95)",
+            borderRadius: 22,
+            padding: 20,
+            boxShadow: "0 10px 28px rgba(15,23,42,0.05)",
           }}
         >
           <div
             style={{
-              ...cardStyle,
-              padding: 20,
+              fontSize: 12,
+              fontWeight: 800,
+              letterSpacing: "0.12em",
+              color: "#94a3b8",
+              marginBottom: 10,
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 12,
-                marginBottom: 16,
-              }}
-            >
-              <h2 style={sectionTitleStyle}>予約一覧</h2>
+            SHOP
+          </div>
+
+          <div
+            style={{
+              fontSize: 22,
+              fontWeight: 900,
+              color: "#0f172a",
+              lineHeight: 1.4,
+              marginBottom: 8,
+            }}
+          >
+            おすすめ商品
+          </div>
+
+          <p
+            style={{
+              marginTop: 0,
+              color: "#475569",
+              lineHeight: 1.8,
+              fontSize: 15,
+              marginBottom: 16,
+            }}
+          >
+            トレーニングやボディメイクをサポートするおすすめ商品です。
+          </p>
+
+          <div
+            style={{
+              display: "grid",
+              gap: 14,
+              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+            }}
+          >
+            {recommendedProducts.map((product) => (
               <div
+                key={product.id}
                 style={{
-                  fontSize: 13,
-                  color: "#64748b",
-                  fontWeight: 700,
+                  background: "#fff",
+                  borderRadius: 18,
+                  overflow: "hidden",
+                  boxShadow: "0 8px 24px rgba(15,23,42,0.05)",
+                  border: "1px solid #eef2f7",
                 }}
               >
-                直近 {data.reservations.length}件
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gap: 12 }}>
-              {data.reservations.map((item) => (
-                <div
-                  key={item.id}
+                <img
+                  src={product.image}
+                  alt={product.name}
                   style={{
-                    borderRadius: 18,
-                    background: "#fff",
-                    border: "1px solid #e5e7eb",
-                    padding: 16,
-                    display: "grid",
-                    gap: 10,
+                    width: "100%",
+                    height: 170,
+                    objectFit: "cover",
+                    display: "block",
                   }}
-                >
+                />
+
+                <div style={{ padding: 14 }}>
                   <div
                     style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 10,
+                      fontSize: 16,
+                      fontWeight: 800,
+                      color: "#0f172a",
+                      lineHeight: 1.5,
+                      marginBottom: 8,
+                    }}
+                  >
+                    {product.name}
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: 20,
+                      fontWeight: 900,
+                      color: "#111827",
+                      marginBottom: 8,
+                    }}
+                  >
+                    {yen(product.price)}
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: 13,
+                      color: "#64748b",
+                      lineHeight: 1.7,
+                      marginBottom: 12,
+                    }}
+                  >
+                    {product.description}
+                  </div>
+
+                  <Link
+                    href="/shop"
+                    style={{
+                      width: "100%",
+                      minHeight: 42,
+                      display: "inline-flex",
                       alignItems: "center",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 18,
-                        fontWeight: 800,
-                        color: "#0f172a",
-                      }}
-                    >
-                      {formatDate(item.date)} {item.startTime}
-                    </div>
-
-                    <div
-                      style={{
-                        ...getReservationStatusStyle(item.status),
-                        padding: "6px 10px",
-                        borderRadius: 999,
-                        fontSize: 12,
-                        fontWeight: 800,
-                      }}
-                    >
-                      {item.status}
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      display: "grid",
-                      gap: 6,
+                      justifyContent: "center",
+                      textDecoration: "none",
+                      borderRadius: 12,
+                      background: "#111827",
+                      color: "#fff",
+                      fontWeight: 700,
                       fontSize: 14,
-                      color: "#475569",
-                      fontWeight: 600,
                     }}
                   >
-                    <div>店舗：{item.storeName}</div>
-                    <div>担当：{item.staffName}</div>
-                    <div>メニュー：{item.menu}</div>
-                  </div>
+                    ショップを見る
+                  </Link>
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
 
-          <div style={{ display: "grid", gap: 18 }}>
-            <div
-              style={{
-                ...cardStyle,
-                padding: 20,
-              }}
-            >
-              <h2 style={{ ...sectionTitleStyle, marginBottom: 14 }}>
-                お知らせ
-              </h2>
-
-              <div style={{ display: "grid", gap: 10 }}>
-                {data.notices.map((notice, index) => (
-                  <div
-                    key={`${notice}-${index}`}
-                    style={{
-                      background: "#fff",
-                      border: "1px solid #e5e7eb",
-                      borderRadius: 16,
-                      padding: 14,
-                      fontSize: 14,
-                      color: "#334155",
-                      lineHeight: 1.8,
-                      fontWeight: 600,
-                    }}
-                  >
-                    {notice}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div
-              style={{
-                ...cardStyle,
-                padding: 20,
-              }}
-            >
-              <h2 style={{ ...sectionTitleStyle, marginBottom: 14 }}>
-                お支払い履歴
-              </h2>
-
-              <div style={{ display: "grid", gap: 10 }}>
-                {data.payments.map((item) => (
-                  <div
-                    key={item.id}
-                    style={{
-                      background: "#fff",
-                      border: "1px solid #e5e7eb",
-                      borderRadius: 16,
-                      padding: 14,
-                      display: "grid",
-                      gap: 6,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 10,
-                        alignItems: "center",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 15,
-                          fontWeight: 800,
-                          color: "#0f172a",
-                        }}
-                      >
-                        {item.label}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 800,
-                          color:
-                            item.status === "支払い済み" ? "#16a34a" : "#dc2626",
-                        }}
-                      >
-                        {item.status}
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        fontSize: 13,
-                        color: "#64748b",
-                        fontWeight: 700,
-                      }}
-                    >
-                      {formatDate(item.date)}
-                    </div>
-
-                    <div
-                      style={{
-                        fontSize: 18,
-                        fontWeight: 900,
-                        color: "#111827",
-                      }}
-                    >
-                      {formatYen(item.amount)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div
-          style={{
-            ...cardStyle,
-            padding: 16,
-            fontSize: 13,
-            lineHeight: 1.8,
-            color: "#64748b",
-            fontWeight: 600,
-          }}
-        >
-          ※ このページは先行UI版です。次の段階で Stripe決済情報・Supabase顧客情報・予約データと自動連携させます。
-        </div>
+          <Link
+            href="/shop"
+            style={{
+              marginTop: 16,
+              width: "100%",
+              minHeight: 50,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              textDecoration: "none",
+              borderRadius: 14,
+              background: "linear-gradient(135deg, #111827, #334155)",
+              color: "#fff",
+              fontWeight: 800,
+              fontSize: 15,
+            }}
+          >
+            物販ページへ進む
+          </Link>
+        </section>
       </div>
-
-      <style jsx>{`
-        @media (max-width: 900px) {
-          main :global(.mypage-two-col) {
-            grid-template-columns: 1fr;
-          }
-        }
-      `}</style>
     </main>
+  );
+}
+
+function StatusCardDark({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent?: string;
+}) {
+  return (
+    <div
+      style={{
+        background: "rgba(255,255,255,0.06)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: 16,
+        padding: 14,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 12,
+          color: "rgba(255,255,255,0.56)",
+          fontWeight: 700,
+          marginBottom: 6,
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontSize: 22,
+          fontWeight: 900,
+          color: accent || "#fff",
+          lineHeight: 1.3,
+          wordBreak: "break-word",
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function ReserveRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "72px 1fr",
+        gap: 10,
+        alignItems: "start",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 13,
+          fontWeight: 700,
+          color: "#94a3b8",
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontSize: 14,
+          fontWeight: 700,
+          color: "#0f172a",
+          lineHeight: 1.6,
+          wordBreak: "break-word",
+        }}
+      >
+        {value}
+      </div>
+    </div>
   );
 }
