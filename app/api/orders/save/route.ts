@@ -2,17 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { stripe } from "@/lib/stripe";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!supabaseUrl || !supabaseServiceRoleKey) {
-  throw new Error("Supabase environment variables are not set.");
-}
-
-const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-
 export async function POST(req: NextRequest) {
   try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
+      return NextResponse.json(
+        { ok: false, error: "Supabase環境変数が設定されていません" },
+        { status: 500 }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+
     const body = await req.json();
     const sessionId = body?.session_id as string | undefined;
 
