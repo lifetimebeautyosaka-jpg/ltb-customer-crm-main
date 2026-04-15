@@ -74,10 +74,10 @@ export default function ProductDetailPage() {
       const raw = localStorage.getItem("cart");
       const cart: CartItem[] = raw ? JSON.parse(raw) : [];
 
-      const existing = cart.find((item) => item.id === product.id);
+      const existingIndex = cart.findIndex((item) => item.id === product.id);
 
-      if (existing) {
-        existing.quantity += qty;
+      if (existingIndex >= 0) {
+        cart[existingIndex].quantity += qty;
       } else {
         cart.push({
           id: product.id,
@@ -91,12 +91,12 @@ export default function ProductDetailPage() {
       localStorage.setItem("cart", JSON.stringify(cart));
       alert("カートに追加しました");
     } catch (error) {
-      console.error("cart save error:", error);
+      console.error("cart add error:", error);
       alert("カート追加に失敗しました");
     }
   };
 
-  const buyNow = () => {
+  const goToCart = () => {
     addToCart();
     router.push("/cart");
   };
@@ -195,7 +195,7 @@ export default function ProductDetailPage() {
                 カートに追加
               </button>
 
-              <button type="button" style={buyBtnStyle} onClick={buyNow}>
+              <button type="button" style={buyBtnStyle} onClick={goToCart}>
                 そのままカートへ進む
               </button>
             </div>
