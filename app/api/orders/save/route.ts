@@ -1,82 +1,131 @@
 import { NextRequest, NextResponse } from "next/server";
+import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 import { stripe } from "@/lib/stripe";
 
-const supabase =
-  process.env.NEXT_PUBLIC_SUPABASE_URL &&
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-    ? createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.SUPABASE_SERVICE_ROLE_KEY
-      )
-    : null;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceRoleKey) {
+  throw new Error("Supabase environment variables are not set.");
+}
+
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 export async function POST(req: NextRequest) {
   try {
-    if (!supabase) {
-      return NextResponse.json(
-        { error: "Supabase未設定" },
-        { status: 500 }
-      );
-    }
-
     const body = await req.json();
-    const sessionId = body?.sessionId;
+    const sessionId = body?.session_id as string | undefined;
 
     if (!sessionId) {
       return NextResponse.json(
-        { error: "sessionIdなし" },
+        { ok: false, error: "session_id がありません" },
         { status: 400 }
       );
     }
 
-    const existing = await supabase
-      .from("orders")
-      .select("id")
-      .eq("stripe_session_id", sessionId)
-      .maybeSingle();
+    const session = await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ["line_items", "customer_details"],
+    });
 
-    if (existing.data?.id) {
-      return NextResponse.json({ success: true });
+    if (!session) {
+      return NextResponse.json(
+        { ok: false, error: "Stripeセッションが見つかりません" },
+        { status: 404 }
+      );
     }
 
-    const session = await stripe.checkout.sessions.retrieve(sessionId, {
-      expand: ["line_items.data.price.product"],
-    });
+    // すでに保存済みなら二重登録しない
+    const existingOrder = await supabase
+      .from("orders")
+      .select("id, stripe_session_id")
+      .eq("stripe_session_id", session.id)
+      .maybeSingle();
+
+    if (existingOrder.error) {
+      throw new Error(existingOrder.error.message);
+    }
+
+    if (existingOrder.data) {
+      return NextResponse.json({
+        ok: true,
+        message: "既に保存済みです",
+        order_id: existingOrder.data.id,
+        duplicated: true,
+      });
+    }
+
+    const customerEmail = session.customer_details?.email ?? "";
+    const customerName = session.customer_details?.name ?? "";
+    const totalAmount = session.amount_total ?? 0;
+    const currency = session.currency ?? "jpy";
+    const paymentStatus = session.payment_status ?? "paid";
 
     const orderInsert = await supabase
       .from("orders")
       .insert({
         stripe_session_id: session.id,
-        customer_email: session.customer_details?.email || "",
-        total_amount: session.amount_total || 0,
-        currency: session.currency || "jpy",
-        payment_status: session.payment_status,
+        customer_email: customerEmail,
+        customer_name: customerName,
+        total_amount: totalAmount,
+        currency,
+        payment_status: paymentStatus,
+        order_status: "paid",
       })
       .select("id")
       .single();
 
+    if (orderInsert.error) {
+      throw new Error(orderInsert.error.message);
+    }
+
+    if (!orderInsert.data) {
+      throw new Error("注文データの保存結果が取得できませんでした");
+    }
+
     const orderId = orderInsert.data.id;
 
-    const items = session.line_items?.data || [];
+    const items = session.line_items?.data ?? [];
 
-    const itemsPayload = items.map((item) => ({
+    if (items.length > 0) {
+      const orderItems = items.map((item) => {
+        const unitAmount = item.price?.unit_amount ?? 0;
+        const quantity = item.quantity ?? 1;
+
+        return {
+          order_id: orderId,
+          product_name: item.description || "商品名未設定",
+          unit_amount: unitAmount,
+          quantity,
+          subtotal: unitAmount * quantity,
+        };
+      });
+
+      const orderItemsInsert = await supabase
+        .from("order_items")
+        .insert(orderItems);
+
+      if (orderItemsInsert.error) {
+        throw new Error(orderItemsInsert.error.message);
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
       order_id: orderId,
-      product_name: item.description,
-      unit_amount: item.price?.unit_amount || 0,
-      quantity: item.quantity || 1,
-      subtotal:
-        (item.price?.unit_amount || 0) * (item.quantity || 1),
-    }));
+      duplicated: false,
+    });
+  } catch (error) {
+    console.error("orders save api error:", error);
 
-    await supabase.from("order_items").insert(itemsPayload);
-
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error(error);
+    const message =
+      error instanceof Error ? error.message : "注文保存中にエラーが発生しました";
 
     return NextResponse.json(
-      { error: error?.message || "保存失敗" },
+      {
+        ok: false,
+        error: message,
+      },
       { status: 500 }
     );
   }
