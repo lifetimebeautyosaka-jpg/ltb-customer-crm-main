@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 type ReservationItem = {
@@ -73,6 +74,7 @@ function normalizeReservation(raw: any): ReservationItem | null {
     raw.id ??
       `${raw.date ?? ""}-${raw.start_time ?? raw.startTime ?? ""}-${raw.customer_name ?? raw.customerName ?? raw.name ?? ""}`
   );
+
   const date = String(raw.date ?? "").trim();
   const startTime = String(raw.start_time ?? raw.startTime ?? "").trim();
   const customerName = String(
@@ -159,6 +161,9 @@ function parseLocalReservations(): ReservationItem[] {
 }
 
 export default function HomePage() {
+  const router = useRouter();
+
+  const [authChecked, setAuthChecked] = useState(false);
   const [todayReservations, setTodayReservations] = useState<DisplayReservation[]>([]);
   const [loadingReservations, setLoadingReservations] = useState(true);
   const [reservationError, setReservationError] = useState("");
@@ -170,6 +175,19 @@ export default function HomePage() {
   const todayLabel = useMemo(() => formatTodayLabel(), []);
 
   useEffect(() => {
+    const staffLoggedIn = localStorage.getItem("gymup_staff_logged_in");
+
+    if (staffLoggedIn !== "true") {
+      router.replace("/login");
+      return;
+    }
+
+    setAuthChecked(true);
+  }, [router]);
+
+  useEffect(() => {
+    if (!authChecked) return;
+
     let mounted = true;
 
     async function loadTopData() {
@@ -267,7 +285,12 @@ export default function HomePage() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [authChecked]);
+
+  const handleStaffLogout = () => {
+    localStorage.removeItem("gymup_staff_logged_in");
+    router.push("/login");
+  };
 
   const statusLabel =
     systemStatus === "ONLINE"
@@ -290,6 +313,24 @@ export default function HomePage() {
       value: statusLabel,
     },
   ];
+
+  if (!authChecked) {
+    return (
+      <main
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "#0f1012",
+          color: "#ffffff",
+          fontSize: 14,
+        }}
+      >
+        認証を確認中...
+      </main>
+    );
+  }
 
   return (
     <>
@@ -325,12 +366,52 @@ export default function HomePage() {
           padding: 34px 24px 28px;
         }
 
+        .gymup-home__topbar {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 12px;
+          margin-bottom: 18px;
+        }
+
+        .gymup-home__topbar-link,
+        .gymup-home__topbar-button {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 42px;
+          padding: 0 16px;
+          border-radius: 14px;
+          text-decoration: none;
+          font-size: 13px;
+          font-weight: 700;
+          transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .gymup-home__topbar-link {
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.08);
+          color: #f5f7fa;
+        }
+
+        .gymup-home__topbar-button {
+          border: 1px solid rgba(240,138,39,0.28);
+          background: rgba(240,138,39,0.14);
+          color: #f08a27;
+          cursor: pointer;
+        }
+
+        .gymup-home__topbar-link:hover,
+        .gymup-home__topbar-button:hover {
+          transform: translateY(-1px);
+        }
+
         .gymup-home__grid {
           display: grid;
           grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
           gap: 28px;
           align-items: stretch;
-          min-height: calc(100vh - 62px);
+          min-height: calc(100vh - 124px);
         }
 
         .gymup-home__left {
@@ -769,6 +850,18 @@ export default function HomePage() {
             padding: 18px 14px 22px;
           }
 
+          .gymup-home__topbar {
+            justify-content: stretch;
+            flex-direction: column;
+            align-items: stretch;
+            margin-bottom: 14px;
+          }
+
+          .gymup-home__topbar-link,
+          .gymup-home__topbar-button {
+            width: 100%;
+          }
+
           .gymup-home__grid {
             gap: 18px;
           }
@@ -861,6 +954,19 @@ export default function HomePage() {
 
       <main className="gymup-home">
         <div className="gymup-home__container">
+          <div className="gymup-home__topbar">
+            <Link href="/login" className="gymup-home__topbar-link">
+              会員ログイン画面へ
+            </Link>
+            <button
+              type="button"
+              className="gymup-home__topbar-button"
+              onClick={handleStaffLogout}
+            >
+              スタッフログアウト
+            </button>
+          </div>
+
           <div className="gymup-home__grid">
             <div className="gymup-home__left">
               <div className="gymup-home__hero-card">
