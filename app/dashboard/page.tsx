@@ -43,6 +43,7 @@ const quickLinks = [
 ];
 
 const CONSUMED_STORAGE_KEY = "gymup_consumed_reservations";
+const HANDOVER_NOTE_STORAGE_KEY = "gymup_dashboard_handover_note";
 
 function getSupabaseClient(): SupabaseClient | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -251,6 +252,16 @@ function saveConsumedMap(map: Record<string, boolean>) {
   localStorage.setItem(CONSUMED_STORAGE_KEY, JSON.stringify(map));
 }
 
+function readHandoverNote(): string {
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem(HANDOVER_NOTE_STORAGE_KEY) || "";
+}
+
+function saveHandoverNote(value: string) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(HANDOVER_NOTE_STORAGE_KEY, value);
+}
+
 export default function DashboardPage() {
   const router = useRouter();
 
@@ -264,6 +275,7 @@ export default function DashboardPage() {
   const [logoError, setLogoError] = useState(false);
   const [consumedMap, setConsumedMap] = useState<Record<string, boolean>>({});
   const [consumingId, setConsumingId] = useState<string>("");
+  const [handoverNote, setHandoverNote] = useState("");
 
   const todayLabel = useMemo(() => formatTodayLabel(), []);
 
@@ -276,6 +288,7 @@ export default function DashboardPage() {
     }
 
     setConsumedMap(readConsumedMap());
+    setHandoverNote(readHandoverNote());
     setAuthChecked(true);
   }, [router]);
 
@@ -485,6 +498,18 @@ export default function DashboardPage() {
     } finally {
       setConsumingId("");
     }
+  };
+
+  const handleHandoverChange = (value: string) => {
+    setHandoverNote(value);
+    saveHandoverNote(value);
+  };
+
+  const handleClearHandover = () => {
+    const ok = window.confirm("引き継ぎメモを空にしますか？");
+    if (!ok) return;
+    setHandoverNote("");
+    saveHandoverNote("");
   };
 
   const statusLabel =
@@ -768,7 +793,8 @@ export default function DashboardPage() {
         .gymup-home__btn-primary:hover,
         .gymup-home__btn-secondary:hover,
         .gymup-home__menu-link:hover,
-        .gymup-home__mini-link:hover {
+        .gymup-home__mini-link:hover,
+        .gymup-home__memo-clear:hover {
           transform: translateY(-1px);
         }
 
@@ -1077,6 +1103,68 @@ export default function DashboardPage() {
           flex-shrink: 0;
         }
 
+        .gymup-home__memo-wrap {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .gymup-home__memo-desc {
+          font-size: 13px;
+          line-height: 1.7;
+          color: rgba(255,255,255,0.62);
+        }
+
+        .gymup-home__memo-textarea {
+          width: 100%;
+          min-height: 180px;
+          resize: vertical;
+          border-radius: 18px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.03);
+          color: #ffffff;
+          padding: 14px 16px;
+          font-size: 14px;
+          line-height: 1.8;
+          outline: none;
+          box-sizing: border-box;
+        }
+
+        .gymup-home__memo-textarea::placeholder {
+          color: rgba(255,255,255,0.35);
+        }
+
+        .gymup-home__memo-textarea:focus {
+          border-color: rgba(240,138,39,0.32);
+          box-shadow: 0 0 0 1px rgba(240,138,39,0.18);
+        }
+
+        .gymup-home__memo-footer {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+
+        .gymup-home__memo-status {
+          font-size: 12px;
+          color: rgba(255,255,255,0.48);
+        }
+
+        .gymup-home__memo-clear {
+          min-height: 40px;
+          padding: 0 14px;
+          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.03);
+          color: #f5f7fa;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+        }
+
         @media (max-width: 1100px) {
           .gymup-home__grid {
             grid-template-columns: 1fr;
@@ -1200,6 +1288,15 @@ export default function DashboardPage() {
 
           .gymup-home__text-logo {
             justify-content: center;
+          }
+
+          .gymup-home__memo-footer {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .gymup-home__memo-clear {
+            width: 100%;
           }
         }
       `}</style>
@@ -1394,6 +1491,43 @@ export default function DashboardPage() {
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
                             <span>消化ボタンで回数券・残回数の処理を記録</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="gymup-home__panel-small">
+                        <div className="gymup-home__panel-head">
+                          <div className="gymup-home__panel-title">引き継ぎメモ</div>
+                          <div className="gymup-home__panel-meta">Free Space</div>
+                        </div>
+
+                        <div className="gymup-home__memo-wrap">
+                          <div className="gymup-home__memo-desc">
+                            スタッフ間で共有したい内容、注意事項、対応依頼などを自由に記入できます。
+                          </div>
+
+                          <textarea
+                            className="gymup-home__memo-textarea"
+                            placeholder={`例）
+・14:00 山田様 来店前に姿勢写真確認
+・回数券の残り説明が必要
+・次回予約の提案を忘れずに
+・売上登録は施術後に対応`}
+                            value={handoverNote}
+                            onChange={(e) => handleHandoverChange(e.target.value)}
+                          />
+
+                          <div className="gymup-home__memo-footer">
+                            <div className="gymup-home__memo-status">
+                              入力内容はこの端末に自動保存されます
+                            </div>
+                            <button
+                              type="button"
+                              className="gymup-home__memo-clear"
+                              onClick={handleClearHandover}
+                            >
+                              メモをクリア
+                            </button>
                           </div>
                         </div>
                       </div>
