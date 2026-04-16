@@ -25,9 +25,9 @@ const products: Product[] = [
     id: "1",
     name: "WPCプロテイン ベリー風味",
     price: 2911,
-    image: "/berry.jpg", // ←ここ変更
+    image: "/berry.jpg",
     badge: "人気No.1",
-    desc: "程よい酸味とベリーの香りで飲みやすさ抜群",
+    desc: "程よい酸味とベリーの香りで、プロテインタイムを楽しめる人気フレーバー。",
   },
   {
     id: "2",
@@ -35,81 +35,128 @@ const products: Product[] = [
     price: 3200,
     image: "/protein2.jpg",
     badge: "おすすめ",
-    desc: "満足感の高いチョコ味",
+    desc: "満足感のあるコクで、毎日続けやすい定番フレーバー。",
   },
   {
     id: "3",
     name: "WPCプロテイン 抹茶風味",
     price: 3200,
     image: "/protein3.jpg",
-    desc: "和風でスッキリ飲める",
+    desc: "甘さを抑えた和風テイストで、すっきり飲みやすい味わい。",
   },
   {
     id: "4",
     name: "WPCプロテイン バナナ風味",
     price: 3200,
     image: "/protein4.jpg",
-    desc: "トレーニング後に最適",
+    desc: "自然な甘さでトレーニング後にも飲みやすいバナナフレーバー。",
   },
 ];
 
 export default function ShopPage() {
   const addToCart = (product: Product) => {
-    const raw = localStorage.getItem("cart");
-    const cart: CartItem[] = raw ? JSON.parse(raw) : [];
+    try {
+      const raw = localStorage.getItem("cart");
+      const cart: CartItem[] = raw ? JSON.parse(raw) : [];
 
-    const index = cart.findIndex((i) => i.id === product.id);
+      const existingIndex = cart.findIndex((item) => item.id === product.id);
 
-    if (index >= 0) {
-      cart[index].quantity += 1;
-    } else {
-      cart.push({ ...product, quantity: 1 });
+      if (existingIndex >= 0) {
+        cart[existingIndex].quantity += 1;
+      } else {
+        cart.push({
+          id: product.id,
+          name: product.name,
+          price: product.price,
+          image: product.image,
+          quantity: 1,
+        });
+      }
+
+      localStorage.setItem("cart", JSON.stringify(cart));
+      alert("カートに追加しました");
+    } catch (error) {
+      console.error("cart add error:", error);
+      alert("カート追加に失敗しました");
     }
-
-    localStorage.setItem("cart", JSON.stringify(cart));
-    alert("カートに追加しました");
   };
 
   return (
     <main style={pageStyle}>
       <div style={containerStyle}>
-        <h1 style={titleStyle}>プロテイン</h1>
+        <div style={heroStyle}>
+          <div style={heroBadgeStyle}>ONLINE STORE</div>
+          <h1 style={titleStyle}>プロテイン</h1>
+          <p style={heroDescStyle}>
+            毎日のコンディションづくりやトレーニング習慣を支えるアイテムを、
+            シンプルで見やすく、選びやすい形でまとめたショッピングページです。
+          </p>
+
+          <div style={categoryWrapStyle}>
+            <div style={categoryActiveStyle}>プロテイン</div>
+            <Link href="/shop/apparel" style={categoryLinkStyle}>
+              アパレル
+            </Link>
+          </div>
+        </div>
 
         <div style={gridStyle}>
-          {products.map((p) => (
-            <div key={p.id} style={cardStyle}>
-              {p.badge && <div style={badgeStyle}>{p.badge}</div>}
+          {products.map((product) => (
+            <article key={product.id} style={cardStyle}>
+              {product.badge ? <div style={badgeStyle}>{product.badge}</div> : null}
 
-              <Link href={`/shop/${p.id}`}>
-                <div style={imageWrap}>
-                  <img src={p.image} style={imageStyle} />
+              <Link href={`/shop/${product.id}`} style={imageLinkStyle}>
+                <div style={imageWrapStyle}>
+                  <img
+                    src={product.image}
+                    alt={product.name}
+                    style={imageStyle}
+                    loading="lazy"
+                  />
                 </div>
               </Link>
 
               <div style={infoStyle}>
-                <div style={nameStyle}>{p.name}</div>
-                <div style={descStyle}>{p.desc}</div>
+                <h2 style={nameStyle}>{product.name}</h2>
+                <p style={productDescStyle}>{product.desc}</p>
 
-                <div style={priceStyle}>¥{p.price.toLocaleString()}</div>
+                <div style={bottomWrapStyle}>
+                  <div style={priceStyle}>¥{product.price.toLocaleString()}</div>
 
-                <button style={btn} onClick={() => addToCart(p)}>
-                  カートに追加
-                </button>
+                  <div style={buttonWrapStyle}>
+                    <Link href={`/shop/${product.id}`} style={outlineButtonStyle}>
+                      詳細を見る
+                    </Link>
+
+                    <button
+                      type="button"
+                      style={outlineButtonStyle}
+                      onClick={() => addToCart(product)}
+                    >
+                      カートに追加
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
+            </article>
           ))}
+        </div>
+
+        <div style={cartAreaStyle}>
+          <Link href="/cart" style={goCartStyle}>
+            カートを見る
+          </Link>
         </div>
       </div>
     </main>
   );
 }
 
-/* ===== スタイル ===== */
-
 const pageStyle: CSSProperties = {
-  background: "#fff",
   minHeight: "100vh",
-  padding: "40px 16px",
+  background: "#ffffff",
+  color: "#111827",
+  padding: "40px 16px 64px",
 };
 
 const containerStyle: CSSProperties = {
@@ -117,70 +164,194 @@ const containerStyle: CSSProperties = {
   margin: "0 auto",
 };
 
+const heroStyle: CSSProperties = {
+  marginBottom: 36,
+};
+
+const heroBadgeStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 34,
+  padding: "0 14px",
+  borderRadius: 9999,
+  background: "#f5f5f5",
+  border: "1px solid #e5e7eb",
+  color: "#374151",
+  fontSize: 12,
+  fontWeight: 800,
+  letterSpacing: "0.08em",
+  marginBottom: 14,
+};
+
 const titleStyle: CSSProperties = {
-  fontSize: 32,
+  margin: 0,
+  fontSize: "clamp(32px, 5vw, 52px)",
+  lineHeight: 1.08,
   fontWeight: 900,
-  marginBottom: 20,
+  letterSpacing: "-0.04em",
+  color: "#111827",
+};
+
+const heroDescStyle: CSSProperties = {
+  marginTop: 14,
+  maxWidth: 720,
+  color: "#6b7280",
+  fontSize: 14,
+  lineHeight: 1.9,
+};
+
+const categoryWrapStyle: CSSProperties = {
+  display: "flex",
+  gap: 12,
+  flexWrap: "wrap",
+  marginTop: 22,
+};
+
+const categoryActiveStyle: CSSProperties = {
+  minHeight: 42,
+  padding: "0 18px",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "#111827",
+  color: "#ffffff",
+  borderRadius: 12,
+  fontWeight: 800,
+  fontSize: 14,
+};
+
+const categoryLinkStyle: CSSProperties = {
+  minHeight: 42,
+  padding: "0 18px",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  border: "1px solid #111827",
+  borderRadius: 12,
+  textDecoration: "none",
+  color: "#111827",
+  fontWeight: 700,
+  fontSize: 14,
+  background: "#ffffff",
 };
 
 const gridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(2, 1fr)", // ←2カラム
+  gridTemplateColumns: "repeat(2, 1fr)",
   gap: 16,
 };
 
 const cardStyle: CSSProperties = {
   position: "relative",
-  border: "1px solid #eee",
-  borderRadius: 16,
+  border: "1px solid #e5e7eb",
+  borderRadius: 20,
   overflow: "hidden",
+  background: "#ffffff",
+  boxShadow: "0 12px 30px rgba(15,23,42,0.06)",
 };
 
 const badgeStyle: CSSProperties = {
   position: "absolute",
-  top: 10,
-  left: 10,
-  background: "#111",
-  color: "#fff",
-  padding: "4px 10px",
+  top: 14,
+  left: 14,
+  zIndex: 2,
+  background: "#111827",
+  color: "#ffffff",
+  padding: "6px 10px",
   fontSize: 12,
+  fontWeight: 800,
+  borderRadius: 9999,
 };
 
-const imageWrap: CSSProperties = {
-  height: 200,
+const imageLinkStyle: CSSProperties = {
+  display: "block",
+  textDecoration: "none",
+};
+
+const imageWrapStyle: CSSProperties = {
+  height: 320,
   display: "flex",
   justifyContent: "center",
   alignItems: "center",
-};
-
-const imageStyle: CSSProperties = {
-  width: "90%",
-  objectFit: "contain",
-};
-
-const infoStyle: CSSProperties = {
+  background: "#ffffff",
+  borderBottom: "1px solid #f1f5f9",
   padding: 12,
 };
 
-const nameStyle: CSSProperties = {
-  fontWeight: 700,
+const imageStyle: CSSProperties = {
+  width: "100%",
+  height: "100%",
+  objectFit: "contain",
+  display: "block",
 };
 
-const descStyle: CSSProperties = {
-  fontSize: 12,
-  color: "#777",
+const infoStyle: CSSProperties = {
+  padding: 16,
+};
+
+const nameStyle: CSSProperties = {
+  margin: 0,
+  fontWeight: 800,
+  fontSize: 18,
+  lineHeight: 1.5,
+  color: "#111827",
+};
+
+const productDescStyle: CSSProperties = {
+  fontSize: 13,
+  color: "#6b7280",
+  margin: "8px 0 0",
+  lineHeight: 1.8,
+  minHeight: 44,
+};
+
+const bottomWrapStyle: CSSProperties = {
+  marginTop: 16,
 };
 
 const priceStyle: CSSProperties = {
-  fontSize: 18,
+  fontSize: 24,
   fontWeight: 900,
-  margin: "10px 0",
+  marginBottom: 12,
+  color: "#111827",
+  letterSpacing: "-0.03em",
 };
 
-const btn: CSSProperties = {
+const buttonWrapStyle: CSSProperties = {
+  display: "grid",
+  gap: 10,
+};
+
+const outlineButtonStyle: CSSProperties = {
   width: "100%",
-  padding: "10px",
-  background: "#fff",
-  border: "1px solid #111",
-  borderRadius: 8,
+  minHeight: 46,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "#ffffff",
+  color: "#111827",
+  border: "1px solid #111827",
+  borderRadius: 12,
+  textDecoration: "none",
+  fontWeight: 800,
+  fontSize: 14,
+  cursor: "pointer",
+};
+
+const cartAreaStyle: CSSProperties = {
+  textAlign: "center",
+  marginTop: 40,
+};
+
+const goCartStyle: CSSProperties = {
+  background: "#ffffff",
+  color: "#111827",
+  padding: "12px 20px",
+  borderRadius: 12,
+  textDecoration: "none",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontWeight: 800,
+  border: "1px solid #111827",
 };
