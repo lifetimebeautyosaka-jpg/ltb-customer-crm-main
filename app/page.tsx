@@ -2,6 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase =
+  process.env.NEXT_PUBLIC_SUPABASE_URL &&
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    ? createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      )
+    : null;
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,20 +26,49 @@ export default function LoginPage() {
       return;
     }
 
+    if (!supabase) {
+      alert("Supabaseの接続設定がありません");
+      return;
+    }
+
     setLoading(true);
 
-    setTimeout(() => {
+    try {
+      const { data, error } = await supabase
+        .from("customers")
+        .select("id, name, member_login_id, member_password, member_login_enabled")
+        .eq("member_login_id", memberId)
+        .eq("member_password", password)
+        .eq("member_login_enabled", true)
+        .single();
+
+      if (error || !data) {
+        alert("IDまたはパスワードが違います");
+        return;
+      }
+
       localStorage.setItem("gymup_member_logged_in", "true");
-      localStorage.setItem("gymup_member_id", memberId);
+      localStorage.setItem("gymup_member_customer_id", String(data.id));
+      localStorage.setItem("gymup_member_id", data.member_login_id || memberId);
+      localStorage.setItem("gymup_member_name", data.name || "");
+
       localStorage.removeItem("gymup_staff_logged_in");
+
       router.push("/mypage");
-    }, 700);
+    } catch (error) {
+      console.error(error);
+      alert("ログインに失敗しました");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleStaffEnter = () => {
     localStorage.setItem("gymup_staff_logged_in", "true");
     localStorage.removeItem("gymup_member_logged_in");
+    localStorage.removeItem("gymup_member_customer_id");
     localStorage.removeItem("gymup_member_id");
+    localStorage.removeItem("gymup_member_name");
     router.push("/dashboard");
   };
 
