@@ -2,91 +2,96 @@
 
 import { useEffect, useState } from "react";
 
-type CartItem = {
-  id: number;
-  name: string;
-  price: number;
-  quantity: number;
-};
-
 export default function CheckoutPage() {
-  const [items, setItems] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem("cart");
-    if (stored) {
-      setItems(JSON.parse(stored));
-    }
+    const data = JSON.parse(localStorage.getItem("cart") || "[]");
+    setCart(data);
   }, []);
 
   const handleCheckout = async () => {
-    try {
-      setLoading(true);
-
-      const res = await fetch("/api/stripe/checkout", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          items,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        alert(data?.error || "決済失敗");
-        return;
-      }
-
-      if (data?.url) {
-        window.location.href = data.url;
-      }
-    } catch (error) {
-      console.error(error);
-      alert("通信エラー");
-    } finally {
-      setLoading(false);
+    if (cart.length === 0) {
+      alert("カートが空です");
+      return;
     }
+
+    setLoading(true);
+
+    const res = await fetch("/api/stripe/checkout", {
+      method: "POST",
+      body: JSON.stringify({ items: cart }),
+    });
+
+    const data = await res.json();
+
+    if (data.url) {
+      window.location.href = data.url;
+    } else {
+      alert("決済エラー");
+    }
+
+    setLoading(false);
   };
 
-  const total = items.reduce(
+  const total = cart.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0
   );
 
   return (
-    <main style={{ padding: 20, maxWidth: 600, margin: "0 auto" }}>
-      <h1 style={{ fontSize: 28, fontWeight: 800 }}>
-        チェックアウト
-      </h1>
+    <main style={pageStyle}>
+      <h1 style={title}>購入確認</h1>
 
-      {items.map((item) => (
-        <div key={item.id} style={{ marginTop: 10 }}>
-          {item.name} × {item.quantity}
+      {cart.map((item, i) => (
+        <div key={i} style={card}>
+          <p>{item.name}</p>
+          <p>¥{item.price}</p>
+          <p>数量: {item.quantity}</p>
         </div>
       ))}
 
-      <div style={{ marginTop: 20, fontWeight: 800 }}>
-        合計: {total.toLocaleString()}円
+      <div style={totalBox}>
+        合計：¥{total.toLocaleString()}
       </div>
 
-      <button
-        onClick={handleCheckout}
-        disabled={loading}
-        style={{
-          width: "100%",
-          height: 50,
-          marginTop: 20,
-          background: "black",
-          color: "#fff",
-          borderRadius: 12,
-        }}
-      >
-        {loading ? "処理中..." : "決済に進む"}
+      <button style={btn} onClick={handleCheckout}>
+        {loading ? "処理中..." : "決済する"}
       </button>
     </main>
   );
 }
+
+const pageStyle = {
+  background: "#0f1012",
+  color: "#fff",
+  minHeight: "100vh",
+  padding: 20,
+};
+
+const title = {
+  fontSize: 24,
+  fontWeight: 900,
+};
+
+const card = {
+  background: "#222",
+  padding: 10,
+  marginTop: 10,
+};
+
+const totalBox = {
+  marginTop: 20,
+  fontSize: 20,
+  fontWeight: 900,
+};
+
+const btn = {
+  marginTop: 20,
+  padding: 12,
+  background: "#f08a27",
+  border: "none",
+  fontWeight: 900,
+  cursor: "pointer",
+};
