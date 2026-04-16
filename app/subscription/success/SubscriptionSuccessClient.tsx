@@ -12,7 +12,6 @@ export default function SubscriptionSuccessClient() {
   const [error, setError] = useState("");
 
   const hasSavedRef = useRef(false);
-
   const sessionId = searchParams.get("session_id");
 
   useEffect(() => {
@@ -69,24 +68,34 @@ export default function SubscriptionSuccessClient() {
           <>
             <p style={text}>ご注文が正常に完了しました。</p>
 
-            {saved && (
+            {saved ? (
               <p style={subText}>注文履歴に反映されています。</p>
-            )}
-
-            {error ? (
-              <p style={errorText}>{error}</p>
             ) : null}
 
+            {error ? <p style={errorText}>{error}</p> : null}
+
             <div style={btnWrap}>
-              <button style={mainBtn} onClick={() => router.push("/orders")}>
+              <button
+                type="button"
+                style={mainBtn}
+                onClick={() => router.push("/orders")}
+              >
                 注文履歴を見る
               </button>
 
-              <button style={subBtn} onClick={() => router.push("/mypage")}>
+              <button
+                type="button"
+                style={subBtn}
+                onClick={() => router.push("/mypage")}
+              >
                 マイページへ
               </button>
 
-              <button style={subBtn} onClick={() => router.push("/shop")}>
+              <button
+                type="button"
+                style={subBtn}
+                onClick={() => router.push("/shop")}
+              >
                 商品一覧へ戻る
               </button>
             </div>
@@ -97,9 +106,7 @@ export default function SubscriptionSuccessClient() {
   );
 }
 
-/* ===== デザイン ===== */
-
-const pageStyle = {
+const pageStyle: React.CSSProperties = {
   background: "#0f1012",
   color: "#fff",
   minHeight: "100vh",
@@ -109,43 +116,43 @@ const pageStyle = {
   padding: 20,
 };
 
-const card = {
+const card: React.CSSProperties = {
   background: "rgba(255,255,255,0.05)",
   padding: 30,
   borderRadius: 20,
-  textAlign: "center" as const,
+  textAlign: "center",
   maxWidth: 400,
   width: "100%",
 };
 
-const title = {
+const title: React.CSSProperties = {
   fontSize: 24,
   fontWeight: 900,
   marginBottom: 10,
 };
 
-const text = {
+const text: React.CSSProperties = {
   marginTop: 10,
 };
 
-const subText = {
+const subText: React.CSSProperties = {
   marginTop: 10,
   color: "#f08a27",
 };
 
-const errorText = {
+const errorText: React.CSSProperties = {
   marginTop: 10,
   color: "#f87171",
 };
 
-const btnWrap = {
+const btnWrap: React.CSSProperties = {
   marginTop: 20,
   display: "flex",
-  flexDirection: "column" as const,
+  flexDirection: "column",
   gap: 10,
 };
 
-const mainBtn = {
+const mainBtn: React.CSSProperties = {
   background: "#f08a27",
   border: "none",
   padding: 12,
@@ -154,7 +161,7 @@ const mainBtn = {
   cursor: "pointer",
 };
 
-const subBtn = {
+const subBtn: React.CSSProperties = {
   background: "#222",
   border: "none",
   padding: 10,
