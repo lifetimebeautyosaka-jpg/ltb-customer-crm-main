@@ -788,6 +788,14 @@ export default function DashboardPage() {
           line-height: 1.9;
         }
 
+        .gymup-home__hero-date-nav {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+          margin-top: 8px;
+        }
+
         .gymup-home__hero-memo {
           margin-top: 10px;
           border-radius: 24px;
@@ -1343,7 +1351,8 @@ export default function DashboardPage() {
           .gymup-home__hero-memo-head,
           .gymup-home__hero-memo-footer,
           .gymup-home__panel-head,
-          .gymup-home__date-nav {
+          .gymup-home__date-nav,
+          .gymup-home__hero-date-nav {
             flex-direction: column;
             align-items: stretch;
           }
@@ -1442,6 +1451,41 @@ export default function DashboardPage() {
                     日々の現場で使いやすい形にまとめる管理システムです。
                   </p>
 
+                  <div className="gymup-home__hero-date-nav">
+                    <button
+                      type="button"
+                      className="gymup-home__date-nav-btn"
+                      onClick={handlePrevDay}
+                    >
+                      ← 前日
+                    </button>
+
+                    <div className="gymup-home__date-current">{selectedDate}</div>
+
+                    <button
+                      type="button"
+                      className="gymup-home__date-nav-btn"
+                      onClick={handleNextDay}
+                    >
+                      翌日 →
+                    </button>
+
+                    <input
+                      type="date"
+                      className="gymup-home__date-picker"
+                      value={selectedDate}
+                      onChange={(e) => handleDateInputChange(e.target.value)}
+                    />
+
+                    <button
+                      type="button"
+                      className="gymup-home__date-today-btn"
+                      onClick={handleGoToday}
+                    >
+                      今日に戻る
+                    </button>
+                  </div>
+
                   <div className="gymup-home__hero-memo">
                     <div className="gymup-home__hero-memo-head">
                       <div className="gymup-home__hero-memo-title">重要な引き継ぎメモ</div>
@@ -1449,7 +1493,7 @@ export default function DashboardPage() {
                     </div>
 
                     <div className="gymup-home__hero-memo-desc">
-                      選択中の日付ごとにメモを分けて保存できます。矢印でもカレンダーでも切り替え可能です。
+                      選択中の日付ごとにメモを分けて保存できます。左の重要事項も右のスケジュールも同じ日付で連動します。
                     </div>
 
                     <textarea
@@ -1636,15 +1680,15 @@ export default function DashboardPage() {
                         <div className="gymup-home__alerts">
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
+                            <span>左の重要事項にも日付ナビを追加</span>
+                          </div>
+                          <div className="gymup-home__alert">
+                            <span className="gymup-home__alert-dot" />
+                            <span>重要事項とスケジュールは同じ日付で完全連動</span>
+                          </div>
+                          <div className="gymup-home__alert">
+                            <span className="gymup-home__alert-dot" />
                             <span>矢印とカレンダーの両方で日付切替が可能</span>
-                          </div>
-                          <div className="gymup-home__alert">
-                            <span className="gymup-home__alert-dot" />
-                            <span>引き継ぎメモも日付ごとに切り替わる</span>
-                          </div>
-                          <div className="gymup-home__alert">
-                            <span className="gymup-home__alert-dot" />
-                            <span>予約を押すと顧客のトレーニング管理へ移動 / 消化処理も可能</span>
                           </div>
                         </div>
                       </div>
@@ -1654,11 +1698,11 @@ export default function DashboardPage() {
                         <div className="gymup-home__alerts">
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
-                            <span>重要事項は左上に集約</span>
+                            <span>{selectedDate} のメモを表示中</span>
                           </div>
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
-                            <span>{selectedDate} のメモを表示中</span>
+                            <span>日付ごとに別メモで保存</span>
                           </div>
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
