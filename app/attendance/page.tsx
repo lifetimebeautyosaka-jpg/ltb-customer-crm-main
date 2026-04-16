@@ -41,6 +41,8 @@ const menuCards = [
 export default function AttendancePage() {
   return (
     <main style={pageStyle}>
+      <style>{responsiveStyle}</style>
+
       <div style={bgGlowTop} />
       <div style={bgGlowLeft} />
       <div style={bgGlowRight} />
@@ -59,21 +61,21 @@ export default function AttendancePage() {
           </div>
         </div>
 
-        <section style={heroCardStyle}>
-          <div style={heroLeftStyle}>
+        <section style={heroCardStyle} className="attendance-hero-grid">
+          <div style={heroLeftStyle} className="attendance-hero-left">
             <div style={miniLabelStyle}>GYMUP CRM</div>
             <h1 style={heroTitleStyle}>Attendance Dashboard</h1>
             <p style={heroSubStyle}>
               勤怠管理・給与確認・賃金台帳出力を、
-              <br />
+              <br className="attendance-pc-break" />
               ひとつの画面からスムーズに操作できます。
             </p>
 
-            <div style={heroButtonRowStyle}>
-              <Link href="/attendance/staff" style={primaryButtonStyle}>
+            <div style={heroButtonRowStyle} className="attendance-button-row">
+              <Link href="/attendance/staff" style={primaryButtonStyle} className="attendance-main-button">
                 スタッフ打刻へ
               </Link>
-              <Link href="/attendance/admin" style={secondaryButtonStyle}>
+              <Link href="/attendance/admin" style={secondaryButtonStyle} className="attendance-sub-button">
                 管理者集計へ
               </Link>
             </div>
@@ -141,7 +143,7 @@ export default function AttendancePage() {
           </div>
         </section>
 
-        <section style={statsGridStyle}>
+        <section style={statsGridStyle} className="attendance-stats-grid">
           <StatCard label="打刻管理" value="CLOCK" />
           <StatCard label="月次集計" value="SUMMARY" />
           <StatCard label="給与確認" value="PAYROLL" />
@@ -158,9 +160,9 @@ export default function AttendancePage() {
             <div style={sectionBadgeStyle}>4 MODULES</div>
           </div>
 
-          <div style={menuGridStyle}>
+          <div style={menuGridStyle} className="attendance-menu-grid">
             {menuCards.map((item) => (
-              <Link key={item.href} href={item.href} style={menuCardStyle}>
+              <Link key={item.href} href={item.href} style={menuCardStyle} className="attendance-menu-card">
                 <div style={menuTopStyle}>
                   <span style={menuStatStyle}>{item.stat}</span>
                   <span style={arrowStyle}>↗</span>
@@ -186,7 +188,7 @@ function StatCard({
   value: string;
 }) {
   return (
-    <div style={statCardStyle}>
+    <div style={statCardStyle} className="attendance-stat-card">
       <div style={statLabelStyle}>{label}</div>
       <div style={statValueStyle}>{value}</div>
     </div>
@@ -273,6 +275,7 @@ const backLinkStyle: CSSProperties = {
   textDecoration: "none",
   fontSize: 14,
   fontWeight: 600,
+  minHeight: 40,
 };
 
 const topIconsStyle: CSSProperties = {
@@ -350,7 +353,7 @@ const primaryButtonStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  minHeight: 46,
+  minHeight: 50,
   padding: "0 18px",
   borderRadius: 14,
   background: "linear-gradient(135deg, #d4af37, #f5d06f)",
@@ -365,7 +368,7 @@ const secondaryButtonStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  minHeight: 46,
+  minHeight: 50,
   padding: "0 18px",
   borderRadius: 14,
   background: "rgba(255,255,255,0.06)",
@@ -589,16 +592,74 @@ const menuDescStyle: CSSProperties = {
 };
 
 const responsiveStyle = `
+.attendance-hero-grid,
+.attendance-stats-grid,
+.attendance-menu-grid,
+.attendance-button-row {
+  width: 100%;
+}
+
 @media (max-width: 1024px) {
   .attendance-hero-grid {
     grid-template-columns: 1fr !important;
   }
+
+  .attendance-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .attendance-menu-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .attendance-pc-break {
+    display: none;
+  }
+
+  .attendance-hero-grid {
+    gap: 14px !important;
+    padding: 14px !important;
+    border-radius: 22px !important;
+  }
+
+  .attendance-hero-left {
+    min-height: auto !important;
+    padding: 22px 18px !important;
+    border-radius: 20px !important;
+  }
+
+  .attendance-button-row {
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .attendance-main-button,
+  .attendance-sub-button {
+    width: 100% !important;
+    min-height: 52px !important;
+    border-radius: 14px !important;
+  }
+
+  .attendance-stats-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .attendance-stat-card {
+    padding: 15px 16px !important;
+    border-radius: 18px !important;
+  }
+
+  .attendance-menu-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .attendance-menu-card {
+    padding: 16px !important;
+    border-radius: 20px !important;
+  }
 }
 `;
-
-if (typeof document !== "undefined" && !document.getElementById("attendance-page-responsive-style")) {
-  const style = document.createElement("style");
-  style.id = "attendance-page-responsive-style";
-  style.innerHTML = responsiveStyle;
-  document.head.appendChild(style);
-}
