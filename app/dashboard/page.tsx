@@ -13,6 +13,7 @@ type ReservationItem = {
   menu?: string;
   staff_name?: string;
   store_name?: string;
+  customer_id?: string;
 };
 
 type DisplayReservation = {
@@ -22,9 +23,15 @@ type DisplayReservation = {
   menu: string;
   staff: string;
   store: string;
+  customerId?: string;
 };
 
 type SystemStatus = "ONLINE" | "FALLBACK" | "OFFLINE";
+
+type CustomerLite = {
+  id: string;
+  name: string;
+};
 
 const quickLinks = [
   { title: "顧客管理", href: "/customer", desc: "会員情報・履歴・進捗管理" },
@@ -34,6 +41,8 @@ const quickLinks = [
   { title: "会計管理", href: "/accounting", desc: "前受金・会計区分・集計" },
   { title: "サブスク管理", href: "/subscription", desc: "契約状況・残回数・継続管理" },
 ];
+
+const CONSUMED_STORAGE_KEY = "gymup_consumed_reservations";
 
 function getSupabaseClient(): SupabaseClient | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -67,6 +76,13 @@ function formatTodayLabel() {
   }).format(now);
 }
 
+function normalizeName(value: string) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, "")
+    .replace(/[　]/g, "");
+}
+
 function normalizeReservation(raw: any): ReservationItem | null {
   if (!raw) return null;
 
@@ -83,6 +99,7 @@ function normalizeReservation(raw: any): ReservationItem | null {
   const menu = String(raw.menu ?? raw.menu_name ?? raw.course ?? "予約メニュー").trim();
   const staffName = String(raw.staff_name ?? raw.staffName ?? "担当未設定").trim();
   const storeName = String(raw.store_name ?? raw.storeName ?? "").trim();
+  const customerId = raw.customer_id ? String(raw.customer_id) : undefined;
 
   if (!date || !startTime || !customerName) return null;
 
@@ -94,6 +111,7 @@ function normalizeReservation(raw: any): ReservationItem | null {
     menu,
     staff_name: staffName,
     store_name: storeName,
+    customer_id: customerId,
   };
 }
 
@@ -105,6 +123,7 @@ function toDisplayReservation(item: ReservationItem): DisplayReservation {
     menu: item.menu || "予約メニュー",
     staff: item.staff_name || "担当未設定",
     store: item.store_name || "",
+    customerId: item.customer_id,
   };
 }
 
@@ -160,6 +179,74 @@ function parseLocalReservations(): ReservationItem[] {
   return Array.from(uniqueMap.values());
 }
 
+function parseLocalCustomers(): CustomerLite[] {
+  if (typeof window === "undefined") return [];
+
+  const possibleKeys = ["customers", "gymup_customers", "ltb_customers"];
+  const merged: CustomerLite[] = [];
+
+  for (const key of possibleKeys) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) continue;
+
+      for (const item of parsed) {
+        const id = String(item?.id ?? "").trim();
+        const name = String(item?.name ?? item?.customer_name ?? "").trim();
+        if (id && name) {
+          merged.push({ id, name });
+        }
+      }
+    } catch (error) {
+      console.error(`localStorage customer parse error: ${key}`, error);
+    }
+  }
+
+  const unique = new Map<string, CustomerLite>();
+  for (const item of merged) {
+    const key = `${item.id}::${item.name}`;
+    if (!unique.has(key)) unique.set(key, item);
+  }
+  return Array.from(unique.values());
+}
+
+function buildCustomerMap(customers: CustomerLite[]) {
+  const map = new Map<string, string>();
+
+  for (const customer of customers) {
+    const normalized = normalizeName(customer.name);
+    if (!normalized) continue;
+    if (!map.has(normalized)) {
+      map.set(normalized, customer.id);
+    }
+  }
+
+  return map;
+}
+
+function readConsumedMap(): Record<string, boolean> {
+  if (typeof window === "undefined") return {};
+
+  try {
+    const raw = localStorage.getItem(CONSUMED_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return {};
+    return parsed;
+  } catch (error) {
+    console.error("consumed map parse error:", error);
+    return {};
+  }
+}
+
+function saveConsumedMap(map: Record<string, boolean>) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(CONSUMED_STORAGE_KEY, JSON.stringify(map));
+}
+
 export default function HomePage() {
   const router = useRouter();
 
@@ -171,6 +258,8 @@ export default function HomePage() {
   const [todayCount, setTodayCount] = useState<number>(0);
   const [systemStatus, setSystemStatus] = useState<SystemStatus>("OFFLINE");
   const [logoError, setLogoError] = useState(false);
+  const [consumedMap, setConsumedMap] = useState<Record<string, boolean>>({});
+  const [consumingId, setConsumingId] = useState<string>("");
 
   const todayLabel = useMemo(() => formatTodayLabel(), []);
 
@@ -182,6 +271,7 @@ export default function HomePage() {
       return;
     }
 
+    setConsumedMap(readConsumedMap());
     setAuthChecked(true);
   }, [router]);
 
@@ -203,19 +293,33 @@ export default function HomePage() {
           const [reservationsResult, customersResult] = await Promise.all([
             supabase
               .from("reservations")
-              .select("id, date, start_time, customer_name, menu, staff_name, store_name")
+              .select("id, date, start_time, customer_name, customer_id, menu, staff_name, store_name")
               .eq("date", today)
               .order("start_time", { ascending: true }),
-            supabase.from("customers").select("id", { count: "exact", head: true }),
+            supabase.from("customers").select("id, name"),
           ]);
 
           if (reservationsResult.error) {
             throw reservationsResult.error;
           }
 
+          const customerList = Array.isArray(customersResult.data)
+            ? (customersResult.data as any[]).map((item) => ({
+                id: String(item.id),
+                name: String(item.name ?? ""),
+              }))
+            : [];
+
+          const customerMap = buildCustomerMap(customerList);
+
           const normalizedReservations = (reservationsResult.data || [])
             .map(normalizeReservation)
-            .filter(Boolean) as ReservationItem[];
+            .filter(Boolean)
+            .map((item) => {
+              if (item?.customer_id) return item;
+              const matchedId = customerMap.get(normalizeName(item.customer_name));
+              return matchedId ? { ...item, customer_id: matchedId } : item;
+            }) as ReservationItem[];
 
           const sorted = sortReservations(normalizedReservations);
           const display = sorted.slice(0, 6).map(toDisplayReservation);
@@ -224,23 +328,33 @@ export default function HomePage() {
 
           setTodayReservations(display);
           setTodayCount(sorted.length);
-          setActiveMembers(customersResult.count ?? 0);
+          setActiveMembers(customerList.length);
           setSystemStatus("ONLINE");
           setLoadingReservations(false);
           return;
         }
 
+        const localCustomers = parseLocalCustomers();
+        const localCustomerMap = buildCustomerMap(localCustomers);
+
         const localReservations = parseLocalReservations();
         const todayLocal = sortReservations(
-          localReservations.filter((item) => item.date === today)
+          localReservations
+            .filter((item) => item.date === today)
+            .map((item) => {
+              if (item.customer_id) return item;
+              const matchedId = localCustomerMap.get(normalizeName(item.customer_name));
+              return matchedId ? { ...item, customer_id: matchedId } : item;
+            })
         );
+
         const display = todayLocal.slice(0, 6).map(toDisplayReservation);
 
         if (!mounted) return;
 
         setTodayReservations(display);
         setTodayCount(todayLocal.length);
-        setActiveMembers(null);
+        setActiveMembers(localCustomers.length || null);
         setSystemStatus(todayLocal.length > 0 ? "FALLBACK" : "OFFLINE");
         setLoadingReservations(false);
       } catch (error) {
@@ -248,17 +362,27 @@ export default function HomePage() {
 
         try {
           const today = getTodayDateString();
+          const localCustomers = parseLocalCustomers();
+          const localCustomerMap = buildCustomerMap(localCustomers);
+
           const localReservations = parseLocalReservations();
           const todayLocal = sortReservations(
-            localReservations.filter((item) => item.date === today)
+            localReservations
+              .filter((item) => item.date === today)
+              .map((item) => {
+                if (item.customer_id) return item;
+                const matchedId = localCustomerMap.get(normalizeName(item.customer_name));
+                return matchedId ? { ...item, customer_id: matchedId } : item;
+              })
           );
+
           const display = todayLocal.slice(0, 6).map(toDisplayReservation);
 
           if (!mounted) return;
 
           setTodayReservations(display);
           setTodayCount(todayLocal.length);
-          setActiveMembers(null);
+          setActiveMembers(localCustomers.length || null);
           setSystemStatus(todayLocal.length > 0 ? "FALLBACK" : "OFFLINE");
           setLoadingReservations(false);
 
@@ -290,6 +414,73 @@ export default function HomePage() {
   const handleStaffLogout = () => {
     localStorage.removeItem("gymup_staff_logged_in");
     router.push("/login");
+  };
+
+  const handleOpenTraining = (item: DisplayReservation) => {
+    if (item.customerId) {
+      router.push(
+        `/customer/${item.customerId}?tab=training&from=dashboard&reservationId=${encodeURIComponent(
+          item.id
+        )}`
+      );
+      return;
+    }
+
+    router.push(`/customer?keyword=${encodeURIComponent(item.name)}`);
+  };
+
+  const handleConsume = async (
+    item: DisplayReservation,
+    e: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    e.stopPropagation();
+
+    if (consumedMap[item.id]) return;
+
+    const ok = window.confirm(`${item.name} の回数券・残回数を1回分消化しますか？`);
+    if (!ok) return;
+
+    setConsumingId(item.id);
+
+    try {
+      const nextMap = { ...consumedMap, [item.id]: true };
+      saveConsumedMap(nextMap);
+      setConsumedMap(nextMap);
+
+      const supabase = getSupabaseClient();
+
+      if (supabase && item.customerId) {
+        try {
+          const { data: customerRow, error: customerError } = await supabase
+            .from("customers")
+            .select("id, used_count, remaining_count")
+            .eq("id", item.customerId)
+            .maybeSingle();
+
+          if (!customerError && customerRow) {
+            const currentUsed = Number((customerRow as any).used_count ?? 0);
+            const currentRemaining = Number((customerRow as any).remaining_count ?? 0);
+
+            await supabase
+              .from("customers")
+              .update({
+                used_count: currentUsed + 1,
+                remaining_count: Math.max(currentRemaining - 1, 0),
+              })
+              .eq("id", item.customerId);
+          }
+        } catch (supabaseUpdateError) {
+          console.error("consume supabase update error:", supabaseUpdateError);
+        }
+      }
+
+      window.alert("消化を記録しました");
+    } catch (error) {
+      console.error("consume error:", error);
+      window.alert("消化処理に失敗しました");
+    } finally {
+      setConsumingId("");
+    }
   };
 
   const statusLabel =
@@ -738,13 +929,65 @@ export default function HomePage() {
 
         .gymup-home__schedule-item {
           display: grid;
-          grid-template-columns: 74px 1fr;
+          grid-template-columns: 74px 1fr auto;
           gap: 12px;
           align-items: center;
           padding: 14px;
           border-radius: 16px;
           border: 1px solid rgba(255,255,255,0.06);
           background: rgba(255,255,255,0.028);
+          cursor: pointer;
+          transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .gymup-home__schedule-item:hover {
+          transform: translateY(-1px);
+          background: rgba(255,255,255,0.04);
+          border-color: rgba(255,255,255,0.1);
+        }
+
+        .gymup-home__schedule-main {
+          min-width: 0;
+        }
+
+        .gymup-home__schedule-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          justify-content: flex-end;
+          flex-wrap: wrap;
+        }
+
+        .gymup-home__consume-btn,
+        .gymup-home__consumed-badge {
+          min-width: 84px;
+          min-height: 38px;
+          padding: 0 12px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 700;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          white-space: nowrap;
+        }
+
+        .gymup-home__consume-btn {
+          border: 1px solid rgba(240,138,39,0.32);
+          background: rgba(240,138,39,0.12);
+          color: #f08a27;
+          cursor: pointer;
+        }
+
+        .gymup-home__consume-btn:disabled {
+          opacity: 0.6;
+          cursor: default;
+        }
+
+        .gymup-home__consumed-badge {
+          border: 1px solid rgba(92, 214, 146, 0.28);
+          background: rgba(92, 214, 146, 0.12);
+          color: #7ce7aa;
         }
 
         .gymup-home__schedule-time {
@@ -938,8 +1181,13 @@ export default function HomePage() {
           }
 
           .gymup-home__schedule-item {
-            grid-template-columns: 62px 1fr;
+            grid-template-columns: 1fr;
+            gap: 10px;
             padding: 12px;
+          }
+
+          .gymup-home__schedule-actions {
+            justify-content: flex-start;
           }
 
           .gymup-home__stat-value {
@@ -1061,14 +1309,42 @@ export default function HomePage() {
                           <div className="gymup-home__empty">今日の予約を読み込み中です...</div>
                         ) : todayReservations.length > 0 ? (
                           todayReservations.map((item) => (
-                            <div key={item.id} className="gymup-home__schedule-item">
+                            <div
+                              key={item.id}
+                              className="gymup-home__schedule-item"
+                              onClick={() => handleOpenTraining(item)}
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  handleOpenTraining(item);
+                                }
+                              }}
+                            >
                               <div className="gymup-home__schedule-time">{item.time}</div>
-                              <div>
+
+                              <div className="gymup-home__schedule-main">
                                 <div className="gymup-home__schedule-name">{item.name}</div>
                                 <div className="gymup-home__schedule-sub">
                                   {item.menu} / {item.staff}
                                   {item.store ? ` / ${item.store}` : ""}
                                 </div>
+                              </div>
+
+                              <div className="gymup-home__schedule-actions">
+                                {consumedMap[item.id] ? (
+                                  <div className="gymup-home__consumed-badge">消化済み</div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="gymup-home__consume-btn"
+                                    onClick={(e) => handleConsume(item, e)}
+                                    disabled={consumingId === item.id}
+                                  >
+                                    {consumingId === item.id ? "処理中..." : "消化"}
+                                  </button>
+                                )}
                               </div>
                             </div>
                           ))
@@ -1109,11 +1385,11 @@ export default function HomePage() {
                           </div>
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
-                            <span>今日の予約は実データを優先表示</span>
+                            <span>今日の予約を押すと顧客のトレーニング管理へ移動</span>
                           </div>
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
-                            <span>スマホでも崩れにくい1カラム表示</span>
+                            <span>消化ボタンで回数券・残回数の処理を記録</span>
                           </div>
                         </div>
                       </div>
