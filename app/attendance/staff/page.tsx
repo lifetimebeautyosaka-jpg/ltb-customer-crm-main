@@ -62,13 +62,15 @@ function getMonthRange(month: string) {
   const start = new Date(year, monthIndex, 1);
   const end = new Date(year, monthIndex + 1, 0);
 
-  const startText = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(
-    start.getDate()
-  ).padStart(2, "0")}`;
+  const startText = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(
+    2,
+    "0"
+  )}-${String(start.getDate()).padStart(2, "0")}`;
 
-  const endText = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(
-    end.getDate()
-  ).padStart(2, "0")}`;
+  const endText = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(
+    2,
+    "0"
+  )}-${String(end.getDate()).padStart(2, "0")}`;
 
   return { startText, endText };
 }
@@ -119,11 +121,7 @@ function minutesToText(minutes: number) {
   return `${h}時間${m}分`;
 }
 
-function calcTotalMinutes(
-  clockIn?: string | null,
-  clockOut?: string | null,
-  breakMinutes = 0
-) {
+function calcTotalMinutes(clockIn?: string | null, clockOut?: string | null, breakMinutes = 0) {
   if (!clockIn || !clockOut) return 0;
 
   const start = new Date(clockIn).getTime();
@@ -180,13 +178,7 @@ function calcLateNightMinutes(clockIn?: string | null, clockOut?: string | null)
     const lateNightStart = new Date(y, m, d, 22, 0, 0, 0).getTime();
     const lateNightEnd = new Date(y, m, d + 1, 5, 0, 0, 0).getTime();
 
-    total += overlapMinutes(
-      start.getTime(),
-      end.getTime(),
-      lateNightStart,
-      lateNightEnd
-    );
-
+    total += overlapMinutes(start.getTime(), end.getTime(), lateNightStart, lateNightEnd);
     cursor.setDate(cursor.getDate() + 1);
   }
 
@@ -681,18 +673,18 @@ export default function AttendanceStaffPage() {
     return "退勤済";
   }
 
-  function getStatusColor() {
-    if (!todayRow?.clock_in) return "#f59e0b";
-    if (todayRow.clock_in && !todayRow.clock_out) return "#10b981";
-    return "#3b82f6";
+  function getStatusTone() {
+    if (!todayRow?.clock_in) return { color: "#f5d06f", bg: "rgba(245,208,111,0.14)" };
+    if (todayRow.clock_in && !todayRow.clock_out) {
+      return { color: "#34d399", bg: "rgba(52,211,153,0.14)" };
+    }
+    return { color: "#93c5fd", bg: "rgba(147,197,253,0.14)" };
   }
 
   function getLiveWorkedMinutes() {
     if (!todayRow?.clock_in) return 0;
 
-    const endSource = todayRow.clock_out
-      ? new Date(todayRow.clock_out).getTime()
-      : liveNow;
+    const endSource = todayRow.clock_out ? new Date(todayRow.clock_out).getTime() : liveNow;
     const startSource = new Date(todayRow.clock_in).getTime();
 
     if (!Number.isFinite(startSource) || !Number.isFinite(endSource) || endSource <= startSource) {
@@ -705,256 +697,239 @@ export default function AttendanceStaffPage() {
   }
 
   const workedMinutes = getLiveWorkedMinutes();
+  const statusTone = getStatusTone();
 
   if (!mounted) return null;
 
   return (
-    <div style={pageStyle}>
-      <div style={bgGlowA} />
-      <div style={bgGlowB} />
+    <main style={pageStyle}>
+      <style>{responsiveStyle}</style>
+
+      <div style={bgGlowTop} />
+      <div style={bgGlowLeft} />
+      <div style={bgGlowRight} />
+      <div style={noiseStyle} />
 
       <div style={containerStyle}>
-        <div style={topRowStyle}>
-          <Link href="/" style={backLinkStyle}>
-            ← ホームへ戻る
+        <div style={topBarStyle}>
+          <Link href="/attendance" style={backLinkStyle}>
+            ← 勤怠トップへ戻る
           </Link>
-          <div style={eyebrowStyle}>STAFF TIMECARD</div>
+
+          <div style={topRightStyle}>
+            <span style={eyebrowStyle}>STAFF TIMECARD</span>
+          </div>
         </div>
 
-        <div style={heroCardStyle}>
-          <div style={heroLeftStyle}>
+        <section style={heroCardStyle} className="attendance-hero-grid">
+          <div style={heroLeftStyle} className="attendance-hero-left">
             <div style={miniLabelStyle}>GYMUP ATTENDANCE</div>
             <h1 style={titleStyle}>スタッフ打刻ページ</h1>
             <p style={descStyle}>
-              出勤・退勤・休憩時間を記録し、月ごとの出勤簿を累積表示します。
+              出勤・退勤・休憩時間を記録し、
+              <br className="attendance-pc-break" />
+              月ごとの勤怠と給与概算をひとつの画面で確認できます。
             </p>
-          </div>
 
-          <div
-            style={{
-              display: "flex",
-              gap: 10,
-              flexWrap: "wrap",
-              width: mobile ? "100%" : "auto",
-              flexDirection: mobile ? "column" : "row",
-            }}
-          >
-            <Link
-              href="/attendance/staff/payslip"
-              style={{
-                ...topActionLinkStyle,
-                width: mobile ? "100%" : "auto",
-              }}
-            >
-              給与明細を見る
-            </Link>
-            <Link
-              href="/attendance/admin"
-              style={{
-                ...topActionLinkStyle,
-                width: mobile ? "100%" : "auto",
-              }}
-            >
-              管理者ページ
-            </Link>
-          </div>
-        </div>
-
-        {errorMessage && <div style={errorBoxStyle}>{errorMessage}</div>}
-
-        <div
-          style={{
-            ...filterGridStyle,
-            gridTemplateColumns: mobile
-              ? "1fr"
-              : tablet
-              ? "repeat(2, minmax(0, 1fr))"
-              : "repeat(6, minmax(0, 1fr))",
-          }}
-        >
-          <div style={filterCardStyle}>
-            <div style={labelStyle}>スタッフ名</div>
-            <input
-              value={inputStaffName}
-              onChange={(e) => setInputStaffName(e.target.value)}
-              placeholder="例：山口敏雄"
-              style={inputStyle}
-            />
-          </div>
-
-          <div style={filterCardStyle}>
-            <div style={labelStyle}>対象月</div>
-            <input
-              type="month"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              style={inputStyle}
-            />
-          </div>
-
-          <div style={filterCardStyle}>
-            <div style={labelStyle}>休憩時間</div>
-            <div style={breakButtonRowStyle}>
-              <button
-                type="button"
-                onClick={() => setBreakMinutes(30)}
-                style={{
-                  ...breakButtonStyle,
-                  ...(breakMinutes === 30 ? breakButtonActiveStyle : {}),
-                }}
+            <div style={heroButtonRowStyle} className="attendance-button-row">
+              <Link
+                href="/attendance/staff/payslip"
+                style={secondaryLinkButtonStyle}
+                className="attendance-sub-button"
               >
-                30分
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setBreakMinutes(60)}
-                style={{
-                  ...breakButtonStyle,
-                  ...(breakMinutes === 60 ? breakButtonActiveStyle : {}),
-                }}
+                給与明細を見る
+              </Link>
+              <Link
+                href="/attendance/admin"
+                style={secondaryLinkButtonStyle}
+                className="attendance-sub-button"
               >
-                60分
-              </button>
+                管理者ページ
+              </Link>
             </div>
           </div>
 
-          <div style={filterCardStyle}>
-            <div style={labelStyle}>時給</div>
-            <input
-              type="number"
-              value={hourlyWage}
-              onChange={(e) => setHourlyWage(e.target.value)}
-              style={inputStyle}
-            />
+          <div style={heroRightStyle}>
+            <div style={statusCardStyle}>
+              <div style={statusCardLabelStyle}>TODAY STATUS</div>
+
+              <div
+                style={{
+                  ...statusPillStyle,
+                  color: statusTone.color,
+                  background: statusTone.bg,
+                  borderColor: statusTone.bg,
+                }}
+              >
+                {getStatusLabel()}
+              </div>
+
+              <div style={statusMetaGridStyle}>
+                <MiniDarkInfo label="スタッフ名" value={staffName || "未設定"} />
+                <MiniDarkInfo label="勤務日" value={todayJst} />
+                <MiniDarkInfo label="出勤" value={formatTimeJP(todayRow?.clock_in)} />
+                <MiniDarkInfo label="退勤" value={formatTimeJP(todayRow?.clock_out)} />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {errorMessage ? <div style={errorBoxStyle}>{errorMessage}</div> : null}
+
+        <section style={panelStyle}>
+          <div style={sectionHeaderStyle}>
+            <div>
+              <div style={sectionMiniStyle}>STAFF SETTINGS</div>
+              <h2 style={sectionTitleStyle}>スタッフ設定・給与条件</h2>
+            </div>
           </div>
 
-          <div style={filterCardStyle}>
-            <div style={labelStyle}>残業倍率</div>
-            <input
-              type="number"
-              step="0.01"
-              value={overtimeRate}
-              onChange={(e) => setOvertimeRate(e.target.value)}
-              style={inputStyle}
-            />
+          <div
+            style={formGridStyle}
+            className="attendance-settings-grid"
+          >
+            <FieldCard label="スタッフ名">
+              <input
+                value={inputStaffName}
+                onChange={(e) => setInputStaffName(e.target.value)}
+                placeholder="例：山口敏雄"
+                style={inputStyle}
+              />
+            </FieldCard>
+
+            <FieldCard label="対象月">
+              <input
+                type="month"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                style={inputStyle}
+              />
+            </FieldCard>
+
+            <FieldCard label="休憩時間">
+              <div style={breakButtonRowStyle}>
+                <button
+                  type="button"
+                  onClick={() => setBreakMinutes(30)}
+                  style={{
+                    ...breakButtonStyle,
+                    ...(breakMinutes === 30 ? breakButtonActiveStyle : {}),
+                  }}
+                >
+                  30分
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setBreakMinutes(60)}
+                  style={{
+                    ...breakButtonStyle,
+                    ...(breakMinutes === 60 ? breakButtonActiveStyle : {}),
+                  }}
+                >
+                  60分
+                </button>
+              </div>
+            </FieldCard>
+
+            <FieldCard label="時給">
+              <input
+                type="number"
+                value={hourlyWage}
+                onChange={(e) => setHourlyWage(e.target.value)}
+                style={inputStyle}
+              />
+            </FieldCard>
+
+            <FieldCard label="残業倍率">
+              <input
+                type="number"
+                step="0.01"
+                value={overtimeRate}
+                onChange={(e) => setOvertimeRate(e.target.value)}
+                style={inputStyle}
+              />
+            </FieldCard>
+
+            <FieldCard label="深夜倍率">
+              <input
+                type="number"
+                step="0.01"
+                value={lateNightRate}
+                onChange={(e) => setLateNightRate(e.target.value)}
+                style={inputStyle}
+              />
+            </FieldCard>
           </div>
 
-          <div style={filterCardStyle}>
-            <div style={labelStyle}>深夜倍率</div>
-            <input
-              type="number"
-              step="0.01"
-              value={lateNightRate}
-              onChange={(e) => setLateNightRate(e.target.value)}
-              style={inputStyle}
-            />
+          <div style={{ marginTop: 16 }}>
+            <FieldCard label="備考">
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                rows={4}
+                style={textareaStyle}
+                placeholder="遅刻・早退・連絡事項など"
+              />
+            </FieldCard>
           </div>
-        </div>
 
-        <div style={filterCardStyle}>
-          <div style={labelStyle}>備考</div>
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            rows={4}
-            style={textareaStyle}
-            placeholder="遅刻・早退・連絡事項など"
-          />
-          <div style={{ marginTop: 12, display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <button onClick={handleSaveStaff} style={topActionButtonStyle} disabled={saving}>
+          <div style={actionRowStyle} className="attendance-button-row" >
+            <button onClick={handleSaveStaff} style={secondaryButtonStyle} disabled={saving}>
               スタッフ保存
             </button>
-            <button onClick={handleSaveMemo} style={topActionButtonStyle} disabled={saving || !todayRow}>
+            <button
+              onClick={handleSaveMemo}
+              style={secondaryButtonStyle}
+              disabled={saving || !todayRow}
+            >
               休憩・備考を保存
             </button>
           </div>
-        </div>
+        </section>
 
-        <div
-          style={{
-            ...summaryGridLargeStyle,
-            gridTemplateColumns: mobile
-              ? "1fr"
-              : tablet
-              ? "repeat(2, minmax(0, 1fr))"
-              : "repeat(4, minmax(0, 1fr))",
-          }}
-        >
-          <MetricCard label="本日の状態" value={getStatusLabel()} accentColor={getStatusColor()} />
+        <section style={metricGridStyle} className="attendance-metrics-grid four">
+          <MetricCard label="本日の状態" value={getStatusLabel()} accentColor={statusTone.color} />
           <MetricCard label="本日の勤務時間" value={minutesToText(workedMinutes)} />
-          <MetricCard label="本月出勤日数" value={`${monthSummary.workDays}日`} />
-          <MetricCard label="本月総勤務" value={minutesToText(monthSummary.totalMinutes)} />
-        </div>
+          <MetricCard label="今月出勤日数" value={`${monthSummary.workDays}日`} />
+          <MetricCard label="今月総勤務" value={minutesToText(monthSummary.totalMinutes)} />
+        </section>
 
-        <div
-          style={{
-            ...summaryGridLargeStyle,
-            gridTemplateColumns: mobile
-              ? "1fr"
-              : tablet
-              ? "repeat(2, minmax(0, 1fr))"
-              : "repeat(4, minmax(0, 1fr))",
-          }}
-        >
+        <section style={metricGridStyle} className="attendance-metrics-grid four">
           <MetricCard label="通常勤務" value={minutesToText(monthSummary.regularMinutes)} />
           <MetricCard label="残業時間" value={minutesToText(monthSummary.overtimeMinutes)} />
           <MetricCard label="深夜時間" value={minutesToText(monthSummary.lateNightMinutes)} />
           <MetricCard label="対象月" value={monthLabel(selectedMonth)} />
-        </div>
+        </section>
 
-        <div
-          style={{
-            ...summaryGridLargeStyle,
-            gridTemplateColumns: mobile
-              ? "1fr"
-              : tablet
-              ? "repeat(2, minmax(0, 1fr))"
-              : "repeat(4, minmax(0, 1fr))",
-          }}
-        >
+        <section style={metricGridStyle} className="attendance-metrics-grid four">
           <MetricCard label="通常賃金" value={formatCurrency(salarySummary.regularPay)} />
           <MetricCard label="残業賃金" value={formatCurrency(salarySummary.overtimePay)} />
           <MetricCard label="深夜賃金" value={formatCurrency(salarySummary.lateNightPay)} />
           <MetricCard label="今月の給与概算" value={formatCurrency(salarySummary.totalPay)} />
-        </div>
+        </section>
 
-        <div style={panelStyle}>
-          <div style={panelHeaderStyle}>
+        <section style={panelStyle}>
+          <div style={sectionHeaderStyle}>
             <div>
-              <div style={panelMiniStyle}>TODAY TIMECARD</div>
-              <h2 style={panelTitleStyle}>本日の打刻</h2>
+              <div style={sectionMiniStyle}>TODAY TIMECARD</div>
+              <h2 style={sectionTitleStyle}>本日の打刻</h2>
             </div>
           </div>
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: mobile ? "1fr" : "repeat(4, minmax(0, 1fr))",
-              gap: 12,
-              marginBottom: 16,
-            }}
-          >
-            <MiniInfo label="スタッフ名" value={staffName || "未設定"} />
-            <MiniInfo label="勤務日" value={todayJst} />
-            <MiniInfo label="出勤" value={formatTimeJP(todayRow?.clock_in)} />
-            <MiniInfo label="退勤" value={formatTimeJP(todayRow?.clock_out)} />
+          <div style={miniInfoGridStyle} className="attendance-miniinfo-grid">
+            <MiniDarkInfo label="スタッフ名" value={staffName || "未設定"} />
+            <MiniDarkInfo label="勤務日" value={todayJst} />
+            <MiniDarkInfo label="出勤" value={formatTimeJP(todayRow?.clock_in)} />
+            <MiniDarkInfo label="退勤" value={formatTimeJP(todayRow?.clock_out)} />
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              gap: 12,
-              flexWrap: "wrap",
-              flexDirection: mobile ? "column" : "row",
-            }}
-          >
+          <div style={actionRowStyle} className="attendance-button-row">
             <button
               onClick={handleClockIn}
               disabled={saving || !staffName || Boolean(todayRow?.clock_in)}
               style={{
                 ...primaryButtonStyle,
-                width: mobile ? "100%" : "auto",
                 opacity: saving || !staffName || Boolean(todayRow?.clock_in) ? 0.55 : 1,
               }}
             >
@@ -966,7 +941,6 @@ export default function AttendanceStaffPage() {
               disabled={saving || !staffName || !Boolean(todayRow?.clock_in) || Boolean(todayRow?.clock_out)}
               style={{
                 ...secondaryButtonStyle,
-                width: mobile ? "100%" : "auto",
                 opacity:
                   saving || !staffName || !Boolean(todayRow?.clock_in) || Boolean(todayRow?.clock_out)
                     ? 0.55
@@ -976,13 +950,13 @@ export default function AttendanceStaffPage() {
               退勤する
             </button>
           </div>
-        </div>
+        </section>
 
-        <div style={panelStyle}>
-          <div style={panelHeaderStyle}>
+        <section style={panelStyle}>
+          <div style={sectionHeaderStyle}>
             <div>
-              <div style={panelMiniStyle}>MONTHLY RECORDS</div>
-              <h2 style={panelTitleStyle}>月別出勤簿</h2>
+              <div style={sectionMiniStyle}>MONTHLY RECORDS</div>
+              <h2 style={sectionTitleStyle}>月別出勤簿</h2>
             </div>
           </div>
 
@@ -995,14 +969,19 @@ export default function AttendanceStaffPage() {
               {monthRows.map((row) => (
                 <div key={row.id} style={recordCardStyle}>
                   <div style={recordDateStyle}>{formatDateJP(row.work_date)}</div>
+
                   <div style={recordInfoGridStyle}>
-                    <MiniInfo label="出勤" value={formatTimeJP(row.clock_in)} />
-                    <MiniInfo label="退勤" value={formatTimeJP(row.clock_out)} />
-                    <MiniInfo label="休憩" value={`${row.break_minutes ?? 0}分`} />
-                    <MiniInfo label="通常" value={minutesToText(row.regular_minutes ?? 0)} />
-                    <MiniInfo label="残業" value={minutesToText(row.overtime_minutes ?? 0)} />
-                    <MiniInfo label="深夜" value={minutesToText(row.late_night_minutes ?? 0)} />
-                    <MiniInfo label="総勤務" value={minutesToText(row.total_work_minutes ?? 0)} />
+                    <MiniDarkInfo label="出勤" value={formatTimeJP(row.clock_in)} />
+                    <MiniDarkInfo label="退勤" value={formatTimeJP(row.clock_out)} />
+                    <MiniDarkInfo label="休憩" value={`${row.break_minutes ?? 0}分`} />
+                    <MiniDarkInfo label="通常" value={minutesToText(row.regular_minutes ?? 0)} />
+                    <MiniDarkInfo label="残業" value={minutesToText(row.overtime_minutes ?? 0)} />
+                    <MiniDarkInfo label="深夜" value={minutesToText(row.late_night_minutes ?? 0)} />
+                    <MiniDarkInfo label="総勤務" value={minutesToText(row.total_work_minutes ?? 0)} />
+                    <MiniDarkInfo
+                      label="更新日時"
+                      value={formatDateTimeJP(row.updated_at || row.created_at)}
+                    />
                   </div>
 
                   <div style={noteBoxStyle}>
@@ -1048,9 +1027,9 @@ export default function AttendanceStaffPage() {
               </table>
             </div>
           )}
-        </div>
+        </section>
       </div>
-    </div>
+    </main>
   );
 }
 
@@ -1064,14 +1043,14 @@ function MetricCard({
   accentColor?: string;
 }) {
   return (
-    <div style={metricCardStyle}>
+    <div style={metricCardStyle} className="attendance-metric-card">
       <div style={metricLabelStyle}>{label}</div>
-      <div style={{ ...metricValueStyle, color: accentColor || "#0f172a" }}>{value}</div>
+      <div style={{ ...metricValueStyle, color: accentColor || "#f8fafc" }}>{value}</div>
     </div>
   );
 }
 
-function MiniInfo({
+function MiniDarkInfo({
   label,
   value,
 }: {
@@ -1086,35 +1065,74 @@ function MiniInfo({
   );
 }
 
+function FieldCard({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div style={fieldCardStyle}>
+      <div style={fieldLabelStyle}>{label}</div>
+      {children}
+    </div>
+  );
+}
+
 const pageStyle: CSSProperties = {
   minHeight: "100vh",
-  background:
-    "linear-gradient(135deg, #eef4ff 0%, #f8fbff 30%, #f3f7ff 65%, #eef2ff 100%)",
   position: "relative",
   overflow: "hidden",
+  background: "linear-gradient(135deg, #05070b 0%, #0b1220 38%, #020617 100%)",
+  padding: "24px 16px 60px",
 };
 
-const bgGlowA: CSSProperties = {
+const bgGlowTop: CSSProperties = {
   position: "absolute",
-  top: -140,
+  top: -120,
+  left: "50%",
+  transform: "translateX(-50%)",
+  width: 520,
+  height: 280,
+  background:
+    "radial-gradient(circle, rgba(245,208,111,0.18) 0%, rgba(245,208,111,0.06) 35%, rgba(245,208,111,0) 72%)",
+  pointerEvents: "none",
+  filter: "blur(14px)",
+};
+
+const bgGlowLeft: CSSProperties = {
+  position: "absolute",
+  top: 120,
   left: -120,
-  width: 420,
-  height: 420,
+  width: 320,
+  height: 320,
   borderRadius: "50%",
   background:
-    "radial-gradient(circle, rgba(147,197,253,0.22) 0%, rgba(147,197,253,0) 72%)",
+    "radial-gradient(circle, rgba(212,175,55,0.14) 0%, rgba(212,175,55,0) 70%)",
   pointerEvents: "none",
+  filter: "blur(10px)",
 };
 
-const bgGlowB: CSSProperties = {
+const bgGlowRight: CSSProperties = {
   position: "absolute",
   right: -120,
-  top: 80,
+  bottom: 80,
   width: 360,
   height: 360,
   borderRadius: "50%",
   background:
-    "radial-gradient(circle, rgba(196,181,253,0.18) 0%, rgba(196,181,253,0) 72%)",
+    "radial-gradient(circle, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 72%)",
+  pointerEvents: "none",
+  filter: "blur(20px)",
+};
+
+const noiseStyle: CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  backgroundImage: "radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px)",
+  backgroundSize: "16px 16px",
+  opacity: 0.28,
   pointerEvents: "none",
 };
 
@@ -1123,12 +1141,11 @@ const containerStyle: CSSProperties = {
   zIndex: 1,
   maxWidth: 1280,
   margin: "0 auto",
-  padding: "28px 18px 60px",
   display: "grid",
   gap: 18,
 };
 
-const topRowStyle: CSSProperties = {
+const topBarStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
@@ -1139,122 +1156,214 @@ const topRowStyle: CSSProperties = {
 const backLinkStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
-  color: "rgba(30,41,59,0.78)",
+  minHeight: 40,
+  color: "rgba(255,255,255,0.72)",
   textDecoration: "none",
   fontSize: 14,
   fontWeight: 600,
 };
 
+const topRightStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+};
+
 const eyebrowStyle: CSSProperties = {
   fontSize: 11,
   letterSpacing: "0.24em",
-  color: "rgba(30,41,59,0.42)",
+  color: "rgba(255,255,255,0.42)",
+  fontWeight: 700,
 };
 
 const heroCardStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: 20,
-  flexWrap: "wrap",
-  background: "rgba(255,255,255,0.55)",
-  border: "1px solid rgba(255,255,255,0.75)",
-  borderRadius: 28,
-  padding: "24px 22px",
-  boxShadow: "0 18px 40px rgba(148,163,184,0.14)",
-  backdropFilter: "blur(10px)",
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1.08fr) minmax(0, 0.92fr)",
+  gap: 18,
+  padding: 18,
+  borderRadius: 30,
+  background: "rgba(255,255,255,0.06)",
+  backdropFilter: "blur(18px)",
+  WebkitBackdropFilter: "blur(18px)",
+  border: "1px solid rgba(255,255,255,0.10)",
+  boxShadow:
+    "0 25px 60px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08)",
 };
 
 const heroLeftStyle: CSSProperties = {
-  flex: 1,
-  minWidth: 260,
+  borderRadius: 24,
+  padding: "26px 24px",
+  background:
+    "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(245,208,111,0.06) 100%)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  minHeight: 280,
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "center",
+};
+
+const heroRightStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "stretch",
 };
 
 const miniLabelStyle: CSSProperties = {
   fontSize: 11,
   letterSpacing: "0.24em",
-  color: "rgba(30,41,59,0.48)",
-  marginBottom: 8,
+  color: "rgba(255,255,255,0.45)",
+  marginBottom: 10,
+  fontWeight: 700,
 };
 
 const titleStyle: CSSProperties = {
   margin: 0,
-  fontSize: "clamp(28px, 4vw, 42px)",
-  lineHeight: 1.1,
-  color: "#0f172a",
+  fontSize: "clamp(32px, 5vw, 54px)",
+  lineHeight: 1.05,
+  color: "#f8fafc",
   fontWeight: 800,
+  letterSpacing: "-0.03em",
 };
 
 const descStyle: CSSProperties = {
-  margin: "12px 0 0",
-  fontSize: 14,
-  lineHeight: 1.8,
-  color: "rgba(15,23,42,0.68)",
+  margin: "16px 0 0",
+  fontSize: 15,
+  lineHeight: 1.9,
+  color: "rgba(255,255,255,0.68)",
 };
 
-const topActionLinkStyle: CSSProperties = {
+const heroButtonRowStyle: CSSProperties = {
+  display: "flex",
+  gap: 12,
+  flexWrap: "wrap",
+  marginTop: 24,
+};
+
+const secondaryLinkButtonStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  minHeight: 44,
-  padding: "10px 16px",
+  minHeight: 48,
+  padding: "0 18px",
   borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.95)",
-  background: "rgba(255,255,255,0.82)",
-  color: "#0f172a",
+  background: "rgba(255,255,255,0.06)",
+  border: "1px solid rgba(255,255,255,0.12)",
+  color: "#f8fafc",
   textDecoration: "none",
   fontWeight: 700,
   fontSize: 14,
 };
 
-const topActionButtonStyle: CSSProperties = {
-  minHeight: 44,
-  padding: "10px 16px",
-  borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.95)",
-  background: "rgba(255,255,255,0.84)",
-  color: "#0f172a",
+const statusCardStyle: CSSProperties = {
+  width: "100%",
+  borderRadius: 24,
+  padding: "22px 20px",
+  background:
+    "linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(245,208,111,0.04) 100%)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  minHeight: 280,
+  display: "flex",
+  flexDirection: "column",
+};
+
+const statusCardLabelStyle: CSSProperties = {
+  fontSize: 13,
   fontWeight: 700,
-  fontSize: 14,
-  cursor: "pointer",
+  color: "rgba(255,255,255,0.52)",
+  marginBottom: 14,
+};
+
+const statusPillStyle: CSSProperties = {
+  minHeight: 38,
+  display: "inline-flex",
+  alignItems: "center",
+  alignSelf: "flex-start",
+  padding: "0 14px",
+  borderRadius: 999,
+  border: "1px solid transparent",
+  fontSize: 13,
+  fontWeight: 800,
+  marginBottom: 18,
+};
+
+const statusMetaGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: 12,
+  marginTop: "auto",
 };
 
 const errorBoxStyle: CSSProperties = {
   padding: "14px 16px",
   borderRadius: 18,
-  background: "rgba(254,226,226,0.9)",
+  background: "rgba(127,29,29,0.22)",
   border: "1px solid rgba(248,113,113,0.28)",
-  color: "#b91c1c",
+  color: "#fecaca",
   fontSize: 14,
 };
 
-const filterGridStyle: CSSProperties = {
+const panelStyle: CSSProperties = {
+  borderRadius: 28,
+  padding: 18,
+  background: "rgba(255,255,255,0.06)",
+  backdropFilter: "blur(18px)",
+  WebkitBackdropFilter: "blur(18px)",
+  border: "1px solid rgba(255,255,255,0.10)",
+  boxShadow:
+    "0 25px 60px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.08)",
+};
+
+const sectionHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap",
+  marginBottom: 16,
+};
+
+const sectionMiniStyle: CSSProperties = {
+  fontSize: 11,
+  letterSpacing: "0.22em",
+  color: "rgba(255,255,255,0.42)",
+  marginBottom: 6,
+  fontWeight: 700,
+};
+
+const sectionTitleStyle: CSSProperties = {
+  margin: 0,
+  fontSize: 22,
+  color: "#f8fafc",
+  fontWeight: 800,
+};
+
+const formGridStyle: CSSProperties = {
   display: "grid",
+  gridTemplateColumns: "repeat(6, minmax(0, 1fr))",
   gap: 14,
 };
 
-const filterCardStyle: CSSProperties = {
-  background: "rgba(255,255,255,0.52)",
-  border: "1px solid rgba(255,255,255,0.76)",
+const fieldCardStyle: CSSProperties = {
   borderRadius: 22,
   padding: 16,
-  boxShadow: "0 14px 34px rgba(148,163,184,0.12)",
-  backdropFilter: "blur(10px)",
+  background: "linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(245,208,111,0.03) 100%)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  boxShadow: "0 16px 32px rgba(0,0,0,0.18)",
 };
 
-const labelStyle: CSSProperties = {
+const fieldLabelStyle: CSSProperties = {
   fontSize: 13,
-  color: "rgba(15,23,42,0.78)",
+  color: "rgba(255,255,255,0.78)",
   marginBottom: 8,
+  fontWeight: 700,
 };
 
 const inputStyle: CSSProperties = {
   width: "100%",
   height: 48,
   borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.9)",
-  background: "rgba(255,255,255,0.82)",
-  color: "#0f172a",
+  border: "1px solid rgba(255,255,255,0.10)",
+  background: "rgba(255,255,255,0.06)",
+  color: "#f8fafc",
   padding: "0 14px",
   outline: "none",
   fontSize: 14,
@@ -1264,9 +1373,9 @@ const inputStyle: CSSProperties = {
 const textareaStyle: CSSProperties = {
   width: "100%",
   borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.9)",
-  background: "rgba(255,255,255,0.82)",
-  color: "#0f172a",
+  border: "1px solid rgba(255,255,255,0.10)",
+  background: "rgba(255,255,255,0.06)",
+  color: "#f8fafc",
   padding: "12px 14px",
   outline: "none",
   fontSize: 14,
@@ -1282,79 +1391,112 @@ const breakButtonRowStyle: CSSProperties = {
 
 const breakButtonStyle: CSSProperties = {
   minWidth: 96,
-  height: 48,
+  height: 46,
   borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.95)",
-  background: "rgba(255,255,255,0.82)",
-  color: "#0f172a",
+  border: "1px solid rgba(255,255,255,0.10)",
+  background: "rgba(255,255,255,0.06)",
+  color: "#f8fafc",
   fontWeight: 700,
   fontSize: 14,
   cursor: "pointer",
   padding: "0 16px",
-  transition: "all 0.2s ease",
 };
 
 const breakButtonActiveStyle: CSSProperties = {
-  background: "linear-gradient(135deg, #ffffff, #eaf1ff)",
-  boxShadow: "0 10px 24px rgba(148,163,184,0.15)",
-  border: "1px solid rgba(148,163,184,0.45)",
+  background: "linear-gradient(135deg, rgba(212,175,55,0.28), rgba(245,208,111,0.18))",
+  border: "1px solid rgba(245,208,111,0.35)",
+  boxShadow: "0 10px 24px rgba(212,175,55,0.14)",
 };
 
-const summaryGridLargeStyle: CSSProperties = {
+const actionRowStyle: CSSProperties = {
+  display: "flex",
+  gap: 12,
+  flexWrap: "wrap",
+  marginTop: 16,
+};
+
+const primaryButtonStyle: CSSProperties = {
+  minHeight: 50,
+  border: "none",
+  borderRadius: 16,
+  background: "linear-gradient(135deg, #d4af37, #f5d06f)",
+  color: "#111827",
+  fontWeight: 800,
+  fontSize: 14,
+  cursor: "pointer",
+  padding: "0 18px",
+  boxShadow: "0 12px 28px rgba(212,175,55,0.26)",
+};
+
+const secondaryButtonStyle: CSSProperties = {
+  minHeight: 50,
+  border: "1px solid rgba(255,255,255,0.12)",
+  borderRadius: 16,
+  background: "rgba(255,255,255,0.06)",
+  color: "#f8fafc",
+  fontWeight: 700,
+  fontSize: 14,
+  cursor: "pointer",
+  padding: "0 18px",
+};
+
+const metricGridStyle: CSSProperties = {
   display: "grid",
+  gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
   gap: 14,
 };
 
 const metricCardStyle: CSSProperties = {
-  borderRadius: 20,
-  background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(226,232,240,0.95)",
+  borderRadius: 22,
   padding: 16,
+  background: "rgba(255,255,255,0.06)",
+  border: "1px solid rgba(255,255,255,0.10)",
+  backdropFilter: "blur(14px)",
+  WebkitBackdropFilter: "blur(14px)",
+  boxShadow: "0 18px 35px rgba(0,0,0,0.18)",
 };
 
 const metricLabelStyle: CSSProperties = {
   fontSize: 12,
-  color: "rgba(15,23,42,0.46)",
+  color: "rgba(255,255,255,0.46)",
   marginBottom: 8,
+  fontWeight: 700,
 };
 
 const metricValueStyle: CSSProperties = {
   fontSize: 24,
   fontWeight: 800,
-  color: "#0f172a",
-  lineHeight: 1.2,
+  color: "#f8fafc",
+  lineHeight: 1.25,
+  letterSpacing: "-0.02em",
 };
 
-const panelStyle: CSSProperties = {
-  background: "rgba(255,255,255,0.52)",
-  border: "1px solid rgba(255,255,255,0.76)",
-  borderRadius: 26,
-  padding: 20,
-  boxShadow: "0 14px 34px rgba(148,163,184,0.12)",
-  backdropFilter: "blur(10px)",
-};
-
-const panelHeaderStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
+const miniInfoGridStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
   gap: 12,
-  flexWrap: "wrap",
   marginBottom: 16,
 };
 
-const panelMiniStyle: CSSProperties = {
-  fontSize: 11,
-  letterSpacing: "0.22em",
-  color: "rgba(30,41,59,0.42)",
-  marginBottom: 6,
+const miniInfoCardStyle: CSSProperties = {
+  borderRadius: 18,
+  padding: 14,
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.06)",
 };
 
-const panelTitleStyle: CSSProperties = {
-  margin: 0,
-  fontSize: 22,
-  color: "#0f172a",
+const miniInfoLabelStyle: CSSProperties = {
+  fontSize: 11,
+  color: "rgba(255,255,255,0.46)",
+  marginBottom: 6,
   fontWeight: 700,
+};
+
+const miniInfoValueStyle: CSSProperties = {
+  fontSize: 14,
+  fontWeight: 700,
+  color: "#f8fafc",
+  lineHeight: 1.6,
 };
 
 const emptyBoxStyle: CSSProperties = {
@@ -1364,64 +1506,19 @@ const emptyBoxStyle: CSSProperties = {
   justifyContent: "center",
   textAlign: "center",
   borderRadius: 20,
-  background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(226,232,240,0.95)",
-  color: "rgba(15,23,42,0.54)",
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  color: "rgba(255,255,255,0.54)",
   fontSize: 14,
   padding: 20,
-};
-
-const miniInfoCardStyle: CSSProperties = {
-  borderRadius: 16,
-  background: "rgba(248,250,252,0.92)",
-  border: "1px solid rgba(226,232,240,0.95)",
-  padding: 12,
-};
-
-const miniInfoLabelStyle: CSSProperties = {
-  fontSize: 11,
-  color: "rgba(15,23,42,0.46)",
-  marginBottom: 6,
-};
-
-const miniInfoValueStyle: CSSProperties = {
-  fontSize: 14,
-  fontWeight: 700,
-  color: "#0f172a",
-  lineHeight: 1.5,
-};
-
-const primaryButtonStyle: CSSProperties = {
-  minHeight: 48,
-  border: "none",
-  borderRadius: 16,
-  background: "linear-gradient(135deg, #ffffff, #eaf1ff)",
-  color: "#0f172a",
-  fontWeight: 700,
-  fontSize: 14,
-  cursor: "pointer",
-  padding: "0 18px",
-  boxShadow: "0 10px 24px rgba(148,163,184,0.15)",
-};
-
-const secondaryButtonStyle: CSSProperties = {
-  minHeight: 48,
-  border: "1px solid rgba(203,213,225,0.95)",
-  borderRadius: 16,
-  background: "rgba(255,255,255,0.84)",
-  color: "#0f172a",
-  fontWeight: 700,
-  fontSize: 14,
-  cursor: "pointer",
-  padding: "0 18px",
 };
 
 const tableWrapStyle: CSSProperties = {
   width: "100%",
   overflowX: "auto",
   borderRadius: 20,
-  border: "1px solid rgba(226,232,240,0.95)",
-  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.04)",
 };
 
 const tableStyle: CSSProperties = {
@@ -1435,17 +1532,17 @@ const thStyle: CSSProperties = {
   textAlign: "left",
   fontSize: 12,
   fontWeight: 800,
-  color: "rgba(15,23,42,0.56)",
-  borderBottom: "1px solid rgba(226,232,240,0.95)",
-  background: "rgba(248,250,252,0.95)",
+  color: "rgba(255,255,255,0.56)",
+  borderBottom: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.04)",
   whiteSpace: "nowrap",
 };
 
 const tdStyle: CSSProperties = {
   padding: "12px 10px",
   fontSize: 13,
-  color: "#0f172a",
-  borderBottom: "1px solid rgba(226,232,240,0.7)",
+  color: "#f8fafc",
+  borderBottom: "1px solid rgba(255,255,255,0.06)",
   verticalAlign: "top",
   whiteSpace: "nowrap",
 };
@@ -1453,6 +1550,7 @@ const tdStyle: CSSProperties = {
 const tdStyleStrong: CSSProperties = {
   ...tdStyle,
   fontWeight: 800,
+  color: "#f5d06f",
 };
 
 const tdNoteStyle: CSSProperties = {
@@ -1460,19 +1558,21 @@ const tdNoteStyle: CSSProperties = {
   minWidth: 180,
   whiteSpace: "normal",
   lineHeight: 1.6,
+  color: "rgba(255,255,255,0.76)",
 };
 
 const recordCardStyle: CSSProperties = {
   borderRadius: 20,
-  background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(226,232,240,0.95)",
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.08)",
   padding: 16,
 };
 
 const recordDateStyle: CSSProperties = {
   fontSize: 14,
-  color: "rgba(15,23,42,0.56)",
-  marginBottom: 6,
+  color: "rgba(255,255,255,0.62)",
+  marginBottom: 10,
+  fontWeight: 700,
 };
 
 const recordInfoGridStyle: CSSProperties = {
@@ -1484,23 +1584,96 @@ const recordInfoGridStyle: CSSProperties = {
 const noteBoxStyle: CSSProperties = {
   marginTop: 12,
   borderRadius: 16,
-  background: "rgba(248,250,252,0.92)",
-  border: "1px solid rgba(226,232,240,0.95)",
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.06)",
   padding: 12,
   fontSize: 13,
-  color: "#334155",
+  color: "rgba(255,255,255,0.78)",
   lineHeight: 1.6,
 };
 
 const noteLabelStyle: CSSProperties = {
   fontSize: 11,
-  color: "rgba(15,23,42,0.46)",
+  color: "rgba(255,255,255,0.46)",
   marginBottom: 6,
+  fontWeight: 700,
 };
 
 const loadingStyle: CSSProperties = {
   textAlign: "center",
-  color: "rgba(15,23,42,0.56)",
+  color: "rgba(255,255,255,0.56)",
   fontSize: 14,
   padding: "16px 0",
 };
+
+const responsiveStyle = `
+.attendance-hero-grid,
+.attendance-button-row,
+.attendance-settings-grid,
+.attendance-miniinfo-grid,
+.attendance-metrics-grid {
+  width: 100%;
+}
+
+@media (max-width: 1100px) {
+  .attendance-hero-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .attendance-settings-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .attendance-metrics-grid.four {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .attendance-miniinfo-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .attendance-pc-break {
+    display: none;
+  }
+
+  .attendance-hero-grid {
+    gap: 14px !important;
+    padding: 14px !important;
+    border-radius: 22px !important;
+  }
+
+  .attendance-hero-left {
+    min-height: auto !important;
+    padding: 22px 18px !important;
+    border-radius: 20px !important;
+  }
+
+  .attendance-button-row {
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .attendance-sub-button {
+    width: 100% !important;
+    min-height: 52px !important;
+  }
+
+  .attendance-settings-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .attendance-metrics-grid.four {
+    grid-template-columns: 1fr !important;
+  }
+
+  .attendance-miniinfo-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .attendance-metric-card {
+    border-radius: 18px !important;
+  }
+}
+`;
