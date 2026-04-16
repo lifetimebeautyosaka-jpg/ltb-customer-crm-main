@@ -24,7 +24,7 @@ const products: Product[] = [
   {
     id: "1",
     name: "WPCプロテイン ベリー風味",
-    price: 2911,
+    price: 4980,
     image: "/berry.jpg",
     badge: "人気No.1",
     desc: "程よい酸味とベリーの香りで、プロテインタイムを楽しめる人気フレーバー。",
@@ -32,7 +32,7 @@ const products: Product[] = [
   {
     id: "2",
     name: "WPCプロテイン チョコ風味",
-    price: 3200,
+    price: 4980,
     image: "/wpc_02_choco_01.jpg",
     badge: "おすすめ",
     desc: "満足感のあるコクで、毎日続けやすい定番フレーバー。",
@@ -40,14 +40,14 @@ const products: Product[] = [
   {
     id: "3",
     name: "WPCプロテイン よう振るとヨーグルト風味風味",
-    price: 3200,
+    price: 4980,
     image: "/ygr.png",
     desc: "甘すぎない、酸っぱすぎない毎日飲める味。",
   },
   {
     id: "4",
     name: "WPCプロテイン 初恋のいちご風味",
-    price: 3200,
+    price: 4980,
     image: "/wpc_13_strawberry_01.jpg",
     desc: "自然な甘さでトレーニング後にも飲みやすいイチゴフレーバー。",
   },
