@@ -55,14 +55,6 @@ export default function AttendancePage() {
       ← ダッシュボードへ戻る
     </Link>
 
-    <div style={topIconsStyle}>
-      <div style={topDotStyle} />
-      <div style={topDotStyle} />
-      <div style={topDotStyle} />
-    </div>
-
-  </div>
-
           <div style={topIconsStyle}>
             <div style={topDotStyle} />
             <div style={topDotStyle} />
