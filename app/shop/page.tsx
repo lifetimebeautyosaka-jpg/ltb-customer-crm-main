@@ -119,13 +119,13 @@ export default function ShopPage() {
                   <div style={priceStyle}>¥{p.price.toLocaleString()}</div>
 
                   <div style={buttonWrapStyle}>
-                    <Link href={`/shop/${p.id}`} style={detailLinkStyle}>
+                    <Link href={`/shop/${p.id}`} style={outlineButtonStyle}>
                       詳細を見る
                     </Link>
 
                     <button
                       type="button"
-                      style={cartButtonStyle}
+                      style={outlineButtonStyle}
                       onClick={() => addToCart(p)}
                     >
                       カートに追加
@@ -221,7 +221,7 @@ const categoryLinkStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  border: "1px solid #d1d5db",
+  border: "1px solid #111827",
   borderRadius: 12,
   textDecoration: "none",
   color: "#111827",
@@ -232,8 +232,8 @@ const categoryLinkStyle: CSSProperties = {
 
 const gridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-  gap: 20,
+  gridTemplateColumns: "repeat(2, 1fr)",
+  gap: 16,
 };
 
 const cardStyle: CSSProperties = {
@@ -315,7 +315,7 @@ const buttonWrapStyle: CSSProperties = {
   gap: 10,
 };
 
-const detailLinkStyle: CSSProperties = {
+const outlineButtonStyle: CSSProperties = {
   width: "100%",
   minHeight: 46,
   display: "inline-flex",
@@ -323,24 +323,12 @@ const detailLinkStyle: CSSProperties = {
   justifyContent: "center",
   background: "#ffffff",
   color: "#111827",
-  border: "1px solid #d1d5db",
+  border: "1px solid #111827",
   borderRadius: 12,
   textDecoration: "none",
   fontWeight: 800,
   fontSize: 14,
-};
-
-const cartButtonStyle: CSSProperties = {
-  width: "100%",
-  minHeight: 48,
-  background: "#111827",
-  color: "#ffffff",
-  border: "none",
-  borderRadius: 12,
-  fontSize: 14,
-  fontWeight: 900,
   cursor: "pointer",
-  boxShadow: "0 10px 24px rgba(17,24,39,0.16)",
 };
 
 const cartAreaStyle: CSSProperties = {
@@ -349,8 +337,8 @@ const cartAreaStyle: CSSProperties = {
 };
 
 const goCartStyle: CSSProperties = {
-  background: "#111827",
-  color: "#ffffff",
+  background: "#ffffff",
+  color: "#111827",
   padding: "12px 20px",
   borderRadius: 12,
   textDecoration: "none",
@@ -358,5 +346,5 @@ const goCartStyle: CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   fontWeight: 800,
-  boxShadow: "0 10px 24px rgba(17,24,39,0.14)",
+  border: "1px solid #111827",
 };
