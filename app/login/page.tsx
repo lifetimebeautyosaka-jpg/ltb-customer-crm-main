@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 const pageBg =
@@ -281,6 +282,36 @@ export default function LoginPage() {
                 {loading ? "ログイン中..." : "会員ログイン"}
               </button>
 
+              <Link
+                href="/register"
+                style={{
+                  display: "block",
+                  width: "100%",
+                  borderRadius: 16,
+                  padding: "14px 16px",
+                  background: "#fff7ed",
+                  border: "1px solid #fdba74",
+                  color: "#c2410c",
+                  fontSize: 14,
+                  fontWeight: 800,
+                  textAlign: "center",
+                  textDecoration: "none",
+                  boxShadow: "0 10px 24px rgba(249,115,22,0.12)",
+                }}
+              >
+                初めての方はこちら
+                <br />
+                <span
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: "#9a3412",
+                  }}
+                >
+                  ID・パスワードを設定する
+                </span>
+              </Link>
+
               <div
                 style={{
                   position: "relative",
@@ -432,7 +463,7 @@ function MiniCard({
   );
 }
 
-const labelStyle: React.CSSProperties = {
+const labelStyle: CSSProperties = {
   fontSize: 12,
   fontWeight: 800,
   color: "#64748b",
@@ -440,7 +471,7 @@ const labelStyle: React.CSSProperties = {
   letterSpacing: "0.06em",
 };
 
-const inputStyle: React.CSSProperties = {
+const inputStyle: CSSProperties = {
   width: "100%",
   height: 50,
   borderRadius: 14,
