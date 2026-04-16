@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 export default function SuccessPage() {
@@ -9,37 +9,53 @@ export default function SuccessPage() {
 
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+
+  const hasSavedRef = useRef(false);
 
   const sessionId = searchParams.get("session_id");
 
   useEffect(() => {
-    if (!sessionId) {
+    if (!sessionId || hasSavedRef.current) {
       setLoading(false);
       return;
     }
 
     const saveOrder = async () => {
+      hasSavedRef.current = true;
+
       try {
+        const customerId = localStorage.getItem("gymup_member_customer_id");
+
         const res = await fetch("/api/orders/save", {
           method: "POST",
-          body: JSON.stringify({ session_id: sessionId }),
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            session_id: sessionId,
+            customer_id: customerId ? Number(customerId) : null,
+          }),
         });
 
         const data = await res.json();
 
-        if (data.ok) {
+        if (res.ok && data.ok) {
           setSaved(true);
+          localStorage.removeItem("cart");
         } else {
+          setError(data?.error || "注文保存に失敗しました");
           console.error(data);
         }
       } catch (err) {
         console.error(err);
+        setError("注文保存中にエラーが発生しました");
       } finally {
         setLoading(false);
       }
     };
 
-    saveOrder();
+    void saveOrder();
   }, [sessionId]);
 
   return (
@@ -51,35 +67,26 @@ export default function SuccessPage() {
           <p>注文を処理中です...</p>
         ) : (
           <>
-            <p style={text}>
-              ご注文が正常に完了しました。
-            </p>
+            <p style={text}>ご注文が正常に完了しました。</p>
 
             {saved && (
-              <p style={subText}>
-                注文履歴に反映されています。
-              </p>
+              <p style={subText}>注文履歴に反映されています。</p>
             )}
 
+            {error ? (
+              <p style={errorText}>{error}</p>
+            ) : null}
+
             <div style={btnWrap}>
-              <button
-                style={mainBtn}
-                onClick={() => router.push("/orders")}
-              >
+              <button style={mainBtn} onClick={() => router.push("/orders")}>
                 注文履歴を見る
               </button>
 
-              <button
-                style={subBtn}
-                onClick={() => router.push("/mypage")}
-              >
+              <button style={subBtn} onClick={() => router.push("/mypage")}>
                 マイページへ
               </button>
 
-              <button
-                style={subBtn}
-                onClick={() => router.push("/shop")}
-              >
+              <button style={subBtn} onClick={() => router.push("/shop")}>
                 商品一覧へ戻る
               </button>
             </div>
@@ -108,6 +115,7 @@ const card = {
   borderRadius: 20,
   textAlign: "center" as const,
   maxWidth: 400,
+  width: "100%",
 };
 
 const title = {
@@ -123,6 +131,11 @@ const text = {
 const subText = {
   marginTop: 10,
   color: "#f08a27",
+};
+
+const errorText = {
+  marginTop: 10,
+  color: "#f87171",
 };
 
 const btnWrap = {
