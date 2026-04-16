@@ -115,6 +115,10 @@ function normalizeReservation(raw: any): ReservationItem | null {
   };
 }
 
+function isReservationItem(item: ReservationItem | null): item is ReservationItem {
+  return item !== null;
+}
+
 function toDisplayReservation(item: ReservationItem): DisplayReservation {
   return {
     id: item.id,
@@ -151,7 +155,7 @@ function parseLocalReservations(): ReservationItem[] {
 
       const normalized = parsed
         .map(normalizeReservation)
-        .filter(Boolean) as ReservationItem[];
+        .filter(isReservationItem);
 
       merged.push(...normalized);
     } catch (error) {
@@ -235,7 +239,7 @@ function readConsumedMap(): Record<string, boolean> {
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return {};
-    return parsed;
+    return parsed as Record<string, boolean>;
   } catch (error) {
     console.error("consumed map parse error:", error);
     return {};
@@ -247,7 +251,7 @@ function saveConsumedMap(map: Record<string, boolean>) {
   localStorage.setItem(CONSUMED_STORAGE_KEY, JSON.stringify(map));
 }
 
-export default function HomePage() {
+export default function DashboardPage() {
   const router = useRouter();
 
   const [authChecked, setAuthChecked] = useState(false);
@@ -303,7 +307,7 @@ export default function HomePage() {
             throw reservationsResult.error;
           }
 
-          const customerList = Array.isArray(customersResult.data)
+          const customerList: CustomerLite[] = Array.isArray(customersResult.data)
             ? (customersResult.data as any[]).map((item) => ({
                 id: String(item.id),
                 name: String(item.name ?? ""),
@@ -312,14 +316,14 @@ export default function HomePage() {
 
           const customerMap = buildCustomerMap(customerList);
 
-          const normalizedReservations = (reservationsResult.data || [])
+          const normalizedReservations: ReservationItem[] = (reservationsResult.data || [])
             .map(normalizeReservation)
-            .filter(Boolean)
+            .filter(isReservationItem)
             .map((item) => {
-              if (item?.customer_id) return item;
+              if (item.customer_id) return item;
               const matchedId = customerMap.get(normalizeName(item.customer_name));
               return matchedId ? { ...item, customer_id: matchedId } : item;
-            }) as ReservationItem[];
+            });
 
           const sorted = sortReservations(normalizedReservations);
           const display = sorted.slice(0, 6).map(toDisplayReservation);
