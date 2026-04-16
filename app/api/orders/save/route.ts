@@ -18,6 +18,10 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const sessionId = body?.session_id as string | undefined;
+    const customerId =
+      body?.customer_id !== undefined && body?.customer_id !== null
+        ? Number(body.customer_id)
+        : null;
 
     if (!sessionId) {
       return NextResponse.json(
@@ -48,6 +52,13 @@ export async function POST(req: NextRequest) {
     }
 
     if (existingOrder.data) {
+      if (customerId) {
+        await supabase
+          .from("orders")
+          .update({ customer_id: customerId })
+          .eq("id", existingOrder.data.id);
+      }
+
       return NextResponse.json({
         ok: true,
         duplicated: true,
@@ -59,6 +70,7 @@ export async function POST(req: NextRequest) {
       .from("orders")
       .insert({
         stripe_session_id: session.id,
+        customer_id: customerId,
         customer_email: session.customer_details?.email ?? "",
         customer_name: session.customer_details?.name ?? "",
         total_amount: session.amount_total ?? 0,
