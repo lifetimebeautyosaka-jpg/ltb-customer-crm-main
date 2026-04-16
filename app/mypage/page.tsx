@@ -334,8 +334,8 @@ export default function MyPage() {
           inset: 0;
           pointer-events: none;
           background:
-            linear-gradient(120deg, rgba(240,138,39,0.05), transparent 34%),
-            linear-gradient(300deg, rgba(240,138,39,0.03), transparent 28%);
+            linear-gradient(120deg, rgba(240,138,39,0.06), transparent 34%),
+            linear-gradient(300deg, rgba(240,138,39,0.04), transparent 28%);
         }
 
         .mypage-container {
@@ -361,7 +361,7 @@ export default function MyPage() {
 
         .mypage-hero {
           background:
-            radial-gradient(circle at top right, rgba(240,138,39,0.10) 0%, transparent 30%),
+            radial-gradient(circle at top right, rgba(240,138,39,0.12) 0%, transparent 30%),
             rgba(255,255,255,0.045);
         }
 
@@ -470,7 +470,7 @@ export default function MyPage() {
         .mypage-secondary-btn,
         .mypage-shop-btn {
           text-decoration: none;
-          transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+          transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
         }
 
         .mypage-primary-btn {
@@ -480,14 +480,21 @@ export default function MyPage() {
           align-items: center;
           justify-content: center;
           border-radius: 16px;
-          background: linear-gradient(180deg, rgba(36,40,48,0.96) 0%, rgba(18,20,26,0.98) 100%);
+          background: linear-gradient(135deg, #f08a27 0%, #ff6a00 100%);
           color: #ffffff;
           font-size: 14px;
           font-weight: 800;
-          border: 1px solid rgba(255,255,255,0.12);
+          border: 1px solid rgba(240,138,39,0.4);
           box-shadow:
-            0 14px 30px rgba(0,0,0,0.35),
-            inset 0 1px 0 rgba(255,255,255,0.08);
+            0 12px 28px rgba(240,138,39,0.35),
+            inset 0 1px 0 rgba(255,255,255,0.15);
+        }
+
+        .mypage-primary-btn:hover {
+          transform: translateY(-1px);
+          box-shadow:
+            0 16px 36px rgba(240,138,39,0.5),
+            inset 0 1px 0 rgba(255,255,255,0.2);
         }
 
         .mypage-secondary-btn {
@@ -498,13 +505,12 @@ export default function MyPage() {
           justify-content: center;
           border-radius: 16px;
           background: rgba(255,255,255,0.04);
-          color: #f5f7fa;
+          color: #ffffff;
           font-size: 14px;
           font-weight: 700;
-          border: 1px solid rgba(255,255,255,0.08);
+          border: 1px solid rgba(240,138,39,0.3);
         }
 
-        .mypage-primary-btn:hover,
         .mypage-secondary-btn:hover,
         .mypage-shop-btn:hover {
           transform: translateY(-1px);
@@ -608,14 +614,12 @@ export default function MyPage() {
           align-items: center;
           justify-content: center;
           border-radius: 14px;
-          background: linear-gradient(180deg, rgba(36,40,48,0.96) 0%, rgba(18,20,26,0.98) 100%);
+          background: linear-gradient(135deg, #f08a27 0%, #ff6a00 100%);
           color: #ffffff;
           font-weight: 800;
           font-size: 14px;
-          border: 1px solid rgba(255,255,255,0.12);
-          box-shadow:
-            0 12px 24px rgba(0,0,0,0.28),
-            inset 0 1px 0 rgba(255,255,255,0.08);
+          border: 1px solid rgba(240,138,39,0.4);
+          box-shadow: 0 10px 24px rgba(240,138,39,0.3);
         }
 
         .mypage-error {
