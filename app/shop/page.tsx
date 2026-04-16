@@ -25,7 +25,7 @@ const products: Product[] = [
     name: "WPCプロテイン ピーチ風味",
     price: 2911,
     image: "/protein1.jpg",
-    badge: "人気",
+    badge: "Popular",
     desc: "フレッシュなピーチの爽やかさ。飲みやすく続けやすい定番フレーバー。",
   },
   {
@@ -33,7 +33,7 @@ const products: Product[] = [
     name: "WPCプロテイン チョコ風味",
     price: 3200,
     image: "/protein2.jpg",
-    badge: "おすすめ",
+    badge: "Recommended",
     desc: "甘さとコクのバランスが良い、満足感のあるチョコフレーバー。",
   },
 ];
@@ -70,11 +70,11 @@ export default function ShopPage() {
     <main style={pageStyle}>
       <div style={containerStyle}>
         <div style={heroStyle}>
-          <div style={heroBadgeStyle}>PROTEIN SHOP</div>
-          <h1 style={titleStyle}>Life Time Beauty Shop</h1>
+          <div style={heroBadgeStyle}>ONLINE STORE</div>
+          <h1 style={titleStyle}>Goods</h1>
           <p style={descStyle}>
-            トレーニング習慣を支えるプロテインを、見やすく選びやすい形で。
-            商品詳細からそのまま購入までつなげられるECページです。
+            毎日のコンディションづくりやトレーニング習慣を支えるアイテムを、
+            シンプルで見やすく、選びやすい形でまとめたショッピングページです。
           </p>
         </div>
 
@@ -83,9 +83,11 @@ export default function ShopPage() {
             <div key={p.id} style={cardStyle}>
               {p.badge ? <div style={badgeStyle}>{p.badge}</div> : null}
 
-              <div style={imageWrapStyle}>
-                <img src={p.image} alt={p.name} style={imageStyle} />
-              </div>
+              <Link href={`/shop/${p.id}`} style={imageWrapLinkStyle}>
+                <div style={imageWrapStyle}>
+                  <img src={p.image} alt={p.name} style={imageStyle} />
+                </div>
+              </Link>
 
               <div style={infoStyle}>
                 <div style={nameStyle}>{p.name}</div>
@@ -125,10 +127,9 @@ export default function ShopPage() {
 
 const pageStyle: React.CSSProperties = {
   minHeight: "100vh",
-  background:
-    "radial-gradient(circle at top left, rgba(255,255,255,0.03) 0%, transparent 26%), linear-gradient(180deg, #0f1012 0%, #16181b 48%, #111214 100%)",
-  color: "#ffffff",
-  padding: "32px 16px 56px",
+  background: "#ffffff",
+  color: "#111827",
+  padding: "40px 16px 64px",
 };
 
 const containerStyle: React.CSSProperties = {
@@ -137,7 +138,7 @@ const containerStyle: React.CSSProperties = {
 };
 
 const heroStyle: React.CSSProperties = {
-  marginBottom: 28,
+  marginBottom: 36,
 };
 
 const heroBadgeStyle: React.CSSProperties = {
@@ -146,9 +147,9 @@ const heroBadgeStyle: React.CSSProperties = {
   minHeight: 34,
   padding: "0 14px",
   borderRadius: 9999,
-  background: "rgba(240,138,39,0.14)",
-  border: "1px solid rgba(240,138,39,0.28)",
-  color: "#f08a27",
+  background: "#f5f5f5",
+  border: "1px solid #e5e7eb",
+  color: "#374151",
   fontSize: 12,
   fontWeight: 800,
   letterSpacing: "0.08em",
@@ -157,16 +158,17 @@ const heroBadgeStyle: React.CSSProperties = {
 
 const titleStyle: React.CSSProperties = {
   margin: 0,
-  fontSize: "clamp(28px, 5vw, 46px)",
-  lineHeight: 1.1,
+  fontSize: "clamp(32px, 5vw, 52px)",
+  lineHeight: 1.08,
   fontWeight: 900,
-  letterSpacing: "-0.03em",
+  letterSpacing: "-0.04em",
+  color: "#111827",
 };
 
 const descStyle: React.CSSProperties = {
   marginTop: 14,
-  maxWidth: 680,
-  color: "rgba(255,255,255,0.66)",
+  maxWidth: 720,
+  color: "#6b7280",
   fontSize: 14,
   lineHeight: 1.9,
 };
@@ -174,18 +176,16 @@ const descStyle: React.CSSProperties = {
 const gridStyle: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-  gap: 20,
+  gap: 22,
 };
 
 const cardStyle: React.CSSProperties = {
   position: "relative",
   borderRadius: 24,
   overflow: "hidden",
-  background: "rgba(255,255,255,0.05)",
-  backdropFilter: "blur(12px)",
-  WebkitBackdropFilter: "blur(12px)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  boxShadow: "0 18px 48px rgba(0,0,0,0.24)",
+  background: "#ffffff",
+  border: "1px solid #e5e7eb",
+  boxShadow: "0 12px 30px rgba(15,23,42,0.06)",
 };
 
 const badgeStyle: React.CSSProperties = {
@@ -196,21 +196,26 @@ const badgeStyle: React.CSSProperties = {
   minHeight: 28,
   padding: "0 12px",
   borderRadius: 9999,
-  background: "#f08a27",
-  color: "#111214",
+  background: "#111827",
+  color: "#ffffff",
   display: "inline-flex",
   alignItems: "center",
   fontSize: 12,
   fontWeight: 800,
 };
 
+const imageWrapLinkStyle: React.CSSProperties = {
+  display: "block",
+  textDecoration: "none",
+};
+
 const imageWrapStyle: React.CSSProperties = {
   height: 280,
-  background: "rgba(255,255,255,0.02)",
+  background: "#f9fafb",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  borderBottom: "1px solid rgba(255,255,255,0.06)",
+  borderBottom: "1px solid #f1f5f9",
 };
 
 const imageStyle: React.CSSProperties = {
@@ -221,32 +226,34 @@ const imageStyle: React.CSSProperties = {
 };
 
 const infoStyle: React.CSSProperties = {
-  padding: 18,
+  padding: 20,
 };
 
 const nameStyle: React.CSSProperties = {
   fontSize: 18,
   fontWeight: 900,
-  lineHeight: 1.4,
+  lineHeight: 1.45,
   marginBottom: 8,
+  color: "#111827",
 };
 
 const subDescStyle: React.CSSProperties = {
-  color: "rgba(255,255,255,0.58)",
+  color: "#6b7280",
   fontSize: 13,
   lineHeight: 1.8,
   minHeight: 46,
 };
 
 const bottomWrapStyle: React.CSSProperties = {
-  marginTop: 16,
+  marginTop: 18,
 };
 
 const priceStyle: React.CSSProperties = {
-  fontSize: 26,
+  fontSize: 28,
   fontWeight: 900,
-  color: "#f08a27",
+  color: "#111827",
   marginBottom: 14,
+  letterSpacing: "-0.03em",
 };
 
 const buttonWrapStyle: React.CSSProperties = {
@@ -262,9 +269,9 @@ const detailLinkStyle: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   textDecoration: "none",
-  background: "rgba(255,255,255,0.05)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  color: "#ffffff",
+  background: "#ffffff",
+  border: "1px solid #d1d5db",
+  color: "#111827",
   fontSize: 14,
   fontWeight: 800,
 };
@@ -274,16 +281,16 @@ const cartButtonStyle: React.CSSProperties = {
   minHeight: 48,
   borderRadius: 12,
   border: "none",
-  background: "#f08a27",
-  color: "#111214",
+  background: "#111827",
+  color: "#ffffff",
   fontSize: 14,
   fontWeight: 900,
   cursor: "pointer",
-  boxShadow: "0 12px 28px rgba(240,138,39,0.22)",
+  boxShadow: "0 10px 24px rgba(17,24,39,0.16)",
 };
 
 const cartAreaStyle: React.CSSProperties = {
-  marginTop: 28,
+  marginTop: 32,
   display: "flex",
   justifyContent: "center",
 };
@@ -295,9 +302,10 @@ const goCartStyle: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  background: "rgba(255,255,255,0.05)",
-  border: "1px solid rgba(255,255,255,0.08)",
+  background: "#111827",
+  border: "1px solid #111827",
   color: "#ffffff",
   textDecoration: "none",
   fontWeight: 800,
+  boxShadow: "0 10px 24px rgba(17,24,39,0.14)",
 };
