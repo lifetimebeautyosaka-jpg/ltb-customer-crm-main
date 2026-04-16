@@ -57,7 +57,6 @@ const supabase =
       )
     : null;
 
-// shopページの雰囲気に合わせた商品カード
 const recommendedProducts: ProductInfo[] = [
   {
     id: 1,
@@ -166,7 +165,6 @@ export default function MyPage() {
       setLoading(true);
       setErrorMessage("");
 
-      // まずlocalStorageフォールバック
       const storedPlan = localStorage.getItem("gymup_mypage_subscription");
       if (storedPlan) {
         try {
@@ -209,7 +207,6 @@ export default function MyPage() {
       let resolvedCustomerId = localCustomerId;
       let resolvedCustomerName = localCustomerName;
 
-      // customer_id があれば優先して顧客取得
       if (resolvedCustomerId) {
         const { data: customerById, error: customerError } = await supabase
           .from("customers")
@@ -224,12 +221,7 @@ export default function MyPage() {
           setSubscription({
             planName: row.plan_type || "未設定",
             status: row.status || "有効",
-            remainingCount:
-              Number(
-                row.remaining_count ??
-                  row.remaining ??
-                  0
-              ) || 0,
+            remainingCount: Number(row.remaining_count ?? row.remaining ?? 0) || 0,
             nextPaymentDate: row.next_payment_date || "",
           });
 
@@ -237,7 +229,6 @@ export default function MyPage() {
         }
       }
 
-      // customer_idが無い場合は名前で探す
       if (!resolvedCustomerId && resolvedCustomerName) {
         const { data: customerByName, error: customerNameError } = await supabase
           .from("customers")
@@ -254,18 +245,12 @@ export default function MyPage() {
           setSubscription({
             planName: row.plan_type || "未設定",
             status: row.status || "有効",
-            remainingCount:
-              Number(
-                row.remaining_count ??
-                  row.remaining ??
-                  0
-              ) || 0,
+            remainingCount: Number(row.remaining_count ?? row.remaining ?? 0) || 0,
             nextPaymentDate: row.next_payment_date || "",
           });
         }
       }
 
-      // 次回予約取得
       const today = getTodayYmd();
 
       if (resolvedCustomerId) {
@@ -327,389 +312,479 @@ export default function MyPage() {
   if (!mounted) return null;
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background: "#0b0f14",
-        padding: "22px 14px 46px",
-        color: "#ffffff",
-      }}
-    >
-      <div style={{ maxWidth: 860, margin: "0 auto" }}>
-        <section
-          style={{
-            background: "#11161f",
-            border: "1px solid #1f2937",
-            borderRadius: 28,
-            padding: 26,
-            boxShadow: "0 18px 40px rgba(0,0,0,0.28)",
-            marginBottom: 16,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 12,
-              fontWeight: 800,
-              letterSpacing: "0.14em",
-              color: "#6b7280",
-              marginBottom: 10,
-            }}
-          >
-            MY PAGE
-          </div>
+    <>
+      <style>{`
+        .mypage-shell {
+          min-height: 100vh;
+          background:
+            radial-gradient(circle at 12% 18%, rgba(255,255,255,0.06) 0%, transparent 24%),
+            radial-gradient(circle at 85% 18%, rgba(110,130,255,0.10) 0%, transparent 20%),
+            linear-gradient(180deg, #0b1018 0%, #101722 48%, #0d131d 100%);
+          color: #f8fafc;
+          padding: 24px 14px 52px;
+        }
 
-          <h1
-            style={{
-              margin: 0,
-              fontSize: 34,
-              fontWeight: 900,
-              color: "#ffffff",
-              lineHeight: 1.25,
-              letterSpacing: "-0.03em",
-            }}
-          >
-            {customerName}様のマイページ
-          </h1>
+        .mypage-shell::before {
+          content: "";
+          position: fixed;
+          inset: 0;
+          pointer-events: none;
+          background:
+            linear-gradient(120deg, rgba(245,158,11,0.05), transparent 36%),
+            linear-gradient(300deg, rgba(255,255,255,0.03), transparent 30%);
+        }
 
-          <p
-            style={{
-              marginTop: 12,
-              marginBottom: 0,
-              color: "#9ca3af",
-              fontSize: 15,
-              lineHeight: 1.9,
-            }}
-          >
-            サブスク状況、次回予約、物販をまとめて確認できます。
-          </p>
-        </section>
+        .mypage-container {
+          position: relative;
+          z-index: 1;
+          max-width: 940px;
+          margin: 0 auto;
+        }
 
-        {errorMessage ? (
-          <div
-            style={{
-              background: "#2a1114",
-              border: "1px solid #7f1d1d",
-              color: "#fca5a5",
-              borderRadius: 18,
-              padding: "14px 16px",
-              marginBottom: 16,
-              fontWeight: 700,
-            }}
-          >
-            {errorMessage}
-          </div>
-        ) : null}
+        .mypage-card {
+          background: rgba(17, 24, 39, 0.74);
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 28px;
+          padding: 24px;
+          box-shadow: 0 18px 46px rgba(0,0,0,0.30);
+          backdrop-filter: blur(14px);
+          -webkit-backdrop-filter: blur(14px);
+        }
 
-        <section
-          style={{
-            background: "linear-gradient(180deg, #111827 0%, #0f172a 100%)",
-            border: "1px solid #1f2937",
-            borderRadius: 28,
-            padding: 22,
-            boxShadow: "0 18px 40px rgba(0,0,0,0.28)",
-            marginBottom: 16,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 12,
-              fontWeight: 800,
-              letterSpacing: "0.14em",
-              color: "#6b7280",
-              marginBottom: 12,
-            }}
-          >
-            SUBSCRIPTION
-          </div>
+        .mypage-card + .mypage-card {
+          margin-top: 16px;
+        }
 
-          <div
-            style={{
-              fontSize: 30,
-              fontWeight: 900,
-              lineHeight: 1.25,
-              marginBottom: 16,
-              color: "#ffffff",
-              letterSpacing: "-0.03em",
-            }}
-          >
-            サブスクリプション
-          </div>
+        .mypage-hero {
+          background:
+            radial-gradient(circle at top right, rgba(245,158,11,0.10) 0%, transparent 30%),
+            linear-gradient(180deg, rgba(17,24,39,0.86) 0%, rgba(15,23,42,0.82) 100%);
+        }
 
-          <div
-            style={{
-              display: "grid",
-              gap: 12,
-              gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
-            }}
-          >
-            <DarkInfoCard label="現在のプラン" value={loading ? "読込中..." : subscription.planName || "未設定"} />
-            <DarkInfoCard label="契約状況" value={loading ? "読込中..." : subscription.status || "未設定"} />
-            <DarkInfoCard
-              label="残りの回数"
-              value={loading ? "読込中..." : `${subscription.remainingCount}回`}
-              accent="#f59e0b"
-            />
-            <DarkInfoCard
-              label="次回決済日"
-              value={loading ? "読込中..." : formatPaymentDate(subscription.nextPaymentDate)}
-            />
-          </div>
+        .mypage-label {
+          font-size: 12px;
+          font-weight: 800;
+          letter-spacing: 0.14em;
+          color: rgba(255,255,255,0.42);
+          margin-bottom: 12px;
+          text-transform: uppercase;
+        }
 
-          <div
-            style={{
-              display: "grid",
-              gap: 12,
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              marginTop: 16,
-            }}
-          >
-            <Link href="/subscription" style={primaryButtonStyle}>
-              サブスク申込・確認
-            </Link>
+        .mypage-title {
+          margin: 0;
+          font-size: clamp(30px, 5vw, 42px);
+          font-weight: 900;
+          color: #ffffff;
+          line-height: 1.22;
+          letter-spacing: -0.04em;
+        }
 
-            <Link href="/customer" style={secondaryDarkButtonStyle}>
-              契約内容を見る
-            </Link>
-          </div>
-        </section>
+        .mypage-sub {
+          margin-top: 12px;
+          margin-bottom: 0;
+          color: rgba(255,255,255,0.68);
+          font-size: 15px;
+          line-height: 1.9;
+          max-width: 660px;
+        }
 
-        <section
-          style={{
-            background: "#11161f",
-            border: "1px solid #1f2937",
-            borderRadius: 28,
-            padding: 22,
-            boxShadow: "0 18px 40px rgba(0,0,0,0.28)",
-            marginBottom: 16,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 12,
-              fontWeight: 800,
-              letterSpacing: "0.14em",
-              color: "#6b7280",
-              marginBottom: 12,
-            }}
-          >
-            NEXT RESERVATION
-          </div>
+        .mypage-hero-badges {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-top: 18px;
+        }
 
-          <div
-            style={{
-              fontSize: 30,
-              fontWeight: 900,
-              color: "#ffffff",
-              lineHeight: 1.25,
-              marginBottom: 10,
-              letterSpacing: "-0.03em",
-            }}
-          >
-            次回予約・リマインド
-          </div>
+        .mypage-badge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 36px;
+          padding: 0 14px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.05);
+          color: rgba(255,255,255,0.84);
+          font-size: 12px;
+          font-weight: 700;
+        }
 
-          <p
-            style={{
-              marginTop: 0,
-              marginBottom: 0,
-              color: "#9ca3af",
-              lineHeight: 1.85,
-              fontSize: 16,
-            }}
-          >
-            {loading ? "予約情報を読み込み中です..." : reminderText}
-          </p>
+        .mypage-grid {
+          display: grid;
+          gap: 14px;
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        }
 
-          {nextReservation ? (
-            <div
-              style={{
-                marginTop: 16,
-                background: "#0f141c",
-                borderRadius: 20,
-                padding: 16,
-                border: "1px solid #1f2937",
-                display: "grid",
-                gap: 10,
-              }}
-            >
-              <ReserveRow
-                label="日時"
-                value={formatDateTime(nextReservation.date, nextReservation.startTime)}
-              />
-              <ReserveRow label="店舗" value={nextReservation.storeName} />
-              <ReserveRow label="担当" value={nextReservation.staffName} />
-              <ReserveRow label="メニュー" value={nextReservation.menu} />
-            </div>
-          ) : (
-            <div
-              style={{
-                marginTop: 16,
-                background: "#0f141c",
-                borderRadius: 20,
-                padding: 16,
-                border: "1px solid #1f2937",
-                color: "#6b7280",
-                fontSize: 15,
-              }}
-            >
-              予約がまだ入っていません。
-            </div>
-          )}
+        .mypage-info-card {
+          background: rgba(15, 20, 30, 0.92);
+          border: 1px solid rgba(255,255,255,0.06);
+          border-radius: 22px;
+          padding: 16px;
+        }
 
-          <div
-            style={{
-              display: "grid",
-              gap: 12,
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              marginTop: 16,
-            }}
-          >
-            <Link href="/reservation" style={primaryDarkButtonStyle}>
-              予約を確認する
-            </Link>
+        .mypage-info-label {
+          font-size: 12px;
+          color: rgba(255,255,255,0.42);
+          font-weight: 700;
+          margin-bottom: 8px;
+        }
 
-            <Link href="/reservation" style={secondaryDarkButtonStyle}>
-              次回予約を入れる
-            </Link>
-          </div>
-        </section>
+        .mypage-info-value {
+          font-size: 24px;
+          font-weight: 900;
+          color: #ffffff;
+          line-height: 1.35;
+          letter-spacing: -0.02em;
+          word-break: break-word;
+        }
 
-        <section
-          style={{
-            background: "#11161f",
-            border: "1px solid #1f2937",
-            borderRadius: 28,
-            padding: 22,
-            boxShadow: "0 18px 40px rgba(0,0,0,0.28)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 12,
-              fontWeight: 800,
-              letterSpacing: "0.14em",
-              color: "#6b7280",
-              marginBottom: 12,
-            }}
-          >
-            SHOP
-          </div>
+        .mypage-section-title {
+          margin: 0 0 10px;
+          font-size: clamp(26px, 4vw, 34px);
+          font-weight: 900;
+          color: #ffffff;
+          line-height: 1.2;
+          letter-spacing: -0.03em;
+        }
 
-          <div
-            style={{
-              fontSize: 30,
-              fontWeight: 900,
-              color: "#ffffff",
-              lineHeight: 1.25,
-              marginBottom: 10,
-              letterSpacing: "-0.03em",
-            }}
-          >
-            おすすめ商品
-          </div>
+        .mypage-section-desc {
+          margin: 0;
+          color: rgba(255,255,255,0.66);
+          line-height: 1.85;
+          font-size: 15px;
+        }
 
-          <p
-            style={{
-              marginTop: 0,
-              color: "#9ca3af",
-              lineHeight: 1.85,
-              fontSize: 16,
-              marginBottom: 18,
-            }}
-          >
-            トレーニングやボディメイクをサポートするおすすめ商品です。
-          </p>
+        .mypage-actions {
+          display: grid;
+          gap: 12px;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+          margin-top: 18px;
+        }
 
-          <div
-            style={{
-              display: "grid",
-              gap: 16,
-              gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-            }}
-          >
-            {recommendedProducts.map((product) => (
-              <div
-                key={product.id}
-                style={{
-                  background: "#0f141c",
-                  borderRadius: 24,
-                  overflow: "hidden",
-                  border: "1px solid #1f2937",
-                  boxShadow: "0 12px 28px rgba(0,0,0,0.24)",
-                }}
-              >
-                <img
-                  src={product.image}
-                  alt={product.name}
-                  style={{
-                    width: "100%",
-                    height: 180,
-                    objectFit: "cover",
-                    display: "block",
-                    background: "#0b0f14",
-                  }}
-                />
+        .mypage-primary-btn,
+        .mypage-secondary-btn {
+          width: 100%;
+          min-height: 52px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          text-decoration: none;
+          border-radius: 16px;
+          font-size: 14px;
+          font-weight: 800;
+          transition: transform 0.2s ease, opacity 0.2s ease, background 0.2s ease;
+        }
 
-                <div style={{ padding: 16 }}>
-                  <div
-                    style={{
-                      fontSize: 17,
-                      fontWeight: 800,
-                      color: "#ffffff",
-                      lineHeight: 1.55,
-                      marginBottom: 8,
-                    }}
-                  >
-                    {product.name}
-                  </div>
+        .mypage-primary-btn {
+          background: linear-gradient(135deg, #f6b24d 0%, #d88a14 100%);
+          color: #131722;
+          box-shadow: 0 14px 28px rgba(216, 138, 20, 0.20);
+        }
 
-                  <div
-                    style={{
-                      fontSize: 22,
-                      fontWeight: 900,
-                      color: "#f59e0b",
-                      marginBottom: 8,
-                      letterSpacing: "-0.02em",
-                    }}
-                  >
-                    {yen(product.price)}
-                  </div>
+        .mypage-secondary-btn {
+          background: rgba(255,255,255,0.05);
+          color: #ffffff;
+          border: 1px solid rgba(255,255,255,0.10);
+        }
 
-                  <div
-                    style={{
-                      fontSize: 13,
-                      color: "#9ca3af",
-                      lineHeight: 1.75,
-                      marginBottom: 14,
-                    }}
-                  >
-                    {product.description}
-                  </div>
+        .mypage-primary-btn:hover,
+        .mypage-secondary-btn:hover,
+        .mypage-shop-btn:hover {
+          transform: translateY(-1px);
+        }
 
-                  <Link href="/shop" style={primaryDarkButtonStyle}>
-                    ショップを見る
-                  </Link>
-                </div>
+        .mypage-reserve-box {
+          margin-top: 16px;
+          background: rgba(15, 20, 30, 0.92);
+          border-radius: 22px;
+          padding: 16px;
+          border: 1px solid rgba(255,255,255,0.06);
+          display: grid;
+          gap: 10px;
+        }
+
+        .mypage-reserve-row {
+          display: grid;
+          grid-template-columns: 76px 1fr;
+          gap: 10px;
+          align-items: start;
+        }
+
+        .mypage-reserve-label {
+          font-size: 13px;
+          font-weight: 700;
+          color: rgba(255,255,255,0.42);
+        }
+
+        .mypage-reserve-value {
+          font-size: 14px;
+          font-weight: 700;
+          color: #ffffff;
+          line-height: 1.7;
+          word-break: break-word;
+        }
+
+        .mypage-empty {
+          margin-top: 16px;
+          background: rgba(15, 20, 30, 0.92);
+          border-radius: 22px;
+          padding: 16px;
+          border: 1px solid rgba(255,255,255,0.06);
+          color: rgba(255,255,255,0.42);
+          font-size: 15px;
+        }
+
+        .mypage-products {
+          display: grid;
+          gap: 16px;
+          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+          margin-top: 18px;
+        }
+
+        .mypage-product-card {
+          background: rgba(15, 20, 30, 0.92);
+          border-radius: 24px;
+          overflow: hidden;
+          border: 1px solid rgba(255,255,255,0.06);
+          box-shadow: 0 12px 28px rgba(0,0,0,0.22);
+        }
+
+        .mypage-product-image {
+          width: 100%;
+          height: 190px;
+          object-fit: cover;
+          display: block;
+          background: #0b1018;
+        }
+
+        .mypage-product-body {
+          padding: 16px;
+        }
+
+        .mypage-product-name {
+          font-size: 17px;
+          font-weight: 800;
+          color: #ffffff;
+          line-height: 1.55;
+          margin-bottom: 8px;
+        }
+
+        .mypage-product-price {
+          font-size: 24px;
+          font-weight: 900;
+          color: #f6b24d;
+          margin-bottom: 8px;
+          letter-spacing: -0.02em;
+        }
+
+        .mypage-product-desc {
+          font-size: 13px;
+          color: rgba(255,255,255,0.62);
+          line-height: 1.8;
+          margin-bottom: 14px;
+        }
+
+        .mypage-shop-btn {
+          width: 100%;
+          min-height: 46px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          text-decoration: none;
+          border-radius: 14px;
+          background: linear-gradient(135deg, #f6b24d 0%, #d88a14 100%);
+          color: #131722;
+          font-weight: 800;
+          font-size: 14px;
+          transition: transform 0.2s ease;
+        }
+
+        .mypage-error {
+          background: rgba(120, 25, 25, 0.22);
+          border: 1px solid rgba(252, 165, 165, 0.24);
+          color: #fecaca;
+          border-radius: 18px;
+          padding: 14px 16px;
+          margin-bottom: 16px;
+          font-weight: 700;
+        }
+
+        @media (max-width: 768px) {
+          .mypage-shell {
+            padding: 18px 12px 40px;
+          }
+
+          .mypage-card {
+            border-radius: 24px;
+            padding: 18px;
+          }
+
+          .mypage-actions,
+          .mypage-grid,
+          .mypage-products {
+            grid-template-columns: 1fr;
+          }
+
+          .mypage-reserve-row {
+            grid-template-columns: 1fr;
+            gap: 4px;
+          }
+
+          .mypage-hero-badges {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .mypage-badge {
+            width: 100%;
+            box-sizing: border-box;
+          }
+        }
+      `}</style>
+
+      <main className="mypage-shell">
+        <div className="mypage-container">
+          <section className="mypage-card mypage-hero">
+            <div className="mypage-label">MEMBER MY PAGE</div>
+
+            <h1 className="mypage-title">{customerName}様のマイページ</h1>
+
+            <p className="mypage-sub">
+              ご契約内容、次回予約、おすすめ商品をまとめて確認できます。
+              必要な情報にすぐアクセスできるよう、見やすく整理しています。
+            </p>
+
+            <div className="mypage-hero-badges">
+              <div className="mypage-badge">
+                {loading ? "読込中..." : `プラン：${subscription.planName || "未設定"}`}
               </div>
-            ))}
-          </div>
+              <div className="mypage-badge">
+                {loading ? "読込中..." : `残り：${subscription.remainingCount}回`}
+              </div>
+              <div className="mypage-badge">
+                {nextReservation
+                  ? `次回予約：${formatDateTime(nextReservation.date, nextReservation.startTime)}`
+                  : "次回予約：未設定"}
+              </div>
+            </div>
+          </section>
 
-          <Link
-            href="/shop"
-            style={{
-              ...primaryButtonStyle,
-              marginTop: 18,
-            }}
-          >
-            物販ページへ進む
-          </Link>
-        </section>
-      </div>
-    </main>
+          {errorMessage ? <div className="mypage-error">{errorMessage}</div> : null}
+
+          <section className="mypage-card">
+            <div className="mypage-label">SUBSCRIPTION</div>
+
+            <h2 className="mypage-section-title">サブスクリプション</h2>
+
+            <p className="mypage-section-desc">
+              現在のプラン内容や残り回数、次回決済予定日を確認できます。
+            </p>
+
+            <div className="mypage-grid" style={{ marginTop: 18 }}>
+              <InfoCard label="現在のプラン" value={loading ? "読込中..." : subscription.planName || "未設定"} />
+              <InfoCard label="契約状況" value={loading ? "読込中..." : subscription.status || "未設定"} />
+              <InfoCard
+                label="残りの回数"
+                value={loading ? "読込中..." : `${subscription.remainingCount}回`}
+                accent="#f6b24d"
+              />
+              <InfoCard
+                label="次回決済日"
+                value={loading ? "読込中..." : formatPaymentDate(subscription.nextPaymentDate)}
+              />
+            </div>
+
+            <div className="mypage-actions">
+              <Link href="/subscription" className="mypage-primary-btn">
+                サブスク申込・確認
+              </Link>
+
+              <Link href="/customer" className="mypage-secondary-btn">
+                契約内容を見る
+              </Link>
+            </div>
+          </section>
+
+          <section className="mypage-card">
+            <div className="mypage-label">NEXT RESERVATION</div>
+
+            <h2 className="mypage-section-title">次回予約・リマインド</h2>
+
+            <p className="mypage-section-desc">
+              {loading ? "予約情報を読み込み中です..." : reminderText}
+            </p>
+
+            {nextReservation ? (
+              <div className="mypage-reserve-box">
+                <ReserveRow
+                  label="日時"
+                  value={formatDateTime(nextReservation.date, nextReservation.startTime)}
+                />
+                <ReserveRow label="店舗" value={nextReservation.storeName} />
+                <ReserveRow label="担当" value={nextReservation.staffName} />
+                <ReserveRow label="メニュー" value={nextReservation.menu} />
+              </div>
+            ) : (
+              <div className="mypage-empty">予約がまだ入っていません。</div>
+            )}
+
+            <div className="mypage-actions">
+              <Link href="/reservation" className="mypage-primary-btn">
+                予約を確認する
+              </Link>
+
+              <Link href="/reservation" className="mypage-secondary-btn">
+                次回予約を入れる
+              </Link>
+            </div>
+          </section>
+
+          <section className="mypage-card">
+            <div className="mypage-label">SHOP</div>
+
+            <h2 className="mypage-section-title">おすすめ商品</h2>
+
+            <p className="mypage-section-desc">
+              トレーニングやボディメイクをサポートするおすすめ商品です。
+            </p>
+
+            <div className="mypage-products">
+              {recommendedProducts.map((product) => (
+                <div key={product.id} className="mypage-product-card">
+                  <img
+                    src={product.image}
+                    alt={product.name}
+                    className="mypage-product-image"
+                  />
+
+                  <div className="mypage-product-body">
+                    <div className="mypage-product-name">{product.name}</div>
+
+                    <div className="mypage-product-price">{yen(product.price)}</div>
+
+                    <div className="mypage-product-desc">{product.description}</div>
+
+                    <Link href="/shop" className="mypage-shop-btn">
+                      ショップを見る
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginTop: 18 }}>
+              <Link href="/shop" className="mypage-primary-btn">
+                物販ページへ進む
+              </Link>
+            </div>
+          </section>
+        </div>
+      </main>
+    </>
   );
 }
 
-function DarkInfoCard({
+function InfoCard({
   label,
   value,
   accent,
@@ -719,33 +794,11 @@ function DarkInfoCard({
   accent?: string;
 }) {
   return (
-    <div
-      style={{
-        background: "#0f141c",
-        border: "1px solid #1f2937",
-        borderRadius: 20,
-        padding: 16,
-      }}
-    >
+    <div className="mypage-info-card">
+      <div className="mypage-info-label">{label}</div>
       <div
-        style={{
-          fontSize: 12,
-          color: "#6b7280",
-          fontWeight: 700,
-          marginBottom: 8,
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          fontSize: 24,
-          fontWeight: 900,
-          color: accent || "#ffffff",
-          lineHeight: 1.35,
-          wordBreak: "break-word",
-          letterSpacing: "-0.02em",
-        }}
+        className="mypage-info-value"
+        style={{ color: accent || "#ffffff" }}
       >
         {value}
       </div>
@@ -761,78 +814,9 @@ function ReserveRow({
   value: string;
 }) {
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "72px 1fr",
-        gap: 10,
-        alignItems: "start",
-      }}
-    >
-      <div
-        style={{
-          fontSize: 13,
-          fontWeight: 700,
-          color: "#6b7280",
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          fontSize: 14,
-          fontWeight: 700,
-          color: "#ffffff",
-          lineHeight: 1.7,
-          wordBreak: "break-word",
-        }}
-      >
-        {value}
-      </div>
+    <div className="mypage-reserve-row">
+      <div className="mypage-reserve-label">{label}</div>
+      <div className="mypage-reserve-value">{value}</div>
     </div>
   );
 }
-
-const primaryButtonStyle: React.CSSProperties = {
-  width: "100%",
-  minHeight: 54,
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  textDecoration: "none",
-  borderRadius: 16,
-  background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
-  color: "#111827",
-  fontWeight: 900,
-  fontSize: 15,
-  boxShadow: "0 12px 26px rgba(245,158,11,0.18)",
-};
-
-const primaryDarkButtonStyle: React.CSSProperties = {
-  width: "100%",
-  minHeight: 48,
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  textDecoration: "none",
-  borderRadius: 14,
-  background: "#f59e0b",
-  color: "#111827",
-  fontWeight: 800,
-  fontSize: 14,
-};
-
-const secondaryDarkButtonStyle: React.CSSProperties = {
-  width: "100%",
-  minHeight: 48,
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  textDecoration: "none",
-  borderRadius: 14,
-  background: "#1f2937",
-  color: "#ffffff",
-  fontWeight: 700,
-  fontSize: 14,
-  border: "1px solid #374151",
-};
