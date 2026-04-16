@@ -43,7 +43,10 @@ const quickLinks = [
 ];
 
 const CONSUMED_STORAGE_KEY = "gymup_consumed_reservations";
-const HANDOVER_NOTE_STORAGE_KEY = "gymup_dashboard_handover_note";
+
+function getHandoverStorageKey(dateString: string) {
+  return `gymup_dashboard_handover_note_${dateString}`;
+}
 
 function getSupabaseClient(): SupabaseClient | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -262,14 +265,14 @@ function saveConsumedMap(map: Record<string, boolean>) {
   localStorage.setItem(CONSUMED_STORAGE_KEY, JSON.stringify(map));
 }
 
-function readHandoverNote(): string {
+function readHandoverNote(dateString: string): string {
   if (typeof window === "undefined") return "";
-  return localStorage.getItem(HANDOVER_NOTE_STORAGE_KEY) || "";
+  return localStorage.getItem(getHandoverStorageKey(dateString)) || "";
 }
 
-function saveHandoverNote(value: string) {
+function saveHandoverNote(dateString: string, value: string) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(HANDOVER_NOTE_STORAGE_KEY, value);
+  localStorage.setItem(getHandoverStorageKey(dateString), value);
 }
 
 export default function DashboardPage() {
@@ -299,9 +302,14 @@ export default function DashboardPage() {
     }
 
     setConsumedMap(readConsumedMap());
-    setHandoverNote(readHandoverNote());
+    setHandoverNote(readHandoverNote(getTodayDateString()));
     setAuthChecked(true);
   }, [router]);
+
+  useEffect(() => {
+    if (!authChecked) return;
+    setHandoverNote(readHandoverNote(selectedDate));
+  }, [authChecked, selectedDate]);
 
   useEffect(() => {
     if (!authChecked) return;
@@ -510,14 +518,14 @@ export default function DashboardPage() {
 
   const handleHandoverChange = (value: string) => {
     setHandoverNote(value);
-    saveHandoverNote(value);
+    saveHandoverNote(selectedDate, value);
   };
 
   const handleClearHandover = () => {
-    const ok = window.confirm("重要な引き継ぎメモを空にしますか？");
+    const ok = window.confirm(`${selectedDateLabel} の重要な引き継ぎメモを空にしますか？`);
     if (!ok) return;
     setHandoverNote("");
-    saveHandoverNote("");
+    saveHandoverNote(selectedDate, "");
   };
 
   const handlePrevDay = () => {
@@ -1411,12 +1419,12 @@ export default function DashboardPage() {
 
                   <div className="gymup-home__hero-memo">
                     <div className="gymup-home__hero-memo-head">
-                      <div className="gymup-home__hero-memo-title">今日の重要な引き継ぎ</div>
-                      <div className="gymup-home__hero-memo-badge">IMPORTANT HANDOVER</div>
+                      <div className="gymup-home__hero-memo-title">重要な引き継ぎメモ</div>
+                      <div className="gymup-home__hero-memo-badge">{selectedDate}</div>
                     </div>
 
                     <div className="gymup-home__hero-memo-desc">
-                      朝礼共有、注意事項、対応漏れ防止、優先対応のお客様など、まず最初に目を通したい内容をここにまとめます。
+                      選択中の日付ごとにメモを分けて保存できます。前日・翌日に切り替えると、その日のメモに自動で切り替わります。
                     </div>
 
                     <textarea
@@ -1433,14 +1441,14 @@ export default function DashboardPage() {
 
                     <div className="gymup-home__hero-memo-footer">
                       <div className="gymup-home__hero-memo-status">
-                        入力内容はこの端末に自動保存されます
+                        {selectedDateLabel} の内容をこの端末に自動保存
                       </div>
                       <button
                         type="button"
                         className="gymup-home__hero-memo-clear"
                         onClick={handleClearHandover}
                       >
-                        メモをクリア
+                        この日のメモをクリア
                       </button>
                     </div>
                   </div>
@@ -1593,11 +1601,11 @@ export default function DashboardPage() {
                         <div className="gymup-home__alerts">
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
-                            <span>ロゴ画像が読めない時は文字ロゴへ自動切替</span>
+                            <span>予約表の情報を日別で左右移動しながら確認可能</span>
                           </div>
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
-                            <span>予約表の情報を日別で左右移動しながら確認可能</span>
+                            <span>引き継ぎメモも日付ごとに切り替わる</span>
                           </div>
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
@@ -1611,11 +1619,11 @@ export default function DashboardPage() {
                         <div className="gymup-home__alerts">
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
-                            <span>重要事項は左上の「今日の重要な引き継ぎ」に集約</span>
+                            <span>重要事項は左上に集約</span>
                           </div>
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
-                            <span>出勤したスタッフが最初に確認しやすい配置</span>
+                            <span>{selectedDate} のメモを表示中</span>
                           </div>
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
