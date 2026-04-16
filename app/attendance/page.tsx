@@ -49,10 +49,19 @@ export default function AttendancePage() {
       <div style={noiseStyle} />
 
       <div style={containerStyle}>
-        <div style={topBarStyle}>
-          <Link href="/" style={backLinkStyle}>
-            ← ホームへ戻る
-          </Link>
+  <div style={topBarStyle}>
+
+    <Link href="/dashboard" style={backLinkStyle}>
+      ← ダッシュボードへ戻る
+    </Link>
+
+    <div style={topIconsStyle}>
+      <div style={topDotStyle} />
+      <div style={topDotStyle} />
+      <div style={topDotStyle} />
+    </div>
+
+  </div>
 
           <div style={topIconsStyle}>
             <div style={topDotStyle} />
