@@ -10,7 +10,7 @@ export default function StaffLoginPage() {
     localStorage.setItem("gymup_staff_logged_in", "true");
     localStorage.removeItem("gymup_member_logged_in");
     localStorage.removeItem("gymup_member_id");
-    router.push("/");
+    router.push("/dashboard");
   };
 
   return (
@@ -75,7 +75,7 @@ export default function StaffLoginPage() {
             color: "rgba(226,232,240,0.72)",
           }}
         >
-          管理画面へ進みます
+          管理画面ダッシュボードへ進みます
         </p>
 
         <button
@@ -93,7 +93,7 @@ export default function StaffLoginPage() {
             boxShadow: "0 18px 36px rgba(249,115,22,0.28)",
           }}
         >
-          管理画面へ入る
+          ダッシュボードへ入る
         </button>
 
         <Link
