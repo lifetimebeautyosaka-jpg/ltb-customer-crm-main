@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 
-const supabase =
+const supabase: SupabaseClient | null =
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     ? createClient(
@@ -12,18 +12,6 @@ const supabase =
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
       )
     : null;
-
-type OrderRow = {
-  id: number;
-  stripe_session_id?: string | null;
-  customer_email?: string | null;
-  customer_name?: string | null;
-  total_amount?: number | null;
-  currency?: string | null;
-  payment_status?: string | null;
-  order_status?: string | null;
-  created_at?: string | null;
-};
 
 type OrderItemRow = {
   id: number;
@@ -35,7 +23,20 @@ type OrderItemRow = {
   created_at?: string | null;
 };
 
-type OrderWithItems = OrderRow & {
+type OrderRow = {
+  id: number;
+  stripe_session_id?: string | null;
+  customer_email?: string | null;
+  customer_name?: string | null;
+  total_amount?: number | null;
+  currency?: string | null;
+  payment_status?: string | null;
+  order_status?: string | null;
+  created_at?: string | null;
+  order_items?: OrderItemRow[];
+};
+
+type OrderWithItems = Omit<OrderRow, "order_items"> & {
   items: OrderItemRow[];
 };
 
@@ -55,6 +56,57 @@ function formatDate(value?: string | null) {
 function yen(value?: number | null) {
   if (value === null || value === undefined) return "—";
   return `¥${Number(value).toLocaleString()}`;
+}
+
+function getPaymentChipStyle(status?: string | null): React.CSSProperties {
+  switch ((status || "").toLowerCase()) {
+    case "paid":
+      return {
+        background: "#dcfce7",
+        color: "#166534",
+      };
+    case "unpaid":
+      return {
+        background: "#fee2e2",
+        color: "#991b1b",
+      };
+    case "no_payment_required":
+      return {
+        background: "#e0f2fe",
+        color: "#075985",
+      };
+    default:
+      return {
+        background: "#e2e8f0",
+        color: "#334155",
+      };
+  }
+}
+
+function getOrderChipStyle(status?: string | null): React.CSSProperties {
+  switch ((status || "").toLowerCase()) {
+    case "paid":
+    case "completed":
+      return {
+        background: "#dbeafe",
+        color: "#1d4ed8",
+      };
+    case "pending":
+      return {
+        background: "#fef3c7",
+        color: "#92400e",
+      };
+    case "canceled":
+      return {
+        background: "#fee2e2",
+        color: "#991b1b",
+      };
+    default:
+      return {
+        background: "#e2e8f0",
+        color: "#334155",
+      };
+  }
 }
 
 export default function OrdersPage() {
@@ -80,32 +132,43 @@ export default function OrdersPage() {
       setLoading(true);
       setError("");
 
-      const { data: orderData, error: orderError } = await supabase
+      const { data, error } = await supabase
         .from("orders")
-        .select("*")
+        .select(`
+          id,
+          stripe_session_id,
+          customer_email,
+          customer_name,
+          total_amount,
+          currency,
+          payment_status,
+          order_status,
+          created_at,
+          order_items (
+            id,
+            order_id,
+            product_name,
+            unit_amount,
+            quantity,
+            subtotal,
+            created_at
+          )
+        `)
         .order("created_at", { ascending: false });
 
-      if (orderError) throw orderError;
+      if (error) throw error;
 
-      const { data: itemData, error: itemError } = await supabase
-        .from("order_items")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (itemError) throw itemError;
-
-      const itemsByOrderId = new Map<number, OrderItemRow[]>();
-
-      ((itemData || []) as OrderItemRow[]).forEach((item) => {
-        if (!itemsByOrderId.has(item.order_id)) {
-          itemsByOrderId.set(item.order_id, []);
-        }
-        itemsByOrderId.get(item.order_id)!.push(item);
-      });
-
-      const merged: OrderWithItems[] = ((orderData || []) as OrderRow[]).map((order) => ({
-        ...order,
-        items: itemsByOrderId.get(order.id) || [],
+      const merged: OrderWithItems[] = ((data || []) as OrderRow[]).map((order) => ({
+        id: order.id,
+        stripe_session_id: order.stripe_session_id ?? null,
+        customer_email: order.customer_email ?? null,
+        customer_name: order.customer_name ?? null,
+        total_amount: order.total_amount ?? 0,
+        currency: order.currency ?? "jpy",
+        payment_status: order.payment_status ?? null,
+        order_status: order.order_status ?? null,
+        created_at: order.created_at ?? null,
+        items: order.order_items || [],
       }));
 
       setOrders(merged);
@@ -140,6 +203,14 @@ export default function OrdersPage() {
 
   const totalSales = useMemo(() => {
     return orders.reduce((sum, order) => sum + Number(order.total_amount || 0), 0);
+  }, [orders]);
+
+  const totalItems = useMemo(() => {
+    return orders.reduce(
+      (sum, order) =>
+        sum + order.items.reduce((itemSum, item) => itemSum + Number(item.quantity || 0), 0),
+      0
+    );
   }, [orders]);
 
   return (
@@ -204,15 +275,37 @@ export default function OrdersPage() {
             marginBottom: 16,
           }}
         >
-          <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 800, letterSpacing: "0.12em", marginBottom: 8 }}>
+          <div
+            style={{
+              fontSize: 12,
+              color: "#94a3b8",
+              fontWeight: 800,
+              letterSpacing: "0.12em",
+              marginBottom: 8,
+            }}
+          >
             ORDERS
           </div>
 
-          <h1 style={{ margin: 0, fontSize: 30, fontWeight: 900, color: "#0f172a" }}>
+          <h1
+            style={{
+              margin: 0,
+              fontSize: 30,
+              fontWeight: 900,
+              color: "#0f172a",
+            }}
+          >
             注文履歴
           </h1>
 
-          <p style={{ marginTop: 10, marginBottom: 0, color: "#64748b", lineHeight: 1.8 }}>
+          <p
+            style={{
+              marginTop: 10,
+              marginBottom: 0,
+              color: "#64748b",
+              lineHeight: 1.8,
+            }}
+          >
             Stripe決済後に Supabase へ保存された注文を確認できます。
           </p>
         </div>
@@ -228,6 +321,7 @@ export default function OrdersPage() {
           <SummaryCard label="注文件数" value={`${orders.length}件`} />
           <SummaryCard label="表示件数" value={`${filteredOrders.length}件`} />
           <SummaryCard label="売上合計" value={yen(totalSales)} />
+          <SummaryCard label="購入数量合計" value={`${totalItems}個`} />
         </div>
 
         <div
@@ -240,7 +334,14 @@ export default function OrdersPage() {
             marginBottom: 16,
           }}
         >
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#64748b", marginBottom: 8 }}>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: "#64748b",
+              marginBottom: 8,
+            }}
+          >
             検索
           </div>
           <input
@@ -324,10 +425,22 @@ export default function OrdersPage() {
                   }}
                 >
                   <div>
-                    <div style={{ fontSize: 20, fontWeight: 900, color: "#0f172a" }}>
+                    <div
+                      style={{
+                        fontSize: 20,
+                        fontWeight: 900,
+                        color: "#0f172a",
+                      }}
+                    >
                       注文 #{order.id}
                     </div>
-                    <div style={{ marginTop: 4, color: "#64748b", fontSize: 13 }}>
+                    <div
+                      style={{
+                        marginTop: 4,
+                        color: "#64748b",
+                        fontSize: 13,
+                      }}
+                    >
                       {formatDate(order.created_at)}
                     </div>
                   </div>
@@ -341,12 +454,8 @@ export default function OrdersPage() {
                   >
                     <span
                       style={{
-                        background: "#dbeafe",
-                        color: "#1d4ed8",
-                        borderRadius: 999,
-                        padding: "6px 10px",
-                        fontSize: 12,
-                        fontWeight: 800,
+                        ...chipStyleBase,
+                        ...getPaymentChipStyle(order.payment_status),
                       }}
                     >
                       {order.payment_status || "不明"}
@@ -354,12 +463,8 @@ export default function OrdersPage() {
 
                     <span
                       style={{
-                        background: "#dcfce7",
-                        color: "#166534",
-                        borderRadius: 999,
-                        padding: "6px 10px",
-                        fontSize: 12,
-                        fontWeight: 800,
+                        ...chipStyleBase,
+                        ...getOrderChipStyle(order.order_status || "paid"),
                       }}
                     >
                       {order.order_status || "paid"}
@@ -387,7 +492,14 @@ export default function OrdersPage() {
                     paddingTop: 14,
                   }}
                 >
-                  <div style={{ fontSize: 14, fontWeight: 800, color: "#334155", marginBottom: 10 }}>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 800,
+                      color: "#334155",
+                      marginBottom: 10,
+                    }}
+                  >
                     購入商品
                   </div>
 
@@ -409,12 +521,23 @@ export default function OrdersPage() {
                             fontSize: 13,
                           }}
                         >
-                          <div style={{ fontWeight: 700, color: "#0f172a" }}>
+                          <div
+                            style={{
+                              fontWeight: 700,
+                              color: "#0f172a",
+                            }}
+                          >
                             {item.product_name}
                           </div>
                           <div style={{ color: "#475569" }}>{yen(item.unit_amount)}</div>
                           <div style={{ color: "#475569" }}>× {item.quantity}</div>
-                          <div style={{ fontWeight: 800, color: "#111827", textAlign: "right" }}>
+                          <div
+                            style={{
+                              fontWeight: 800,
+                              color: "#111827",
+                              textAlign: "right",
+                            }}
+                          >
                             {yen(item.subtotal)}
                           </div>
                         </div>
@@ -448,10 +571,25 @@ function SummaryCard({
         boxShadow: "0 8px 24px rgba(15,23,42,0.05)",
       }}
     >
-      <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 800, marginBottom: 8 }}>
+      <div
+        style={{
+          fontSize: 12,
+          color: "#94a3b8",
+          fontWeight: 800,
+          marginBottom: 8,
+        }}
+      >
         {label}
       </div>
-      <div style={{ fontSize: 24, color: "#0f172a", fontWeight: 900 }}>{value}</div>
+      <div
+        style={{
+          fontSize: 24,
+          color: "#0f172a",
+          fontWeight: 900,
+        }}
+      >
+        {value}
+      </div>
     </div>
   );
 }
@@ -471,7 +609,14 @@ function InfoCard({
         padding: 12,
       }}
     >
-      <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 700, marginBottom: 4 }}>
+      <div
+        style={{
+          fontSize: 12,
+          color: "#94a3b8",
+          fontWeight: 700,
+          marginBottom: 4,
+        }}
+      >
         {label}
       </div>
       <div
@@ -488,3 +633,10 @@ function InfoCard({
     </div>
   );
 }
+
+const chipStyleBase: React.CSSProperties = {
+  borderRadius: 999,
+  padding: "6px 10px",
+  fontSize: 12,
+  fontWeight: 800,
+};
