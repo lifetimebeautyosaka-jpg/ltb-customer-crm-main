@@ -67,14 +67,24 @@ function getTodayDateString() {
   return `${y}-${m}-${d}`;
 }
 
-function formatTodayLabel() {
-  const now = new Date();
+function formatDateLabel(dateString: string) {
+  const date = new Date(`${dateString}T00:00:00`);
   return new Intl.DateTimeFormat("ja-JP", {
     year: "numeric",
     month: "long",
     day: "numeric",
     weekday: "short",
-  }).format(now);
+  }).format(date);
+}
+
+function shiftDateString(dateString: string, diffDays: number) {
+  const date = new Date(`${dateString}T00:00:00`);
+  date.setDate(date.getDate() + diffDays);
+
+  const y = date.getFullYear();
+  const m = `${date.getMonth() + 1}`.padStart(2, "0");
+  const d = `${date.getDate()}`.padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 function normalizeName(value: string) {
@@ -266,18 +276,19 @@ export default function DashboardPage() {
   const router = useRouter();
 
   const [authChecked, setAuthChecked] = useState(false);
-  const [todayReservations, setTodayReservations] = useState<DisplayReservation[]>([]);
+  const [selectedDate, setSelectedDate] = useState(getTodayDateString());
+  const [scheduleReservations, setScheduleReservations] = useState<DisplayReservation[]>([]);
   const [loadingReservations, setLoadingReservations] = useState(true);
   const [reservationError, setReservationError] = useState("");
   const [activeMembers, setActiveMembers] = useState<number | null>(null);
-  const [todayCount, setTodayCount] = useState<number>(0);
+  const [scheduleCount, setScheduleCount] = useState<number>(0);
   const [systemStatus, setSystemStatus] = useState<SystemStatus>("OFFLINE");
   const [logoError, setLogoError] = useState(false);
   const [consumedMap, setConsumedMap] = useState<Record<string, boolean>>({});
   const [consumingId, setConsumingId] = useState<string>("");
   const [handoverNote, setHandoverNote] = useState("");
 
-  const todayLabel = useMemo(() => formatTodayLabel(), []);
+  const selectedDateLabel = useMemo(() => formatDateLabel(selectedDate), [selectedDate]);
 
   useEffect(() => {
     const staffLoggedIn = localStorage.getItem("gymup_staff_logged_in");
@@ -301,8 +312,6 @@ export default function DashboardPage() {
       setLoadingReservations(true);
       setReservationError("");
 
-      const today = getTodayDateString();
-
       try {
         const supabase = getSupabaseClient();
 
@@ -311,7 +320,7 @@ export default function DashboardPage() {
             supabase
               .from("reservations")
               .select("id, date, start_time, customer_name, customer_id, menu, staff_name, store_name")
-              .eq("date", today)
+              .eq("date", selectedDate)
               .order("start_time", { ascending: true }),
             supabase.from("customers").select("id, name"),
           ]);
@@ -339,12 +348,12 @@ export default function DashboardPage() {
             });
 
           const sorted = sortReservations(normalizedReservations);
-          const display = sorted.slice(0, 6).map(toDisplayReservation);
+          const display = sorted.map(toDisplayReservation);
 
           if (!mounted) return;
 
-          setTodayReservations(display);
-          setTodayCount(sorted.length);
+          setScheduleReservations(display);
+          setScheduleCount(sorted.length);
           setActiveMembers(customerList.length);
           setSystemStatus("ONLINE");
           setLoadingReservations(false);
@@ -355,9 +364,9 @@ export default function DashboardPage() {
         const localCustomerMap = buildCustomerMap(localCustomers);
 
         const localReservations = parseLocalReservations();
-        const todayLocal = sortReservations(
+        const selectedLocal = sortReservations(
           localReservations
-            .filter((item) => item.date === today)
+            .filter((item) => item.date === selectedDate)
             .map((item) => {
               if (item.customer_id) return item;
               const matchedId = localCustomerMap.get(normalizeName(item.customer_name));
@@ -365,27 +374,26 @@ export default function DashboardPage() {
             })
         );
 
-        const display = todayLocal.slice(0, 6).map(toDisplayReservation);
+        const display = selectedLocal.map(toDisplayReservation);
 
         if (!mounted) return;
 
-        setTodayReservations(display);
-        setTodayCount(todayLocal.length);
+        setScheduleReservations(display);
+        setScheduleCount(selectedLocal.length);
         setActiveMembers(localCustomers.length || null);
-        setSystemStatus(todayLocal.length > 0 ? "FALLBACK" : "OFFLINE");
+        setSystemStatus(selectedLocal.length > 0 ? "FALLBACK" : "OFFLINE");
         setLoadingReservations(false);
       } catch (error) {
         console.error("TOP data load error:", error);
 
         try {
-          const today = getTodayDateString();
           const localCustomers = parseLocalCustomers();
           const localCustomerMap = buildCustomerMap(localCustomers);
 
           const localReservations = parseLocalReservations();
-          const todayLocal = sortReservations(
+          const selectedLocal = sortReservations(
             localReservations
-              .filter((item) => item.date === today)
+              .filter((item) => item.date === selectedDate)
               .map((item) => {
                 if (item.customer_id) return item;
                 const matchedId = localCustomerMap.get(normalizeName(item.customer_name));
@@ -393,17 +401,17 @@ export default function DashboardPage() {
               })
           );
 
-          const display = todayLocal.slice(0, 6).map(toDisplayReservation);
+          const display = selectedLocal.map(toDisplayReservation);
 
           if (!mounted) return;
 
-          setTodayReservations(display);
-          setTodayCount(todayLocal.length);
+          setScheduleReservations(display);
+          setScheduleCount(selectedLocal.length);
           setActiveMembers(localCustomers.length || null);
-          setSystemStatus(todayLocal.length > 0 ? "FALLBACK" : "OFFLINE");
+          setSystemStatus(selectedLocal.length > 0 ? "FALLBACK" : "OFFLINE");
           setLoadingReservations(false);
 
-          if (todayLocal.length === 0) {
+          if (selectedLocal.length === 0) {
             setReservationError("予約データの取得に失敗しました");
           }
         } catch (fallbackError) {
@@ -411,8 +419,8 @@ export default function DashboardPage() {
 
           if (!mounted) return;
 
-          setTodayReservations([]);
-          setTodayCount(0);
+          setScheduleReservations([]);
+          setScheduleCount(0);
           setActiveMembers(null);
           setSystemStatus("OFFLINE");
           setLoadingReservations(false);
@@ -426,7 +434,7 @@ export default function DashboardPage() {
     return () => {
       mounted = false;
     };
-  }, [authChecked]);
+  }, [authChecked, selectedDate]);
 
   const handleStaffLogout = () => {
     localStorage.removeItem("gymup_staff_logged_in");
@@ -506,10 +514,22 @@ export default function DashboardPage() {
   };
 
   const handleClearHandover = () => {
-    const ok = window.confirm("引き継ぎメモを空にしますか？");
+    const ok = window.confirm("重要な引き継ぎメモを空にしますか？");
     if (!ok) return;
     setHandoverNote("");
     saveHandoverNote("");
+  };
+
+  const handlePrevDay = () => {
+    setSelectedDate((prev) => shiftDateString(prev, -1));
+  };
+
+  const handleNextDay = () => {
+    setSelectedDate((prev) => shiftDateString(prev, 1));
+  };
+
+  const handleGoToday = () => {
+    setSelectedDate(getTodayDateString());
   };
 
   const statusLabel =
@@ -521,8 +541,8 @@ export default function DashboardPage() {
 
   const statCards = [
     {
-      label: "Today Reservations",
-      value: loadingReservations ? "..." : String(todayCount),
+      label: "Selected Reservations",
+      value: loadingReservations ? "..." : String(scheduleCount),
     },
     {
       label: "Active Members",
@@ -662,7 +682,7 @@ export default function DashboardPage() {
           padding: 26px;
           display: flex;
           flex-direction: column;
-          justify-content: center;
+          justify-content: flex-start;
           min-height: 420px;
         }
 
@@ -720,7 +740,7 @@ export default function DashboardPage() {
           display: flex;
           flex-direction: column;
           gap: 16px;
-          max-width: 620px;
+          max-width: 640px;
         }
 
         .gymup-home__eyebrow {
@@ -755,46 +775,107 @@ export default function DashboardPage() {
           line-height: 1.9;
         }
 
-        .gymup-home__cta-row {
-          display: flex;
-          gap: 14px;
-          flex-wrap: wrap;
-          margin-top: 8px;
+        .gymup-home__hero-memo {
+          margin-top: 10px;
+          border-radius: 24px;
+          padding: 18px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.03);
         }
 
-        .gymup-home__btn-primary,
-        .gymup-home__btn-secondary {
+        .gymup-home__hero-memo-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          margin-bottom: 12px;
+          flex-wrap: wrap;
+        }
+
+        .gymup-home__hero-memo-title {
+          font-size: 18px;
+          font-weight: 800;
+          color: #ffffff;
+        }
+
+        .gymup-home__hero-memo-badge {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          min-height: 52px;
-          padding: 0 22px;
-          border-radius: 16px;
-          text-decoration: none;
+          min-height: 30px;
+          padding: 0 12px;
+          border-radius: 999px;
+          background: rgba(240,138,39,0.12);
+          border: 1px solid rgba(240,138,39,0.20);
+          color: #f6b171;
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.06em;
+        }
+
+        .gymup-home__hero-memo-desc {
+          font-size: 13px;
+          line-height: 1.8;
+          color: rgba(255,255,255,0.64);
+          margin-bottom: 14px;
+        }
+
+        .gymup-home__hero-memo-textarea {
+          width: 100%;
+          min-height: 220px;
+          resize: vertical;
+          border-radius: 20px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.04);
+          color: #ffffff;
+          padding: 16px 18px;
+          font-size: 15px;
+          line-height: 1.85;
+          outline: none;
+          box-sizing: border-box;
+        }
+
+        .gymup-home__hero-memo-textarea::placeholder {
+          color: rgba(255,255,255,0.34);
+        }
+
+        .gymup-home__hero-memo-textarea:focus {
+          border-color: rgba(240,138,39,0.30);
+          box-shadow: 0 0 0 1px rgba(240,138,39,0.16);
+        }
+
+        .gymup-home__hero-memo-footer {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          flex-wrap: wrap;
+          margin-top: 12px;
+        }
+
+        .gymup-home__hero-memo-status {
+          font-size: 12px;
+          color: rgba(255,255,255,0.50);
+        }
+
+        .gymup-home__hero-memo-clear {
+          min-height: 40px;
+          padding: 0 14px;
+          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.03);
+          color: #f5f7fa;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
           transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
         }
 
-        .gymup-home__btn-primary {
-          background: #f08a27;
-          color: #141414;
-          font-size: 15px;
-          font-weight: 700;
-          box-shadow: 0 12px 28px rgba(240, 138, 39, 0.22);
-        }
-
-        .gymup-home__btn-secondary {
-          background: rgba(255,255,255,0.04);
-          border: 1px solid rgba(255,255,255,0.08);
-          color: #f5f7fa;
-          font-size: 15px;
-          font-weight: 600;
-        }
-
-        .gymup-home__btn-primary:hover,
-        .gymup-home__btn-secondary:hover,
+        .gymup-home__hero-memo-clear:hover,
         .gymup-home__menu-link:hover,
         .gymup-home__mini-link:hover,
-        .gymup-home__memo-clear:hover {
+        .gymup-home__date-nav-btn:hover,
+        .gymup-home__date-today-btn:hover {
           transform: translateY(-1px);
         }
 
@@ -933,10 +1014,11 @@ export default function DashboardPage() {
 
         .gymup-home__panel-head {
           display: flex;
-          align-items: center;
+          align-items: flex-start;
           justify-content: space-between;
           gap: 10px;
           margin-bottom: 16px;
+          flex-wrap: wrap;
         }
 
         .gymup-home__panel-title {
@@ -949,6 +1031,43 @@ export default function DashboardPage() {
           font-size: 13px;
           color: #f08a27;
           font-weight: 600;
+        }
+
+        .gymup-home__date-nav {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+        }
+
+        .gymup-home__date-nav-btn,
+        .gymup-home__date-today-btn {
+          min-height: 36px;
+          padding: 0 12px;
+          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.04);
+          color: #f5f7fa;
+          font-size: 13px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .gymup-home__date-current {
+          min-height: 36px;
+          padding: 0 12px;
+          border-radius: 12px;
+          border: 1px solid rgba(240,138,39,0.20);
+          background: rgba(240,138,39,0.10);
+          color: #f6b171;
+          font-size: 13px;
+          font-weight: 700;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          white-space: nowrap;
         }
 
         .gymup-home__schedule {
@@ -1103,68 +1222,6 @@ export default function DashboardPage() {
           flex-shrink: 0;
         }
 
-        .gymup-home__memo-wrap {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-
-        .gymup-home__memo-desc {
-          font-size: 13px;
-          line-height: 1.7;
-          color: rgba(255,255,255,0.62);
-        }
-
-        .gymup-home__memo-textarea {
-          width: 100%;
-          min-height: 180px;
-          resize: vertical;
-          border-radius: 18px;
-          border: 1px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.03);
-          color: #ffffff;
-          padding: 14px 16px;
-          font-size: 14px;
-          line-height: 1.8;
-          outline: none;
-          box-sizing: border-box;
-        }
-
-        .gymup-home__memo-textarea::placeholder {
-          color: rgba(255,255,255,0.35);
-        }
-
-        .gymup-home__memo-textarea:focus {
-          border-color: rgba(240,138,39,0.32);
-          box-shadow: 0 0 0 1px rgba(240,138,39,0.18);
-        }
-
-        .gymup-home__memo-footer {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-          flex-wrap: wrap;
-        }
-
-        .gymup-home__memo-status {
-          font-size: 12px;
-          color: rgba(255,255,255,0.48);
-        }
-
-        .gymup-home__memo-clear {
-          min-height: 40px;
-          padding: 0 14px;
-          border-radius: 12px;
-          border: 1px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.03);
-          color: #f5f7fa;
-          font-size: 12px;
-          font-weight: 700;
-          cursor: pointer;
-          transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
-        }
-
         @media (max-width: 1100px) {
           .gymup-home__grid {
             grid-template-columns: 1fr;
@@ -1251,13 +1308,17 @@ export default function DashboardPage() {
             line-height: 1.8;
           }
 
-          .gymup-home__cta-row {
-            width: 100%;
+          .gymup-home__hero-memo-head,
+          .gymup-home__hero-memo-footer,
+          .gymup-home__panel-head,
+          .gymup-home__date-nav {
             flex-direction: column;
+            align-items: stretch;
           }
 
-          .gymup-home__btn-primary,
-          .gymup-home__btn-secondary {
+          .gymup-home__hero-memo-clear,
+          .gymup-home__date-nav-btn,
+          .gymup-home__date-today-btn {
             width: 100%;
           }
 
@@ -1290,13 +1351,9 @@ export default function DashboardPage() {
             justify-content: center;
           }
 
-          .gymup-home__memo-footer {
-            flex-direction: column;
-            align-items: stretch;
-          }
-
-          .gymup-home__memo-clear {
+          .gymup-home__date-current {
             width: 100%;
+            box-sizing: border-box;
           }
         }
       `}</style>
@@ -1352,13 +1409,40 @@ export default function DashboardPage() {
                     日々の現場で使いやすい形にまとめる管理システムです。
                   </p>
 
-                  <div className="gymup-home__cta-row">
-                    <Link href="/customer" className="gymup-home__btn-primary">
-                      管理画面へ入る
-                    </Link>
-                    <Link href="/login" className="gymup-home__btn-secondary">
-                      会員ログイン
-                    </Link>
+                  <div className="gymup-home__hero-memo">
+                    <div className="gymup-home__hero-memo-head">
+                      <div className="gymup-home__hero-memo-title">今日の重要な引き継ぎ</div>
+                      <div className="gymup-home__hero-memo-badge">IMPORTANT HANDOVER</div>
+                    </div>
+
+                    <div className="gymup-home__hero-memo-desc">
+                      朝礼共有、注意事項、対応漏れ防止、優先対応のお客様など、まず最初に目を通したい内容をここにまとめます。
+                    </div>
+
+                    <textarea
+                      className="gymup-home__hero-memo-textarea"
+                      placeholder={`例）
+・山田様 14:00 来店前に前回の姿勢写真確認
+・佐藤様 回数券の残り説明が必要
+・本日は福島店の売上登録を閉店前に確認
+・新規体験の方はカウンセリングシート入力を必ず案内
+・未消化の前受金処理があれば会計管理で確認`}
+                      value={handoverNote}
+                      onChange={(e) => handleHandoverChange(e.target.value)}
+                    />
+
+                    <div className="gymup-home__hero-memo-footer">
+                      <div className="gymup-home__hero-memo-status">
+                        入力内容はこの端末に自動保存されます
+                      </div>
+                      <button
+                        type="button"
+                        className="gymup-home__hero-memo-clear"
+                        onClick={handleClearHandover}
+                      >
+                        メモをクリア
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1401,15 +1485,42 @@ export default function DashboardPage() {
                   <div className="gymup-home__panels">
                     <div className="gymup-home__panel-large">
                       <div className="gymup-home__panel-head">
-                        <div className="gymup-home__panel-title">Today Schedule</div>
-                        <div className="gymup-home__panel-meta">{todayLabel}</div>
+                        <div>
+                          <div className="gymup-home__panel-title">Schedule</div>
+                          <div className="gymup-home__panel-meta">{selectedDateLabel}</div>
+                        </div>
+
+                        <div className="gymup-home__date-nav">
+                          <button
+                            type="button"
+                            className="gymup-home__date-nav-btn"
+                            onClick={handlePrevDay}
+                          >
+                            ← 前日
+                          </button>
+                          <div className="gymup-home__date-current">{selectedDate}</div>
+                          <button
+                            type="button"
+                            className="gymup-home__date-nav-btn"
+                            onClick={handleNextDay}
+                          >
+                            翌日 →
+                          </button>
+                          <button
+                            type="button"
+                            className="gymup-home__date-today-btn"
+                            onClick={handleGoToday}
+                          >
+                            今日に戻る
+                          </button>
+                        </div>
                       </div>
 
                       <div className="gymup-home__schedule">
                         {loadingReservations ? (
-                          <div className="gymup-home__empty">今日の予約を読み込み中です...</div>
-                        ) : todayReservations.length > 0 ? (
-                          todayReservations.map((item) => (
+                          <div className="gymup-home__empty">予約を読み込み中です...</div>
+                        ) : scheduleReservations.length > 0 ? (
+                          scheduleReservations.map((item) => (
                             <div
                               key={item.id}
                               className="gymup-home__schedule-item"
@@ -1451,7 +1562,7 @@ export default function DashboardPage() {
                           ))
                         ) : (
                           <div className="gymup-home__empty">
-                            本日の予約はありません。
+                            {selectedDateLabel} の予約はありません。
                             {reservationError ? `（${reservationError}）` : ""}
                           </div>
                         )}
@@ -1486,48 +1597,29 @@ export default function DashboardPage() {
                           </div>
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
-                            <span>今日の予約を押すと顧客のトレーニング管理へ移動</span>
+                            <span>予約表の情報を日別で左右移動しながら確認可能</span>
                           </div>
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
-                            <span>消化ボタンで回数券・残回数の処理を記録</span>
+                            <span>予約を押すと顧客のトレーニング管理へ移動 / 消化処理も可能</span>
                           </div>
                         </div>
                       </div>
 
                       <div className="gymup-home__panel-small">
-                        <div className="gymup-home__panel-head">
-                          <div className="gymup-home__panel-title">引き継ぎメモ</div>
-                          <div className="gymup-home__panel-meta">Free Space</div>
-                        </div>
-
-                        <div className="gymup-home__memo-wrap">
-                          <div className="gymup-home__memo-desc">
-                            スタッフ間で共有したい内容、注意事項、対応依頼などを自由に記入できます。
+                        <div className="gymup-home__panel-title">メモ運用</div>
+                        <div className="gymup-home__alerts">
+                          <div className="gymup-home__alert">
+                            <span className="gymup-home__alert-dot" />
+                            <span>重要事項は左上の「今日の重要な引き継ぎ」に集約</span>
                           </div>
-
-                          <textarea
-                            className="gymup-home__memo-textarea"
-                            placeholder={`例）
-・14:00 山田様 来店前に姿勢写真確認
-・回数券の残り説明が必要
-・次回予約の提案を忘れずに
-・売上登録は施術後に対応`}
-                            value={handoverNote}
-                            onChange={(e) => handleHandoverChange(e.target.value)}
-                          />
-
-                          <div className="gymup-home__memo-footer">
-                            <div className="gymup-home__memo-status">
-                              入力内容はこの端末に自動保存されます
-                            </div>
-                            <button
-                              type="button"
-                              className="gymup-home__memo-clear"
-                              onClick={handleClearHandover}
-                            >
-                              メモをクリア
-                            </button>
+                          <div className="gymup-home__alert">
+                            <span className="gymup-home__alert-dot" />
+                            <span>出勤したスタッフが最初に確認しやすい配置</span>
+                          </div>
+                          <div className="gymup-home__alert">
+                            <span className="gymup-home__alert-dot" />
+                            <span>入力内容はこの端末に自動保存</span>
                           </div>
                         </div>
                       </div>
