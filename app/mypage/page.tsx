@@ -316,12 +316,16 @@ export default function MyPage() {
       <style>{`
         .mypage-shell {
           min-height: 100vh;
+          position: relative;
+          overflow: hidden;
           background:
-            radial-gradient(circle at 12% 18%, rgba(255,255,255,0.06) 0%, transparent 24%),
-            radial-gradient(circle at 85% 18%, rgba(110,130,255,0.10) 0%, transparent 20%),
-            linear-gradient(180deg, #0b1018 0%, #101722 48%, #0d131d 100%);
-          color: #f8fafc;
+            radial-gradient(circle at 14% 18%, rgba(255,255,255,0.05) 0%, transparent 24%),
+            radial-gradient(circle at 82% 16%, rgba(117,146,255,0.14) 0%, transparent 22%),
+            radial-gradient(circle at 78% 72%, rgba(255,255,255,0.03) 0%, transparent 20%),
+            linear-gradient(180deg, #0f1012 0%, #16181b 48%, #111214 100%);
+          color: #f5f7fa;
           padding: 24px 14px 52px;
+          font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         }
 
         .mypage-shell::before {
@@ -330,25 +334,25 @@ export default function MyPage() {
           inset: 0;
           pointer-events: none;
           background:
-            linear-gradient(120deg, rgba(245,158,11,0.05), transparent 36%),
-            linear-gradient(300deg, rgba(255,255,255,0.03), transparent 30%);
+            linear-gradient(120deg, rgba(240,138,39,0.05), transparent 34%),
+            linear-gradient(300deg, rgba(240,138,39,0.03), transparent 28%);
         }
 
         .mypage-container {
           position: relative;
           z-index: 1;
-          max-width: 940px;
+          max-width: 960px;
           margin: 0 auto;
         }
 
         .mypage-card {
-          background: rgba(17, 24, 39, 0.74);
+          background: rgba(255,255,255,0.045);
           border: 1px solid rgba(255,255,255,0.08);
           border-radius: 28px;
           padding: 24px;
-          box-shadow: 0 18px 46px rgba(0,0,0,0.30);
-          backdrop-filter: blur(14px);
-          -webkit-backdrop-filter: blur(14px);
+          box-shadow: 0 18px 48px rgba(0,0,0,0.24);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
         }
 
         .mypage-card + .mypage-card {
@@ -357,8 +361,8 @@ export default function MyPage() {
 
         .mypage-hero {
           background:
-            radial-gradient(circle at top right, rgba(245,158,11,0.10) 0%, transparent 30%),
-            linear-gradient(180deg, rgba(17,24,39,0.86) 0%, rgba(15,23,42,0.82) 100%);
+            radial-gradient(circle at top right, rgba(240,138,39,0.10) 0%, transparent 30%),
+            rgba(255,255,255,0.045);
         }
 
         .mypage-label {
@@ -375,7 +379,7 @@ export default function MyPage() {
           font-size: clamp(30px, 5vw, 42px);
           font-weight: 900;
           color: #ffffff;
-          line-height: 1.22;
+          line-height: 1.2;
           letter-spacing: -0.04em;
         }
 
@@ -403,7 +407,7 @@ export default function MyPage() {
           padding: 0 14px;
           border-radius: 999px;
           border: 1px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.05);
+          background: rgba(255,255,255,0.04);
           color: rgba(255,255,255,0.84);
           font-size: 12px;
           font-weight: 700;
@@ -413,11 +417,12 @@ export default function MyPage() {
           display: grid;
           gap: 14px;
           grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          margin-top: 18px;
         }
 
         .mypage-info-card {
-          background: rgba(15, 20, 30, 0.92);
-          border: 1px solid rgba(255,255,255,0.06);
+          background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(255,255,255,0.07);
           border-radius: 22px;
           padding: 16px;
         }
@@ -462,29 +467,41 @@ export default function MyPage() {
         }
 
         .mypage-primary-btn,
+        .mypage-secondary-btn,
+        .mypage-shop-btn {
+          text-decoration: none;
+          transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .mypage-primary-btn {
+          width: 100%;
+          min-height: 52px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 16px;
+          background: linear-gradient(180deg, rgba(36,40,48,0.96) 0%, rgba(18,20,26,0.98) 100%);
+          color: #ffffff;
+          font-size: 14px;
+          font-weight: 800;
+          border: 1px solid rgba(255,255,255,0.12);
+          box-shadow:
+            0 14px 30px rgba(0,0,0,0.35),
+            inset 0 1px 0 rgba(255,255,255,0.08);
+        }
+
         .mypage-secondary-btn {
           width: 100%;
           min-height: 52px;
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          text-decoration: none;
           border-radius: 16px;
+          background: rgba(255,255,255,0.04);
+          color: #f5f7fa;
           font-size: 14px;
-          font-weight: 800;
-          transition: transform 0.2s ease, opacity 0.2s ease, background 0.2s ease;
-        }
-
-        .mypage-primary-btn {
-          background: linear-gradient(135deg, #f6b24d 0%, #d88a14 100%);
-          color: #131722;
-          box-shadow: 0 14px 28px rgba(216, 138, 20, 0.20);
-        }
-
-        .mypage-secondary-btn {
-          background: rgba(255,255,255,0.05);
-          color: #ffffff;
-          border: 1px solid rgba(255,255,255,0.10);
+          font-weight: 700;
+          border: 1px solid rgba(255,255,255,0.08);
         }
 
         .mypage-primary-btn:hover,
@@ -495,10 +512,10 @@ export default function MyPage() {
 
         .mypage-reserve-box {
           margin-top: 16px;
-          background: rgba(15, 20, 30, 0.92);
+          background: rgba(255,255,255,0.03);
           border-radius: 22px;
           padding: 16px;
-          border: 1px solid rgba(255,255,255,0.06);
+          border: 1px solid rgba(255,255,255,0.07);
           display: grid;
           gap: 10px;
         }
@@ -526,10 +543,10 @@ export default function MyPage() {
 
         .mypage-empty {
           margin-top: 16px;
-          background: rgba(15, 20, 30, 0.92);
+          background: rgba(255,255,255,0.03);
           border-radius: 22px;
           padding: 16px;
-          border: 1px solid rgba(255,255,255,0.06);
+          border: 1px solid rgba(255,255,255,0.07);
           color: rgba(255,255,255,0.42);
           font-size: 15px;
         }
@@ -542,10 +559,10 @@ export default function MyPage() {
         }
 
         .mypage-product-card {
-          background: rgba(15, 20, 30, 0.92);
+          background: rgba(255,255,255,0.03);
           border-radius: 24px;
           overflow: hidden;
-          border: 1px solid rgba(255,255,255,0.06);
+          border: 1px solid rgba(255,255,255,0.07);
           box-shadow: 0 12px 28px rgba(0,0,0,0.22);
         }
 
@@ -554,7 +571,7 @@ export default function MyPage() {
           height: 190px;
           object-fit: cover;
           display: block;
-          background: #0b1018;
+          background: #0f1012;
         }
 
         .mypage-product-body {
@@ -572,7 +589,7 @@ export default function MyPage() {
         .mypage-product-price {
           font-size: 24px;
           font-weight: 900;
-          color: #f6b24d;
+          color: #f08a27;
           margin-bottom: 8px;
           letter-spacing: -0.02em;
         }
@@ -590,13 +607,15 @@ export default function MyPage() {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          text-decoration: none;
           border-radius: 14px;
-          background: linear-gradient(135deg, #f6b24d 0%, #d88a14 100%);
-          color: #131722;
+          background: linear-gradient(180deg, rgba(36,40,48,0.96) 0%, rgba(18,20,26,0.98) 100%);
+          color: #ffffff;
           font-weight: 800;
           font-size: 14px;
-          transition: transform 0.2s ease;
+          border: 1px solid rgba(255,255,255,0.12);
+          box-shadow:
+            0 12px 24px rgba(0,0,0,0.28),
+            inset 0 1px 0 rgba(255,255,255,0.08);
         }
 
         .mypage-error {
@@ -680,13 +699,13 @@ export default function MyPage() {
               現在のプラン内容や残り回数、次回決済予定日を確認できます。
             </p>
 
-            <div className="mypage-grid" style={{ marginTop: 18 }}>
+            <div className="mypage-grid">
               <InfoCard label="現在のプラン" value={loading ? "読込中..." : subscription.planName || "未設定"} />
               <InfoCard label="契約状況" value={loading ? "読込中..." : subscription.status || "未設定"} />
               <InfoCard
                 label="残りの回数"
                 value={loading ? "読込中..." : `${subscription.remainingCount}回`}
-                accent="#f6b24d"
+                accent="#f08a27"
               />
               <InfoCard
                 label="次回決済日"
