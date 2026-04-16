@@ -72,10 +72,18 @@ export default function AttendancePage() {
             </p>
 
             <div style={heroButtonRowStyle} className="attendance-button-row">
-              <Link href="/attendance/staff" style={primaryButtonStyle} className="attendance-main-button">
+              <Link
+                href="/attendance/staff"
+                style={primaryButtonStyle}
+                className="attendance-main-button"
+              >
                 スタッフ打刻へ
               </Link>
-              <Link href="/attendance/admin" style={secondaryButtonStyle} className="attendance-sub-button">
+              <Link
+                href="/attendance/admin"
+                style={secondaryButtonStyle}
+                className="attendance-sub-button"
+              >
                 管理者集計へ
               </Link>
             </div>
@@ -88,13 +96,13 @@ export default function AttendancePage() {
               <div style={chartWrapStyle}>
                 <svg viewBox="0 0 320 140" style={{ width: "100%", height: "100%" }}>
                   <defs>
-                    <linearGradient id="goldLine" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#f5d06f" />
-                      <stop offset="100%" stopColor="#d4af37" />
+                    <linearGradient id="blueLine" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#60a5fa" />
+                      <stop offset="100%" stopColor="#2563eb" />
                     </linearGradient>
                     <linearGradient id="grayLine" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="rgba(255,255,255,0.35)" />
-                      <stop offset="100%" stopColor="rgba(255,255,255,0.12)" />
+                      <stop offset="0%" stopColor="rgba(100,116,139,0.45)" />
+                      <stop offset="100%" stopColor="rgba(100,116,139,0.16)" />
                     </linearGradient>
                   </defs>
 
@@ -105,7 +113,7 @@ export default function AttendancePage() {
                       y1={y}
                       x2="320"
                       y2={y}
-                      stroke="rgba(255,255,255,0.08)"
+                      stroke="rgba(148,163,184,0.18)"
                       strokeWidth="1"
                     />
                   ))}
@@ -121,14 +129,14 @@ export default function AttendancePage() {
 
                   <polyline
                     fill="none"
-                    stroke="url(#goldLine)"
+                    stroke="url(#blueLine)"
                     strokeWidth="4"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     points="0,98 40,76 80,64 120,72 160,96 200,54 240,48 280,70 320,58"
                   />
 
-                  <circle cx="320" cy="58" r="5" fill="#f5d06f" />
+                  <circle cx="320" cy="58" r="5" fill="#2563eb" />
                 </svg>
               </div>
 
@@ -162,7 +170,12 @@ export default function AttendancePage() {
 
           <div style={menuGridStyle} className="attendance-menu-grid">
             {menuCards.map((item) => (
-              <Link key={item.href} href={item.href} style={menuCardStyle} className="attendance-menu-card">
+              <Link
+                key={item.href}
+                href={item.href}
+                style={menuCardStyle}
+                className="attendance-menu-card"
+              >
                 <div style={menuTopStyle}>
                   <span style={menuStatStyle}>{item.stat}</span>
                   <span style={arrowStyle}>↗</span>
@@ -199,7 +212,8 @@ const pageStyle: CSSProperties = {
   minHeight: "100vh",
   position: "relative",
   overflow: "hidden",
-  background: "linear-gradient(135deg, #05070b 0%, #0b1220 38%, #020617 100%)",
+  background:
+    "linear-gradient(135deg, #eef4ff 0%, #f8fbff 30%, #f3f7ff 65%, #eef2ff 100%)",
   padding: "24px 16px 60px",
 };
 
@@ -211,7 +225,7 @@ const bgGlowTop: CSSProperties = {
   width: 500,
   height: 260,
   background:
-    "radial-gradient(circle, rgba(245,208,111,0.18) 0%, rgba(245,208,111,0.06) 35%, rgba(245,208,111,0) 72%)",
+    "radial-gradient(circle, rgba(147,197,253,0.25) 0%, rgba(147,197,253,0.05) 40%, transparent 70%)",
   pointerEvents: "none",
   filter: "blur(12px)",
 };
@@ -224,7 +238,7 @@ const bgGlowLeft: CSSProperties = {
   height: 320,
   borderRadius: "50%",
   background:
-    "radial-gradient(circle, rgba(212,175,55,0.14) 0%, rgba(212,175,55,0) 70%)",
+    "radial-gradient(circle, rgba(196,181,253,0.20) 0%, rgba(196,181,253,0) 70%)",
   pointerEvents: "none",
   filter: "blur(10px)",
 };
@@ -237,7 +251,7 @@ const bgGlowRight: CSSProperties = {
   height: 340,
   borderRadius: "50%",
   background:
-    "radial-gradient(circle, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 72%)",
+    "radial-gradient(circle, rgba(203,213,225,0.25) 0%, rgba(203,213,225,0) 70%)",
   pointerEvents: "none",
   filter: "blur(20px)",
 };
@@ -246,9 +260,9 @@ const noiseStyle: CSSProperties = {
   position: "absolute",
   inset: 0,
   backgroundImage:
-    "radial-gradient(rgba(255,255,255,0.035) 1px, transparent 1px)",
+    "radial-gradient(rgba(15,23,42,0.03) 1px, transparent 1px)",
   backgroundSize: "16px 16px",
-  opacity: 0.28,
+  opacity: 0.2,
   pointerEvents: "none",
 };
 
@@ -271,7 +285,7 @@ const topBarStyle: CSSProperties = {
 const backLinkStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
-  color: "rgba(255,255,255,0.72)",
+  color: "rgba(30,41,59,0.78)",
   textDecoration: "none",
   fontSize: 14,
   fontWeight: 600,
@@ -288,7 +302,7 @@ const topDotStyle: CSSProperties = {
   width: 8,
   height: 8,
   borderRadius: "50%",
-  background: "rgba(255,255,255,0.24)",
+  background: "rgba(148,163,184,0.45)",
 };
 
 const heroCardStyle: CSSProperties = {
@@ -297,20 +311,18 @@ const heroCardStyle: CSSProperties = {
   gap: 18,
   padding: 18,
   borderRadius: 30,
-  background: "rgba(255,255,255,0.06)",
-  backdropFilter: "blur(18px)",
-  WebkitBackdropFilter: "blur(18px)",
-  border: "1px solid rgba(255,255,255,0.10)",
-  boxShadow:
-    "0 25px 60px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.55)",
+  backdropFilter: "blur(10px)",
+  WebkitBackdropFilter: "blur(10px)",
+  border: "1px solid rgba(255,255,255,0.75)",
+  boxShadow: "0 18px 40px rgba(148,163,184,0.14)",
 };
 
 const heroLeftStyle: CSSProperties = {
   borderRadius: 24,
   padding: "26px 24px",
-  background:
-    "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(245,208,111,0.06) 100%)",
-  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(255,255,255,0.85)",
   minHeight: 300,
   display: "flex",
   flexDirection: "column",
@@ -320,7 +332,7 @@ const heroLeftStyle: CSSProperties = {
 const miniLabelStyle: CSSProperties = {
   fontSize: 11,
   letterSpacing: "0.24em",
-  color: "rgba(255,255,255,0.45)",
+  color: "rgba(30,41,59,0.48)",
   marginBottom: 10,
   fontWeight: 700,
 };
@@ -330,7 +342,7 @@ const heroTitleStyle: CSSProperties = {
   fontSize: "clamp(34px, 5vw, 58px)",
   lineHeight: 1.04,
   fontWeight: 800,
-  color: "#f8fafc",
+  color: "#0f172a",
   letterSpacing: "-0.03em",
 };
 
@@ -339,7 +351,7 @@ const heroSubStyle: CSSProperties = {
   marginBottom: 0,
   fontSize: 15,
   lineHeight: 1.9,
-  color: "rgba(255,255,255,0.68)",
+  color: "rgba(15,23,42,0.68)",
 };
 
 const heroButtonRowStyle: CSSProperties = {
@@ -356,12 +368,12 @@ const primaryButtonStyle: CSSProperties = {
   minHeight: 50,
   padding: "0 18px",
   borderRadius: 14,
-  background: "linear-gradient(135deg, #d4af37, #f5d06f)",
-  color: "#111827",
+  background: "linear-gradient(135deg, #2563eb, #60a5fa)",
+  color: "#ffffff",
   textDecoration: "none",
   fontWeight: 800,
   fontSize: 14,
-  boxShadow: "0 12px 28px rgba(212,175,55,0.26)",
+  boxShadow: "0 12px 28px rgba(37,99,235,0.22)",
 };
 
 const secondaryButtonStyle: CSSProperties = {
@@ -371,9 +383,9 @@ const secondaryButtonStyle: CSSProperties = {
   minHeight: 50,
   padding: "0 18px",
   borderRadius: 14,
-  background: "rgba(255,255,255,0.06)",
-  border: "1px solid rgba(255,255,255,0.12)",
-  color: "#f8fafc",
+  background: "rgba(255,255,255,0.82)",
+  border: "1px solid rgba(203,213,225,0.95)",
+  color: "#0f172a",
   textDecoration: "none",
   fontWeight: 700,
   fontSize: 14,
@@ -388,18 +400,18 @@ const chartCardStyle: CSSProperties = {
   width: "100%",
   borderRadius: 24,
   padding: "22px 20px",
-  background:
-    "linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(245,208,111,0.04) 100%)",
-  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(255,255,255,0.85)",
   minHeight: 300,
   display: "flex",
   flexDirection: "column",
+  boxShadow: "0 14px 34px rgba(148,163,184,0.12)",
 };
 
 const chartTitleStyle: CSSProperties = {
   fontSize: 13,
   fontWeight: 700,
-  color: "rgba(255,255,255,0.52)",
+  color: "rgba(30,41,59,0.52)",
   marginBottom: 16,
 };
 
@@ -408,8 +420,8 @@ const chartWrapStyle: CSSProperties = {
   minHeight: 160,
   borderRadius: 18,
   padding: 12,
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.06)",
+  background: "rgba(248,250,252,0.92)",
+  border: "1px solid rgba(226,232,240,0.95)",
 };
 
 const chartBottomStyle: CSSProperties = {
@@ -423,14 +435,14 @@ const chartBottomStyle: CSSProperties = {
 
 const chartValueLabelStyle: CSSProperties = {
   fontSize: 12,
-  color: "rgba(255,255,255,0.45)",
+  color: "rgba(15,23,42,0.45)",
   marginBottom: 4,
 };
 
 const chartValueStyle: CSSProperties = {
   fontSize: 20,
   fontWeight: 800,
-  color: "#f8fafc",
+  color: "#0f172a",
 };
 
 const chartBadgeStyle: CSSProperties = {
@@ -439,9 +451,9 @@ const chartBadgeStyle: CSSProperties = {
   alignItems: "center",
   padding: "0 12px",
   borderRadius: 999,
-  background: "rgba(212,175,55,0.14)",
-  border: "1px solid rgba(212,175,55,0.24)",
-  color: "#f5d06f",
+  background: "rgba(37,99,235,0.10)",
+  border: "1px solid rgba(37,99,235,0.18)",
+  color: "#2563eb",
   fontSize: 12,
   fontWeight: 800,
 };
@@ -456,16 +468,14 @@ const statsGridStyle: CSSProperties = {
 const statCardStyle: CSSProperties = {
   borderRadius: 20,
   padding: "16px 18px",
-  background: "rgba(255,255,255,0.06)",
-  backdropFilter: "blur(14px)",
-  WebkitBackdropFilter: "blur(14px)",
-  border: "1px solid rgba(255,255,255,0.10)",
-  boxShadow: "0 18px 35px rgba(0,0,0,0.18)",
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(255,255,255,0.85)",
+  boxShadow: "0 10px 25px rgba(148,163,184,0.12)",
 };
 
 const statLabelStyle: CSSProperties = {
   fontSize: 12,
-  color: "rgba(255,255,255,0.46)",
+  color: "rgba(15,23,42,0.46)",
   marginBottom: 8,
   fontWeight: 700,
 };
@@ -473,7 +483,7 @@ const statLabelStyle: CSSProperties = {
 const statValueStyle: CSSProperties = {
   fontSize: 22,
   fontWeight: 800,
-  color: "#f8fafc",
+  color: "#0f172a",
   letterSpacing: "-0.02em",
 };
 
@@ -481,12 +491,11 @@ const menuSectionStyle: CSSProperties = {
   marginTop: 18,
   borderRadius: 30,
   padding: 18,
-  background: "rgba(255,255,255,0.06)",
-  backdropFilter: "blur(18px)",
-  WebkitBackdropFilter: "blur(18px)",
-  border: "1px solid rgba(255,255,255,0.10)",
-  boxShadow:
-    "0 25px 60px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.55)",
+  backdropFilter: "blur(10px)",
+  WebkitBackdropFilter: "blur(10px)",
+  border: "1px solid rgba(255,255,255,0.75)",
+  boxShadow: "0 18px 40px rgba(148,163,184,0.14)",
 };
 
 const sectionHeaderStyle: CSSProperties = {
@@ -501,7 +510,7 @@ const sectionHeaderStyle: CSSProperties = {
 const sectionMiniStyle: CSSProperties = {
   fontSize: 11,
   letterSpacing: "0.22em",
-  color: "rgba(255,255,255,0.42)",
+  color: "rgba(30,41,59,0.42)",
   marginBottom: 6,
   fontWeight: 700,
 };
@@ -509,7 +518,7 @@ const sectionMiniStyle: CSSProperties = {
 const sectionTitleStyle: CSSProperties = {
   margin: 0,
   fontSize: 22,
-  color: "#f8fafc",
+  color: "#0f172a",
   fontWeight: 800,
 };
 
@@ -519,9 +528,9 @@ const sectionBadgeStyle: CSSProperties = {
   alignItems: "center",
   padding: "0 14px",
   borderRadius: 999,
-  background: "rgba(255,255,255,0.06)",
-  border: "1px solid rgba(255,255,255,0.10)",
-  color: "#f5d06f",
+  background: "rgba(37,99,235,0.08)",
+  border: "1px solid rgba(37,99,235,0.14)",
+  color: "#2563eb",
   fontSize: 12,
   fontWeight: 800,
 };
@@ -537,10 +546,9 @@ const menuCardStyle: CSSProperties = {
   textDecoration: "none",
   borderRadius: 24,
   padding: "18px 18px 16px",
-  background:
-    "linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(245,208,111,0.03) 100%)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  boxShadow: "0 16px 32px rgba(0,0,0,0.18)",
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(255,255,255,0.85)",
+  boxShadow: "0 10px 30px rgba(148,163,184,0.12)",
 };
 
 const menuTopStyle: CSSProperties = {
@@ -556,9 +564,9 @@ const menuStatStyle: CSSProperties = {
   alignItems: "center",
   padding: "0 10px",
   borderRadius: 999,
-  background: "rgba(212,175,55,0.12)",
-  border: "1px solid rgba(212,175,55,0.20)",
-  color: "#f5d06f",
+  background: "rgba(37,99,235,0.10)",
+  border: "1px solid rgba(37,99,235,0.16)",
+  color: "#2563eb",
   fontSize: 11,
   fontWeight: 800,
   letterSpacing: "0.08em",
@@ -566,21 +574,21 @@ const menuStatStyle: CSSProperties = {
 
 const arrowStyle: CSSProperties = {
   fontSize: 18,
-  color: "rgba(255,255,255,0.55)",
+  color: "rgba(15,23,42,0.55)",
   fontWeight: 700,
 };
 
 const menuTitleStyle: CSSProperties = {
   fontSize: 22,
   fontWeight: 800,
-  color: "#f8fafc",
+  color: "#0f172a",
   marginBottom: 6,
 };
 
 const menuSubStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 700,
-  color: "#f5d06f",
+  color: "#2563eb",
   marginBottom: 10,
 };
 
@@ -588,7 +596,7 @@ const menuDescStyle: CSSProperties = {
   margin: 0,
   fontSize: 13,
   lineHeight: 1.8,
-  color: "rgba(255,255,255,0.62)",
+  color: "#475569",
 };
 
 const responsiveStyle = `
