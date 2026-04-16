@@ -204,16 +204,14 @@ export default function AttendanceAdminPage() {
   }
 
   const uniqueStaffNames = useMemo(() => {
-    return Array.from(
-      new Set(rows.map((row) => row.staff_name).filter(Boolean))
-    ).sort((a, b) => a.localeCompare(b, "ja"));
+    return Array.from(new Set(rows.map((row) => row.staff_name).filter(Boolean))).sort((a, b) =>
+      a.localeCompare(b, "ja")
+    );
   }, [rows]);
 
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
-      const matchMonth = monthFilter
-        ? String(row.work_date || "").startsWith(monthFilter)
-        : true;
+      const matchMonth = monthFilter ? String(row.work_date || "").startsWith(monthFilter) : true;
       const matchStaff = staffFilter ? row.staff_name === staffFilter : true;
       return matchMonth && matchStaff;
     });
@@ -377,19 +375,11 @@ export default function AttendanceAdminPage() {
                   スタッフページへ
                 </Link>
 
-                <button
-                  type="button"
-                  onClick={() => void fetchAttendance()}
-                  style={secondaryButtonStyle}
-                >
+                <button type="button" onClick={() => void fetchAttendance()} style={secondaryButtonStyle}>
                   再読み込み
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleExportCsv}
-                  style={primaryButtonStyle}
-                >
+                <button type="button" onClick={handleExportCsv} style={primaryButtonStyle}>
                   CSV出力
                 </button>
               </div>
@@ -397,11 +387,11 @@ export default function AttendanceAdminPage() {
           </div>
         </section>
 
-        {!supabase && (
+        {!supabase ? (
           <div style={errorBoxStyle}>
             NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY が未設定です。
           </div>
-        )}
+        ) : null}
 
         {error ? <div style={errorBoxStyle}>{error}</div> : null}
 
@@ -500,17 +490,15 @@ export default function AttendanceAdminPage() {
                 <div key={item.staffName} style={staffSummaryCardStyle}>
                   <div style={staffSummaryTopStyle}>
                     <div style={staffSummaryNameStyle}>{item.staffName}</div>
-                    <div style={staffSummaryPayStyle}>
-                      {formatCurrency(item.estimatedPay)}
-                    </div>
+                    <div style={staffSummaryPayStyle}>{formatCurrency(item.estimatedPay)}</div>
                   </div>
 
                   <div style={staffSummaryGridStyle} className="attendance-staff-summary-grid">
-                    <MiniDarkInfo label="出勤日数" value={`${item.workDays}日`} />
-                    <MiniDarkInfo label="総勤務" value={minutesToText(item.totalMinutes)} />
-                    <MiniDarkInfo label="通常" value={minutesToText(item.regularMinutes)} />
-                    <MiniDarkInfo label="残業" value={minutesToText(item.overtimeMinutes)} />
-                    <MiniDarkInfo label="深夜" value={minutesToText(item.lateNightMinutes)} />
+                    <MiniInfo label="出勤日数" value={`${item.workDays}日`} />
+                    <MiniInfo label="総勤務" value={minutesToText(item.totalMinutes)} />
+                    <MiniInfo label="通常" value={minutesToText(item.regularMinutes)} />
+                    <MiniInfo label="残業" value={minutesToText(item.overtimeMinutes)} />
+                    <MiniInfo label="深夜" value={minutesToText(item.lateNightMinutes)} />
                   </div>
                 </div>
               ))}
@@ -538,13 +526,13 @@ export default function AttendanceAdminPage() {
                   <div style={recordNameStyle}>{row.staff_name}</div>
 
                   <div style={recordInfoGridStyle}>
-                    <MiniDarkInfo label="出勤" value={formatTimeJP(row.clock_in)} />
-                    <MiniDarkInfo label="退勤" value={formatTimeJP(row.clock_out)} />
-                    <MiniDarkInfo label="休憩" value={`${row.break_minutes ?? 0}分`} />
-                    <MiniDarkInfo label="通常" value={minutesToText(row.regular_minutes ?? 0)} />
-                    <MiniDarkInfo label="残業" value={minutesToText(row.overtime_minutes ?? 0)} />
-                    <MiniDarkInfo label="深夜" value={minutesToText(row.late_night_minutes ?? 0)} />
-                    <MiniDarkInfo label="総勤務" value={minutesToText(row.total_work_minutes ?? 0)} />
+                    <MiniInfo label="出勤" value={formatTimeJP(row.clock_in)} />
+                    <MiniInfo label="退勤" value={formatTimeJP(row.clock_out)} />
+                    <MiniInfo label="休憩" value={`${row.break_minutes ?? 0}分`} />
+                    <MiniInfo label="通常" value={minutesToText(row.regular_minutes ?? 0)} />
+                    <MiniInfo label="残業" value={minutesToText(row.overtime_minutes ?? 0)} />
+                    <MiniInfo label="深夜" value={minutesToText(row.late_night_minutes ?? 0)} />
+                    <MiniInfo label="総勤務" value={minutesToText(row.total_work_minutes ?? 0)} />
                   </div>
 
                   <div style={noteBoxStyle}>
@@ -610,19 +598,12 @@ function MetricCard({
   return (
     <div style={metricCardStyle} className="attendance-metric-card">
       <div style={metricLabelStyle}>{label}</div>
-      <div
-        style={{
-          ...metricValueStyle,
-          color: accent ? "#f5d06f" : "#f8fafc",
-        }}
-      >
-        {value}
-      </div>
+      <div style={{ ...metricValueStyle, color: accent ? "#2563eb" : "#0f172a" }}>{value}</div>
     </div>
   );
 }
 
-function MiniDarkInfo({
+function MiniInfo({
   label,
   value,
 }: {
@@ -656,7 +637,8 @@ const pageStyle: CSSProperties = {
   minHeight: "100vh",
   position: "relative",
   overflow: "hidden",
-  background: "linear-gradient(135deg, #05070b 0%, #0b1220 38%, #020617 100%)",
+  background:
+    "linear-gradient(135deg, #eef4ff 0%, #f8fbff 30%, #f3f7ff 65%, #eef2ff 100%)",
   padding: "24px 16px 60px",
 };
 
@@ -668,7 +650,7 @@ const bgGlowTop: CSSProperties = {
   width: 520,
   height: 280,
   background:
-    "radial-gradient(circle, rgba(245,208,111,0.18) 0%, rgba(245,208,111,0.06) 35%, rgba(245,208,111,0) 72%)",
+    "radial-gradient(circle, rgba(147,197,253,0.25) 0%, rgba(147,197,253,0.05) 40%, transparent 70%)",
   pointerEvents: "none",
   filter: "blur(14px)",
 };
@@ -681,7 +663,7 @@ const bgGlowLeft: CSSProperties = {
   height: 320,
   borderRadius: "50%",
   background:
-    "radial-gradient(circle, rgba(212,175,55,0.14) 0%, rgba(212,175,55,0) 70%)",
+    "radial-gradient(circle, rgba(196,181,253,0.20) 0%, rgba(196,181,253,0) 70%)",
   pointerEvents: "none",
   filter: "blur(10px)",
 };
@@ -694,7 +676,7 @@ const bgGlowRight: CSSProperties = {
   height: 360,
   borderRadius: "50%",
   background:
-    "radial-gradient(circle, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 72%)",
+    "radial-gradient(circle, rgba(203,213,225,0.25) 0%, rgba(203,213,225,0) 70%)",
   pointerEvents: "none",
   filter: "blur(20px)",
 };
@@ -702,9 +684,9 @@ const bgGlowRight: CSSProperties = {
 const noiseStyle: CSSProperties = {
   position: "absolute",
   inset: 0,
-  backgroundImage: "radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px)",
+  backgroundImage: "radial-gradient(rgba(15,23,42,0.03) 1px, transparent 1px)",
   backgroundSize: "16px 16px",
-  opacity: 0.28,
+  opacity: 0.2,
   pointerEvents: "none",
 };
 
@@ -728,7 +710,7 @@ const topBarStyle: CSSProperties = {
 const backLinkStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
-  color: "rgba(255,255,255,0.72)",
+  color: "rgba(30,41,59,0.78)",
   textDecoration: "none",
   fontSize: 14,
   fontWeight: 600,
@@ -738,7 +720,7 @@ const backLinkStyle: CSSProperties = {
 const eyebrowStyle: CSSProperties = {
   fontSize: 11,
   letterSpacing: "0.24em",
-  color: "rgba(255,255,255,0.42)",
+  color: "rgba(30,41,59,0.42)",
   fontWeight: 700,
 };
 
@@ -747,21 +729,19 @@ const heroCardStyle: CSSProperties = {
   gridTemplateColumns: "minmax(0, 1.08fr) minmax(0, 0.92fr)",
   gap: 18,
   padding: 18,
-  borderRadius: 30,
-  background: "rgba(255,255,255,0.06)",
-  backdropFilter: "blur(18px)",
-  WebkitBackdropFilter: "blur(18px)",
-  border: "1px solid rgba(255,255,255,0.10)",
-  boxShadow:
-    "0 25px 60px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08)",
+  borderRadius: 28,
+  background: "rgba(255,255,255,0.55)",
+  backdropFilter: "blur(10px)",
+  WebkitBackdropFilter: "blur(10px)",
+  border: "1px solid rgba(255,255,255,0.75)",
+  boxShadow: "0 18px 40px rgba(148,163,184,0.14)",
 };
 
 const heroLeftStyle: CSSProperties = {
   borderRadius: 24,
   padding: "26px 24px",
-  background:
-    "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(245,208,111,0.06) 100%)",
-  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(255,255,255,0.85)",
   minHeight: 280,
   display: "flex",
   flexDirection: "column",
@@ -777,18 +757,18 @@ const heroActionCardStyle: CSSProperties = {
   width: "100%",
   borderRadius: 24,
   padding: "22px 20px",
-  background:
-    "linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(245,208,111,0.04) 100%)",
-  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(255,255,255,0.85)",
   minHeight: 280,
   display: "flex",
   flexDirection: "column",
+  boxShadow: "0 14px 34px rgba(148,163,184,0.12)",
 };
 
 const heroActionLabelStyle: CSSProperties = {
   fontSize: 13,
   fontWeight: 700,
-  color: "rgba(255,255,255,0.52)",
+  color: "rgba(30,41,59,0.52)",
   marginBottom: 16,
 };
 
@@ -802,7 +782,7 @@ const heroActionButtonWrapStyle: CSSProperties = {
 const miniLabelStyle: CSSProperties = {
   fontSize: 11,
   letterSpacing: "0.24em",
-  color: "rgba(255,255,255,0.45)",
+  color: "rgba(30,41,59,0.48)",
   marginBottom: 10,
   fontWeight: 700,
 };
@@ -811,7 +791,7 @@ const titleStyle: CSSProperties = {
   margin: 0,
   fontSize: "clamp(32px, 5vw, 54px)",
   lineHeight: 1.05,
-  color: "#f8fafc",
+  color: "#0f172a",
   fontWeight: 800,
   letterSpacing: "-0.03em",
 };
@@ -820,7 +800,7 @@ const descStyle: CSSProperties = {
   margin: "16px 0 0",
   fontSize: 15,
   lineHeight: 1.9,
-  color: "rgba(255,255,255,0.68)",
+  color: "rgba(15,23,42,0.68)",
 };
 
 const secondaryLinkButtonStyle: CSSProperties = {
@@ -830,9 +810,9 @@ const secondaryLinkButtonStyle: CSSProperties = {
   minHeight: 48,
   padding: "0 18px",
   borderRadius: 14,
-  background: "rgba(255,255,255,0.06)",
-  border: "1px solid rgba(255,255,255,0.12)",
-  color: "#f8fafc",
+  background: "rgba(255,255,255,0.82)",
+  border: "1px solid rgba(203,213,225,0.95)",
+  color: "#0f172a",
   textDecoration: "none",
   fontWeight: 700,
   fontSize: 14,
@@ -842,21 +822,21 @@ const primaryButtonStyle: CSSProperties = {
   minHeight: 50,
   border: "none",
   borderRadius: 16,
-  background: "linear-gradient(135deg, #d4af37, #f5d06f)",
-  color: "#111827",
+  background: "linear-gradient(135deg, #2563eb, #60a5fa)",
+  color: "#ffffff",
   fontWeight: 800,
   fontSize: 14,
   cursor: "pointer",
   padding: "0 18px",
-  boxShadow: "0 12px 28px rgba(212,175,55,0.26)",
+  boxShadow: "0 12px 28px rgba(37,99,235,0.22)",
 };
 
 const secondaryButtonStyle: CSSProperties = {
   minHeight: 50,
-  border: "1px solid rgba(255,255,255,0.12)",
+  border: "1px solid rgba(203,213,225,0.95)",
   borderRadius: 16,
-  background: "rgba(255,255,255,0.06)",
-  color: "#f8fafc",
+  background: "rgba(255,255,255,0.84)",
+  color: "#0f172a",
   fontWeight: 700,
   fontSize: 14,
   cursor: "pointer",
@@ -866,21 +846,20 @@ const secondaryButtonStyle: CSSProperties = {
 const errorBoxStyle: CSSProperties = {
   padding: "14px 16px",
   borderRadius: 18,
-  background: "rgba(127,29,29,0.22)",
+  background: "rgba(254,226,226,0.9)",
   border: "1px solid rgba(248,113,113,0.28)",
-  color: "#fecaca",
+  color: "#b91c1c",
   fontSize: 14,
 };
 
 const panelStyle: CSSProperties = {
-  borderRadius: 28,
-  padding: 18,
-  background: "rgba(255,255,255,0.06)",
-  backdropFilter: "blur(18px)",
-  WebkitBackdropFilter: "blur(18px)",
-  border: "1px solid rgba(255,255,255,0.10)",
-  boxShadow:
-    "0 25px 60px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.08)",
+  borderRadius: 26,
+  padding: 20,
+  background: "rgba(255,255,255,0.52)",
+  backdropFilter: "blur(10px)",
+  WebkitBackdropFilter: "blur(10px)",
+  border: "1px solid rgba(255,255,255,0.76)",
+  boxShadow: "0 14px 34px rgba(148,163,184,0.12)",
 };
 
 const sectionHeaderStyle: CSSProperties = {
@@ -895,7 +874,7 @@ const sectionHeaderStyle: CSSProperties = {
 const sectionMiniStyle: CSSProperties = {
   fontSize: 11,
   letterSpacing: "0.22em",
-  color: "rgba(255,255,255,0.42)",
+  color: "rgba(30,41,59,0.42)",
   marginBottom: 6,
   fontWeight: 700,
 };
@@ -903,7 +882,7 @@ const sectionMiniStyle: CSSProperties = {
 const sectionTitleStyle: CSSProperties = {
   margin: 0,
   fontSize: 22,
-  color: "#f8fafc",
+  color: "#0f172a",
   fontWeight: 800,
 };
 
@@ -916,14 +895,14 @@ const filterGridStyle: CSSProperties = {
 const fieldCardStyle: CSSProperties = {
   borderRadius: 22,
   padding: 16,
-  background: "linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(245,208,111,0.03) 100%)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  boxShadow: "0 16px 32px rgba(0,0,0,0.18)",
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(255,255,255,0.88)",
+  boxShadow: "0 10px 25px rgba(148,163,184,0.12)",
 };
 
 const fieldLabelStyle: CSSProperties = {
   fontSize: 13,
-  color: "rgba(255,255,255,0.78)",
+  color: "rgba(15,23,42,0.78)",
   marginBottom: 8,
   fontWeight: 700,
 };
@@ -932,9 +911,9 @@ const inputStyle: CSSProperties = {
   width: "100%",
   height: 48,
   borderRadius: 14,
-  border: "1px solid rgba(255,255,255,0.10)",
-  background: "rgba(255,255,255,0.06)",
-  color: "#f8fafc",
+  border: "1px solid rgba(203,213,225,0.9)",
+  background: "rgba(255,255,255,0.82)",
+  color: "#0f172a",
   padding: "0 14px",
   outline: "none",
   fontSize: 14,
@@ -954,18 +933,15 @@ const metricGridStyle4: CSSProperties = {
 };
 
 const metricCardStyle: CSSProperties = {
-  borderRadius: 22,
+  borderRadius: 20,
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(226,232,240,0.95)",
   padding: 16,
-  background: "rgba(255,255,255,0.06)",
-  border: "1px solid rgba(255,255,255,0.10)",
-  backdropFilter: "blur(14px)",
-  WebkitBackdropFilter: "blur(14px)",
-  boxShadow: "0 18px 35px rgba(0,0,0,0.18)",
 };
 
 const metricLabelStyle: CSSProperties = {
   fontSize: 12,
-  color: "rgba(255,255,255,0.46)",
+  color: "rgba(15,23,42,0.46)",
   marginBottom: 8,
   fontWeight: 700,
 };
@@ -973,7 +949,7 @@ const metricLabelStyle: CSSProperties = {
 const metricValueStyle: CSSProperties = {
   fontSize: 24,
   fontWeight: 800,
-  color: "#f8fafc",
+  color: "#0f172a",
   lineHeight: 1.2,
   letterSpacing: "-0.02em",
 };
@@ -985,17 +961,17 @@ const emptyBoxStyle: CSSProperties = {
   justifyContent: "center",
   textAlign: "center",
   borderRadius: 20,
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  color: "rgba(255,255,255,0.54)",
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  color: "rgba(15,23,42,0.54)",
   fontSize: 14,
   padding: 20,
 };
 
 const staffSummaryCardStyle: CSSProperties = {
-  borderRadius: 22,
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: 20,
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(226,232,240,0.95)",
   padding: 16,
 };
 
@@ -1011,13 +987,13 @@ const staffSummaryTopStyle: CSSProperties = {
 const staffSummaryNameStyle: CSSProperties = {
   fontSize: 18,
   fontWeight: 800,
-  color: "#f8fafc",
+  color: "#0f172a",
 };
 
 const staffSummaryPayStyle: CSSProperties = {
   fontSize: 20,
   fontWeight: 800,
-  color: "#f5d06f",
+  color: "#2563eb",
 };
 
 const staffSummaryGridStyle: CSSProperties = {
@@ -1027,23 +1003,22 @@ const staffSummaryGridStyle: CSSProperties = {
 };
 
 const miniInfoCardStyle: CSSProperties = {
-  borderRadius: 18,
+  borderRadius: 16,
+  background: "rgba(248,250,252,0.92)",
+  border: "1px solid rgba(226,232,240,0.95)",
   padding: 12,
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.06)",
 };
 
 const miniInfoLabelStyle: CSSProperties = {
   fontSize: 11,
-  color: "rgba(255,255,255,0.46)",
+  color: "rgba(15,23,42,0.46)",
   marginBottom: 6,
-  fontWeight: 700,
 };
 
 const miniInfoValueStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 700,
-  color: "#f8fafc",
+  color: "#0f172a",
   lineHeight: 1.5,
 };
 
@@ -1051,8 +1026,8 @@ const tableWrapStyle: CSSProperties = {
   width: "100%",
   overflowX: "auto",
   borderRadius: 20,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  background: "rgba(255,255,255,0.72)",
 };
 
 const tableStyle: CSSProperties = {
@@ -1066,17 +1041,17 @@ const thStyle: CSSProperties = {
   textAlign: "left",
   fontSize: 12,
   fontWeight: 800,
-  color: "rgba(255,255,255,0.56)",
-  borderBottom: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.04)",
+  color: "rgba(15,23,42,0.56)",
+  borderBottom: "1px solid rgba(226,232,240,0.95)",
+  background: "rgba(248,250,252,0.95)",
   whiteSpace: "nowrap",
 };
 
 const tdStyle: CSSProperties = {
   padding: "12px 10px",
   fontSize: 13,
-  color: "#f8fafc",
-  borderBottom: "1px solid rgba(255,255,255,0.06)",
+  color: "#0f172a",
+  borderBottom: "1px solid rgba(226,232,240,0.7)",
   verticalAlign: "top",
   whiteSpace: "nowrap",
 };
@@ -1084,7 +1059,7 @@ const tdStyle: CSSProperties = {
 const tdStyleStrong: CSSProperties = {
   ...tdStyle,
   fontWeight: 800,
-  color: "#f5d06f",
+  color: "#2563eb",
 };
 
 const tdNoteStyle: CSSProperties = {
@@ -1092,26 +1067,26 @@ const tdNoteStyle: CSSProperties = {
   minWidth: 180,
   whiteSpace: "normal",
   lineHeight: 1.6,
-  color: "rgba(255,255,255,0.76)",
+  color: "#475569",
 };
 
 const recordCardStyle: CSSProperties = {
   borderRadius: 20,
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.72)",
+  border: "1px solid rgba(226,232,240,0.95)",
   padding: 16,
 };
 
 const recordDateStyle: CSSProperties = {
   fontSize: 14,
-  color: "rgba(255,255,255,0.56)",
+  color: "rgba(15,23,42,0.56)",
   marginBottom: 6,
 };
 
 const recordNameStyle: CSSProperties = {
   fontSize: 18,
   fontWeight: 800,
-  color: "#f8fafc",
+  color: "#0f172a",
   marginBottom: 12,
 };
 
@@ -1124,24 +1099,24 @@ const recordInfoGridStyle: CSSProperties = {
 const noteBoxStyle: CSSProperties = {
   marginTop: 12,
   borderRadius: 16,
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.06)",
+  background: "rgba(248,250,252,0.92)",
+  border: "1px solid rgba(226,232,240,0.95)",
   padding: 12,
   fontSize: 13,
-  color: "rgba(255,255,255,0.78)",
+  color: "#334155",
   lineHeight: 1.6,
 };
 
 const noteLabelStyle: CSSProperties = {
   fontSize: 11,
-  color: "rgba(255,255,255,0.46)",
+  color: "rgba(15,23,42,0.46)",
   marginBottom: 6,
   fontWeight: 700,
 };
 
 const loadingStyle: CSSProperties = {
   textAlign: "center",
-  color: "rgba(255,255,255,0.56)",
+  color: "rgba(15,23,42,0.56)",
   fontSize: 14,
   padding: "16px 0",
 };
