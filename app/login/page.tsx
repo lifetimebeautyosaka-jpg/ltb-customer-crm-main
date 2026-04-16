@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 const pageBg =
-  "linear-gradient(135deg, #f4f6f8 0%, #e9edf2 45%, #f8fafc 100%)";
+  "radial-gradient(circle at top right, rgba(249,115,22,0.18) 0%, rgba(249,115,22,0) 26%), linear-gradient(135deg, #050816 0%, #0b1120 38%, #111827 100%)";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -25,21 +25,15 @@ export default function LoginPage() {
     setTimeout(() => {
       localStorage.setItem("gymup_member_logged_in", "true");
       localStorage.setItem("gymup_member_id", memberId);
-
-      // スタッフ状態は消しておく
       localStorage.removeItem("gymup_staff_logged_in");
-
       router.push("/mypage");
     }, 700);
   };
 
   const handleStaffEnter = () => {
     localStorage.setItem("gymup_staff_logged_in", "true");
-
-    // 会員状態は消しておく
     localStorage.removeItem("gymup_member_logged_in");
     localStorage.removeItem("gymup_member_id");
-
     router.push("/");
   };
 
@@ -51,15 +45,16 @@ export default function LoginPage() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: "20px 14px",
+        padding: "24px 14px",
       }}
     >
       <div
+        className="login-shell"
         style={{
           width: "100%",
-          maxWidth: 1100,
+          maxWidth: 1180,
           display: "grid",
-          gridTemplateColumns: "1.05fr 0.95fr",
+          gridTemplateColumns: "1.08fr 0.92fr",
           gap: 18,
         }}
       >
@@ -68,40 +63,41 @@ export default function LoginPage() {
           style={{
             position: "relative",
             overflow: "hidden",
-            borderRadius: 28,
-            padding: "34px 28px",
+            borderRadius: 32,
+            padding: "36px 30px",
             background:
-              "linear-gradient(135deg, rgba(255,255,255,0.82) 0%, rgba(255,255,255,0.66) 100%)",
-            backdropFilter: "blur(16px)",
-            WebkitBackdropFilter: "blur(16px)",
-            border: "1px solid rgba(255,255,255,0.74)",
-            boxShadow: "0 18px 50px rgba(15,23,42,0.08)",
-            minHeight: 520,
+              "linear-gradient(135deg, rgba(15,23,42,0.78) 0%, rgba(17,24,39,0.72) 100%)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            boxShadow:
+              "0 30px 80px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.05)",
+            minHeight: 560,
           }}
         >
           <div
             style={{
               position: "absolute",
-              top: -70,
-              right: -40,
-              width: 220,
-              height: 220,
+              top: -80,
+              right: -60,
+              width: 260,
+              height: 260,
               borderRadius: "50%",
               background:
-                "radial-gradient(circle, rgba(220,38,38,0.10) 0%, rgba(220,38,38,0) 72%)",
+                "radial-gradient(circle, rgba(249,115,22,0.22) 0%, rgba(249,115,22,0) 72%)",
               pointerEvents: "none",
             }}
           />
           <div
             style={{
               position: "absolute",
-              bottom: -90,
-              left: -40,
-              width: 240,
-              height: 240,
+              bottom: -110,
+              left: -50,
+              width: 260,
+              height: 260,
               borderRadius: "50%",
               background:
-                "radial-gradient(circle, rgba(17,24,39,0.08) 0%, rgba(17,24,39,0) 72%)",
+                "radial-gradient(circle, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 72%)",
               pointerEvents: "none",
             }}
           />
@@ -112,7 +108,7 @@ export default function LoginPage() {
               height: "100%",
               display: "grid",
               alignContent: "space-between",
-              gap: 24,
+              gap: 28,
             }}
           >
             <div>
@@ -121,15 +117,15 @@ export default function LoginPage() {
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 8,
-                  padding: "8px 12px",
+                  padding: "8px 14px",
                   borderRadius: 999,
-                  background: "rgba(255,255,255,0.8)",
-                  border: "1px solid rgba(226,232,240,0.95)",
-                  color: "#64748b",
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  color: "#f8fafc",
                   fontSize: 12,
                   fontWeight: 800,
-                  letterSpacing: "0.08em",
-                  marginBottom: 16,
+                  letterSpacing: "0.12em",
+                  marginBottom: 18,
                 }}
               >
                 GYMUP PORTAL
@@ -138,29 +134,30 @@ export default function LoginPage() {
               <h1
                 style={{
                   margin: 0,
-                  fontSize: "clamp(30px, 5vw, 44px)",
-                  lineHeight: 1.15,
+                  fontSize: "clamp(32px, 5vw, 50px)",
+                  lineHeight: 1.08,
                   fontWeight: 900,
-                  letterSpacing: "-0.02em",
-                  color: "#111827",
+                  letterSpacing: "-0.03em",
+                  color: "#ffffff",
                 }}
               >
                 Life Time Beauty
                 <br />
-                ログインポータル
+                Member & Staff Portal
               </h1>
 
               <p
                 style={{
-                  marginTop: 16,
-                  maxWidth: 540,
-                  fontSize: 14,
-                  lineHeight: 1.9,
-                  color: "#64748b",
-                  fontWeight: 600,
+                  marginTop: 18,
+                  maxWidth: 560,
+                  fontSize: 15,
+                  lineHeight: 1.95,
+                  color: "rgba(226,232,240,0.78)",
+                  fontWeight: 500,
                 }}
               >
-                会員様はマイページへログイン、スタッフは管理画面へそのまま入れます。
+                会員様はマイページへログインして予約・サブスク・購入履歴を確認。
+                スタッフは管理画面から予約・顧客・売上をスムーズに管理できます。
               </p>
             </div>
 
@@ -169,7 +166,7 @@ export default function LoginPage() {
                 title="この画面からできること"
                 items={[
                   "会員様マイページへログイン",
-                  "サブスク状況・予約確認",
+                  "予約状況・サブスク状況を確認",
                   "商品購入ページへの移動",
                   "スタッフ管理画面への入場",
                 ]}
@@ -182,8 +179,8 @@ export default function LoginPage() {
                   gap: 12,
                 }}
               >
-                <MiniCard label="会員様" value="ID・パスワードでログイン" />
-                <MiniCard label="スタッフ" value="クリックで管理画面へ" />
+                <MiniCard label="MEMBER" value="ID・パスワードでログイン" />
+                <MiniCard label="STAFF" value="ワンタップで管理画面へ" />
               </div>
             </div>
           </div>
@@ -192,32 +189,50 @@ export default function LoginPage() {
         <section
           className="login-right"
           style={{
-            borderRadius: 28,
-            padding: "28px 22px",
+            position: "relative",
+            borderRadius: 32,
+            padding: "30px 24px",
             background:
-              "linear-gradient(135deg, rgba(255,255,255,0.84) 0%, rgba(255,255,255,0.7) 100%)",
-            backdropFilter: "blur(16px)",
-            WebkitBackdropFilter: "blur(16px)",
-            border: "1px solid rgba(255,255,255,0.75)",
-            boxShadow: "0 18px 50px rgba(15,23,42,0.08)",
+              "linear-gradient(135deg, rgba(15,23,42,0.88) 0%, rgba(17,24,39,0.82) 100%)",
+            backdropFilter: "blur(22px)",
+            WebkitBackdropFilter: "blur(22px)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            boxShadow:
+              "0 30px 80px rgba(0,0,0,0.36), inset 0 1px 0 rgba(255,255,255,0.05)",
             display: "grid",
             alignContent: "center",
           }}
         >
           <div
             style={{
-              maxWidth: 420,
+              maxWidth: 430,
               width: "100%",
               margin: "0 auto",
             }}
           >
             <div
               style={{
-                fontSize: 28,
+                display: "inline-flex",
+                padding: "7px 12px",
+                borderRadius: 999,
+                background: "rgba(249,115,22,0.12)",
+                color: "#fdba74",
+                fontSize: 11,
+                fontWeight: 800,
+                letterSpacing: "0.1em",
+                marginBottom: 16,
+              }}
+            >
+              MEMBER LOGIN
+            </div>
+
+            <div
+              style={{
+                fontSize: 32,
                 fontWeight: 900,
-                color: "#111827",
-                textAlign: "center",
+                color: "#ffffff",
                 marginBottom: 8,
+                letterSpacing: "-0.02em",
               }}
             >
               会員様ログイン
@@ -226,11 +241,10 @@ export default function LoginPage() {
             <div
               style={{
                 fontSize: 14,
-                lineHeight: 1.8,
-                color: "#64748b",
-                fontWeight: 600,
-                textAlign: "center",
-                marginBottom: 24,
+                lineHeight: 1.85,
+                color: "rgba(226,232,240,0.72)",
+                fontWeight: 500,
+                marginBottom: 26,
               }}
             >
               会員IDとパスワードを入力してください
@@ -263,20 +277,19 @@ export default function LoginPage() {
                 onClick={handleMemberLogin}
                 disabled={loading}
                 style={{
-                  marginTop: 4,
+                  marginTop: 6,
                   width: "100%",
-                  height: 52,
+                  height: 54,
                   border: "none",
-                  borderRadius: 16,
-                  background:
-                    loading
-                      ? "#94a3b8"
-                      : "linear-gradient(135deg, #111827 0%, #dc2626 100%)",
+                  borderRadius: 18,
+                  background: loading
+                    ? "#475569"
+                    : "linear-gradient(135deg, #f97316 0%, #ea580c 100%)",
                   color: "#fff",
                   fontSize: 15,
-                  fontWeight: 800,
+                  fontWeight: 900,
                   cursor: loading ? "not-allowed" : "pointer",
-                  boxShadow: "0 12px 28px rgba(17,24,39,0.18)",
+                  boxShadow: "0 18px 36px rgba(249,115,22,0.28)",
                 }}
               >
                 {loading ? "ログイン中..." : "会員ログイン"}
@@ -287,16 +300,15 @@ export default function LoginPage() {
                 style={{
                   display: "block",
                   width: "100%",
-                  borderRadius: 16,
-                  padding: "14px 16px",
-                  background: "#fff7ed",
-                  border: "1px solid #fdba74",
-                  color: "#c2410c",
+                  borderRadius: 18,
+                  padding: "15px 16px",
+                  background: "rgba(249,115,22,0.08)",
+                  border: "1px solid rgba(249,115,22,0.32)",
+                  color: "#fdba74",
                   fontSize: 14,
                   fontWeight: 800,
                   textAlign: "center",
                   textDecoration: "none",
-                  boxShadow: "0 10px 24px rgba(249,115,22,0.12)",
                 }}
               >
                 初めての方はこちら
@@ -305,7 +317,7 @@ export default function LoginPage() {
                   style={{
                     fontSize: 12,
                     fontWeight: 700,
-                    color: "#9a3412",
+                    color: "rgba(254,215,170,0.84)",
                   }}
                 >
                   ID・パスワードを設定する
@@ -317,27 +329,28 @@ export default function LoginPage() {
                   position: "relative",
                   textAlign: "center",
                   margin: "6px 0",
-                  color: "#94a3b8",
+                  color: "rgba(226,232,240,0.36)",
                   fontSize: 12,
-                  fontWeight: 700,
+                  fontWeight: 800,
+                  letterSpacing: "0.08em",
                 }}
               >
-                または
+                OR
               </div>
 
               <button
                 onClick={handleStaffEnter}
                 style={{
                   width: "100%",
-                  height: 52,
-                  border: "1px solid #dbe2ea",
-                  borderRadius: 16,
-                  background: "#ffffff",
-                  color: "#111827",
+                  height: 54,
+                  border: "1px solid rgba(255,255,255,0.10)",
+                  borderRadius: 18,
+                  background: "rgba(255,255,255,0.04)",
+                  color: "#ffffff",
                   fontSize: 15,
                   fontWeight: 800,
                   cursor: "pointer",
-                  boxShadow: "0 12px 28px rgba(15,23,42,0.08)",
+                  boxShadow: "0 14px 28px rgba(0,0,0,0.20)",
                 }}
               >
                 スタッフ管理画面へ
@@ -347,11 +360,10 @@ export default function LoginPage() {
             <div
               style={{
                 marginTop: 18,
-                textAlign: "center",
                 fontSize: 12,
-                lineHeight: 1.8,
-                color: "#64748b",
-                fontWeight: 600,
+                lineHeight: 1.9,
+                color: "rgba(226,232,240,0.62)",
+                fontWeight: 500,
               }}
             >
               ※ 会員ログイン情報が不明な場合は店舗スタッフまでご連絡ください。
@@ -367,7 +379,7 @@ export default function LoginPage() {
             min-height: auto !important;
           }
 
-          main > div {
+          .login-shell {
             grid-template-columns: 1fr !important;
           }
         }
@@ -386,17 +398,17 @@ function InfoCard({
   return (
     <div
       style={{
-        borderRadius: 22,
-        padding: 18,
-        background: "rgba(255,255,255,0.72)",
-        border: "1px solid rgba(226,232,240,0.88)",
+        borderRadius: 24,
+        padding: 20,
+        background: "rgba(255,255,255,0.04)",
+        border: "1px solid rgba(255,255,255,0.08)",
       }}
     >
       <div
         style={{
           fontSize: 16,
           fontWeight: 900,
-          color: "#111827",
+          color: "#ffffff",
           marginBottom: 12,
         }}
       >
@@ -409,9 +421,9 @@ function InfoCard({
             key={item}
             style={{
               fontSize: 14,
-              color: "#475569",
-              fontWeight: 600,
-              lineHeight: 1.8,
+              color: "rgba(226,232,240,0.78)",
+              fontWeight: 500,
+              lineHeight: 1.85,
             }}
           >
             ・{item}
@@ -432,19 +444,19 @@ function MiniCard({
   return (
     <div
       style={{
-        borderRadius: 20,
-        padding: 16,
-        background: "rgba(255,255,255,0.74)",
-        border: "1px solid rgba(226,232,240,0.88)",
+        borderRadius: 22,
+        padding: 18,
+        background: "rgba(255,255,255,0.04)",
+        border: "1px solid rgba(255,255,255,0.08)",
       }}
     >
       <div
         style={{
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: 800,
-          color: "#64748b",
+          color: "#fdba74",
           marginBottom: 8,
-          letterSpacing: "0.06em",
+          letterSpacing: "0.10em",
         }}
       >
         {label}
@@ -452,9 +464,9 @@ function MiniCard({
       <div
         style={{
           fontSize: 15,
-          fontWeight: 900,
-          color: "#111827",
-          lineHeight: 1.5,
+          fontWeight: 800,
+          color: "#ffffff",
+          lineHeight: 1.6,
         }}
       >
         {value}
@@ -466,19 +478,20 @@ function MiniCard({
 const labelStyle: CSSProperties = {
   fontSize: 12,
   fontWeight: 800,
-  color: "#64748b",
+  color: "rgba(226,232,240,0.72)",
   marginBottom: 8,
   letterSpacing: "0.06em",
 };
 
 const inputStyle: CSSProperties = {
   width: "100%",
-  height: 50,
-  borderRadius: 14,
-  border: "1px solid #dbe2ea",
-  background: "rgba(255,255,255,0.95)",
+  height: 52,
+  borderRadius: 16,
+  border: "1px solid rgba(255,255,255,0.10)",
+  background: "rgba(255,255,255,0.05)",
   padding: "0 14px",
   fontSize: 14,
-  color: "#111827",
+  color: "#ffffff",
   outline: "none",
+  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.02)",
 };
