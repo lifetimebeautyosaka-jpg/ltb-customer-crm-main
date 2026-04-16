@@ -26,6 +26,7 @@ type OrderItemRow = {
 type OrderRow = {
   id: number;
   stripe_session_id?: string | null;
+  customer_id?: number | null;
   customer_email?: string | null;
   customer_name?: string | null;
   total_amount?: number | null;
@@ -116,12 +117,23 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [keyword, setKeyword] = useState("");
+  const [memberName, setMemberName] = useState("");
 
   useEffect(() => {
-    void fetchOrders();
-  }, []);
+    const loggedIn = localStorage.getItem("gymup_member_logged_in");
+    const customerId = localStorage.getItem("gymup_member_customer_id");
+    const savedName = localStorage.getItem("gymup_member_name") || "";
 
-  async function fetchOrders() {
+    if (loggedIn !== "true" || !customerId) {
+      router.replace("/");
+      return;
+    }
+
+    setMemberName(savedName);
+    void fetchOrders(Number(customerId));
+  }, [router]);
+
+  async function fetchOrders(customerId: number) {
     if (!supabase) {
       setError("Supabaseの環境変数が未設定です。");
       setLoading(false);
@@ -136,6 +148,7 @@ export default function OrdersPage() {
         .from("orders")
         .select(`
           id,
+          customer_id,
           stripe_session_id,
           customer_email,
           customer_name,
@@ -154,12 +167,14 @@ export default function OrdersPage() {
             created_at
           )
         `)
+        .eq("customer_id", customerId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
       const merged: OrderWithItems[] = ((data || []) as OrderRow[]).map((order) => ({
         id: order.id,
+        customer_id: order.customer_id ?? null,
         stripe_session_id: order.stripe_session_id ?? null,
         customer_email: order.customer_email ?? null,
         customer_name: order.customer_name ?? null,
@@ -213,6 +228,15 @@ export default function OrdersPage() {
     );
   }, [orders]);
 
+  const handleReload = () => {
+    const customerId = localStorage.getItem("gymup_member_customer_id");
+    if (!customerId) {
+      router.replace("/");
+      return;
+    }
+    void fetchOrders(Number(customerId));
+  };
+
   return (
     <main
       style={{
@@ -233,7 +257,7 @@ export default function OrdersPage() {
           }}
         >
           <button
-            onClick={() => router.push("/shop")}
+            onClick={() => router.push("/mypage")}
             style={{
               border: "1px solid #e2e8f0",
               background: "#fff",
@@ -245,11 +269,11 @@ export default function OrdersPage() {
               cursor: "pointer",
             }}
           >
-            ← ショップへ戻る
+            ← マイページへ戻る
           </button>
 
           <button
-            onClick={() => void fetchOrders()}
+            onClick={handleReload}
             style={{
               border: "1px solid #111827",
               background: "#111827",
@@ -284,7 +308,7 @@ export default function OrdersPage() {
               marginBottom: 8,
             }}
           >
-            ORDERS
+            MY ORDERS
           </div>
 
           <h1
@@ -306,7 +330,8 @@ export default function OrdersPage() {
               lineHeight: 1.8,
             }}
           >
-            Stripe決済後に Supabase へ保存された注文を確認できます。
+            {memberName ? `${memberName}様の` : ""}
+            ご注文履歴を確認できます。
           </p>
         </div>
 
@@ -347,7 +372,7 @@ export default function OrdersPage() {
           <input
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="注文者名・メール・商品名・session_id で検索"
+            placeholder="商品名・支払い状況・session_id で検索"
             style={{
               width: "100%",
               height: 46,
@@ -480,7 +505,7 @@ export default function OrdersPage() {
                     marginBottom: 14,
                   }}
                 >
-                  <InfoCard label="注文者名" value={order.customer_name || "—"} />
+                  <InfoCard label="注文者名" value={order.customer_name || memberName || "—"} />
                   <InfoCard label="メール" value={order.customer_email || "—"} />
                   <InfoCard label="合計金額" value={yen(order.total_amount)} />
                   <InfoCard label="session_id" value={order.stripe_session_id || "—"} />
