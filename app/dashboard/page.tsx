@@ -540,6 +540,11 @@ export default function DashboardPage() {
     setSelectedDate(getTodayDateString());
   };
 
+  const handleDateInputChange = (value: string) => {
+    if (!value) return;
+    setSelectedDate(value);
+  };
+
   const statusLabel =
     systemStatus === "ONLINE"
       ? "Online"
@@ -1078,6 +1083,25 @@ export default function DashboardPage() {
           white-space: nowrap;
         }
 
+        .gymup-home__date-picker {
+          min-height: 36px;
+          padding: 0 12px;
+          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.04);
+          color: #f5f7fa;
+          font-size: 13px;
+          font-weight: 700;
+          outline: none;
+          box-sizing: border-box;
+        }
+
+        .gymup-home__date-picker::-webkit-calendar-picker-indicator {
+          filter: invert(1);
+          opacity: 0.9;
+          cursor: pointer;
+        }
+
         .gymup-home__schedule {
           display: flex;
           flex-direction: column;
@@ -1326,7 +1350,8 @@ export default function DashboardPage() {
 
           .gymup-home__hero-memo-clear,
           .gymup-home__date-nav-btn,
-          .gymup-home__date-today-btn {
+          .gymup-home__date-today-btn,
+          .gymup-home__date-picker {
             width: 100%;
           }
 
@@ -1424,7 +1449,7 @@ export default function DashboardPage() {
                     </div>
 
                     <div className="gymup-home__hero-memo-desc">
-                      選択中の日付ごとにメモを分けて保存できます。前日・翌日に切り替えると、その日のメモに自動で切り替わります。
+                      選択中の日付ごとにメモを分けて保存できます。矢印でもカレンダーでも切り替え可能です。
                     </div>
 
                     <textarea
@@ -1506,7 +1531,9 @@ export default function DashboardPage() {
                           >
                             ← 前日
                           </button>
+
                           <div className="gymup-home__date-current">{selectedDate}</div>
+
                           <button
                             type="button"
                             className="gymup-home__date-nav-btn"
@@ -1514,6 +1541,14 @@ export default function DashboardPage() {
                           >
                             翌日 →
                           </button>
+
+                          <input
+                            type="date"
+                            className="gymup-home__date-picker"
+                            value={selectedDate}
+                            onChange={(e) => handleDateInputChange(e.target.value)}
+                          />
+
                           <button
                             type="button"
                             className="gymup-home__date-today-btn"
@@ -1601,7 +1636,7 @@ export default function DashboardPage() {
                         <div className="gymup-home__alerts">
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
-                            <span>予約表の情報を日別で左右移動しながら確認可能</span>
+                            <span>矢印とカレンダーの両方で日付切替が可能</span>
                           </div>
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
