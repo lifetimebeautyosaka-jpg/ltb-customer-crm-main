@@ -145,6 +145,12 @@ type PricePreset = {
   note?: string;
 };
 
+type TicketIssuePresetInfo = {
+  ticketCount: number;
+  minutes: number;
+  priceVersion: "新" | "旧";
+};
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -348,6 +354,7 @@ const PRICE_PRESETS: PricePreset[] = [
     amount: 6600,
   },
 
+  // ===== ストレッチ新価格：初回体験 =====
   {
     id: "stretch_trial_60",
     serviceType: "ストレッチ",
@@ -381,6 +388,7 @@ const PRICE_PRESETS: PricePreset[] = [
     note: "土日祝は+1,000円",
   },
 
+  // ===== ストレッチ新価格：単発 =====
   {
     id: "stretch_single_40",
     serviceType: "ストレッチ",
@@ -417,6 +425,7 @@ const PRICE_PRESETS: PricePreset[] = [
     amount: 1500,
   },
 
+  // ===== ストレッチ新価格：回数券 =====
   {
     id: "stretch_new_4_40",
     serviceType: "ストレッチ",
@@ -516,6 +525,7 @@ const PRICE_PRESETS: PricePreset[] = [
     accountingType: "前受金",
   },
 
+  // ===== ストレッチ旧価格：回数券 =====
   {
     id: "stretch_old_4_40",
     serviceType: "ストレッチ",
@@ -656,6 +666,16 @@ function formatDateJP(value: string) {
   return `${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
+function addDaysString(baseDate: string, days: number) {
+  const d = new Date(baseDate);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = `${d.getMonth() + 1}`.padStart(2, "0");
+  const day = `${d.getDate()}`.padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function trimmed(value: unknown) {
   if (value === null || value === undefined) return "";
   return String(value).trim();
@@ -667,19 +687,6 @@ function normalizeText(value?: string | null) {
     .replace(/\s+/g, "")
     .replace(/[‐-‒–—―ー－]/g, "-")
     .toLowerCase();
-}
-
-function toValidReservationId(value?: string | number | null): number | null {
-  if (value === null || value === undefined) return null;
-
-  const str = String(value).trim();
-  if (!str) return null;
-  if (!/^\d+$/.test(str)) return null;
-
-  const num = Number(str);
-  if (!Number.isFinite(num)) return null;
-
-  return num;
 }
 
 function buildCategory(
@@ -939,6 +946,68 @@ function mergeNoteLines(current: string, lines: Array<string | null | undefined>
   return merged.join("\n");
 }
 
+function parseTicketIssuePresetInfo(preset?: PricePreset | null): TicketIssuePresetInfo | null {
+  if (!preset) return null;
+  if (preset.serviceType !== "ストレッチ") return null;
+  if (preset.accountingType !== "前受金") return null;
+
+  const match = preset.id.match(/^stretch_(new|old)_(4|8|12)_(40|60|80|120)$/);
+  if (!match) return null;
+
+  return {
+    priceVersion: match[1] === "new" ? "新" : "旧",
+    ticketCount: Number(match[2]),
+    minutes: Number(match[3]),
+  };
+}
+
+async function issueCustomerTicket(params: {
+  customerId: string;
+  customerName: string;
+  preset: PricePreset;
+  purchaseDate: string;
+  note?: string;
+}): Promise<number | string> {
+  const info = parseTicketIssuePresetInfo(params.preset);
+
+  if (!info) {
+    throw new Error("回数券発行対象のプリセットではありません");
+  }
+
+  const expiryDate = addDaysString(params.purchaseDate, 90);
+  const ticketName = `ストレッチ${info.priceVersion} ${info.ticketCount}回 ${info.minutes}分`;
+
+  const payload = {
+    customer_id: Number(params.customerId),
+    customer_name: params.customerName,
+    ticket_name: ticketName,
+    service_type: "ストレッチ" as ServiceType,
+    total_count: info.ticketCount,
+    remaining_count: info.ticketCount,
+    purchase_date: params.purchaseDate,
+    expiry_date: expiryDate,
+    status: "利用中",
+    note: mergeNoteLines(params.note || "", [
+      `自動発行: ${params.preset.label}`,
+      `発行回数: ${info.ticketCount}回`,
+      `時間: ${info.minutes}分`,
+      expiryDate ? `有効期限: ${expiryDate}` : "",
+    ]),
+  };
+
+  const { data, error } = await supabase
+    .from("customer_tickets")
+    .insert([payload])
+    .select("id")
+    .single();
+
+  if (error) {
+    throw new Error(`回数券発行エラー: ${error.message}`);
+  }
+
+  return data.id;
+}
+
 async function consumeCustomerTicket(params: {
   customerId: string;
   customerName: string;
@@ -992,7 +1061,7 @@ async function consumeCustomerTicket(params: {
 
   const { error: usageError } = await supabase.from("ticket_usages").insert([
     {
-      reservation_id: toValidReservationId(reservationId),
+      reservation_id: reservationId ? Number(reservationId) : null,
       ticket_id: target.id,
       customer_id: Number(customerId),
       customer_name: customerName,
@@ -1039,14 +1108,12 @@ async function rollbackConsumedTicket(params: {
     })
     .eq("id", ticketId);
 
-  const safeReservationId = toValidReservationId(reservationId);
-
-  if (safeReservationId !== null) {
+  if (reservationId) {
     await supabase
       .from("ticket_usages")
       .delete()
       .eq("ticket_id", ticketId)
-      .eq("reservation_id", safeReservationId)
+      .eq("reservation_id", Number(reservationId))
       .eq("before_count", beforeCount);
   }
 }
@@ -1126,35 +1193,14 @@ async function restoreTicketUsageFromDeletedSale(params: {
 }
 
 function getAccountingBadgeStyle(type: AccountingType): CSSProperties {
-  if (type === "前受金") {
-    return {
-      background: "#fef3c7",
-      color: "#92400e",
-    };
-  }
-  if (type === "回数券消化") {
-    return {
-      background: "#dbeafe",
-      color: "#1d4ed8",
-    };
-  }
-  return {
-    background: "#dcfce7",
-    color: "#166534",
-  };
+  if (type === "前受金") return { background: "#fef3c7", color: "#92400e" };
+  if (type === "回数券消化") return { background: "#dbeafe", color: "#1d4ed8" };
+  return { background: "#dcfce7", color: "#166534" };
 }
 
 function getServiceBadgeStyle(type: ServiceType): CSSProperties {
-  if (type === "ストレッチ") {
-    return {
-      background: "#fce7f3",
-      color: "#be185d",
-    };
-  }
-  return {
-    background: "#ede9fe",
-    color: "#6d28d9",
-  };
+  if (type === "ストレッチ") return { background: "#fce7f3", color: "#be185d" };
+  return { background: "#ede9fe", color: "#6d28d9" };
 }
 
 export default function SalesPage() {
@@ -1387,8 +1433,7 @@ export default function SalesPage() {
   };
 
   const loadReservationForPrefill = async (id: string) => {
-    const safeId = toValidReservationId(id);
-    if (safeId === null) return;
+    if (!id) return;
 
     try {
       setPrefillLoading(true);
@@ -1398,7 +1443,7 @@ export default function SalesPage() {
         .select(
           "id, customer_id, customer_name, date, menu, staff_name, store_name, payment_method, memo, reservation_status"
         )
-        .eq("id", safeId)
+        .eq("id", id)
         .maybeSingle();
 
       if (error) {
@@ -1447,9 +1492,7 @@ export default function SalesPage() {
   };
 
   const loadExistingSalesForReservation = async (id: string) => {
-    const safeId = toValidReservationId(id);
-
-    if (safeId === null) {
+    if (!id) {
       setExistingSalesForReservation([]);
       return;
     }
@@ -1459,7 +1502,7 @@ export default function SalesPage() {
       .select(
         "id, customer_id, customer_name, sale_date, menu_type, sale_type, payment_method, amount, staff_name, store_name, reservation_id, memo, created_at"
       )
-      .eq("reservation_id", safeId)
+      .eq("reservation_id", Number(id))
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -1709,22 +1752,26 @@ export default function SalesPage() {
     const querySignupId = getQueryParam("signup_id");
     const isFromSignup = queryFrom === "signup" && !!querySignupId;
     const previousReservationStatus = reservationStatus;
-    const safeReservationId = toValidReservationId(reservationId);
 
     try {
       setSaving(true);
 
       const insertedSaleIds: Array<number | string> = [];
+      const issuedTicketIds: Array<number | string> = [];
       const consumedTickets: TicketConsumeResult[] = [];
       let reservationUpdated = false;
 
       for (const row of payments) {
-        const isTicket = row.saleType === "回数券消化";
+        const isTicketConsume = row.saleType === "回数券消化";
         const preset = findPricePresetById(row.presetId);
+        const ticketIssueInfo = parseTicketIssuePresetInfo(preset);
 
         const baseNote = [
           menuName.trim() ? `メニュー名: ${menuName.trim()}` : "",
           preset ? `料金プリセット: ${preset.label}` : "",
+          ticketIssueInfo
+            ? `回数券自動発行対象: ${ticketIssueInfo.priceVersion}価格 ${ticketIssueInfo.ticketCount}回 ${ticketIssueInfo.minutes}分`
+            : "",
           note.trim(),
         ]
           .filter(Boolean)
@@ -1732,7 +1779,7 @@ export default function SalesPage() {
 
         let ticketResult: TicketConsumeResult | null = null;
 
-        if (isTicket) {
+        if (isTicketConsume) {
           ticketResult = await consumeCustomerTicket({
             customerId,
             customerName: customer.name,
@@ -1746,7 +1793,7 @@ export default function SalesPage() {
         const mergedNote = [
           baseNote,
           isFromSignup ? `signup_id: ${querySignupId}` : "",
-          isTicket && ticketResult
+          isTicketConsume && ticketResult
             ? `回数券消化: ${ticketResult.ticketName} / 残数 ${ticketResult.beforeCount} → ${ticketResult.afterCount}`
             : "",
         ]
@@ -1759,11 +1806,11 @@ export default function SalesPage() {
           sale_date: date,
           menu_type: serviceType,
           sale_type: row.saleType,
-          payment_method: isTicket ? "その他" : row.paymentMethod,
-          amount: isTicket ? 0 : Number(row.amount),
+          payment_method: isTicketConsume ? "その他" : row.paymentMethod,
+          amount: isTicketConsume ? 0 : Number(row.amount),
           staff_name: staff.trim() || "未設定",
           store_name: storeName.trim() || "未設定",
-          reservation_id: safeReservationId,
+          reservation_id: reservationId ? Number(reservationId) : null,
           memo: mergedNote || null,
         };
 
@@ -1774,7 +1821,7 @@ export default function SalesPage() {
           .single();
 
         if (insertError) {
-          if (isTicket && ticketResult) {
+          if (isTicketConsume && ticketResult) {
             await rollbackConsumedTicket({
               ticketId: ticketResult.ticketId,
               beforeCount: ticketResult.beforeCount,
@@ -1787,21 +1834,62 @@ export default function SalesPage() {
         if (inserted?.id !== null && inserted?.id !== undefined) {
           insertedSaleIds.push(inserted.id);
         }
+
+        if (
+          row.saleType === "前受金" &&
+          serviceType === "ストレッチ" &&
+          preset &&
+          ticketIssueInfo
+        ) {
+          try {
+            const issuedTicketId = await issueCustomerTicket({
+              customerId,
+              customerName: customer.name,
+              preset,
+              purchaseDate: date,
+              note: mergeNoteLines(note, [
+                `売上ID: ${inserted.id}`,
+                `担当: ${staff}`,
+                `店舗: ${storeName}`,
+              ]),
+            });
+            issuedTicketIds.push(issuedTicketId);
+
+            await supabase
+              .from("sales")
+              .update({
+                memo: mergeNoteLines(mergedNote, [`発行回数券ID: ${issuedTicketId}`]),
+              })
+              .eq("id", inserted.id);
+          } catch (issueError) {
+            await supabase.from("sales").delete().eq("id", inserted.id);
+            if (isTicketConsume && ticketResult) {
+              await rollbackConsumedTicket({
+                ticketId: ticketResult.ticketId,
+                beforeCount: ticketResult.beforeCount,
+                reservationId,
+              });
+            }
+            throw issueError;
+          }
+        }
       }
 
-      if (safeReservationId !== null) {
+      if (reservationId) {
         const { error: reservationUpdateError } = await supabase
           .from("reservations")
           .update({
             reservation_status: "売上済",
           })
-          .eq("id", safeReservationId);
+          .eq("id", Number(reservationId));
 
         if (reservationUpdateError) {
           for (const saleId of insertedSaleIds) {
             await supabase.from("sales").delete().eq("id", saleId);
           }
-
+          for (const ticketId of issuedTicketIds) {
+            await supabase.from("customer_tickets").delete().eq("id", ticketId);
+          }
           for (const consumed of consumedTickets) {
             await rollbackConsumedTicket({
               ticketId: consumed.ticketId,
@@ -1826,6 +1914,12 @@ export default function SalesPage() {
           .eq("id", Number(querySignupId));
 
         if (signupUpdateError) {
+          for (const saleId of insertedSaleIds) {
+            await supabase.from("sales").delete().eq("id", saleId);
+          }
+          for (const ticketId of issuedTicketIds) {
+            await supabase.from("customer_tickets").delete().eq("id", ticketId);
+          }
           for (const consumed of consumedTickets) {
             await rollbackConsumedTicket({
               ticketId: consumed.ticketId,
@@ -1834,17 +1928,13 @@ export default function SalesPage() {
             });
           }
 
-          for (const saleId of insertedSaleIds) {
-            await supabase.from("sales").delete().eq("id", saleId);
-          }
-
-          if (safeReservationId !== null && reservationUpdated) {
+          if (reservationId && reservationUpdated) {
             await supabase
               .from("reservations")
               .update({
                 reservation_status: previousReservationStatus || null,
               })
-              .eq("id", safeReservationId);
+              .eq("id", Number(reservationId));
 
             setReservationStatus(previousReservationStatus);
           }
@@ -1855,12 +1945,14 @@ export default function SalesPage() {
 
       await fetchSales();
 
-      if (safeReservationId !== null) {
-        await loadExistingSalesForReservation(String(safeReservationId));
+      if (reservationId) {
+        await loadExistingSalesForReservation(reservationId);
       }
 
       alert(
-        isFromSignup
+        issuedTicketIds.length > 0
+          ? `売上を登録し、回数券を ${issuedTicketIds.length} 件自動発行しました`
+          : isFromSignup
           ? "売上を登録し、入会申請も売上登録済に更新しました"
           : "売上を登録しました"
       );
@@ -2213,7 +2305,9 @@ export default function SalesPage() {
           <div style={headerStyle}>
             <div>
               <h1 style={titleStyle}>売上管理</h1>
-              <p style={subTextStyle}>料金プリセット対応 / 予約連動 / 回数券消化対応</p>
+              <p style={subTextStyle}>
+                料金プリセット対応 / 予約連動 / 回数券消化 / 回数券自動発行対応
+              </p>
             </div>
 
             <div style={topActionsStyle}>
@@ -2648,7 +2742,9 @@ export default function SalesPage() {
                     </div>
 
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                      <span style={{ ...pillStyle("#f3f4f6"), ...getServiceBadgeStyle(sale.serviceType) }}>
+                      <span
+                        style={{ ...pillStyle("#f3f4f6"), ...getServiceBadgeStyle(sale.serviceType) }}
+                      >
                         {sale.serviceType}
                       </span>
                       <span
