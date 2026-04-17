@@ -40,6 +40,7 @@ type CustomerRow = {
   name?: string | null;
   kana?: string | null;
   phone?: string | null;
+  plan_type?: string | null;
 };
 
 type CustomerOption = {
@@ -47,6 +48,7 @@ type CustomerOption = {
   name: string;
   kana: string;
   phone: string;
+  planType?: string;
 };
 
 type SimpleReservationIdRow = {
@@ -129,8 +131,36 @@ const STAFF_OPTIONS = [
 const MENU_OPTIONS = [
   "ストレッチ",
   "トレーニング",
-  "ストレッチ回数券",
-  "トレーニング回数券",
+  "40分4回_旧",
+  "40分8回_旧",
+  "40分12回_旧",
+  "60分4回_旧",
+  "60分8回_旧",
+  "60分12回_旧",
+  "80分4回_旧",
+  "80分8回_旧",
+  "80分12回_旧",
+  "120分4回_旧",
+  "120分8回_旧",
+  "120分12回_旧",
+  "40分4回_新",
+  "40分8回_新",
+  "40分12回_新",
+  "60分4回_新",
+  "60分8回_新",
+  "60分12回_新",
+  "80分4回_新",
+  "80分8回_新",
+  "80分12回_新",
+  "120分4回_新",
+  "120分8回_新",
+  "120分12回_新",
+  "ダイエット16回",
+  "ゴールド24回",
+  "プラチナ32回",
+  "月2回",
+  "月4回",
+  "月8回",
   "ペアトレ",
   "ヘッドスパ",
   "アロマ",
@@ -140,6 +170,44 @@ const MENU_OPTIONS = [
 const PAYMENT_OPTIONS = ["現金", "カード", "銀行振込", "その他"];
 const VISIT_TYPE_OPTIONS = ["新規", "再来"];
 const WEEK_LABELS = ["月", "火", "水", "木", "金", "土", "日"];
+
+const TICKET_UNIT_PRICES: Record<string, number> = {
+  // ストレッチ旧価格
+  "40分4回_旧": 5330,
+  "40分8回_旧": 5090,
+  "40分12回_旧": 5000,
+  "60分4回_旧": 7980,
+  "60分8回_旧": 7640,
+  "60分12回_旧": 7500,
+  "80分4回_旧": 10670,
+  "80分8回_旧": 10180,
+  "80分12回_旧": 10000,
+  "120分4回_旧": 16000,
+  "120分8回_旧": 15270,
+  "120分12回_旧": 15000,
+
+  // ストレッチ新価格
+  "40分4回_新": 5330,
+  "40分8回_新": 5090,
+  "40分12回_新": 5000,
+  "60分4回_新": 7980,
+  "60分8回_新": 7640,
+  "60分12回_新": 7500,
+  "80分4回_新": 10670,
+  "80分8回_新": 10180,
+  "80分12回_新": 10000,
+  "120分4回_新": 16000,
+  "120分8回_新": 15270,
+  "120分12回_新": 15000,
+
+  // トレーニング
+  "ダイエット16回": 11000,
+  "ゴールド24回": 10450,
+  "プラチナ32回": 10230,
+  "月2回": 8800,
+  "月4回": 8470,
+  "月8回": 8250,
+};
 
 function trimmed(value: unknown): string {
   if (value === null || value === undefined) return "";
@@ -291,13 +359,47 @@ function toIdNumber(value: string | number | null | undefined) {
 
 function isTicketMenu(menu?: string | null) {
   const text = trimmed(menu);
-  return text === "ストレッチ回数券" || text === "トレーニング回数券";
+  return Boolean(TICKET_UNIT_PRICES[text]);
 }
 
 function detectServiceTypeFromReservationMenu(menu?: string | null) {
   const text = trimmed(menu);
-  if (text.includes("ストレッチ")) return "ストレッチ";
+  if (
+    text.includes("40分") ||
+    text.includes("60分") ||
+    text.includes("80分") ||
+    text.includes("120分") ||
+    text.includes("ストレッチ")
+  ) {
+    return "ストレッチ";
+  }
   return "トレーニング";
+}
+
+function detectServiceTypeFromTicketName(ticketName: string) {
+  if (
+    ticketName.includes("40分") ||
+    ticketName.includes("60分") ||
+    ticketName.includes("80分") ||
+    ticketName.includes("120分") ||
+    ticketName.includes("ストレッチ")
+  ) {
+    return "ストレッチ";
+  }
+  return "トレーニング";
+}
+
+function resolveTicketName(params: {
+  reservationMenu?: string | null;
+  customerPlanType?: string | null;
+}) {
+  const reservationMenu = trimmed(params.reservationMenu);
+  const customerPlanType = trimmed(params.customerPlanType);
+
+  if (reservationMenu && TICKET_UNIT_PRICES[reservationMenu]) return reservationMenu;
+  if (customerPlanType && TICKET_UNIT_PRICES[customerPlanType]) return customerPlanType;
+
+  return "";
 }
 
 function buildSalesHref(item: ReservationRow, forceTicketMode = false) {
@@ -414,10 +516,12 @@ export default function ReservationPage() {
   const [salesReservationIds, setSalesReservationIds] = useState<number[]>([]);
   const [counseledReservationIds, setCounseledReservationIds] = useState<number[]>([]);
   const [ticketUsedReservationIds, setTicketUsedReservationIds] = useState<number[]>([]);
+  const [consumingReservationId, setConsumingReservationId] = useState("");
 
   const [globalSearch, setGlobalSearch] = useState("");
   const [searchMode, setSearchMode] = useState<SearchMode>("customer");
-  const [selectedHistoryCustomer, setSelectedHistoryCustomer] = useState<CustomerOption | null>(null);
+  const [selectedHistoryCustomer, setSelectedHistoryCustomer] =
+    useState<CustomerOption | null>(null);
   const [selectedHistoryStaff, setSelectedHistoryStaff] = useState("");
   const [customerHistory, setCustomerHistory] = useState<ReservationHistoryItem[]>([]);
   const [staffHistory, setStaffHistory] = useState<StaffHistoryItem[]>([]);
@@ -484,7 +588,7 @@ export default function ReservationPage() {
     try {
       const { data, error } = await supabase
         .from("customers")
-        .select("id, name, kana, phone")
+        .select("id, name, kana, phone, plan_type")
         .order("id", { ascending: false })
         .limit(400);
 
@@ -495,6 +599,7 @@ export default function ReservationPage() {
         name: row.name || "",
         kana: row.kana || "",
         phone: row.phone || "",
+        planType: row.plan_type || "",
       }));
 
       setCustomers(normalized);
@@ -554,7 +659,13 @@ export default function ReservationPage() {
         .order("work_date", { ascending: true })
         .order("clock_in", { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        if ((error as any).code === "PGRST205") {
+          setAttendanceItems([]);
+          return;
+        }
+        throw error;
+      }
 
       setAttendanceItems(
         ((data as any[]) || []).map((row) => ({
@@ -567,7 +678,7 @@ export default function ReservationPage() {
       );
     } catch (e) {
       console.error(e);
-      setError(`勤怠取得エラー: ${extractErrorMessage(e)}`);
+      setAttendanceItems([]);
     }
   }
 
@@ -611,9 +722,7 @@ export default function ReservationPage() {
   const salesReservationIdSet = useMemo(
     () =>
       new Set(
-        salesReservationIds
-          .map((id) => Number(id))
-          .filter((id) => Number.isFinite(id))
+        salesReservationIds.map((id) => Number(id)).filter((id) => Number.isFinite(id))
       ),
     [salesReservationIds]
   );
@@ -621,9 +730,7 @@ export default function ReservationPage() {
   const counseledReservationIdSet = useMemo(
     () =>
       new Set(
-        counseledReservationIds
-          .map((id) => Number(id))
-          .filter((id) => Number.isFinite(id))
+        counseledReservationIds.map((id) => Number(id)).filter((id) => Number.isFinite(id))
       ),
     [counseledReservationIds]
   );
@@ -631,9 +738,7 @@ export default function ReservationPage() {
   const ticketUsedReservationIdSet = useMemo(
     () =>
       new Set(
-        ticketUsedReservationIds
-          .map((id) => Number(id))
-          .filter((id) => Number.isFinite(id))
+        ticketUsedReservationIds.map((id) => Number(id)).filter((id) => Number.isFinite(id))
       ),
     [ticketUsedReservationIds]
   );
@@ -930,7 +1035,7 @@ export default function ReservationPage() {
     if (phone) {
       const { data: phoneMatch, error: phoneMatchError } = await supabase
         .from("customers")
-        .select("id, name, kana, phone")
+        .select("id, name, kana, phone, plan_type")
         .eq("phone", rawPhone)
         .limit(1)
         .maybeSingle();
@@ -946,14 +1051,14 @@ export default function ReservationPage() {
 
     const { data: nameMatch, error: nameMatchError } = await supabase
       .from("customers")
-      .select("id, name, kana, phone")
+      .select("id, name, kana, phone, plan_type")
       .eq("name", name)
       .limit(1)
       .maybeSingle();
 
-    if (nameMatchError) {
-      console.warn(nameMatchError);
-    }
+      if (nameMatchError) {
+        console.warn(nameMatchError);
+      }
 
     if (nameMatch) {
       return String((nameMatch as CustomerRow).id);
@@ -1056,7 +1161,9 @@ export default function ReservationPage() {
 
       const { data, error } = await supabase
         .from("reservations")
-        .select("id, customer_id, customer_name, date, start_time, end_time, store_name, staff_name, menu, memo")
+        .select(
+          "id, customer_id, customer_name, date, start_time, end_time, store_name, staff_name, menu, memo"
+        )
         .eq("customer_id", Number(customer.id))
         .order("date", { ascending: false })
         .order("start_time", { ascending: false })
@@ -1101,6 +1208,178 @@ export default function ReservationPage() {
       setError(`スタッフ履歴取得エラー: ${extractErrorMessage(e)}`);
     } finally {
       setHistoryLoading(false);
+    }
+  }
+
+  async function handleTicketConsumeAndCreateSale(item: ReservationRow) {
+    if (!supabase) {
+      setError("Supabaseの環境変数が設定されていません。");
+      return;
+    }
+
+    const reservationId = toIdNumber(item.id);
+    const customerId = toIdNumber(item.customer_id);
+
+    if (!reservationId) {
+      setError("予約IDが不正です。");
+      return;
+    }
+
+    if (!customerId) {
+      setError("この予約に customer_id がありません。");
+      return;
+    }
+
+    try {
+      setConsumingReservationId(String(item.id));
+      setError("");
+      setSuccess("");
+
+      const alreadyUsed = ticketUsedReservationIdSet.has(reservationId);
+      if (alreadyUsed) {
+        setError("この予約はすでに回数券消化済みです。");
+        return;
+      }
+
+      const alreadySold =
+        trimmed(item.reservation_status) === "売上済" ||
+        salesReservationIdSet.has(reservationId);
+
+      if (alreadySold) {
+        setError("この予約はすでに売上計上済みです。");
+        return;
+      }
+
+      const { data: customerRow, error: customerError } = await supabase
+        .from("customers")
+        .select("id, name, plan_type")
+        .eq("id", customerId)
+        .maybeSingle();
+
+      if (customerError) throw customerError;
+      if (!customerRow) {
+        setError("顧客情報が見つかりません。");
+        return;
+      }
+
+      const ticketName = resolveTicketName({
+        reservationMenu: item.menu,
+        customerPlanType: (customerRow as any).plan_type,
+      });
+
+      if (!ticketName) {
+        setError(
+          "回数券名を特定できません。予約メニューか顧客プラン名を、単価表にある名前へ合わせてください。"
+        );
+        return;
+      }
+
+      const unitPrice = TICKET_UNIT_PRICES[ticketName];
+      if (!unitPrice) {
+        setError(`単価設定がありません: ${ticketName}`);
+        return;
+      }
+
+      const { data: contractRow, error: contractError } = await supabase
+        .from("ticket_contracts")
+        .select("*")
+        .eq("customer_id", customerId)
+        .eq("ticket_name", ticketName)
+        .eq("status", "active")
+        .order("id", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (contractError) throw contractError;
+      if (!contractRow) {
+        setError(`有効な回数券契約がありません: ${ticketName}`);
+        return;
+      }
+
+      const remainingCount = Number((contractRow as any).remaining_count ?? 0);
+      const usedCount = Number((contractRow as any).used_count ?? 0);
+      const prepaidBalance = Number((contractRow as any).prepaid_balance ?? 0);
+
+      if (remainingCount <= 0) {
+        setError("残回数がありません。");
+        return;
+      }
+
+      const ok = window.confirm(
+        `${trimmed(item.customer_name) || "この顧客"} の ${ticketName} を1回消化して、${unitPrice.toLocaleString()}円の売上を立てます。よろしいですか？`
+      );
+      if (!ok) return;
+
+      const nextRemaining = remainingCount - 1;
+      const nextUsed = usedCount + 1;
+      const nextBalance = Math.max(prepaidBalance - unitPrice, 0);
+
+      const serviceType = detectServiceTypeFromTicketName(ticketName);
+
+      const { error: usageInsertError } = await supabase.from("ticket_usages").insert({
+        contract_id: (contractRow as any).id,
+        customer_id: customerId,
+        reservation_id: reservationId,
+        used_date: trimmed(item.date),
+        ticket_name: ticketName,
+        unit_price: unitPrice,
+        staff_name: trimmed(item.staff_name) || null,
+        store_name: trimmed(item.store_name) || null,
+      });
+
+      if (usageInsertError) throw usageInsertError;
+
+      const { error: contractUpdateError } = await supabase
+        .from("ticket_contracts")
+        .update({
+          used_count: nextUsed,
+          remaining_count: nextRemaining,
+          prepaid_balance: nextBalance,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", (contractRow as any).id);
+
+      if (contractUpdateError) throw contractUpdateError;
+
+      const { error: salesInsertError } = await supabase.from("sales").insert({
+        reservation_id: reservationId,
+        customer_id: customerId,
+        customer_name: trimmed(item.customer_name) || trimmed((customerRow as any).name) || null,
+        sale_date: trimmed(item.date),
+        amount: unitPrice,
+        menu_type: serviceType,
+        sale_type: "回数券消化",
+        payment_method: "前受金消化",
+        staff_name: trimmed(item.staff_name) || null,
+        store_name: trimmed(item.store_name) || null,
+        memo: `${ticketName} 消化`,
+      });
+
+      if (salesInsertError) throw salesInsertError;
+
+      const { error: reservationUpdateError } = await supabase
+        .from("reservations")
+        .update({
+          reservation_status: "売上済",
+        })
+        .eq("id", reservationId);
+
+      if (reservationUpdateError) throw reservationUpdateError;
+
+      setSuccess(
+        `回数券を消化し、${unitPrice.toLocaleString()}円を売上計上しました。残回数: ${nextRemaining}`
+      );
+
+      await Promise.all([
+        loadReservations(),
+        loadReservationFlagsForVisible(),
+        loadAttendance(),
+      ]);
+    } catch (e) {
+      console.error(e);
+      setError(`回数券消化エラー: ${extractErrorMessage(e)}`);
+    } finally {
+      setConsumingReservationId("");
     }
   }
 
@@ -1553,7 +1832,9 @@ export default function ReservationPage() {
                           }}
                         />
                         <div style={styles.attendanceMain}>
-                          <div style={styles.attendanceName}>{item.staff_name || "スタッフ未設定"}</div>
+                          <div style={styles.attendanceName}>
+                            {item.staff_name || "スタッフ未設定"}
+                          </div>
                           <div style={styles.attendanceTime}>
                             {trimmed(item.clock_in) || "--:--"} 〜 {trimmed(item.clock_out) || "--:--"}
                           </div>
@@ -1679,13 +1960,26 @@ export default function ReservationPage() {
                           </button>
 
                           {!isSold ? (
-                            <button
-                              type="button"
-                              onClick={() => router.push(buildSalesHref(item))}
-                              style={styles.actionBtnBlue}
-                            >
-                              {isTicket ? "回数券消化" : "売上登録"}
-                            </button>
+                            isTicket ? (
+                              <button
+                                type="button"
+                                onClick={() => void handleTicketConsumeAndCreateSale(item)}
+                                style={styles.actionBtnBlue}
+                                disabled={consumingReservationId === String(item.id)}
+                              >
+                                {consumingReservationId === String(item.id)
+                                  ? "処理中..."
+                                  : "回数券消化"}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => router.push(buildSalesHref(item))}
+                                style={styles.actionBtnBlue}
+                              >
+                                売上登録
+                              </button>
+                            )
                           ) : null}
 
                           {isNewVisit(item) && !isCounseled ? (
@@ -1712,7 +2006,11 @@ export default function ReservationPage() {
             <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
               <div style={styles.modalHeader}>
                 <h3 style={styles.modalTitle}>新規予約</h3>
-                <button type="button" onClick={() => setFormOpen(false)} style={styles.modalCloseBtn}>
+                <button
+                  type="button"
+                  onClick={() => setFormOpen(false)}
+                  style={styles.modalCloseBtn}
+                >
                   ×
                 </button>
               </div>
