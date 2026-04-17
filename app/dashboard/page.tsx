@@ -40,6 +40,7 @@ const quickLinks = [
   { title: "勤怠管理", href: "/attendance", desc: "打刻・勤務時間・確認" },
   { title: "会計管理", href: "/accounting", desc: "前受金・会計区分・集計" },
   { title: "サブスク管理", href: "/subscription", desc: "契約状況・残回数・継続管理" },
+  { title: "回数券購入登録", href: "/ticket-contracts", desc: "前受金として回数券契約を登録" },
 ];
 
 const CONSUMED_STORAGE_KEY = "gymup_consumed_reservations";
@@ -1284,6 +1285,16 @@ export default function DashboardPage() {
           flex-shrink: 0;
         }
 
+        .gymup-home__ticket-link {
+          border-color: rgba(240,138,39,0.22);
+          background: rgba(240,138,39,0.08);
+          color: #ffd7ae;
+        }
+
+        .gymup-home__ticket-link:hover {
+          background: rgba(240,138,39,0.12);
+        }
+
         @media (max-width: 1100px) {
           .gymup-home__grid {
             grid-template-columns: 1fr;
@@ -1551,7 +1562,13 @@ export default function DashboardPage() {
 
                 <div className="gymup-home__menu-grid">
                   {quickLinks.map((item) => (
-                    <Link key={item.href} href={item.href} className="gymup-home__menu-link">
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`gymup-home__menu-link ${
+                        item.href === "/ticket-contracts" ? "gymup-home__ticket-link" : ""
+                      }`}
+                    >
                       <div className="gymup-home__menu-title">{item.title}</div>
                       <div className="gymup-home__menu-desc">{item.desc}</div>
                     </Link>
@@ -1694,6 +1711,12 @@ export default function DashboardPage() {
                           <Link href="/subscription" className="gymup-home__mini-link">
                             サブスク管理
                           </Link>
+                          <Link href="/ticket-contracts" className="gymup-home__mini-link gymup-home__ticket-link">
+                            回数券購入登録
+                          </Link>
+                          <Link href="/accounting" className="gymup-home__mini-link">
+                            前受金確認
+                          </Link>
                         </div>
                       </div>
 
@@ -1711,6 +1734,10 @@ export default function DashboardPage() {
                           <div className="gymup-home__alert">
                             <span className="gymup-home__alert-dot" />
                             <span>矢印とカレンダーの両方で日付切替が可能</span>
+                          </div>
+                          <div className="gymup-home__alert">
+                            <span className="gymup-home__alert-dot" />
+                            <span>回数券購入登録から前受契約を先に入れる運用</span>
                           </div>
                         </div>
                       </div>
