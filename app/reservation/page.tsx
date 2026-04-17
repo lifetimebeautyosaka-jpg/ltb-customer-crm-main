@@ -13,6 +13,10 @@ const supabase =
       )
     : null;
 
+const AUTH_STORAGE_KEY = "gymup_logged_in";
+const ROLE_STORAGE_KEY = "gymup_user_role";
+const STAFF_NAME_STORAGE_KEY = "gymup_current_staff_name";
+
 type ReservationRow = {
   id: string | number;
   customer_id?: string | number | null;
@@ -49,12 +53,45 @@ type SimpleReservationIdRow = {
   reservation_id?: number | string | null;
 };
 
+type StaffAttendanceItem = {
+  id: string;
+  staff_name: string;
+  work_date: string;
+  clock_in?: string | null;
+  clock_out?: string | null;
+};
+
+type ReservationHistoryItem = {
+  id: string;
+  customer_id?: string | number | null;
+  customer_name?: string | null;
+  date?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  store_name?: string | null;
+  staff_name?: string | null;
+  menu?: string | null;
+  memo?: string | null;
+};
+
+type StaffHistoryItem = {
+  id: string;
+  date?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  customer_name?: string | null;
+  store_name?: string | null;
+  menu?: string | null;
+};
+
 type FilterMode =
   | "all"
   | "pending"
   | "sales_pending"
   | "counseling_pending"
   | "ticket_pending";
+
+type SearchMode = "customer" | "staff";
 
 const STORE_OPTIONS = [
   "すべて",
@@ -333,6 +370,7 @@ export default function ReservationPage() {
   const router = useRouter();
 
   const [mounted, setMounted] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -353,6 +391,7 @@ export default function ReservationPage() {
 
   const [reservations, setReservations] = useState<ReservationRow[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
+  const [attendanceItems, setAttendanceItems] = useState<StaffAttendanceItem[]>([]);
 
   const [customerSearch, setCustomerSearch] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
@@ -376,6 +415,15 @@ export default function ReservationPage() {
   const [counseledReservationIds, setCounseledReservationIds] = useState<number[]>([]);
   const [ticketUsedReservationIds, setTicketUsedReservationIds] = useState<number[]>([]);
 
+  const [globalSearch, setGlobalSearch] = useState("");
+  const [searchMode, setSearchMode] = useState<SearchMode>("customer");
+  const [selectedHistoryCustomer, setSelectedHistoryCustomer] = useState<CustomerOption | null>(null);
+  const [selectedHistoryStaff, setSelectedHistoryStaff] = useState("");
+  const [customerHistory, setCustomerHistory] = useState<ReservationHistoryItem[]>([]);
+  const [staffHistory, setStaffHistory] = useState<StaffHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -383,27 +431,48 @@ export default function ReservationPage() {
   useEffect(() => {
     if (!mounted) return;
 
-    const loggedIn =
-      localStorage.getItem("gymup_logged_in") ||
-      localStorage.getItem("isLoggedIn");
+    const loggedIn = localStorage.getItem(AUTH_STORAGE_KEY);
+    const role = localStorage.getItem(ROLE_STORAGE_KEY);
+    const staffNameMemory = localStorage.getItem(STAFF_NAME_STORAGE_KEY);
+
+    const legacyStaffLoggedIn = localStorage.getItem("gymup_staff_logged_in");
+    const legacyIsLoggedIn = localStorage.getItem("isLoggedIn");
 
     if (loggedIn !== "true") {
-      router.push("/login");
+      if (legacyStaffLoggedIn === "true" || legacyIsLoggedIn === "true") {
+        localStorage.setItem(AUTH_STORAGE_KEY, "true");
+        localStorage.setItem(ROLE_STORAGE_KEY, role || "staff");
+        if (!staffNameMemory) {
+          localStorage.setItem(STAFF_NAME_STORAGE_KEY, "スタッフ");
+        }
+      }
+    }
+
+    localStorage.removeItem("gymup_staff_logged_in");
+    localStorage.removeItem("isLoggedIn");
+
+    const finalLoggedIn = localStorage.getItem(AUTH_STORAGE_KEY);
+    const finalRole = localStorage.getItem(ROLE_STORAGE_KEY);
+
+    if (finalLoggedIn !== "true" || !finalRole) {
+      router.replace("/login/staff");
       return;
     }
 
+    setAuthChecked(true);
     void loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted, router]);
 
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || !authChecked) return;
     void loadReservations();
+    void loadAttendance();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentMonth, mounted]);
+  }, [currentMonth, mounted, authChecked]);
 
   async function loadAll() {
-    await Promise.all([loadCustomers(), loadReservations()]);
+    await Promise.all([loadCustomers(), loadReservations(), loadAttendance()]);
   }
 
   async function loadCustomers() {
@@ -470,6 +539,38 @@ export default function ReservationPage() {
     }
   }
 
+  async function loadAttendance() {
+    if (!supabase) return;
+
+    try {
+      const monthStart = toYmd(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1));
+      const monthEnd = toYmd(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0));
+
+      const { data, error } = await supabase
+        .from("attendance_records")
+        .select("id, staff_name, work_date, clock_in, clock_out")
+        .gte("work_date", monthStart)
+        .lte("work_date", monthEnd)
+        .order("work_date", { ascending: true })
+        .order("clock_in", { ascending: true });
+
+      if (error) throw error;
+
+      setAttendanceItems(
+        ((data as any[]) || []).map((row) => ({
+          id: String(row.id),
+          staff_name: trimmed(row.staff_name),
+          work_date: trimmed(row.work_date),
+          clock_in: row.clock_in ?? null,
+          clock_out: row.clock_out ?? null,
+        }))
+      );
+    } catch (e) {
+      console.error(e);
+      setError(`勤怠取得エラー: ${extractErrorMessage(e)}`);
+    }
+  }
+
   const filteredCustomers = useMemo(() => {
     const q = trimmed(customerSearch).toLowerCase();
     if (!q) return customers.slice(0, 25);
@@ -484,6 +585,28 @@ export default function ReservationPage() {
       })
       .slice(0, 25);
   }, [customerSearch, customers]);
+
+  const filteredCustomerSearchResults = useMemo(() => {
+    const q = trimmed(globalSearch).toLowerCase();
+    if (!q || searchMode !== "customer") return [];
+
+    return customers
+      .filter((c) => {
+        return (
+          c.name.toLowerCase().includes(q) ||
+          c.kana.toLowerCase().includes(q) ||
+          c.phone.includes(q)
+        );
+      })
+      .slice(0, 20);
+  }, [customers, globalSearch, searchMode]);
+
+  const filteredStaffSearchResults = useMemo(() => {
+    const q = trimmed(globalSearch).toLowerCase();
+    if (!q || searchMode !== "staff") return [];
+
+    return STAFF_OPTIONS.filter((staff) => staff.toLowerCase().includes(q)).slice(0, 20);
+  }, [globalSearch, searchMode]);
 
   const salesReservationIdSet = useMemo(
     () =>
@@ -525,10 +648,10 @@ export default function ReservationPage() {
   }, [reservations, selectedStoreFilter]);
 
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || !authChecked) return;
     void loadReservationFlagsForVisible();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mounted, baseVisibleReservations]);
+  }, [mounted, authChecked, baseVisibleReservations]);
 
   const visibleReservations = useMemo(() => {
     let list = [...baseVisibleReservations];
@@ -635,6 +758,12 @@ export default function ReservationPage() {
     counseledReservationIdSet,
     ticketUsedReservationIdSet,
   ]);
+
+  const selectedDayAttendance = useMemo(() => {
+    return attendanceItems
+      .filter((item) => item.work_date === selectedDate)
+      .sort((a, b) => trimmed(a.clock_in).localeCompare(trimmed(b.clock_in)));
+  }, [attendanceItems, selectedDate]);
 
   const counselingCandidates = useMemo(() => {
     return selectedDayReservations.filter(
@@ -915,6 +1044,66 @@ export default function ReservationPage() {
     }
   }
 
+  async function loadCustomerHistory(customer: CustomerOption) {
+    if (!supabase) return;
+
+    try {
+      setHistoryLoading(true);
+      setError("");
+      setSelectedHistoryCustomer(customer);
+      setSelectedHistoryStaff("");
+      setHistoryOpen(true);
+
+      const { data, error } = await supabase
+        .from("reservations")
+        .select("id, customer_id, customer_name, date, start_time, end_time, store_name, staff_name, menu, memo")
+        .eq("customer_id", Number(customer.id))
+        .order("date", { ascending: false })
+        .order("start_time", { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+
+      setCustomerHistory((data as ReservationHistoryItem[]) || []);
+      setStaffHistory([]);
+    } catch (e) {
+      console.error(e);
+      setError(`顧客履歴取得エラー: ${extractErrorMessage(e)}`);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  async function loadStaffHistory(staff: string) {
+    if (!supabase) return;
+
+    try {
+      setHistoryLoading(true);
+      setError("");
+      setSelectedHistoryCustomer(null);
+      setSelectedHistoryStaff(staff);
+      setHistoryOpen(true);
+
+      const { data, error } = await supabase
+        .from("reservations")
+        .select("id, date, start_time, end_time, customer_name, store_name, menu")
+        .eq("staff_name", staff)
+        .order("date", { ascending: false })
+        .order("start_time", { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+
+      setStaffHistory((data as StaffHistoryItem[]) || []);
+      setCustomerHistory([]);
+    } catch (e) {
+      console.error(e);
+      setError(`スタッフ履歴取得エラー: ${extractErrorMessage(e)}`);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
   function handleChangeStartTime(value: string) {
     setStartTime(value);
     if (!endTimeTouched || !trimmed(endTime)) {
@@ -965,7 +1154,7 @@ export default function ReservationPage() {
     };
   }
 
-  if (!mounted) return null;
+  if (!mounted || !authChecked) return null;
 
   return (
     <main style={styles.page}>
@@ -1004,7 +1193,7 @@ export default function ReservationPage() {
                 {selectedFilterMode === "pending" ? "未処理だけ表示中" : "未処理だけ"}
               </button>
 
-              <button type="button" onClick={() => router.push("/")} style={styles.topBtn}>
+              <button type="button" onClick={() => router.push("/dashboard")} style={styles.topBtn}>
                 TOPへ戻る
               </button>
             </div>
@@ -1090,6 +1279,72 @@ export default function ReservationPage() {
             </span>
           </div>
 
+          <div style={styles.searchPanel}>
+            <div style={styles.searchModeRow}>
+              <button
+                type="button"
+                onClick={() => setSearchMode("customer")}
+                style={{
+                  ...styles.searchModeBtn,
+                  ...(searchMode === "customer" ? styles.searchModeBtnActive : {}),
+                }}
+              >
+                お客さん検索
+              </button>
+              <button
+                type="button"
+                onClick={() => setSearchMode("staff")}
+                style={{
+                  ...styles.searchModeBtn,
+                  ...(searchMode === "staff" ? styles.searchModeBtnActive : {}),
+                }}
+              >
+                スタッフ検索
+              </button>
+            </div>
+
+            <input
+              value={globalSearch}
+              onChange={(e) => setGlobalSearch(e.target.value)}
+              placeholder={searchMode === "customer" ? "名前・かな・電話で検索" : "スタッフ名で検索"}
+              style={styles.searchInput}
+            />
+
+            {searchMode === "customer" && filteredCustomerSearchResults.length > 0 ? (
+              <div style={styles.searchResultList}>
+                {filteredCustomerSearchResults.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => void loadCustomerHistory(c)}
+                    style={styles.searchResultItem}
+                  >
+                    <div style={styles.searchResultTitle}>{c.name || "名称なし"}</div>
+                    <div style={styles.searchResultSub}>
+                      {c.kana || "かな未設定"} / {c.phone || "電話未設定"}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
+            {searchMode === "staff" && filteredStaffSearchResults.length > 0 ? (
+              <div style={styles.searchResultList}>
+                {filteredStaffSearchResults.map((staff) => (
+                  <button
+                    key={staff}
+                    type="button"
+                    onClick={() => void loadStaffHistory(staff)}
+                    style={styles.searchResultItem}
+                  >
+                    <div style={styles.searchResultTitle}>{staff}</div>
+                    <div style={styles.searchResultSub}>担当履歴を見る</div>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
           <div style={styles.filterRow}>
             {STORE_OPTIONS.map((store) => (
               <button
@@ -1123,18 +1378,18 @@ export default function ReservationPage() {
           </div>
 
           <div style={styles.legendBoxStore}>
-  {["江戸堀", "箕面", "福島", "福島P", "天満橋", "中崎町", "江坂"].map((name) => (
-    <div key={name} style={styles.legendItem}>
-      <span
-        style={{
-          ...styles.legendDot,
-          background: getStoreColor(name),
-        }}
-      />
-      {name}
-    </div>
-  ))}
-</div>
+            {["江戸堀", "箕面", "福島", "福島P", "天満橋", "中崎町", "江坂"].map((name) => (
+              <div key={name} style={styles.legendItem}>
+                <span
+                  style={{
+                    ...styles.legendDot,
+                    background: getStoreColor(name),
+                  }}
+                />
+                {name}
+              </div>
+            ))}
+          </div>
         </section>
 
         {error ? <div style={styles.errorBox}>{error}</div> : null}
@@ -1280,6 +1535,33 @@ export default function ReservationPage() {
                     閉じる
                   </button>
                 </div>
+              </div>
+
+              <div style={styles.attendanceBox}>
+                <div style={styles.attendanceTitle}>スタッフ出勤</div>
+
+                {selectedDayAttendance.length === 0 ? (
+                  <div style={styles.attendanceEmpty}>この日の出勤データはありません。</div>
+                ) : (
+                  <div style={styles.attendanceList}>
+                    {selectedDayAttendance.map((item) => (
+                      <div key={item.id} style={styles.attendanceItem}>
+                        <span
+                          style={{
+                            ...styles.attendanceDot,
+                            background: getStaffColor(item.staff_name),
+                          }}
+                        />
+                        <div style={styles.attendanceMain}>
+                          <div style={styles.attendanceName}>{item.staff_name || "スタッフ未設定"}</div>
+                          <div style={styles.attendanceTime}>
+                            {trimmed(item.clock_in) || "--:--"} 〜 {trimmed(item.clock_out) || "--:--"}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {selectedDayReservations.length === 0 ? (
@@ -1664,6 +1946,70 @@ export default function ReservationPage() {
             </div>
           </div>
         ) : null}
+
+        {historyOpen ? (
+          <div style={styles.modalOverlay} onClick={() => setHistoryOpen(false)}>
+            <div style={styles.modalSmall} onClick={(e) => e.stopPropagation()}>
+              <div style={styles.modalHeader}>
+                <h3 style={styles.modalTitle}>
+                  {selectedHistoryCustomer
+                    ? `${selectedHistoryCustomer.name} の予約履歴`
+                    : selectedHistoryStaff
+                    ? `${selectedHistoryStaff} の担当履歴`
+                    : "履歴"}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setHistoryOpen(false)}
+                  style={styles.modalCloseBtn}
+                >
+                  ×
+                </button>
+              </div>
+
+              {historyLoading ? (
+                <div style={styles.emptyBox}>読み込み中...</div>
+              ) : selectedHistoryCustomer ? (
+                customerHistory.length === 0 ? (
+                  <div style={styles.emptyBox}>履歴がありません。</div>
+                ) : (
+                  <div style={styles.cardList}>
+                    {customerHistory.map((item) => (
+                      <div key={String(item.id)} style={styles.historyCard}>
+                        <div style={styles.historyTitle}>
+                          {trimmed(item.date)} {trimmed(item.start_time)}
+                          {trimmed(item.end_time) ? `〜${trimmed(item.end_time)}` : ""}
+                        </div>
+                        <div style={styles.historyMeta}>
+                          店舗: {trimmed(item.store_name) || "—"} / 担当: {trimmed(item.staff_name) || "—"}
+                        </div>
+                        <div style={styles.historyMeta}>メニュー: {trimmed(item.menu) || "—"}</div>
+                        {trimmed(item.memo) ? <div style={styles.memoBox}>{trimmed(item.memo)}</div> : null}
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : staffHistory.length === 0 ? (
+                <div style={styles.emptyBox}>履歴がありません。</div>
+              ) : (
+                <div style={styles.cardList}>
+                  {staffHistory.map((item) => (
+                    <div key={String(item.id)} style={styles.historyCard}>
+                      <div style={styles.historyTitle}>
+                        {trimmed(item.date)} {trimmed(item.start_time)}
+                        {trimmed(item.end_time) ? `〜${trimmed(item.end_time)}` : ""}
+                      </div>
+                      <div style={styles.historyMeta}>
+                        顧客: {trimmed(item.customer_name) || "—"} / 店舗: {trimmed(item.store_name) || "—"}
+                      </div>
+                      <div style={styles.historyMeta}>メニュー: {trimmed(item.menu) || "—"}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
       </div>
     </main>
   );
@@ -1819,6 +2165,70 @@ const styles: Record<string, CSSProperties> = {
     border: "1px solid #e2e8f0",
     borderRadius: 999,
     padding: "6px 10px",
+  },
+  searchPanel: {
+    background: "#ffffff",
+    borderRadius: 18,
+    padding: "12px",
+    boxShadow: "0 6px 16px rgba(0,0,0,0.05)",
+    marginBottom: 10,
+  },
+  searchModeRow: {
+    display: "flex",
+    gap: 8,
+    marginBottom: 10,
+  },
+  searchModeBtn: {
+    border: "1px solid #e2e8f0",
+    background: "#fff",
+    color: "#334155",
+    borderRadius: 999,
+    padding: "8px 12px",
+    fontWeight: 800,
+    fontSize: 12,
+    cursor: "pointer",
+  },
+  searchModeBtnActive: {
+    background: "#111827",
+    color: "#fff",
+    border: "1px solid #111827",
+  },
+  searchInput: {
+    width: "100%",
+    height: 42,
+    borderRadius: 12,
+    border: "1px solid #e2e8f0",
+    background: "#fff",
+    color: "#0f172a",
+    padding: "0 12px",
+    fontSize: 14,
+    outline: "none",
+    boxSizing: "border-box",
+  },
+  searchResultList: {
+    display: "grid",
+    gap: 8,
+    marginTop: 10,
+    maxHeight: 220,
+    overflowY: "auto",
+  },
+  searchResultItem: {
+    border: "1px solid #e2e8f0",
+    background: "#f8fafc",
+    borderRadius: 12,
+    padding: "10px 12px",
+    cursor: "pointer",
+    textAlign: "left",
+  },
+  searchResultTitle: {
+    fontSize: 14,
+    fontWeight: 900,
+    color: "#0f172a",
+  },
+  searchResultSub: {
+    fontSize: 12,
+    color: "#64748b",
+    marginTop: 4,
   },
   filterRow: {
     display: "flex",
@@ -2088,6 +2498,55 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 800,
     fontSize: 12,
     cursor: "pointer",
+  },
+  attendanceBox: {
+    background: "#ffffff",
+    borderRadius: 16,
+    padding: "12px",
+    boxShadow: "0 6px 16px rgba(0,0,0,0.05)",
+    marginBottom: 12,
+  },
+  attendanceTitle: {
+    fontSize: 14,
+    fontWeight: 900,
+    color: "#0f172a",
+    marginBottom: 10,
+  },
+  attendanceEmpty: {
+    fontSize: 12,
+    color: "#64748b",
+    fontWeight: 700,
+  },
+  attendanceList: {
+    display: "grid",
+    gap: 8,
+  },
+  attendanceItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 12,
+    background: "#f8fafc",
+    padding: "10px 12px",
+  },
+  attendanceDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    flexShrink: 0,
+  },
+  attendanceMain: {
+    minWidth: 0,
+  },
+  attendanceName: {
+    fontSize: 13,
+    fontWeight: 900,
+    color: "#0f172a",
+  },
+  attendanceTime: {
+    fontSize: 12,
+    color: "#64748b",
+    marginTop: 2,
   },
   emptyBox: {
     background: "#fff",
@@ -2448,5 +2907,23 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 12,
     color: "#64748b",
     fontWeight: 700,
+  },
+  historyCard: {
+    background: "#fff",
+    borderRadius: 16,
+    padding: 12,
+    border: "1px solid #e2e8f0",
+    boxShadow: "0 6px 16px rgba(0,0,0,0.05)",
+  },
+  historyTitle: {
+    fontSize: 14,
+    fontWeight: 900,
+    color: "#0f172a",
+    marginBottom: 6,
+  },
+  historyMeta: {
+    fontSize: 12,
+    color: "#475569",
+    lineHeight: 1.7,
   },
 };
