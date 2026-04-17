@@ -24,6 +24,7 @@ type DisplayReservation = {
   staff: string;
   store: string;
   customerId?: string;
+  date?: string;
 };
 
 type SystemStatus = "ONLINE" | "FALLBACK" | "OFFLINE";
@@ -31,6 +32,7 @@ type SystemStatus = "ONLINE" | "FALLBACK" | "OFFLINE";
 type CustomerLite = {
   id: string;
   name: string;
+  plan_type?: string | null;
 };
 
 const quickLinks = [
@@ -43,10 +45,44 @@ const quickLinks = [
   { title: "回数券購入登録", href: "/ticket-contracts", desc: "前受金として回数券契約を登録" },
 ];
 
-const CONSUMED_STORAGE_KEY = "gymup_consumed_reservations";
 const AUTH_STORAGE_KEY = "gymup_logged_in";
 const ROLE_STORAGE_KEY = "gymup_user_role";
 const STAFF_NAME_STORAGE_KEY = "gymup_current_staff_name";
+
+const TICKET_UNIT_PRICES: Record<string, number> = {
+  "40分4回_旧": 5330,
+  "40分8回_旧": 5090,
+  "40分12回_旧": 5000,
+  "60分4回_旧": 7980,
+  "60分8回_旧": 7640,
+  "60分12回_旧": 7500,
+  "80分4回_旧": 10670,
+  "80分8回_旧": 10180,
+  "80分12回_旧": 10000,
+  "120分4回_旧": 16000,
+  "120分8回_旧": 15270,
+  "120分12回_旧": 15000,
+
+  "40分4回_新": 5330,
+  "40分8回_新": 5090,
+  "40分12回_新": 5000,
+  "60分4回_新": 7980,
+  "60分8回_新": 7640,
+  "60分12回_新": 7500,
+  "80分4回_新": 10670,
+  "80分8回_新": 10180,
+  "80分12回_新": 10000,
+  "120分4回_新": 16000,
+  "120分8回_新": 15270,
+  "120分12回_新": 15000,
+
+  "ダイエット16回": 11000,
+  "ゴールド24回": 10450,
+  "プラチナ32回": 10230,
+  "月2回": 8800,
+  "月4回": 8470,
+  "月8回": 8250,
+};
 
 function getHandoverStorageKey(dateString: string) {
   return `gymup_dashboard_handover_note_${dateString}`;
@@ -101,6 +137,43 @@ function normalizeName(value: string) {
     .replace(/[　]/g, "");
 }
 
+function trimmed(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+}
+
+function toIdNumber(value: string | number | null | undefined) {
+  if (value === null || value === undefined || value === "") return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function extractErrorMessage(error: unknown): string {
+  if (!error) return "不明なエラーです。";
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+
+  if (typeof error === "object") {
+    const maybe = error as {
+      message?: unknown;
+      details?: unknown;
+      hint?: unknown;
+      code?: unknown;
+    };
+
+    const parts = [
+      typeof maybe.message === "string" ? maybe.message : "",
+      typeof maybe.details === "string" ? maybe.details : "",
+      typeof maybe.hint === "string" ? maybe.hint : "",
+      typeof maybe.code === "string" ? `code: ${maybe.code}` : "",
+    ].filter(Boolean);
+
+    if (parts.length > 0) return parts.join(" / ");
+  }
+
+  return "不明なエラーです。";
+}
+
 function normalizeReservation(raw: any): ReservationItem | null {
   if (!raw) return null;
 
@@ -146,6 +219,7 @@ function toDisplayReservation(item: ReservationItem): DisplayReservation {
     staff: item.staff_name || "担当未設定",
     store: item.store_name || "",
     customerId: item.customer_id,
+    date: item.date,
   };
 }
 
@@ -171,10 +245,7 @@ function parseLocalReservations(): ReservationItem[] {
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed)) continue;
 
-      const normalized = parsed
-        .map(normalizeReservation)
-        .filter(isReservationItem);
-
+      const normalized = parsed.map(normalizeReservation).filter(isReservationItem);
       merged.push(...normalized);
     } catch (error) {
       console.error(`localStorage parse error: ${key}`, error);
@@ -219,7 +290,7 @@ function parseLocalCustomers(): CustomerLite[] {
         const id = String(item?.id ?? "").trim();
         const name = String(item?.name ?? item?.customer_name ?? "").trim();
         if (id && name) {
-          merged.push({ id, name });
+          merged.push({ id, name, plan_type: item?.plan_type ?? null });
         }
       }
     } catch (error) {
@@ -249,26 +320,6 @@ function buildCustomerMap(customers: CustomerLite[]) {
   return map;
 }
 
-function readConsumedMap(): Record<string, boolean> {
-  if (typeof window === "undefined") return {};
-
-  try {
-    const raw = localStorage.getItem(CONSUMED_STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return {};
-    return parsed as Record<string, boolean>;
-  } catch (error) {
-    console.error("consumed map parse error:", error);
-    return {};
-  }
-}
-
-function saveConsumedMap(map: Record<string, boolean>) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(CONSUMED_STORAGE_KEY, JSON.stringify(map));
-}
-
 function readHandoverNote(dateString: string): string {
   if (typeof window === "undefined") return "";
   return localStorage.getItem(getHandoverStorageKey(dateString)) || "";
@@ -277,6 +328,32 @@ function readHandoverNote(dateString: string): string {
 function saveHandoverNote(dateString: string, value: string) {
   if (typeof window === "undefined") return;
   localStorage.setItem(getHandoverStorageKey(dateString), value);
+}
+
+function resolveTicketName(params: {
+  reservationMenu?: string | null;
+  customerPlanType?: string | null;
+}) {
+  const reservationMenu = trimmed(params.reservationMenu);
+  const customerPlanType = trimmed(params.customerPlanType);
+
+  if (reservationMenu && TICKET_UNIT_PRICES[reservationMenu]) return reservationMenu;
+  if (customerPlanType && TICKET_UNIT_PRICES[customerPlanType]) return customerPlanType;
+
+  return "";
+}
+
+function detectServiceTypeFromTicketName(ticketName: string) {
+  if (
+    ticketName.includes("40分") ||
+    ticketName.includes("60分") ||
+    ticketName.includes("80分") ||
+    ticketName.includes("120分") ||
+    ticketName.includes("ストレッチ")
+  ) {
+    return "ストレッチ";
+  }
+  return "トレーニング";
 }
 
 export default function DashboardPage() {
@@ -321,7 +398,6 @@ export default function DashboardPage() {
       return;
     }
 
-    setConsumedMap(readConsumedMap());
     setHandoverNote(readHandoverNote(getTodayDateString()));
     setAuthChecked(true);
   }, [router]);
@@ -350,7 +426,7 @@ export default function DashboardPage() {
               .select("id, date, start_time, customer_name, customer_id, menu, staff_name, store_name")
               .eq("date", selectedDate)
               .order("start_time", { ascending: true }),
-            supabase.from("customers").select("id, name"),
+            supabase.from("customers").select("id, name, plan_type"),
           ]);
 
           if (reservationsResult.error) {
@@ -361,6 +437,7 @@ export default function DashboardPage() {
             ? (customersResult.data as any[]).map((item) => ({
                 id: String(item.id),
                 name: String(item.name ?? ""),
+                plan_type: item.plan_type ?? null,
               }))
             : [];
 
@@ -378,8 +455,38 @@ export default function DashboardPage() {
           const sorted = sortReservations(normalizedReservations);
           const display = sorted.map(toDisplayReservation);
 
+          const reservationIds = sorted
+            .map((item) => toIdNumber(item.id))
+            .filter((id): id is number => id !== null);
+
+          let consumedSet = new Set<number>();
+
+          if (reservationIds.length > 0) {
+            const { data: usageRows, error: usageError } = await supabase
+              .from("ticket_usages")
+              .select("reservation_id")
+              .in("reservation_id", reservationIds);
+
+            if (!usageError) {
+              consumedSet = new Set(
+                ((usageRows as any[]) || [])
+                  .map((row) => Number(row.reservation_id))
+                  .filter((num) => Number.isFinite(num))
+              );
+            }
+          }
+
           if (!mounted) return;
 
+          const nextConsumedMap: Record<string, boolean> = {};
+          for (const item of sorted) {
+            const reservationId = toIdNumber(item.id);
+            if (reservationId && consumedSet.has(reservationId)) {
+              nextConsumedMap[String(item.id)] = true;
+            }
+          }
+
+          setConsumedMap(nextConsumedMap);
           setScheduleReservations(display);
           setScheduleCount(sorted.length);
           setActiveMembers(customerList.length);
@@ -406,6 +513,7 @@ export default function DashboardPage() {
 
         if (!mounted) return;
 
+        setConsumedMap({});
         setScheduleReservations(display);
         setScheduleCount(selectedLocal.length);
         setActiveMembers(localCustomers.length || null);
@@ -433,6 +541,7 @@ export default function DashboardPage() {
 
           if (!mounted) return;
 
+          setConsumedMap({});
           setScheduleReservations(display);
           setScheduleCount(selectedLocal.length);
           setActiveMembers(localCustomers.length || null);
@@ -447,6 +556,7 @@ export default function DashboardPage() {
 
           if (!mounted) return;
 
+          setConsumedMap({});
           setScheduleReservations([]);
           setScheduleCount(0);
           setActiveMembers(null);
@@ -493,47 +603,158 @@ export default function DashboardPage() {
 
     if (consumedMap[item.id]) return;
 
-    const ok = window.confirm(`${item.name} の回数券・残回数を1回分消化しますか？`);
+    const reservationId = toIdNumber(item.id);
+    const customerId = toIdNumber(item.customerId);
+
+    if (!reservationId) {
+      window.alert("予約IDが不正です");
+      return;
+    }
+
+    if (!customerId) {
+      window.alert("この予約に customer_id がありません");
+      return;
+    }
+
+    const ok = window.confirm(
+      `${item.name} の回数券を1回消化して、売上を自動作成します。よろしいですか？`
+    );
     if (!ok) return;
 
     setConsumingId(item.id);
 
     try {
-      const nextMap = { ...consumedMap, [item.id]: true };
-      saveConsumedMap(nextMap);
-      setConsumedMap(nextMap);
-
       const supabase = getSupabaseClient();
-
-      if (supabase && item.customerId) {
-        try {
-          const { data: customerRow, error: customerError } = await supabase
-            .from("customers")
-            .select("id, used_count, remaining_count")
-            .eq("id", item.customerId)
-            .maybeSingle();
-
-          if (!customerError && customerRow) {
-            const currentUsed = Number((customerRow as any).used_count ?? 0);
-            const currentRemaining = Number((customerRow as any).remaining_count ?? 0);
-
-            await supabase
-              .from("customers")
-              .update({
-                used_count: currentUsed + 1,
-                remaining_count: Math.max(currentRemaining - 1, 0),
-              })
-              .eq("id", item.customerId);
-          }
-        } catch (supabaseUpdateError) {
-          console.error("consume supabase update error:", supabaseUpdateError);
-        }
+      if (!supabase) {
+        throw new Error("Supabaseの環境変数が設定されていません。");
       }
 
-      window.alert("消化を記録しました");
+      const { data: usageExists, error: usageExistsError } = await supabase
+        .from("ticket_usages")
+        .select("id")
+        .eq("reservation_id", reservationId)
+        .limit(1)
+        .maybeSingle();
+
+      if (usageExistsError) throw usageExistsError;
+      if (usageExists) {
+        setConsumedMap((prev) => ({ ...prev, [item.id]: true }));
+        window.alert("この予約はすでに消化済みです");
+        return;
+      }
+
+      const { data: customerRow, error: customerError } = await supabase
+        .from("customers")
+        .select("id, name, plan_type")
+        .eq("id", customerId)
+        .maybeSingle();
+
+      if (customerError) throw customerError;
+      if (!customerRow) {
+        throw new Error("顧客情報が見つかりません。");
+      }
+
+      const ticketName = resolveTicketName({
+        reservationMenu: item.menu,
+        customerPlanType: (customerRow as any).plan_type,
+      });
+
+      if (!ticketName) {
+        throw new Error(
+          "回数券名を特定できません。予約メニューか顧客プラン名を、単価表にある名前へ合わせてください。"
+        );
+      }
+
+      const unitPrice = TICKET_UNIT_PRICES[ticketName];
+      if (!unitPrice) {
+        throw new Error(`単価設定がありません: ${ticketName}`);
+      }
+
+      const { data: contractRow, error: contractError } = await supabase
+        .from("ticket_contracts")
+        .select("*")
+        .eq("customer_id", customerId)
+        .eq("ticket_name", ticketName)
+        .eq("status", "active")
+        .order("id", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (contractError) throw contractError;
+      if (!contractRow) {
+        throw new Error(`有効な回数券契約がありません: ${ticketName}`);
+      }
+
+      const remainingCount = Number((contractRow as any).remaining_count ?? 0);
+      const usedCount = Number((contractRow as any).used_count ?? 0);
+      const prepaidBalance = Number((contractRow as any).prepaid_balance ?? 0);
+
+      if (remainingCount <= 0) {
+        throw new Error("残回数がありません。");
+      }
+
+      const nextRemaining = remainingCount - 1;
+      const nextUsed = usedCount + 1;
+      const nextBalance = Math.max(prepaidBalance - unitPrice, 0);
+      const serviceType = detectServiceTypeFromTicketName(ticketName);
+
+      const { error: usageInsertError } = await supabase.from("ticket_usages").insert({
+        contract_id: (contractRow as any).id,
+        customer_id: customerId,
+        reservation_id: reservationId,
+        used_date: item.date || selectedDate,
+        ticket_name: ticketName,
+        unit_price: unitPrice,
+        staff_name: item.staff || null,
+        store_name: item.store || null,
+      });
+
+      if (usageInsertError) throw usageInsertError;
+
+      const { error: contractUpdateError } = await supabase
+        .from("ticket_contracts")
+        .update({
+          used_count: nextUsed,
+          remaining_count: nextRemaining,
+          prepaid_balance: nextBalance,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", (contractRow as any).id);
+
+      if (contractUpdateError) throw contractUpdateError;
+
+      const { error: salesInsertError } = await supabase.from("sales").insert({
+        reservation_id: reservationId,
+        customer_id: customerId,
+        customer_name: item.name || trimmed((customerRow as any).name) || null,
+        sale_date: item.date || selectedDate,
+        amount: unitPrice,
+        menu_type: serviceType,
+        sale_type: "回数券消化",
+        payment_method: "前受金消化",
+        staff_name: item.staff || null,
+        store_name: item.store || null,
+        memo: `${ticketName} 消化`,
+      });
+
+      if (salesInsertError) throw salesInsertError;
+
+      const { error: reservationUpdateError } = await supabase
+        .from("reservations")
+        .update({
+          reservation_status: "売上済",
+        })
+        .eq("id", reservationId);
+
+      if (reservationUpdateError) throw reservationUpdateError;
+
+      setConsumedMap((prev) => ({ ...prev, [item.id]: true }));
+      window.alert(
+        `消化を記録しました。${unitPrice.toLocaleString()}円を売上計上し、残回数は ${nextRemaining} です。`
+      );
     } catch (error) {
       console.error("consume error:", error);
-      window.alert("消化処理に失敗しました");
+      window.alert(`消化処理に失敗しました: ${extractErrorMessage(error)}`);
     } finally {
       setConsumingId("");
     }
