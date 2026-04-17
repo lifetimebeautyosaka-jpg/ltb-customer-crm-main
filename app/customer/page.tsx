@@ -2,10 +2,15 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { BG, CARD, BUTTON_PRIMARY } from "../../styles/theme";
 
 const STORE_OPTIONS = ["江戸堀", "箕面", "福島", "福島P", "天満橋", "中崎町", "江坂"];
+
+const AUTH_STORAGE_KEY = "gymup_logged_in";
+const ROLE_STORAGE_KEY = "gymup_user_role";
+const STAFF_NAME_STORAGE_KEY = "gymup_current_staff_name";
 
 type Customer = {
   id: number | string;
@@ -180,7 +185,10 @@ function withUnit(value: any, unit: string) {
 }
 
 export default function CustomerPage() {
-  const [mounted, setMounted] = useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const [authChecked, setAuthChecked] = useState(false);
   const [windowWidth, setWindowWidth] = useState(1400);
 
   const [loading, setLoading] = useState(true);
@@ -196,17 +204,45 @@ export default function CustomerPage() {
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
-    setMounted(true);
+    const loggedIn = localStorage.getItem(AUTH_STORAGE_KEY);
+    const role = localStorage.getItem(ROLE_STORAGE_KEY);
+    const staffName = localStorage.getItem(STAFF_NAME_STORAGE_KEY);
 
-    const loggedIn =
-      localStorage.getItem("gymup_logged_in") ||
-      localStorage.getItem("isLoggedIn");
+    const legacyStaffLoggedIn = localStorage.getItem("gymup_staff_logged_in");
+    const legacyIsLoggedIn = localStorage.getItem("isLoggedIn");
 
     if (loggedIn !== "true") {
-      window.location.href = "/login";
+      if (legacyStaffLoggedIn === "true" || legacyIsLoggedIn === "true") {
+        localStorage.setItem(AUTH_STORAGE_KEY, "true");
+        localStorage.setItem(ROLE_STORAGE_KEY, role || "staff");
+        if (!staffName) {
+          localStorage.setItem(STAFF_NAME_STORAGE_KEY, "スタッフ");
+        }
+      }
+    }
+
+    localStorage.removeItem("gymup_staff_logged_in");
+    localStorage.removeItem("isLoggedIn");
+
+    const finalLoggedIn = localStorage.getItem(AUTH_STORAGE_KEY);
+    const finalRole = localStorage.getItem(ROLE_STORAGE_KEY);
+
+    if (finalLoggedIn !== "true" || !finalRole) {
+      router.replace("/login/staff");
       return;
     }
-  }, []);
+
+    setAuthChecked(true);
+  }, [router]);
+
+  useEffect(() => {
+    if (!authChecked) return;
+
+    const keywordFromQuery = searchParams.get("keyword");
+    if (keywordFromQuery) {
+      setKeyword(keywordFromQuery);
+    }
+  }, [authChecked, searchParams]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -219,9 +255,9 @@ export default function CustomerPage() {
   }, []);
 
   useEffect(() => {
-    if (!mounted) return;
+    if (!authChecked) return;
     void fetchCustomers();
-  }, [mounted]);
+  }, [authChecked]);
 
   const tablet = windowWidth < 1180;
   const mobile = windowWidth < 768;
@@ -373,7 +409,7 @@ export default function CustomerPage() {
     }
   }
 
-  if (!mounted) return null;
+  if (!authChecked) return null;
 
   return (
     <main style={styles.page}>
@@ -395,13 +431,13 @@ export default function CustomerPage() {
             }}
           >
             <Link
-              href="/"
+              href="/dashboard"
               style={{
                 ...styles.backLink,
                 width: mobile ? "100%" : "auto",
               }}
             >
-              ← ホームへ戻る
+              ← ダッシュボードへ戻る
             </Link>
 
             <button
