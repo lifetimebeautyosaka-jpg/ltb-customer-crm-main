@@ -43,6 +43,9 @@ const quickLinks = [
 ];
 
 const CONSUMED_STORAGE_KEY = "gymup_consumed_reservations";
+const AUTH_STORAGE_KEY = "gymup_logged_in";
+const ROLE_STORAGE_KEY = "gymup_user_role";
+const STAFF_NAME_STORAGE_KEY = "gymup_current_staff_name";
 
 function getHandoverStorageKey(dateString: string) {
   return `gymup_dashboard_handover_note_${dateString}`;
@@ -294,10 +297,26 @@ export default function DashboardPage() {
   const selectedDateLabel = useMemo(() => formatDateLabel(selectedDate), [selectedDate]);
 
   useEffect(() => {
-    const staffLoggedIn = localStorage.getItem("gymup_staff_logged_in");
+    const loggedIn = localStorage.getItem(AUTH_STORAGE_KEY);
+    const role = localStorage.getItem(ROLE_STORAGE_KEY);
+    const staffName = localStorage.getItem(STAFF_NAME_STORAGE_KEY);
 
-    if (staffLoggedIn !== "true") {
-      router.replace("/login");
+    const legacyStaffLoggedIn = localStorage.getItem("gymup_staff_logged_in");
+
+    if (loggedIn !== "true" && legacyStaffLoggedIn === "true") {
+      localStorage.setItem(AUTH_STORAGE_KEY, "true");
+      localStorage.setItem(ROLE_STORAGE_KEY, localStorage.getItem(ROLE_STORAGE_KEY) || "staff");
+      if (!staffName) {
+        localStorage.setItem(STAFF_NAME_STORAGE_KEY, "スタッフ");
+      }
+      localStorage.removeItem("gymup_staff_logged_in");
+    }
+
+    const finalLoggedIn = localStorage.getItem(AUTH_STORAGE_KEY);
+    const finalRole = localStorage.getItem(ROLE_STORAGE_KEY);
+
+    if (finalLoggedIn !== "true" || !finalRole) {
+      router.replace("/login/staff");
       return;
     }
 
@@ -445,8 +464,11 @@ export default function DashboardPage() {
   }, [authChecked, selectedDate]);
 
   const handleStaffLogout = () => {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    localStorage.removeItem(ROLE_STORAGE_KEY);
+    localStorage.removeItem(STAFF_NAME_STORAGE_KEY);
     localStorage.removeItem("gymup_staff_logged_in");
-    router.push("/login");
+    router.push("/login/staff");
   };
 
   const handleOpenTraining = (item: DisplayReservation) => {
@@ -1403,8 +1425,8 @@ export default function DashboardPage() {
       <main className="gymup-home">
         <div className="gymup-home__container">
           <div className="gymup-home__topbar">
-            <Link href="/login" className="gymup-home__topbar-link">
-              会員ログイン画面へ
+            <Link href="/login/staff" className="gymup-home__topbar-link">
+              スタッフログイン画面へ
             </Link>
             <button
               type="button"
