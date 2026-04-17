@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { BG, CARD, BUTTON_PRIMARY } from "../../styles/theme";
 
@@ -186,7 +186,6 @@ function withUnit(value: any, unit: string) {
 
 export default function CustomerPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [authChecked, setAuthChecked] = useState(false);
   const [windowWidth, setWindowWidth] = useState(1400);
@@ -232,17 +231,16 @@ export default function CustomerPage() {
       return;
     }
 
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const keywordFromQuery = params.get("keyword");
+      if (keywordFromQuery) {
+        setKeyword(keywordFromQuery);
+      }
+    }
+
     setAuthChecked(true);
   }, [router]);
-
-  useEffect(() => {
-    if (!authChecked) return;
-
-    const keywordFromQuery = searchParams.get("keyword");
-    if (keywordFromQuery) {
-      setKeyword(keywordFromQuery);
-    }
-  }, [authChecked, searchParams]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
