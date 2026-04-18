@@ -57,7 +57,6 @@ type CounselingRow = {
 type TicketUsageRow = {
   id: number | string;
   reservation_id?: number | null;
-  contract_id?: number | string | null;
   ticket_id?: number | string | null;
   customer_id?: number | null;
   customer_name?: string | null;
@@ -85,19 +84,13 @@ type CustomerTicketRow = {
   created_at?: string | null;
 };
 
-type TicketContractRow = {
-  id: number | string;
-  used_count?: number | null;
-  remaining_count?: number | null;
-  prepaid_balance?: number | null;
-};
-
 function trimmed(value: unknown): string {
   if (value === null || value === undefined) return "";
   return String(value).trim();
 }
 
 function toNumberOrNull(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
@@ -138,12 +131,58 @@ function isNewVisit(item?: ReservationRow | null) {
 
 function isTicketMenu(menu?: string | null) {
   const text = trimmed(menu);
-  return text === "ストレッチ回数券" || text === "トレーニング回数券";
+  if (!text) return false;
+
+  if (text === "ストレッチ回数券" || text === "トレーニング回数券") return true;
+  if (text.includes("回数券")) return true;
+
+  const exactTicketNames = new Set([
+    "40分4回_旧",
+    "40分8回_旧",
+    "40分12回_旧",
+    "60分4回_旧",
+    "60分8回_旧",
+    "60分12回_旧",
+    "80分4回_旧",
+    "80分8回_旧",
+    "80分12回_旧",
+    "120分4回_旧",
+    "120分8回_旧",
+    "120分12回_旧",
+    "40分4回_新",
+    "40分8回_新",
+    "40分12回_新",
+    "60分4回_新",
+    "60分8回_新",
+    "60分12回_新",
+    "80分4回_新",
+    "80分8回_新",
+    "80分12回_新",
+    "120分4回_新",
+    "120分8回_新",
+    "120分12回_新",
+    "ダイエット16回",
+    "ゴールド24回",
+    "プラチナ32回",
+    "月2回",
+    "月4回",
+    "月8回",
+  ]);
+
+  return exactTicketNames.has(text);
 }
 
 function detectServiceTypeFromMenu(menu?: string | null) {
   const text = trimmed(menu);
-  if (text.includes("ストレッチ")) return "ストレッチ";
+  if (
+    text.includes("40分") ||
+    text.includes("60分") ||
+    text.includes("80分") ||
+    text.includes("120分") ||
+    text.includes("ストレッチ")
+  ) {
+    return "ストレッチ";
+  }
   return "トレーニング";
 }
 
@@ -246,11 +285,10 @@ export default function ReservationDetailPage() {
     if (!mounted) return;
 
     const loggedIn =
-      localStorage.getItem("gymup_logged_in") ||
-      localStorage.getItem("isLoggedIn");
+      localStorage.getItem("gymup_logged_in") || localStorage.getItem("isLoggedIn");
 
     if (loggedIn !== "true") {
-      router.push("/login");
+      router.push("/login/staff");
       return;
     }
 
@@ -297,6 +335,7 @@ export default function ReservationDetailPage() {
 
       const customerId = toNumberOrNull(reservationRow.customer_id);
       const serviceType = detectServiceTypeFromMenu(reservationRow.menu);
+      const reservationIdValue = toNumberOrNull(reservationRow.id);
 
       const [
         { data: salesData, error: salesError },
@@ -309,21 +348,21 @@ export default function ReservationDetailPage() {
           .select(
             "id, reservation_id, customer_id, customer_name, sale_date, menu_type, sale_type, payment_method, amount, staff_name, store_name, memo, created_at"
           )
-          .eq("reservation_id", Number(reservationRow.id))
+          .eq("reservation_id", reservationIdValue ?? -1)
           .order("created_at", { ascending: false }),
 
         supabase
           .from("counselings")
           .select("id, reservation_id, created_at")
-          .eq("reservation_id", Number(reservationRow.id))
+          .eq("reservation_id", reservationIdValue ?? -1)
           .order("created_at", { ascending: false }),
 
         supabase
           .from("ticket_usages")
           .select(
-            "id, reservation_id, contract_id, ticket_id, customer_id, customer_name, ticket_name, service_type, used_date, unit_price, before_count, after_count, created_at"
+            "id, reservation_id, ticket_id, customer_id, customer_name, ticket_name, service_type, used_date, unit_price, before_count, after_count, created_at"
           )
-          .eq("reservation_id", Number(reservationRow.id))
+          .eq("reservation_id", reservationIdValue ?? -1)
           .order("created_at", { ascending: false }),
 
         customerId
@@ -355,39 +394,38 @@ export default function ReservationDetailPage() {
     }
   }
 
-  async function restoreTicketContractsFromUsages(usages: TicketUsageRow[]) {
+  async function restoreCustomerTicketsFromUsages(usages: TicketUsageRow[]) {
     if (!supabase || usages.length === 0) return;
 
     for (const usage of usages) {
-      const contractId = toNumberOrNull(usage.contract_id);
-      if (!contractId) continue;
+      const ticketId = toNumberOrNull(usage.ticket_id);
+      if (!ticketId) continue;
 
-      const { data: contractData, error: contractFetchError } = await supabase
-        .from("ticket_contracts")
-        .select("id, used_count, remaining_count, prepaid_balance")
-        .eq("id", contractId)
+      const { data: ticketData, error: ticketFetchError } = await supabase
+        .from("customer_tickets")
+        .select("id, remaining_count, status")
+        .eq("id", ticketId)
         .maybeSingle();
 
-      if (contractFetchError) throw contractFetchError;
-      if (!contractData) continue;
+      if (ticketFetchError) throw ticketFetchError;
+      if (!ticketData) continue;
 
-      const contract = contractData as TicketContractRow;
-      const currentUsed = Number(contract.used_count || 0);
-      const currentRemaining = Number(contract.remaining_count || 0);
-      const currentBalance = Number(contract.prepaid_balance || 0);
-      const restoreUnitPrice = Number(usage.unit_price || 0);
+      const currentRemaining = Number(
+        (ticketData as { remaining_count?: number | null }).remaining_count || 0
+      );
+      const beforeCount = toNumberOrNull(usage.before_count);
+      const nextRemaining = beforeCount !== null ? beforeCount : currentRemaining + 1;
+      const nextStatus = nextRemaining > 0 ? "利用中" : "消化済み";
 
-      const { error: contractUpdateError } = await supabase
-        .from("ticket_contracts")
+      const { error: ticketUpdateError } = await supabase
+        .from("customer_tickets")
         .update({
-          used_count: Math.max(currentUsed - 1, 0),
-          remaining_count: currentRemaining + 1,
-          prepaid_balance: currentBalance + restoreUnitPrice,
-          updated_at: new Date().toISOString(),
+          remaining_count: nextRemaining,
+          status: nextStatus,
         })
-        .eq("id", contractId);
+        .eq("id", ticketId);
 
-      if (contractUpdateError) throw contractUpdateError;
+      if (ticketUpdateError) throw ticketUpdateError;
     }
   }
 
@@ -415,7 +453,7 @@ export default function ReservationDetailPage() {
       setSuccess("");
 
       if (ticketUsages.length > 0) {
-        await restoreTicketContractsFromUsages(ticketUsages);
+        await restoreCustomerTicketsFromUsages(ticketUsages);
       }
 
       if (ticketUsages.length > 0) {
