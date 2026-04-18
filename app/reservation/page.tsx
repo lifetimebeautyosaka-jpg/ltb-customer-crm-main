@@ -1478,8 +1478,8 @@ export default function ReservationPage() {
         supabase.from("counselings").select("id").eq("reservation_id", reservationId),
         supabase
           .from("ticket_usages")
-          .select("id, contract_id, unit_price")
-          .eq("reservation_id", reservationId),
+.select("id, ticket_id, before_count")
+.eq("reservation_id", Number(reservationId)),
       ]);
 
       if (salesError) throw salesError;
