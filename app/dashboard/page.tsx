@@ -25,6 +25,8 @@ type DisplayReservation = {
   store: string;
   customerId?: string;
   date?: string;
+  remainingCount?: number | null;
+  ticketName?: string;
 };
 
 type SystemStatus = "ONLINE" | "FALLBACK" | "OFFLINE";
@@ -210,19 +212,6 @@ function isReservationItem(item: ReservationItem | null): item is ReservationIte
   return item !== null;
 }
 
-function toDisplayReservation(item: ReservationItem): DisplayReservation {
-  return {
-    id: item.id,
-    time: item.start_time?.slice(0, 5) || "--:--",
-    name: item.customer_name || "名前未設定",
-    menu: item.menu || "予約メニュー",
-    staff: item.staff_name || "担当未設定",
-    store: item.store_name || "",
-    customerId: item.customer_id,
-    date: item.date,
-  };
-}
-
 function sortReservations(list: ReservationItem[]) {
   return [...list].sort((a, b) => {
     const aTime = a.start_time || "";
@@ -356,6 +345,33 @@ function detectServiceTypeFromTicketName(ticketName: string) {
   return "トレーニング";
 }
 
+function isTicketMenu(menu?: string) {
+  if (!menu) return false;
+
+  return (
+    Boolean(TICKET_UNIT_PRICES[menu]) ||
+    menu.includes("回数券") ||
+    menu.includes("40分") ||
+    menu.includes("60分") ||
+    menu.includes("80分") ||
+    menu.includes("120分") ||
+    menu.includes("ダイエット") ||
+    menu.includes("ゴールド") ||
+    menu.includes("プラチナ") ||
+    menu.includes("月2回") ||
+    menu.includes("月4回") ||
+    menu.includes("月8回")
+  );
+}
+
+function getRemainingClass(count: number | null) {
+  if (count === null) return "";
+  if (count <= 0) return "zero";
+  if (count === 1) return "danger";
+  if (count <= 3) return "warn";
+  return "";
+}
+
 export default function DashboardPage() {
   const router = useRouter();
 
@@ -453,13 +469,15 @@ export default function DashboardPage() {
             });
 
           const sorted = sortReservations(normalizedReservations);
-          const display = sorted.map(toDisplayReservation);
-
           const reservationIds = sorted
             .map((item) => toIdNumber(item.id))
             .filter((id): id is number => id !== null);
+          const customerIds = sorted
+            .map((item) => toIdNumber(item.customer_id))
+            .filter((id): id is number => id !== null);
 
           let consumedSet = new Set<number>();
+          const ticketContractMap = new Map<string, { remaining_count: number; ticket_name: string }>();
 
           if (reservationIds.length > 0) {
             const { data: usageRows, error: usageError } = await supabase
@@ -475,6 +493,57 @@ export default function DashboardPage() {
               );
             }
           }
+
+          if (customerIds.length > 0) {
+            const { data: contractRows, error: contractError } = await supabase
+              .from("ticket_contracts")
+              .select("customer_id, ticket_name, remaining_count, status, id")
+              .in("customer_id", customerIds)
+              .eq("status", "active")
+              .order("id", { ascending: false });
+
+            if (!contractError) {
+              for (const row of (contractRows as any[]) || []) {
+                const customerId = String(row.customer_id);
+                const ticketName = String(row.ticket_name ?? "");
+                const key = `${customerId}::${ticketName}`;
+                if (!ticketContractMap.has(key)) {
+                  ticketContractMap.set(key, {
+                    remaining_count: Number(row.remaining_count ?? 0),
+                    ticket_name: ticketName,
+                  });
+                }
+              }
+            }
+          }
+
+          const display: DisplayReservation[] = sorted.map((item) => {
+            const customerId = trimmed(item.customer_id);
+            const customerRow = customerList.find((c) => c.id === customerId);
+            const ticketName = resolveTicketName({
+              reservationMenu: item.menu,
+              customerPlanType: customerRow?.plan_type ?? null,
+            });
+
+            const contractKey = ticketName ? `${customerId}::${ticketName}` : "";
+            const contractInfo = contractKey ? ticketContractMap.get(contractKey) : undefined;
+
+            return {
+              id: item.id,
+              time: item.start_time?.slice(0, 5) || "--:--",
+              name: item.customer_name || "名前未設定",
+              menu: item.menu || "予約メニュー",
+              staff: item.staff_name || "担当未設定",
+              store: item.store_name || "",
+              customerId: item.customer_id,
+              date: item.date,
+              remainingCount:
+                typeof contractInfo?.remaining_count === "number"
+                  ? contractInfo.remaining_count
+                  : null,
+              ticketName: contractInfo?.ticket_name || ticketName || "",
+            };
+          });
 
           if (!mounted) return;
 
@@ -509,7 +578,18 @@ export default function DashboardPage() {
             })
         );
 
-        const display = selectedLocal.map(toDisplayReservation);
+        const display: DisplayReservation[] = selectedLocal.map((item) => ({
+          id: item.id,
+          time: item.start_time?.slice(0, 5) || "--:--",
+          name: item.customer_name || "名前未設定",
+          menu: item.menu || "予約メニュー",
+          staff: item.staff_name || "担当未設定",
+          store: item.store_name || "",
+          customerId: item.customer_id,
+          date: item.date,
+          remainingCount: null,
+          ticketName: "",
+        }));
 
         if (!mounted) return;
 
@@ -537,7 +617,18 @@ export default function DashboardPage() {
               })
           );
 
-          const display = selectedLocal.map(toDisplayReservation);
+          const display: DisplayReservation[] = selectedLocal.map((item) => ({
+            id: item.id,
+            time: item.start_time?.slice(0, 5) || "--:--",
+            name: item.customer_name || "名前未設定",
+            menu: item.menu || "予約メニュー",
+            staff: item.staff_name || "担当未設定",
+            store: item.store_name || "",
+            customerId: item.customer_id,
+            date: item.date,
+            remainingCount: null,
+            ticketName: "",
+          }));
 
           if (!mounted) return;
 
@@ -601,6 +692,11 @@ export default function DashboardPage() {
   ) => {
     e.stopPropagation();
 
+    if (!isTicketMenu(item.menu)) {
+      window.alert("この予約は回数券消化の対象外です");
+      return;
+    }
+
     if (consumedMap[item.id]) return;
 
     const reservationId = toIdNumber(item.id);
@@ -640,6 +736,7 @@ export default function DashboardPage() {
       if (usageExists) {
         setConsumedMap((prev) => ({ ...prev, [item.id]: true }));
         window.alert("この予約はすでに消化済みです");
+        router.push(`/sales?reservationId=${reservationId}`);
         return;
       }
 
@@ -749,8 +846,28 @@ export default function DashboardPage() {
       if (reservationUpdateError) throw reservationUpdateError;
 
       setConsumedMap((prev) => ({ ...prev, [item.id]: true }));
+      setScheduleReservations((prev) =>
+        prev.map((row) =>
+          row.id === item.id
+            ? { ...row, remainingCount: nextRemaining, ticketName }
+            : row
+        )
+      );
+
       window.alert(
         `消化を記録しました。${unitPrice.toLocaleString()}円を売上計上し、残回数は ${nextRemaining} です。`
+      );
+
+      router.push(
+        `/sales?reservationId=${reservationId}&customerId=${customerId}&customerName=${encodeURIComponent(
+          item.name
+        )}&date=${encodeURIComponent(item.date || selectedDate)}&menu=${encodeURIComponent(
+          ticketName
+        )}&staffName=${encodeURIComponent(item.staff || "")}&storeName=${encodeURIComponent(
+          item.store || ""
+        )}&serviceType=${encodeURIComponent(serviceType)}&saleType=${encodeURIComponent(
+          "回数券消化"
+        )}`
       );
     } catch (error) {
       console.error("consume error:", error);
@@ -1412,6 +1529,12 @@ export default function DashboardPage() {
           cursor: pointer;
         }
 
+        .gymup-home__consume-btn.danger {
+          border: 1px solid rgba(255,80,80,0.55);
+          background: rgba(255,80,80,0.14);
+          color: #ff6b6b;
+        }
+
         .gymup-home__consume-btn:disabled {
           opacity: 0.6;
           cursor: default;
@@ -1442,6 +1565,51 @@ export default function DashboardPage() {
           line-height: 1.6;
           color: rgba(255,255,255,0.56);
           word-break: break-word;
+        }
+
+        .gymup-home__remaining {
+          margin-top: 6px;
+          display: inline-flex;
+          align-items: center;
+          min-height: 26px;
+          padding: 0 10px;
+          border-radius: 999px;
+          background: rgba(240,138,39,0.10);
+          border: 1px solid rgba(240,138,39,0.18);
+          color: #ffd7ae;
+          font-size: 11px;
+          font-weight: 700;
+        }
+
+        .gymup-home__remaining.warn {
+          background: rgba(255,165,0,0.15);
+          border: 1px solid rgba(255,165,0,0.40);
+          color: #ffb74d;
+        }
+
+        .gymup-home__remaining.danger {
+          background: rgba(255,80,80,0.18);
+          border: 1px solid rgba(255,80,80,0.50);
+          color: #ff6b6b;
+        }
+
+        .gymup-home__remaining.zero {
+          background: rgba(150,150,150,0.15);
+          border: 1px solid rgba(150,150,150,0.40);
+          color: #aaaaaa;
+        }
+
+        .gymup-home__ticketname {
+          margin-top: 6px;
+          font-size: 11px;
+          color: rgba(255,255,255,0.46);
+          word-break: break-word;
+        }
+
+        .gymup-home__target-off {
+          font-size: 12px;
+          color: rgba(255,255,255,0.5);
+          padding: 6px 10px;
         }
 
         .gymup-home__empty {
@@ -1889,15 +2057,41 @@ export default function DashboardPage() {
                                   {item.menu} / {item.staff}
                                   {item.store ? ` / ${item.store}` : ""}
                                 </div>
+
+                                {isTicketMenu(item.menu) ? (
+                                  <>
+                                    <div
+                                      className={`gymup-home__remaining ${getRemainingClass(
+                                        item.remainingCount ?? null
+                                      )}`}
+                                    >
+                                      残回数:{" "}
+                                      {typeof item.remainingCount === "number"
+                                        ? item.remainingCount
+                                        : "—"}
+                                    </div>
+                                    {item.ticketName ? (
+                                      <div className="gymup-home__ticketname">
+                                        契約: {item.ticketName}
+                                      </div>
+                                    ) : null}
+                                  </>
+                                ) : null}
                               </div>
 
                               <div className="gymup-home__schedule-actions">
-                                {consumedMap[item.id] ? (
+                                {!isTicketMenu(item.menu) ? (
+                                  <div className="gymup-home__target-off">対象外</div>
+                                ) : (item.remainingCount ?? 1) <= 0 ? (
+                                  <div className="gymup-home__consumed-badge">残回数なし</div>
+                                ) : consumedMap[item.id] ? (
                                   <div className="gymup-home__consumed-badge">消化済み</div>
                                 ) : (
                                   <button
                                     type="button"
-                                    className="gymup-home__consume-btn"
+                                    className={`gymup-home__consume-btn ${
+                                      item.remainingCount === 1 ? "danger" : ""
+                                    }`}
                                     onClick={(e) => handleConsume(item, e)}
                                     disabled={consumingId === item.id}
                                   >
