@@ -538,6 +538,8 @@ export default function ReservationPage() {
   const [ticketUsedReservationIds, setTicketUsedReservationIds] = useState<number[]>([]);
   const [consumingReservationId, setConsumingReservationId] = useState("");
   const [deletingReservationId, setDeletingReservationId] = useState("");
+  const [openedMemoReservationIds, setOpenedMemoReservationIds] = useState<string[]>([]);
+  const [openedActionReservationIds, setOpenedActionReservationIds] = useState<string[]>([]);
 
   const [globalSearch, setGlobalSearch] = useState("");
   const [searchMode, setSearchMode] = useState<SearchMode>("customer");
@@ -1486,8 +1488,10 @@ export default function ReservationPage() {
 
       const warnings: string[] = [];
       if ((salesRows || []).length > 0) warnings.push(`売上 ${(salesRows || []).length}件`);
-      if ((counselingRows || []).length > 0) warnings.push(`カウンセリング ${(counselingRows || []).length}件`);
-      if ((ticketUsageRows || []).length > 0) warnings.push(`回数券消化 ${(ticketUsageRows || []).length}件`);
+      if ((counselingRows || []).length > 0)
+        warnings.push(`カウンセリング ${(counselingRows || []).length}件`);
+      if ((ticketUsageRows || []).length > 0)
+        warnings.push(`回数券消化 ${(ticketUsageRows || []).length}件`);
 
       const ok = window.confirm(
         warnings.length > 0
@@ -1586,6 +1590,8 @@ export default function ReservationPage() {
 
       if (deleteReservationError) throw deleteReservationError;
 
+      setOpenedMemoReservationIds((prev) => prev.filter((id) => id !== String(item.id)));
+      setOpenedActionReservationIds((prev) => prev.filter((id) => id !== String(item.id)));
       setSuccess("予約を削除しました。");
 
       await Promise.all([
@@ -1599,6 +1605,20 @@ export default function ReservationPage() {
     } finally {
       setDeletingReservationId("");
     }
+  }
+
+  function toggleReservationMemo(reservationId: string | number) {
+    const key = String(reservationId);
+    setOpenedMemoReservationIds((prev) =>
+      prev.includes(key) ? prev.filter((id) => id !== key) : [...prev, key]
+    );
+  }
+
+  function toggleReservationActions(reservationId: string | number) {
+    const key = String(reservationId);
+    setOpenedActionReservationIds((prev) =>
+      prev.includes(key) ? prev.filter((id) => id !== key) : [...prev, key]
+    );
   }
 
   function handleChangeStartTime(value: string) {
@@ -2004,7 +2024,8 @@ export default function ReservationPage() {
                               }}
                             />
                             <span style={styles.eventMiniText}>
-                              {trimmed(item.start_time) || "--:--"} {trimmed(item.customer_name) || "顧客名未設定"}
+                              {trimmed(item.start_time) || "--:--"}{" "}
+                              {trimmed(item.customer_name) || "顧客名未設定"}
                             </span>
                           </div>
                         </div>
@@ -2125,64 +2146,75 @@ export default function ReservationPage() {
                     const isTicketUsed =
                       reservationIdNum !== null &&
                       ticketUsedReservationIdSet.has(reservationIdNum);
+                    const memoOpened = openedMemoReservationIds.includes(String(item.id));
+                    const actionOpened = openedActionReservationIds.includes(String(item.id));
 
                     return (
                       <div
                         key={String(item.id)}
                         style={{
-                          ...styles.timelineCard,
-                          ...(flags.isPending ? styles.reserveCardPending : {}),
-                          borderLeft: `5px solid ${getStaffColor(item.staff_name)}`,
+                          ...styles.timelineCardCompact,
+                          ...(flags.isPending ? styles.reserveCardPendingCompact : {}),
+                          borderLeft: `4px solid ${getStaffColor(item.staff_name)}`,
                         }}
                       >
-                        <div style={styles.timelineRow}>
-                          <div style={styles.timelineTimeBlock}>
-                            <div style={styles.timelineTimeMain}>
-                              {trimmed(item.start_time) || "--:--"}
-                            </div>
-                            <div style={styles.timelineTimeSub}>
-                              {trimmed(item.end_time) || "--:--"}
-                            </div>
-                          </div>
-
-                          <div style={styles.timelineContent}>
+                        <div style={styles.timelineRowCompact}>
+                          <div style={styles.timelineContentCompact}>
                             <button
                               type="button"
                               onClick={() => void handleReservationTap(item)}
-                              style={styles.timelineMainAction}
+                              style={styles.timelineMainActionCompact}
                             >
-                              <div style={styles.timelineTitle}>
-                                {trimmed(item.customer_name) || "顧客名未設定"}
+                              <div style={styles.timelineTopLineCompact}>
+                                <span style={styles.timelineTimeInline}>
+                                  {trimmed(item.start_time) || "--:--"}
+                                  {trimmed(item.end_time) ? `〜${trimmed(item.end_time)}` : ""}
+                                </span>
+                                <span style={styles.timelineTitleCompact}>
+                                  {trimmed(item.customer_name) || "顧客名未設定"}
+                                </span>
                               </div>
 
-                              <div style={styles.timelineMetaText}>
+                              <div style={styles.timelineMetaTextCompact}>
                                 {trimmed(item.menu) || "—"} / {trimmed(item.staff_name) || "—"}
-                                {trimmed(item.store_name) ? ` / ${trimmed(item.store_name)}` : ""}
+                                {trimmed(item.store_name)
+                                  ? ` / ${trimmed(item.store_name)}`
+                                  : ""}
                               </div>
 
-                              <div style={styles.statusRow}>
-                                <span style={isSold ? styles.doneBadge : styles.pendingBadge}>
+                              <div style={styles.statusRowCompact}>
+                                <span
+                                  style={
+                                    isSold
+                                      ? styles.doneBadgeCompact
+                                      : styles.pendingBadgeCompact
+                                  }
+                                >
                                   {isSold ? "売上済" : "売上未"}
                                 </span>
 
                                 {isNewVisit(item) ? (
                                   <span
                                     style={
-                                      isCounseled ? styles.doneBadgeBlue : styles.pendingBadgeYellow
+                                      isCounseled
+                                        ? styles.doneBadgeBlueCompact
+                                        : styles.pendingBadgeYellowCompact
                                     }
                                   >
-                                    {isCounseled ? "カウンセリング済" : "カウンセリング未"}
+                                    {isCounseled
+                                      ? "カウンセリング済"
+                                      : "カウンセリング未"}
                                   </span>
                                 ) : null}
 
                                 {isTicket ? (
                                   <>
-                                    <span style={styles.ticketBadge}>回数券</span>
+                                    <span style={styles.ticketBadgeCompact}>回数券</span>
                                     <span
                                       style={
                                         isTicketUsed
-                                          ? styles.doneBadgePurple
-                                          : styles.pendingBadgePurple
+                                          ? styles.doneBadgePurpleCompact
+                                          : styles.pendingBadgePurpleCompact
                                       }
                                     >
                                       {isTicketUsed ? "消化済" : "未消化"}
@@ -2191,11 +2223,7 @@ export default function ReservationPage() {
                                 ) : null}
                               </div>
 
-                              {trimmed(item.memo) ? (
-                                <div style={styles.memoBoxMini}>{trimmed(item.memo)}</div>
-                              ) : null}
-
-                              <div style={styles.tapHint}>
+                              <div style={styles.tapHintCompact}>
                                 {isSold
                                   ? "タップで詳細"
                                   : isTicket
@@ -2204,54 +2232,88 @@ export default function ReservationPage() {
                               </div>
                             </button>
 
-                            <div style={styles.cardActionRow}>
+                            <div style={styles.cardActionBarSingle}>
                               <button
                                 type="button"
-                                onClick={() => router.push(`/reservation/detail/${item.id}`)}
-                                style={styles.actionBtnDark}
+                                onClick={() => toggleReservationActions(item.id)}
+                                style={styles.actionToggleBtn}
                               >
-                                詳細
-                              </button>
-
-                              {!isSold ? (
-                                <button
-                                  type="button"
-                                  onClick={() => void handleReservationTap(item)}
-                                  disabled={consumingReservationId === String(item.id)}
-                                  style={styles.actionBtnBlue}
-                                >
-                                  {consumingReservationId === String(item.id)
-                                    ? "処理中..."
-                                    : isTicket
-                                    ? "消化/売上"
-                                    : "売上登録"}
-                                </button>
-                              ) : null}
-
-                              {isNewVisit(item) && !isCounseled ? (
-                                <button
-                                  type="button"
-                                  onClick={() => handleGoCounseling(item)}
-                                  style={styles.actionBtnOrange}
-                                >
-                                  カウンセリング
-                                </button>
-                              ) : null}
-
-                              <button
-                                type="button"
-                                onClick={() => void handleDeleteReservation(item)}
-                                disabled={deletingReservationId === String(item.id)}
-                                style={styles.actionBtnDelete}
-                              >
-                                {deletingReservationId === String(item.id) ? "削除中..." : "削除"}
+                                {actionOpened ? "操作を閉じる" : "操作"}
                               </button>
                             </div>
+
+                            {actionOpened ? (
+                              <div style={styles.actionDrawer}>
+                                <div style={styles.cardActionRowCompact}>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      router.push(`/reservation/detail/${item.id}`)
+                                    }
+                                    style={styles.actionBtnDarkCompact}
+                                  >
+                                    詳細
+                                  </button>
+
+                                  {!isSold ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleReservationTap(item)}
+                                      disabled={consumingReservationId === String(item.id)}
+                                      style={styles.actionBtnBlueCompact}
+                                    >
+                                      {consumingReservationId === String(item.id)
+                                        ? "処理中..."
+                                        : isTicket
+                                        ? "消化/売上"
+                                        : "売上登録"}
+                                    </button>
+                                  ) : null}
+
+                                  {isNewVisit(item) && !isCounseled ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleGoCounseling(item)}
+                                      style={styles.actionBtnOrangeCompact}
+                                    >
+                                      カウンセ
+                                    </button>
+                                  ) : null}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleDeleteReservation(item)}
+                                    disabled={deletingReservationId === String(item.id)}
+                                    style={styles.actionBtnDeleteCompact}
+                                  >
+                                    {deletingReservationId === String(item.id)
+                                      ? "削除中..."
+                                      : "削除"}
+                                  </button>
+
+                                  {trimmed(item.memo) ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleReservationMemo(item.id)}
+                                      style={styles.actionBtnMemoCompact}
+                                    >
+                                      {memoOpened ? "メモ閉じる" : "メモ"}
+                                    </button>
+                                  ) : null}
+                                </div>
+
+                                {trimmed(item.memo) && memoOpened ? (
+                                  <div style={styles.memoBoxCompact}>
+                                    {trimmed(item.memo)}
+                                  </div>
+                                ) : null}
+                              </div>
+                            ) : null}
                           </div>
 
                           <div
                             style={{
-                              ...styles.staffAvatar,
+                              ...styles.staffAvatarCompact,
                               background: getStaffColor(item.staff_name),
                             }}
                           >
@@ -2401,7 +2463,11 @@ export default function ReservationPage() {
 
                 <div>
                   <label style={styles.label}>メニュー</label>
-                  <select value={menu} onChange={(e) => setMenu(e.target.value)} style={styles.input}>
+                  <select
+                    value={menu}
+                    onChange={(e) => setMenu(e.target.value)}
+                    style={styles.input}
+                  >
                     {MENU_OPTIONS.map((item) => (
                       <option key={item} value={item}>
                         {item}
@@ -2501,7 +2567,8 @@ export default function ReservationPage() {
                         {trimmed(item.customer_name) || "顧客名未設定"}
                       </div>
                       <div style={styles.counselingSelectSub}>
-                        {trimmed(item.menu) || "メニュー未設定"} / {trimmed(item.staff_name) || "担当未設定"}
+                        {trimmed(item.menu) || "メニュー未設定"} /{" "}
+                        {trimmed(item.staff_name) || "担当未設定"}
                       </div>
                     </button>
                   ))}
@@ -2545,10 +2612,13 @@ export default function ReservationPage() {
                           {trimmed(item.end_time) ? `〜${trimmed(item.end_time)}` : ""}
                         </div>
                         <div style={styles.historyMeta}>
-                          店舗: {trimmed(item.store_name) || "—"} / 担当: {trimmed(item.staff_name) || "—"}
+                          店舗: {trimmed(item.store_name) || "—"} / 担当:{" "}
+                          {trimmed(item.staff_name) || "—"}
                         </div>
                         <div style={styles.historyMeta}>メニュー: {trimmed(item.menu) || "—"}</div>
-                        {trimmed(item.memo) ? <div style={styles.memoBox}>{trimmed(item.memo)}</div> : null}
+                        {trimmed(item.memo) ? (
+                          <div style={styles.memoBox}>{trimmed(item.memo)}</div>
+                        ) : null}
                       </div>
                     ))}
                   </div>
@@ -2564,7 +2634,8 @@ export default function ReservationPage() {
                         {trimmed(item.end_time) ? `〜${trimmed(item.end_time)}` : ""}
                       </div>
                       <div style={styles.historyMeta}>
-                        顧客: {trimmed(item.customer_name) || "—"} / 店舗: {trimmed(item.store_name) || "—"}
+                        顧客: {trimmed(item.customer_name) || "—"} / 店舗:{" "}
+                        {trimmed(item.store_name) || "—"}
                       </div>
                       <div style={styles.historyMeta}>メニュー: {trimmed(item.menu) || "—"}</div>
                     </div>
@@ -3076,6 +3147,7 @@ const styles: Record<string, CSSProperties> = {
     display: "grid",
     gap: 8,
   },
+
   timelineCard: {
     background: "#fff",
     borderRadius: 16,
@@ -3107,15 +3179,6 @@ const styles: Record<string, CSSProperties> = {
   timelineContent: {
     flex: 1,
     minWidth: 0,
-  },
-  timelineMainAction: {
-    width: "100%",
-    border: "none",
-    background: "transparent",
-    padding: 0,
-    margin: 0,
-    textAlign: "left",
-    cursor: "pointer",
   },
   timelineTitle: {
     fontSize: 16,
@@ -3154,73 +3217,240 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 900,
     flexShrink: 0,
   },
-  reserveCardPending: {
-    border: "2px solid #ef4444",
-    boxShadow: "0 8px 18px rgba(239,68,68,0.10)",
+
+  timelineCardCompact: {
+    background: "#fff",
+    borderRadius: 12,
+    padding: "8px 9px",
+    boxShadow: "0 3px 10px rgba(0,0,0,0.04)",
+    border: "1px solid #e2e8f0",
   },
-  statusRow: {
+  reserveCardPendingCompact: {
+    border: "1.5px solid #ef4444",
+    boxShadow: "0 6px 14px rgba(239,68,68,0.10)",
+  },
+  timelineRowCompact: {
     display: "flex",
-    gap: 5,
-    flexWrap: "wrap",
-    marginTop: 7,
-    marginBottom: 7,
+    alignItems: "flex-start",
+    gap: 8,
   },
-  pendingBadge: {
+  timelineContentCompact: {
+    flex: 1,
+    minWidth: 0,
+  },
+  timelineMainActionCompact: {
+    width: "100%",
+    border: "none",
+    background: "transparent",
+    padding: 0,
+    margin: 0,
+    textAlign: "left",
+    cursor: "pointer",
+  },
+  timelineTopLineCompact: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    minWidth: 0,
+  },
+  timelineTimeInline: {
+    fontSize: 11,
+    fontWeight: 900,
+    color: "#0f172a",
+    whiteSpace: "nowrap",
+    flexShrink: 0,
+  },
+  timelineTitleCompact: {
+    fontSize: 14,
+    fontWeight: 900,
+    color: "#111827",
+    lineHeight: 1.2,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    minWidth: 0,
+  },
+  timelineMetaTextCompact: {
+    fontSize: 10,
+    color: "#475569",
+    fontWeight: 700,
+    lineHeight: 1.35,
+    marginTop: 3,
+  },
+  statusRowCompact: {
+    display: "flex",
+    gap: 4,
+    flexWrap: "wrap",
+    marginTop: 5,
+    marginBottom: 4,
+  },
+  pendingBadgeCompact: {
     background: "#fee2e2",
     color: "#991b1b",
     borderRadius: 999,
-    padding: "4px 7px",
-    fontSize: 10,
+    padding: "3px 6px",
+    fontSize: 9,
     fontWeight: 800,
   },
-  doneBadge: {
+  doneBadgeCompact: {
     background: "#dcfce7",
     color: "#166534",
     borderRadius: 999,
-    padding: "4px 7px",
-    fontSize: 10,
+    padding: "3px 6px",
+    fontSize: 9,
     fontWeight: 800,
   },
-  doneBadgeBlue: {
+  doneBadgeBlueCompact: {
     background: "#dbeafe",
     color: "#1d4ed8",
     borderRadius: 999,
-    padding: "4px 7px",
-    fontSize: 10,
+    padding: "3px 6px",
+    fontSize: 9,
     fontWeight: 800,
   },
-  pendingBadgeYellow: {
+  pendingBadgeYellowCompact: {
     background: "#fef3c7",
     color: "#92400e",
     borderRadius: 999,
-    padding: "4px 7px",
-    fontSize: 10,
+    padding: "3px 6px",
+    fontSize: 9,
     fontWeight: 800,
   },
-  ticketBadge: {
+  ticketBadgeCompact: {
     background: "#ede9fe",
     color: "#6d28d9",
     borderRadius: 999,
-    padding: "4px 7px",
-    fontSize: 10,
+    padding: "3px 6px",
+    fontSize: 9,
     fontWeight: 800,
   },
-  doneBadgePurple: {
+  doneBadgePurpleCompact: {
     background: "#e9d5ff",
     color: "#6d28d9",
     borderRadius: 999,
-    padding: "4px 7px",
-    fontSize: 10,
+    padding: "3px 6px",
+    fontSize: 9,
     fontWeight: 800,
   },
-  pendingBadgePurple: {
+  pendingBadgePurpleCompact: {
     background: "#f3e8ff",
     color: "#7c3aed",
     borderRadius: 999,
-    padding: "4px 7px",
-    fontSize: 10,
+    padding: "3px 6px",
+    fontSize: 9,
     fontWeight: 800,
   },
+  tapHintCompact: {
+    marginTop: 3,
+    fontSize: 9,
+    fontWeight: 900,
+    color: "#2563eb",
+  },
+  cardActionBarSingle: {
+    display: "flex",
+    justifyContent: "flex-start",
+    marginTop: 6,
+  },
+  actionToggleBtn: {
+    border: "1px solid #cbd5e1",
+    background: "#fff",
+    color: "#0f172a",
+    borderRadius: 999,
+    padding: "5px 10px",
+    fontSize: 10,
+    fontWeight: 900,
+    cursor: "pointer",
+    lineHeight: 1.1,
+  },
+  actionDrawer: {
+    marginTop: 6,
+    paddingTop: 6,
+    borderTop: "1px dashed #e2e8f0",
+  },
+  cardActionRowCompact: {
+    display: "flex",
+    gap: 5,
+    flexWrap: "wrap",
+    marginTop: 0,
+  },
+  actionBtnDarkCompact: {
+    border: "none",
+    background: "#111827",
+    color: "#fff",
+    borderRadius: 9,
+    padding: "6px 8px",
+    fontSize: 10,
+    fontWeight: 800,
+    cursor: "pointer",
+    lineHeight: 1.1,
+  },
+  actionBtnBlueCompact: {
+    border: "none",
+    background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+    color: "#fff",
+    borderRadius: 9,
+    padding: "6px 8px",
+    fontSize: 10,
+    fontWeight: 800,
+    cursor: "pointer",
+    lineHeight: 1.1,
+  },
+  actionBtnOrangeCompact: {
+    border: "none",
+    background: "linear-gradient(135deg, #f59e0b, #d97706)",
+    color: "#fff",
+    borderRadius: 9,
+    padding: "6px 8px",
+    fontSize: 10,
+    fontWeight: 800,
+    cursor: "pointer",
+    lineHeight: 1.1,
+  },
+  actionBtnDeleteCompact: {
+    border: "none",
+    background: "linear-gradient(135deg, #ef4444, #dc2626)",
+    color: "#fff",
+    borderRadius: 9,
+    padding: "6px 8px",
+    fontSize: 10,
+    fontWeight: 800,
+    cursor: "pointer",
+    lineHeight: 1.1,
+  },
+  actionBtnMemoCompact: {
+    border: "1px solid #dbeafe",
+    background: "#eff6ff",
+    color: "#1d4ed8",
+    borderRadius: 9,
+    padding: "6px 8px",
+    fontSize: 10,
+    fontWeight: 800,
+    cursor: "pointer",
+    lineHeight: 1.1,
+  },
+  memoBoxCompact: {
+    background: "#f8fafc",
+    borderRadius: 9,
+    padding: "7px 8px",
+    color: "#475569",
+    fontSize: 10,
+    lineHeight: 1.4,
+    marginTop: 6,
+    whiteSpace: "pre-wrap",
+  },
+  staffAvatarCompact: {
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    color: "#fff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 11,
+    fontWeight: 900,
+    flexShrink: 0,
+  },
+
   memoBox: {
     background: "#f8fafc",
     borderRadius: 12,
@@ -3231,72 +3461,7 @@ const styles: Record<string, CSSProperties> = {
     marginTop: 10,
     whiteSpace: "pre-wrap",
   },
-  memoBoxMini: {
-    background: "#f8fafc",
-    borderRadius: 10,
-    padding: "7px 9px",
-    color: "#475569",
-    fontSize: 11,
-    lineHeight: 1.45,
-    marginTop: 7,
-    whiteSpace: "pre-wrap",
-  },
-  tapHint: {
-    marginTop: 7,
-    fontSize: 10,
-    fontWeight: 900,
-    color: "#2563eb",
-  },
-  cardActionRow: {
-    display: "flex",
-    gap: 6,
-    flexWrap: "wrap",
-    marginTop: 9,
-  },
-  actionBtnDark: {
-    border: "none",
-    background: "#111827",
-    color: "#fff",
-    borderRadius: 10,
-    padding: "8px 10px",
-    fontSize: 11,
-    fontWeight: 800,
-    cursor: "pointer",
-    lineHeight: 1.2,
-  },
-  actionBtnBlue: {
-    border: "none",
-    background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
-    color: "#fff",
-    borderRadius: 10,
-    padding: "8px 10px",
-    fontSize: 11,
-    fontWeight: 800,
-    cursor: "pointer",
-    lineHeight: 1.2,
-  },
-  actionBtnOrange: {
-    border: "none",
-    background: "linear-gradient(135deg, #f59e0b, #d97706)",
-    color: "#fff",
-    borderRadius: 10,
-    padding: "8px 10px",
-    fontSize: 11,
-    fontWeight: 800,
-    cursor: "pointer",
-    lineHeight: 1.2,
-  },
-  actionBtnDelete: {
-    border: "none",
-    background: "linear-gradient(135deg, #ef4444, #dc2626)",
-    color: "#fff",
-    borderRadius: 10,
-    padding: "8px 10px",
-    fontSize: 11,
-    fontWeight: 800,
-    cursor: "pointer",
-    lineHeight: 1.2,
-  },
+
   modalOverlay: {
     position: "fixed",
     inset: 0,
