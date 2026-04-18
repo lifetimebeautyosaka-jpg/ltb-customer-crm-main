@@ -1,246 +1,175 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import { createClient } from "@supabase/supabase-js";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-const supabase =
-  process.env.NEXT_PUBLIC_SUPABASE_URL &&
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    ? createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      )
-    : null;
+type ReservationItem = {
+  id: string;
+  date: string;
+  start_time: string;
+  customer_name: string;
+  menu?: string;
+  staff_name?: string;
+  store_name?: string;
+  customer_id?: string;
+};
 
-type ReservationRow = {
-  id: string | number;
-  customer_id?: string | number | null;
-  customer_name?: string | null;
-  date?: string | null;
-  start_time?: string | null;
-  end_time?: string | null;
-  store_name?: string | null;
-  staff_name?: string | null;
-  menu?: string | null;
-  payment_method?: string | null;
+type AttendanceItem = {
+  id: string;
+  work_date: string;
+  staff_name: string;
+  clock_in?: string | null;
+  clock_out?: string | null;
   memo?: string | null;
-  visit_type?: string | null;
-  reservation_status?: string | null;
-  is_first_visit?: boolean | null;
-  created_at?: string | null;
 };
 
-type CustomerRow = {
-  id: string | number;
-  name?: string | null;
-  kana?: string | null;
-  phone?: string | null;
-};
+type DisplayTimelineItem =
+  | {
+      kind: "reservation";
+      id: string;
+      time: string;
+      endTime?: string;
+      name: string;
+      menu: string;
+      staff: string;
+      store: string;
+      customerId?: string;
+      date?: string;
+      remainingCount?: number | null;
+      ticketName?: string;
+    }
+  | {
+      kind: "attendance";
+      id: string;
+      time: string;
+      endTime?: string;
+      name: string;
+      staff: string;
+      note?: string;
+      highlightedNote?: string;
+    };
 
-type CustomerOption = {
+type SystemStatus = "ONLINE" | "FALLBACK" | "OFFLINE";
+
+type CustomerLite = {
   id: string;
   name: string;
-  kana: string;
-  phone: string;
+  plan_type?: string | null;
 };
 
-type SimpleReservationIdRow = {
-  reservation_id?: number | string | null;
-};
-
-type ReservationRelatedSaleRow = {
-  id: number | string;
-};
-
-type ReservationRelatedCounselingRow = {
-  id: number | string;
-};
-
-type ReservationRelatedTicketUsageRow = {
-  id: number | string;
-  contract_id?: number | string | null;
-  unit_price?: number | null;
-};
-
-type TicketContractRow = {
-  id: number | string;
-  used_count?: number | null;
-  remaining_count?: number | null;
-  prepaid_balance?: number | null;
-};
-
-type AttendanceRow = {
-  id: string | number;
-  staff_name?: string | null;
-  work_date?: string | null;
-  date?: string | null;
-  clock_in?: string | null;
-  start_time?: string | null;
-  clock_out?: string | null;
-  end_time?: string | null;
-  store_name?: string | null;
-};
-
-type FilterMode =
-  | "all"
-  | "pending"
-  | "sales_pending"
-  | "counseling_pending"
-  | "ticket_pending";
-
-const STORE_OPTIONS = [
-  "すべて",
-  "江戸堀",
-  "箕面",
-  "福島",
-  "福島P",
-  "天満橋",
-  "中崎町",
-  "江坂",
+const quickLinks = [
+  { title: "顧客管理", href: "/customer", desc: "会員情報・履歴・進捗管理" },
+  { title: "予約管理", href: "/reservation", desc: "当日確認・予約登録・日別管理" },
+  { title: "売上管理", href: "/sales", desc: "売上登録・集計・区分確認" },
+  { title: "勤怠管理", href: "/attendance", desc: "打刻・勤務時間・確認" },
+  { title: "会計管理", href: "/accounting", desc: "前受金・会計区分・集計" },
+  { title: "サブスク管理", href: "/subscription", desc: "契約状況・残回数・継続管理" },
+  { title: "回数券購入登録", href: "/ticket-contracts", desc: "前受金として回数券契約を登録" },
 ];
 
-const STORE_OPTIONS_FOR_FORM = [
-  "江戸堀",
-  "箕面",
-  "福島",
-  "福島P",
-  "天満橋",
-  "中崎町",
-  "江坂",
-];
+const AUTH_STORAGE_KEY = "gymup_logged_in";
+const ROLE_STORAGE_KEY = "gymup_user_role";
+const STAFF_NAME_STORAGE_KEY = "gymup_current_staff_name";
 
-const STAFF_OPTIONS = [
-  "山口",
-  "中西",
-  "池田",
-  "羽田",
-  "石川",
-  "菱谷",
-  "林",
-  "井上",
-  "その他",
-];
+const TICKET_UNIT_PRICES: Record<string, number> = {
+  "40分4回_旧": 5330,
+  "40分8回_旧": 5090,
+  "40分12回_旧": 5000,
+  "60分4回_旧": 7980,
+  "60分8回_旧": 7640,
+  "60分12回_旧": 7500,
+  "80分4回_旧": 10670,
+  "80分8回_旧": 10180,
+  "80分12回_旧": 10000,
+  "120分4回_旧": 16000,
+  "120分8回_旧": 15270,
+  "120分12回_旧": 15000,
 
-const MENU_OPTIONS = [
-  "ストレッチ",
-  "トレーニング",
-  "ストレッチ回数券",
-  "トレーニング回数券",
-  "ペアトレ",
-  "ヘッドスパ",
-  "アロマ",
-  "その他",
-];
+  "40分4回_新": 5330,
+  "40分8回_新": 5090,
+  "40分12回_新": 5000,
+  "60分4回_新": 7980,
+  "60分8回_新": 7640,
+  "60分12回_新": 7500,
+  "80分4回_新": 10670,
+  "80分8回_新": 10180,
+  "80分12回_新": 10000,
+  "120分4回_新": 16000,
+  "120分8回_新": 15270,
+  "120分12回_新": 15000,
 
-const PAYMENT_OPTIONS = ["現金", "カード", "銀行振込", "その他"];
-const VISIT_TYPE_OPTIONS = ["新規", "再来"];
-const WEEK_LABELS = ["月", "火", "水", "金", "木", "土", "日"];
+  "ダイエット16回": 11000,
+  "ゴールド24回": 10450,
+  "プラチナ32回": 10230,
+  "月2回": 8800,
+  "月4回": 8470,
+  "月8回": 8250,
+};
 
-function trimmed(value: unknown): string {
-  if (value === null || value === undefined) return "";
-  return String(value).trim();
+function getHandoverStorageKey(dateString: string) {
+  return `gymup_dashboard_handover_note_${dateString}`;
 }
 
-function normalizePhone(value: string): string {
-  return value.replace(/[^\d]/g, "");
+function getSupabaseClient(): SupabaseClient | null {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !anonKey) return null;
+
+  try {
+    return createClient(url, anonKey);
+  } catch (error) {
+    console.error("Supabase client create error:", error);
+    return null;
+  }
 }
 
-function toYmd(date: Date) {
+function getTodayDateString() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = `${now.getMonth() + 1}`.padStart(2, "0");
+  const d = `${now.getDate()}`.padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function formatDateLabel(dateString: string) {
+  const date = new Date(`${dateString}T00:00:00`);
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+  }).format(date);
+}
+
+function shiftDateString(dateString: string, diffDays: number) {
+  const date = new Date(`${dateString}T00:00:00`);
+  date.setDate(date.getDate() + diffDays);
+
   const y = date.getFullYear();
   const m = `${date.getMonth() + 1}`.padStart(2, "0");
   const d = `${date.getDate()}`.padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
 
-function formatMonthTitle(date: Date) {
-  return `${date.getFullYear()}年${date.getMonth() + 1}月`;
+function normalizeName(value: string) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, "")
+    .replace(/[　]/g, "");
 }
 
-function formatJapaneseDate(dateStr: string) {
-  const date = new Date(dateStr);
-  if (Number.isNaN(date.getTime())) return dateStr;
-  const week = ["日", "月", "火", "水", "木", "金", "土"];
-  return `${date.getMonth() + 1}月${date.getDate()}日 ${week[date.getDay()]}曜日`;
+function trimmed(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
 }
 
-function getMondayStart(date: Date) {
-  const copy = new Date(date);
-  const day = copy.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  copy.setDate(copy.getDate() + diff);
-  copy.setHours(0, 0, 0, 0);
-  return copy;
-}
-
-function buildCalendarDays(currentMonth: Date) {
-  const first = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-  const last = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
-
-  const start = getMondayStart(first);
-  const end = new Date(last);
-  const lastDay = last.getDay();
-  const addDays = lastDay === 0 ? 0 : 7 - lastDay;
-  end.setDate(end.getDate() + addDays);
-  end.setHours(0, 0, 0, 0);
-
-  const days: Date[] = [];
-  const cursor = new Date(start);
-
-  while (cursor <= end) {
-    days.push(new Date(cursor));
-    cursor.setDate(cursor.getDate() + 1);
-  }
-
-  return days;
-}
-
-function addOneHour(time: string) {
-  if (!time || !time.includes(":")) return "";
-  const [h, m] = time.split(":").map(Number);
-  if (Number.isNaN(h) || Number.isNaN(m)) return "";
-  const date = new Date();
-  date.setHours(h, m, 0, 0);
-  date.setMinutes(date.getMinutes() + 60);
-  const hh = `${date.getHours()}`.padStart(2, "0");
-  const mm = `${date.getMinutes()}`.padStart(2, "0");
-  return `${hh}:${mm}`;
-}
-
-function getStaffColor(staffName?: string | null) {
-  const name = trimmed(staffName);
-
-  if (name.includes("山口")) return "#22c55e";
-  if (name.includes("中西")) return "#ec4899";
-  if (name.includes("池田")) return "#8b5e3c";
-  if (name.includes("石川")) return "#2563eb";
-  if (name.includes("羽田")) return "#ef4444";
-  if (name.includes("菱谷")) return "#eab308";
-  if (name.includes("井上")) return "#111827";
-  if (name.includes("林")) return "#111827";
-
-  return "#9ca3af";
-}
-
-function getStoreColor(storeName?: string | null) {
-  const store = trimmed(storeName);
-
-  if (store.includes("江戸堀")) return "#0ea5e9";
-  if (store.includes("箕面")) return "#8b5cf6";
-  if (store.includes("福島P")) return "#f97316";
-  if (store.includes("福島")) return "#ef4444";
-  if (store.includes("天満橋")) return "#14b8a6";
-  if (store.includes("中崎町")) return "#eab308";
-  if (store.includes("江坂")) return "#10b981";
-  return "#6b7280";
-}
-
-function sortReservations(a: ReservationRow, b: ReservationRow) {
-  const aTime = trimmed(a.start_time);
-  const bTime = trimmed(b.start_time);
-  if (aTime < bTime) return -1;
-  if (aTime > bTime) return 1;
-  return 0;
+function toIdNumber(value: string | number | null | undefined) {
+  if (value === null || value === undefined || value === "") return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
 }
 
 function extractErrorMessage(error: unknown): string {
@@ -269,2570 +198,2192 @@ function extractErrorMessage(error: unknown): string {
   return "不明なエラーです。";
 }
 
-function getVisitTypeLabel(item: ReservationRow) {
-  const visitType = trimmed(item.visit_type);
-  if (visitType) return visitType;
-  return item.is_first_visit ? "新規" : "再来";
-}
+function normalizeReservation(raw: any): ReservationItem | null {
+  if (!raw) return null;
 
-function isNewVisit(item: ReservationRow) {
-  return getVisitTypeLabel(item) === "新規" || item.is_first_visit === true;
-}
+  const id = String(
+    raw.id ??
+      `${raw.date ?? ""}-${raw.start_time ?? raw.startTime ?? ""}-${raw.customer_name ?? raw.customerName ?? raw.name ?? ""}`
+  );
 
-function toIdNumber(value: string | number | null | undefined) {
-  if (value === null || value === undefined || value === "") return null;
-  const num = Number(value);
-  return Number.isFinite(num) ? num : null;
-}
+  const date = String(raw.date ?? "").trim();
+  const startTime = String(raw.start_time ?? raw.startTime ?? "").trim();
+  const customerName = String(
+    raw.customer_name ?? raw.customerName ?? raw.name ?? ""
+  ).trim();
+  const menu = String(raw.menu ?? raw.menu_name ?? raw.course ?? "予約メニュー").trim();
+  const staffName = String(raw.staff_name ?? raw.staffName ?? "担当未設定").trim();
+  const storeName = String(raw.store_name ?? raw.storeName ?? "").trim();
+  const customerId = raw.customer_id ? String(raw.customer_id) : undefined;
 
-function isTicketMenu(menu?: string | null) {
-  const text = trimmed(menu);
-  return text === "ストレッチ回数券" || text === "トレーニング回数券";
-}
-
-function detectServiceTypeFromReservationMenu(menu?: string | null) {
-  const text = trimmed(menu);
-  if (text.includes("ストレッチ")) return "ストレッチ";
-  return "トレーニング";
-}
-
-function buildSalesHref(item: ReservationRow, forceTicketMode = false) {
-  const reservationId = String(item.id ?? "");
-  const customerId = trimmed(item.customer_id);
-  const customerName = encodeURIComponent(trimmed(item.customer_name));
-  const date = trimmed(item.date);
-  const menu = trimmed(item.menu);
-  const staffName = encodeURIComponent(trimmed(item.staff_name));
-  const paymentMethod = encodeURIComponent(trimmed(item.payment_method));
-  const storeName = encodeURIComponent(trimmed(item.store_name));
-
-  const isTicket = forceTicketMode || isTicketMenu(menu);
-  const serviceType = encodeURIComponent(detectServiceTypeFromReservationMenu(menu));
-  const saleType = encodeURIComponent(isTicket ? "回数券消化" : "通常売上");
-
-  return `/sales?reservationId=${reservationId}&customerId=${customerId}&customerName=${customerName}&date=${date}&menu=${encodeURIComponent(
-    menu
-  )}&staffName=${staffName}&paymentMethod=${paymentMethod}&storeName=${storeName}&serviceType=${serviceType}&saleType=${saleType}`;
-}
-
-function getPendingFlags(params: {
-  item: ReservationRow;
-  salesReservationIdSet: Set<number>;
-  counseledReservationIdSet: Set<number>;
-  ticketUsedReservationIdSet: Set<number>;
-}) {
-  const { item, salesReservationIdSet, counseledReservationIdSet, ticketUsedReservationIdSet } =
-    params;
-
-  const reservationId = toIdNumber(item.id);
-  if (reservationId === null) {
-    return {
-      salesPending: false,
-      counselingPending: false,
-      ticketPending: false,
-      isPending: false,
-    };
-  }
-
-  const soldByReservation = trimmed(item.reservation_status) === "売上済";
-  const isSold = soldByReservation || salesReservationIdSet.has(reservationId);
-  const isCounseled = counseledReservationIdSet.has(reservationId);
-  const ticketMenu = isTicketMenu(item.menu);
-  const isTicketUsed = ticketUsedReservationIdSet.has(reservationId);
-
-  const salesPending = !isSold;
-  const counselingPending = isNewVisit(item) && !isCounseled;
-  const ticketPending = ticketMenu && !isTicketUsed;
+  if (!date || !startTime || !customerName) return null;
 
   return {
-    salesPending,
-    counselingPending,
-    ticketPending,
-    isPending: salesPending || counselingPending || ticketPending,
+    id,
+    date,
+    start_time: startTime,
+    customer_name: customerName,
+    menu,
+    staff_name: staffName,
+    store_name: storeName,
+    customer_id: customerId,
   };
 }
 
-function getPendingPriority(params: {
-  item: ReservationRow;
-  salesReservationIdSet: Set<number>;
-  counseledReservationIdSet: Set<number>;
-  ticketUsedReservationIdSet: Set<number>;
+function isReservationItem(item: ReservationItem | null): item is ReservationItem {
+  return item !== null;
+}
+
+function sortReservations(list: ReservationItem[]) {
+  return [...list].sort((a, b) => {
+    const aTime = a.start_time || "";
+    const bTime = b.start_time || "";
+    return aTime.localeCompare(bTime);
+  });
+}
+
+function parseLocalReservations(): ReservationItem[] {
+  if (typeof window === "undefined") return [];
+
+  const possibleKeys = ["reservations", "gymup_reservations", "ltb_reservations"];
+  const merged: ReservationItem[] = [];
+
+  for (const key of possibleKeys) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) continue;
+
+      const normalized = parsed.map(normalizeReservation).filter(isReservationItem);
+      merged.push(...normalized);
+    } catch (error) {
+      console.error(`localStorage parse error: ${key}`, error);
+    }
+  }
+
+  const uniqueMap = new Map<string, ReservationItem>();
+
+  for (const item of merged) {
+    const uniqueKey = [
+      item.date,
+      item.start_time,
+      item.customer_name,
+      item.menu || "",
+      item.staff_name || "",
+      item.store_name || "",
+    ].join("::");
+
+    if (!uniqueMap.has(uniqueKey)) {
+      uniqueMap.set(uniqueKey, item);
+    }
+  }
+
+  return Array.from(uniqueMap.values());
+}
+
+function parseLocalCustomers(): CustomerLite[] {
+  if (typeof window === "undefined") return [];
+
+  const possibleKeys = ["customers", "gymup_customers", "ltb_customers"];
+  const merged: CustomerLite[] = [];
+
+  for (const key of possibleKeys) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) continue;
+
+      for (const item of parsed) {
+        const id = String(item?.id ?? "").trim();
+        const name = String(item?.name ?? item?.customer_name ?? "").trim();
+        if (id && name) {
+          merged.push({ id, name, plan_type: item?.plan_type ?? null });
+        }
+      }
+    } catch (error) {
+      console.error(`localStorage customer parse error: ${key}`, error);
+    }
+  }
+
+  const unique = new Map<string, CustomerLite>();
+  for (const item of merged) {
+    const key = `${item.id}::${item.name}`;
+    if (!unique.has(key)) unique.set(key, item);
+  }
+  return Array.from(unique.values());
+}
+
+function buildCustomerMap(customers: CustomerLite[]) {
+  const map = new Map<string, string>();
+
+  for (const customer of customers) {
+    const normalized = normalizeName(customer.name);
+    if (!normalized) continue;
+    if (!map.has(normalized)) {
+      map.set(normalized, customer.id);
+    }
+  }
+
+  return map;
+}
+
+function readHandoverNote(dateString: string): string {
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem(getHandoverStorageKey(dateString)) || "";
+}
+
+function saveHandoverNote(dateString: string, value: string) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(getHandoverStorageKey(dateString), value);
+}
+
+function resolveTicketName(params: {
+  reservationMenu?: string | null;
+  customerPlanType?: string | null;
 }) {
-  const flags = getPendingFlags(params);
-  return flags.isPending ? 0 : 1;
+  const reservationMenu = trimmed(params.reservationMenu);
+  const customerPlanType = trimmed(params.customerPlanType);
+
+  if (reservationMenu && TICKET_UNIT_PRICES[reservationMenu]) return reservationMenu;
+  if (customerPlanType && TICKET_UNIT_PRICES[customerPlanType]) return customerPlanType;
+
+  return "";
 }
 
-function formatAttendanceTime(value?: string | null) {
-  const text = trimmed(value);
-  if (!text) return "—";
-  return text.slice(0, 5);
+function detectServiceTypeFromTicketName(ticketName: string) {
+  if (
+    ticketName.includes("40分") ||
+    ticketName.includes("60分") ||
+    ticketName.includes("80分") ||
+    ticketName.includes("120分") ||
+    ticketName.includes("ストレッチ")
+  ) {
+    return "ストレッチ";
+  }
+  return "トレーニング";
 }
 
-export default function ReservationPage() {
+function isTicketMenu(menu: string) {
+  if (!menu) return false;
+
+  return (
+    Boolean(TICKET_UNIT_PRICES[menu]) ||
+    menu.includes("回数券") ||
+    menu.includes("40分") ||
+    menu.includes("60分") ||
+    menu.includes("80分") ||
+    menu.includes("120分") ||
+    menu.includes("ダイエット") ||
+    menu.includes("ゴールド") ||
+    menu.includes("プラチナ") ||
+    menu.includes("月2回") ||
+    menu.includes("月4回") ||
+    menu.includes("月8回")
+  );
+}
+
+function getStaffAccent(staffName: string) {
+  const name = trimmed(staffName);
+
+  if (name.includes("山口")) return { color: "#34d399", label: "山", line: "#34d399" };
+  if (name.includes("中西")) return { color: "#b8a59c", label: "中", line: "#fca5a5" };
+  if (name.includes("池田")) return { color: "#67e8f9", label: "池", line: "#67e8f9" };
+  if (name.includes("石川")) return { color: "#60a5fa", label: "石", line: "#60a5fa" };
+  if (name.includes("菱谷")) return { color: "#facc15", label: "輝", line: "#facc15" };
+  if (name.includes("林")) return { color: "#111827", label: "林", line: "#111827" };
+  if (name.includes("井上")) return { color: "#111827", label: "井", line: "#111827" };
+  if (name.includes("羽田")) return { color: "#f87171", label: "羽", line: "#f87171" };
+
+  const first = name ? name.slice(0, 1) : "他";
+  return { color: "#94a3b8", label: first, line: "#94a3b8" };
+}
+
+function buildAttendanceHighlightedNote(memo?: string | null) {
+  const text = trimmed(memo);
+  if (!text) return "";
+  return text;
+}
+
+function attendanceToTimeline(item: AttendanceItem): DisplayTimelineItem {
+  const accent = getStaffAccent(item.staff_name);
+
+  return {
+    kind: "attendance",
+    id: `attendance-${item.id}`,
+    time: trimmed(item.clock_in) || "--:--",
+    endTime: trimmed(item.clock_out) || "",
+    name: `${trimmed(item.staff_name) || "スタッフ"}勤務`,
+    staff: accent.label,
+    note: trimmed(item.memo) || "",
+    highlightedNote: buildAttendanceHighlightedNote(item.memo),
+  };
+}
+
+export default function DashboardPage() {
   const router = useRouter();
 
-  const [mounted, setMounted] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [deletingReservationId, setDeletingReservationId] = useState("");
+  const [authChecked, setAuthChecked] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(getTodayDateString());
+  const [timelineItems, setTimelineItems] = useState<DisplayTimelineItem[]>([]);
+  const [loadingTimeline, setLoadingTimeline] = useState(true);
+  const [timelineError, setTimelineError] = useState("");
+  const [activeMembers, setActiveMembers] = useState<number | null>(null);
+  const [scheduleCount, setScheduleCount] = useState<number>(0);
+  const [systemStatus, setSystemStatus] = useState<SystemStatus>("OFFLINE");
+  const [logoError, setLogoError] = useState(false);
+  const [consumedMap, setConsumedMap] = useState<Record<string, boolean>>({});
+  const [consumingId, setConsumingId] = useState<string>("");
+  const [handoverNote, setHandoverNote] = useState("");
 
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-
-  const [currentMonth, setCurrentMonth] = useState(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
-  });
-
-  const [selectedStoreFilter, setSelectedStoreFilter] = useState("すべて");
-  const [selectedFilterMode, setSelectedFilterMode] = useState<FilterMode>("all");
-  const [selectedDate, setSelectedDate] = useState(toYmd(new Date()));
-  const [daySheetOpen, setDaySheetOpen] = useState(false);
-  const [formOpen, setFormOpen] = useState(false);
-  const [counselingPickerOpen, setCounselingPickerOpen] = useState(false);
-
-  const [reservations, setReservations] = useState<ReservationRow[]>([]);
-  const [attendanceRows, setAttendanceRows] = useState<AttendanceRow[]>([]);
-  const [customers, setCustomers] = useState<CustomerOption[]>([]);
-
-  const [customerSearch, setCustomerSearch] = useState("");
-  const [selectedCustomerId, setSelectedCustomerId] = useState("");
-  const [customerName, setCustomerName] = useState("");
-  const [customerKana, setCustomerKana] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
-
-  const [formDate, setFormDate] = useState(toYmd(new Date()));
-  const [startTime, setStartTime] = useState("10:00");
-  const [endTime, setEndTime] = useState("11:00");
-  const [endTimeTouched, setEndTimeTouched] = useState(false);
-
-  const [storeName, setStoreName] = useState("江戸堀");
-  const [staffName, setStaffName] = useState("山口");
-  const [menu, setMenu] = useState("ストレッチ");
-  const [paymentMethod, setPaymentMethod] = useState("現金");
-  const [visitType, setVisitType] = useState("再来");
-  const [memo, setMemo] = useState("");
-
-  const [salesReservationIds, setSalesReservationIds] = useState<number[]>([]);
-  const [counseledReservationIds, setCounseledReservationIds] = useState<number[]>([]);
-  const [ticketUsedReservationIds, setTicketUsedReservationIds] = useState<number[]>([]);
+  const selectedDateLabel = useMemo(() => formatDateLabel(selectedDate), [selectedDate]);
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
+    const loggedIn = localStorage.getItem(AUTH_STORAGE_KEY);
+    const role = localStorage.getItem(ROLE_STORAGE_KEY);
+    const staffName = localStorage.getItem(STAFF_NAME_STORAGE_KEY);
 
-  useEffect(() => {
-    if (!mounted) return;
+    const legacyStaffLoggedIn = localStorage.getItem("gymup_staff_logged_in");
 
-    const loggedIn =
-      localStorage.getItem("gymup_logged_in") ||
-      localStorage.getItem("isLoggedIn");
-
-    if (loggedIn !== "true") {
-      router.push("/login");
-      return;
-    }
-
-    void loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mounted, router]);
-
-  useEffect(() => {
-    if (!mounted) return;
-    void loadReservations();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentMonth, mounted]);
-
-  async function loadAll() {
-    await Promise.all([loadCustomers(), loadReservations()]);
-  }
-
-  async function loadCustomers() {
-    if (!supabase) {
-      setError("Supabaseの環境変数が設定されていません。");
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from("customers")
-        .select("id, name, kana, phone")
-        .order("id", { ascending: false })
-        .limit(400);
-
-      if (error) throw error;
-
-      const normalized = ((data as CustomerRow[]) || []).map((row) => ({
-        id: String(row.id),
-        name: row.name || "",
-        kana: row.kana || "",
-        phone: row.phone || "",
-      }));
-
-      setCustomers(normalized);
-    } catch (e) {
-      console.error(e);
-      setError(`顧客取得エラー: ${extractErrorMessage(e)}`);
-    }
-  }
-
-  async function loadReservations() {
-    if (!supabase) {
-      setLoading(false);
-      setError("Supabaseの環境変数が設定されていません。");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError("");
-
-      const start = toYmd(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1));
-      const end = toYmd(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0));
-
-      const { data, error } = await supabase
-        .from("reservations")
-        .select(
-          "id, customer_id, customer_name, date, start_time, end_time, store_name, staff_name, menu, payment_method, memo, visit_type, reservation_status, is_first_visit, created_at"
-        )
-        .gte("date", start)
-        .lte("date", end)
-        .order("date", { ascending: true })
-        .order("start_time", { ascending: true });
-
-      if (error) throw error;
-
-      setReservations((data as ReservationRow[]) || []);
-
-      // 勤怠は存在しない環境でも落ちないようにする
-      try {
-        const { data: attendanceData, error: attendanceError } = await supabase
-          .from("attendance_records")
-          .select("id, staff_name, work_date, date, clock_in, start_time, clock_out, end_time, store_name")
-          .gte("work_date", start)
-          .lte("work_date", end)
-          .order("work_date", { ascending: true })
-          .order("clock_in", { ascending: true });
-
-        if (attendanceError) {
-          if ((attendanceError as { code?: string }).code !== "PGRST205") {
-            throw attendanceError;
-          }
-          setAttendanceRows([]);
-        } else {
-          setAttendanceRows((attendanceData as AttendanceRow[]) || []);
-        }
-      } catch (attendanceErr) {
-        console.error(attendanceErr);
-        const message = extractErrorMessage(attendanceErr);
-        if (!message.includes("PGRST205")) {
-          setError(`勤怠取得エラー: ${message}`);
-        }
-        setAttendanceRows([]);
+    if (loggedIn !== "true" && legacyStaffLoggedIn === "true") {
+      localStorage.setItem(AUTH_STORAGE_KEY, "true");
+      localStorage.setItem(ROLE_STORAGE_KEY, localStorage.getItem(ROLE_STORAGE_KEY) || "staff");
+      if (!staffName) {
+        localStorage.setItem(STAFF_NAME_STORAGE_KEY, "スタッフ");
       }
-    } catch (e) {
-      console.error(e);
-      setError(`予約取得エラー: ${extractErrorMessage(e)}`);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const filteredCustomers = useMemo(() => {
-    const q = trimmed(customerSearch).toLowerCase();
-    if (!q) return customers.slice(0, 25);
-
-    return customers
-      .filter((c) => {
-        return (
-          c.name.toLowerCase().includes(q) ||
-          c.kana.toLowerCase().includes(q) ||
-          c.phone.includes(q)
-        );
-      })
-      .slice(0, 25);
-  }, [customerSearch, customers]);
-
-  const salesReservationIdSet = useMemo(
-    () =>
-      new Set(
-        salesReservationIds
-          .map((id) => Number(id))
-          .filter((id) => Number.isFinite(id))
-      ),
-    [salesReservationIds]
-  );
-
-  const counseledReservationIdSet = useMemo(
-    () =>
-      new Set(
-        counseledReservationIds
-          .map((id) => Number(id))
-          .filter((id) => Number.isFinite(id))
-      ),
-    [counseledReservationIds]
-  );
-
-  const ticketUsedReservationIdSet = useMemo(
-    () =>
-      new Set(
-        ticketUsedReservationIds
-          .map((id) => Number(id))
-          .filter((id) => Number.isFinite(id))
-      ),
-    [ticketUsedReservationIds]
-  );
-
-  const baseVisibleReservations = useMemo(() => {
-    const list =
-      selectedStoreFilter === "すべて"
-        ? reservations
-        : reservations.filter((item) => item.store_name === selectedStoreFilter);
-
-    return [...list];
-  }, [reservations, selectedStoreFilter]);
-
-  useEffect(() => {
-    if (!mounted) return;
-    void loadReservationFlagsForVisible();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mounted, baseVisibleReservations]);
-
-  const visibleReservations = useMemo(() => {
-    let list = [...baseVisibleReservations];
-
-    if (selectedFilterMode !== "all") {
-      list = list.filter((item) => {
-        const flags = getPendingFlags({
-          item,
-          salesReservationIdSet,
-          counseledReservationIdSet,
-          ticketUsedReservationIdSet,
-        });
-
-        if (selectedFilterMode === "pending") return flags.isPending;
-        if (selectedFilterMode === "sales_pending") return flags.salesPending;
-        if (selectedFilterMode === "counseling_pending") return flags.counselingPending;
-        if (selectedFilterMode === "ticket_pending") return flags.ticketPending;
-        return true;
-      });
+      localStorage.removeItem("gymup_staff_logged_in");
     }
 
-    return list.sort((a, b) => {
-      const aPriority = getPendingPriority({
-        item: a,
-        salesReservationIdSet,
-        counseledReservationIdSet,
-        ticketUsedReservationIdSet,
-      });
-      const bPriority = getPendingPriority({
-        item: b,
-        salesReservationIdSet,
-        counseledReservationIdSet,
-        ticketUsedReservationIdSet,
-      });
+    const finalLoggedIn = localStorage.getItem(AUTH_STORAGE_KEY);
+    const finalRole = localStorage.getItem(ROLE_STORAGE_KEY);
 
-      if (aPriority !== bPriority) return aPriority - bPriority;
-
-      const aDate = trimmed(a.date);
-      const bDate = trimmed(b.date);
-      if (aDate !== bDate) return aDate < bDate ? -1 : 1;
-
-      const aTime = trimmed(a.start_time);
-      const bTime = trimmed(b.start_time);
-      if (aTime !== bTime) return aTime < bTime ? -1 : 1;
-
-      return 0;
-    });
-  }, [
-    baseVisibleReservations,
-    selectedFilterMode,
-    salesReservationIdSet,
-    counseledReservationIdSet,
-    ticketUsedReservationIdSet,
-  ]);
-
-  const calendarDays = useMemo(() => buildCalendarDays(currentMonth), [currentMonth]);
-
-  const reservationsByDate = useMemo(() => {
-    const map = new Map<string, ReservationRow[]>();
-
-    for (const item of visibleReservations) {
-      const key = trimmed(item.date);
-      if (!key) continue;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(item);
-    }
-
-    for (const [, value] of map) {
-      value.sort(sortReservations);
-    }
-
-    return map;
-  }, [visibleReservations]);
-
-  const attendanceByDate = useMemo(() => {
-    const map = new Map<string, AttendanceRow[]>();
-
-    for (const item of attendanceRows) {
-      const key = trimmed(item.work_date) || trimmed(item.date);
-      if (!key) continue;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(item);
-    }
-
-    for (const [, value] of map) {
-      value.sort((a, b) => {
-        const aTime = trimmed(a.clock_in) || trimmed(a.start_time);
-        const bTime = trimmed(b.clock_in) || trimmed(b.start_time);
-        return aTime.localeCompare(bTime);
-      });
-    }
-
-    return map;
-  }, [attendanceRows]);
-
-  const selectedDayReservations = useMemo(() => {
-    const list = [...(reservationsByDate.get(selectedDate) || [])];
-
-    return list.sort((a, b) => {
-      const aPriority = getPendingPriority({
-        item: a,
-        salesReservationIdSet,
-        counseledReservationIdSet,
-        ticketUsedReservationIdSet,
-      });
-      const bPriority = getPendingPriority({
-        item: b,
-        salesReservationIdSet,
-        counseledReservationIdSet,
-        ticketUsedReservationIdSet,
-      });
-
-      if (aPriority !== bPriority) return aPriority - bPriority;
-
-      const aTime = trimmed(a.start_time);
-      const bTime = trimmed(b.start_time);
-      if (aTime !== bTime) return aTime < bTime ? -1 : 1;
-
-      return 0;
-    });
-  }, [
-    reservationsByDate,
-    selectedDate,
-    salesReservationIdSet,
-    counseledReservationIdSet,
-    ticketUsedReservationIdSet,
-  ]);
-
-  const selectedDayAttendance = useMemo(() => {
-    return attendanceByDate.get(selectedDate) || [];
-  }, [attendanceByDate, selectedDate]);
-
-  const counselingCandidates = useMemo(() => {
-    return selectedDayReservations.filter(
-      (item) =>
-        isNewVisit(item) &&
-        item.customer_id !== null &&
-        item.customer_id !== undefined &&
-        String(item.customer_id) !== ""
-    );
-  }, [selectedDayReservations]);
-
-  const pendingSummary = useMemo(() => {
-    const source = baseVisibleReservations;
-
-    const summary = {
-      totalPending: 0,
-      salesPending: 0,
-      counselingPending: 0,
-      ticketPending: 0,
-      visibleCount: visibleReservations.length,
-    };
-
-    source.forEach((item) => {
-      const flags = getPendingFlags({
-        item,
-        salesReservationIdSet,
-        counseledReservationIdSet,
-        ticketUsedReservationIdSet,
-      });
-
-      if (flags.isPending) summary.totalPending += 1;
-      if (flags.salesPending) summary.salesPending += 1;
-      if (flags.counselingPending) summary.counselingPending += 1;
-      if (flags.ticketPending) summary.ticketPending += 1;
-    });
-
-    return summary;
-  }, [
-    baseVisibleReservations,
-    visibleReservations.length,
-    salesReservationIdSet,
-    counseledReservationIdSet,
-    ticketUsedReservationIdSet,
-  ]);
-
-  async function loadReservationFlagsForVisible() {
-    if (!supabase) return;
-
-    const reservationIds = baseVisibleReservations
-      .map((item) => toIdNumber(item.id))
-      .filter((id): id is number => id !== null);
-
-    if (reservationIds.length === 0) {
-      setSalesReservationIds([]);
-      setCounseledReservationIds([]);
-      setTicketUsedReservationIds([]);
+    if (finalLoggedIn !== "true" || !finalRole) {
+      router.replace("/login/staff");
       return;
     }
 
+    setHandoverNote(readHandoverNote(getTodayDateString()));
+    setAuthChecked(true);
+  }, [router]);
+
+  useEffect(() => {
+    if (!authChecked) return;
+    setHandoverNote(readHandoverNote(selectedDate));
+  }, [authChecked, selectedDate]);
+
+  useEffect(() => {
+    if (!authChecked) return;
+
+    let mounted = true;
+
+    async function loadTopData() {
+      setLoadingTimeline(true);
+      setTimelineError("");
+
+      try {
+        const supabase = getSupabaseClient();
+
+        if (supabase) {
+          const [reservationsResult, customersResult, attendanceResult] = await Promise.all([
+            supabase
+              .from("reservations")
+              .select("id, date, start_time, customer_name, customer_id, menu, staff_name, store_name")
+              .eq("date", selectedDate)
+              .order("start_time", { ascending: true }),
+            supabase.from("customers").select("id, name, plan_type"),
+            supabase
+              .from("attendance_records")
+              .select("id, work_date, staff_name, clock_in, clock_out, memo")
+              .eq("work_date", selectedDate)
+              .order("clock_in", { ascending: true }),
+          ]);
+
+          if (reservationsResult.error) {
+            throw reservationsResult.error;
+          }
+
+          const attendanceRows =
+            attendanceResult.error && (attendanceResult.error as any).code === "PGRST205"
+              ? []
+              : attendanceResult.error
+              ? []
+              : ((attendanceResult.data as any[]) || []);
+
+          const customerList: CustomerLite[] = Array.isArray(customersResult.data)
+            ? (customersResult.data as any[]).map((item) => ({
+                id: String(item.id),
+                name: String(item.name ?? ""),
+                plan_type: item.plan_type ?? null,
+              }))
+            : [];
+
+          const customerMap = buildCustomerMap(customerList);
+
+          const normalizedReservations: ReservationItem[] = (reservationsResult.data || [])
+            .map(normalizeReservation)
+            .filter(isReservationItem)
+            .map((item) => {
+              if (item.customer_id) return item;
+              const matchedId = customerMap.get(normalizeName(item.customer_name));
+              return matchedId ? { ...item, customer_id: matchedId } : item;
+            });
+
+          const sortedReservations = sortReservations(normalizedReservations);
+          const reservationIds = sortedReservations
+            .map((item) => toIdNumber(item.id))
+            .filter((id): id is number => id !== null);
+          const customerIds = sortedReservations
+            .map((item) => toIdNumber(item.customer_id))
+            .filter((id): id is number => id !== null);
+
+          let consumedSet = new Set<number>();
+          const ticketContractMap = new Map<string, { remaining_count: number; ticket_name: string }>();
+
+          if (reservationIds.length > 0) {
+            const { data: usageRows, error: usageError } = await supabase
+              .from("ticket_usages")
+              .select("reservation_id")
+              .in("reservation_id", reservationIds);
+
+            if (!usageError) {
+              consumedSet = new Set(
+                ((usageRows as any[]) || [])
+                  .map((row) => Number(row.reservation_id))
+                  .filter((num) => Number.isFinite(num))
+              );
+            }
+          }
+
+          if (customerIds.length > 0) {
+            const { data: contractRows, error: contractError } = await supabase
+              .from("ticket_contracts")
+              .select("customer_id, ticket_name, remaining_count, status, id")
+              .in("customer_id", customerIds)
+              .eq("status", "active")
+              .order("id", { ascending: false });
+
+            if (!contractError) {
+              for (const row of (contractRows as any[]) || []) {
+                const customerId = String(row.customer_id);
+                const ticketName = String(row.ticket_name ?? "");
+                const key = `${customerId}::${ticketName}`;
+                if (!ticketContractMap.has(key)) {
+                  ticketContractMap.set(key, {
+                    remaining_count: Number(row.remaining_count ?? 0),
+                    ticket_name: ticketName,
+                  });
+                }
+              }
+            }
+          }
+
+          const reservationTimeline: DisplayTimelineItem[] = sortedReservations.map((item) => {
+            const customerId = trimmed(item.customer_id);
+            const customerRow = customerList.find((c) => c.id === customerId);
+            const ticketName = resolveTicketName({
+              reservationMenu: item.menu,
+              customerPlanType: customerRow?.plan_type ?? null,
+            });
+
+            const contractKey = ticketName ? `${customerId}::${ticketName}` : "";
+            const contractInfo = contractKey ? ticketContractMap.get(contractKey) : undefined;
+
+            return {
+              kind: "reservation",
+              id: item.id,
+              time: item.start_time?.slice(0, 5) || "--:--",
+              name: item.customer_name || "名前未設定",
+              menu: item.menu || "予約メニュー",
+              staff: item.staff_name || "担当未設定",
+              store: item.store_name || "",
+              customerId: item.customer_id,
+              date: item.date,
+              remainingCount:
+                typeof contractInfo?.remaining_count === "number"
+                  ? contractInfo.remaining_count
+                  : null,
+              ticketName: contractInfo?.ticket_name || ticketName || "",
+            };
+          });
+
+          const attendanceTimeline: DisplayTimelineItem[] = attendanceRows.map((row) =>
+            attendanceToTimeline({
+              id: String(row.id),
+              work_date: trimmed(row.work_date),
+              staff_name: trimmed(row.staff_name),
+              clock_in: row.clock_in ?? null,
+              clock_out: row.clock_out ?? null,
+              memo: row.memo ?? null,
+            })
+          );
+
+          const mergedTimeline = [...attendanceTimeline, ...reservationTimeline].sort((a, b) => {
+            const aTime = a.time || "";
+            const bTime = b.time || "";
+            if (aTime !== bTime) return aTime.localeCompare(bTime);
+            if (a.kind !== b.kind) return a.kind === "attendance" ? -1 : 1;
+            return a.name.localeCompare(b.name);
+          });
+
+          if (!mounted) return;
+
+          const nextConsumedMap: Record<string, boolean> = {};
+          for (const item of sortedReservations) {
+            const reservationId = toIdNumber(item.id);
+            if (reservationId && consumedSet.has(reservationId)) {
+              nextConsumedMap[String(item.id)] = true;
+            }
+          }
+
+          setConsumedMap(nextConsumedMap);
+          setTimelineItems(mergedTimeline);
+          setScheduleCount(sortedReservations.length);
+          setActiveMembers(customerList.length);
+          setSystemStatus("ONLINE");
+          setLoadingTimeline(false);
+          return;
+        }
+
+        const localCustomers = parseLocalCustomers();
+        const localCustomerMap = buildCustomerMap(localCustomers);
+
+        const localReservations = parseLocalReservations();
+        const selectedLocal = sortReservations(
+          localReservations
+            .filter((item) => item.date === selectedDate)
+            .map((item) => {
+              if (item.customer_id) return item;
+              const matchedId = localCustomerMap.get(normalizeName(item.customer_name));
+              return matchedId ? { ...item, customer_id: matchedId } : item;
+            })
+        );
+
+        const reservationTimeline: DisplayTimelineItem[] = selectedLocal.map((item) => ({
+          kind: "reservation",
+          id: item.id,
+          time: item.start_time?.slice(0, 5) || "--:--",
+          name: item.customer_name || "名前未設定",
+          menu: item.menu || "予約メニュー",
+          staff: item.staff_name || "担当未設定",
+          store: item.store_name || "",
+          customerId: item.customer_id,
+          date: item.date,
+          remainingCount: null,
+          ticketName: "",
+        }));
+
+        if (!mounted) return;
+
+        setConsumedMap({});
+        setTimelineItems(reservationTimeline);
+        setScheduleCount(selectedLocal.length);
+        setActiveMembers(localCustomers.length || null);
+        setSystemStatus(selectedLocal.length > 0 ? "FALLBACK" : "OFFLINE");
+        setLoadingTimeline(false);
+      } catch (error) {
+        console.error("TOP data load error:", error);
+
+        try {
+          const localCustomers = parseLocalCustomers();
+          const localCustomerMap = buildCustomerMap(localCustomers);
+
+          const localReservations = parseLocalReservations();
+          const selectedLocal = sortReservations(
+            localReservations
+              .filter((item) => item.date === selectedDate)
+              .map((item) => {
+                if (item.customer_id) return item;
+                const matchedId = localCustomerMap.get(normalizeName(item.customer_name));
+                return matchedId ? { ...item, customer_id: matchedId } : item;
+              })
+          );
+
+          const reservationTimeline: DisplayTimelineItem[] = selectedLocal.map((item) => ({
+            kind: "reservation",
+            id: item.id,
+            time: item.start_time?.slice(0, 5) || "--:--",
+            name: item.customer_name || "名前未設定",
+            menu: item.menu || "予約メニュー",
+            staff: item.staff_name || "担当未設定",
+            store: item.store_name || "",
+            customerId: item.customer_id,
+            date: item.date,
+            remainingCount: null,
+            ticketName: "",
+          }));
+
+          if (!mounted) return;
+
+          setConsumedMap({});
+          setTimelineItems(reservationTimeline);
+          setScheduleCount(selectedLocal.length);
+          setActiveMembers(localCustomers.length || null);
+          setSystemStatus(selectedLocal.length > 0 ? "FALLBACK" : "OFFLINE");
+          setLoadingTimeline(false);
+
+          if (selectedLocal.length === 0) {
+            setTimelineError("予約データの取得に失敗しました");
+          }
+        } catch (fallbackError) {
+          console.error("fallback load error:", fallbackError);
+
+          if (!mounted) return;
+
+          setConsumedMap({});
+          setTimelineItems([]);
+          setScheduleCount(0);
+          setActiveMembers(null);
+          setSystemStatus("OFFLINE");
+          setLoadingTimeline(false);
+          setTimelineError("予約データの取得に失敗しました");
+        }
+      }
+    }
+
+    loadTopData();
+
+    return () => {
+      mounted = false;
+    };
+  }, [authChecked, selectedDate]);
+
+  const handleStaffLogout = () => {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    localStorage.removeItem(ROLE_STORAGE_KEY);
+    localStorage.removeItem(STAFF_NAME_STORAGE_KEY);
+    localStorage.removeItem("gymup_staff_logged_in");
+    router.push("/login/staff");
+  };
+
+  const handleOpenTraining = (item: DisplayTimelineItem) => {
+    if (item.kind !== "reservation") return;
+
+    if (item.customerId) {
+      router.push(
+        `/customer/${item.customerId}?tab=training&from=dashboard&reservationId=${encodeURIComponent(
+          item.id
+        )}`
+      );
+      return;
+    }
+
+    router.push(`/customer?keyword=${encodeURIComponent(item.name)}`);
+  };
+
+  const handleConsume = async (
+    item: DisplayTimelineItem,
+    e: React.MouseEvent<HTMLButtonElement>
+  ) => {
+    e.stopPropagation();
+
+    if (item.kind !== "reservation") return;
+
+    if (!isTicketMenu(item.menu)) {
+      window.alert("この予約は回数券消化の対象外です");
+      return;
+    }
+
+    if (consumedMap[item.id]) return;
+
+    const reservationId = toIdNumber(item.id);
+    const customerId = toIdNumber(item.customerId);
+
+    if (!reservationId) {
+      window.alert("予約IDが不正です");
+      return;
+    }
+
+    if (!customerId) {
+      window.alert("この予約に customer_id がありません");
+      return;
+    }
+
+    const ok = window.confirm(
+      `${item.name} の回数券を1回消化して、売上を自動作成します。よろしいですか？`
+    );
+    if (!ok) return;
+
+    setConsumingId(item.id);
+
     try {
-      const [
-        { data: salesData, error: salesError },
-        { data: counselingData, error: counselingError },
-        { data: ticketUsageData, error: ticketUsageError },
-      ] = await Promise.all([
-        supabase.from("sales").select("reservation_id").in("reservation_id", reservationIds),
-        supabase
-          .from("counselings")
-          .select("reservation_id")
-          .in("reservation_id", reservationIds),
-        supabase
-          .from("ticket_usages")
-          .select("reservation_id")
-          .in("reservation_id", reservationIds),
-      ]);
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        throw new Error("Supabaseの環境変数が設定されていません。");
+      }
 
-      if (salesError) throw salesError;
-      if (counselingError) throw counselingError;
-      if (ticketUsageError) throw ticketUsageError;
-
-      setSalesReservationIds(
-        ((salesData as SimpleReservationIdRow[]) || [])
-          .map((row) => toIdNumber(row.reservation_id))
-          .filter((id): id is number => id !== null)
-      );
-
-      setCounseledReservationIds(
-        ((counselingData as SimpleReservationIdRow[]) || [])
-          .map((row) => toIdNumber(row.reservation_id))
-          .filter((id): id is number => id !== null)
-      );
-
-      setTicketUsedReservationIds(
-        ((ticketUsageData as SimpleReservationIdRow[]) || [])
-          .map((row) => toIdNumber(row.reservation_id))
-          .filter((id): id is number => id !== null)
-      );
-    } catch (e) {
-      console.error(e);
-      setError(`状態取得エラー: ${extractErrorMessage(e)}`);
-    }
-  }
-
-  function openDay(dateStr: string) {
-    setSelectedDate(dateStr);
-    setDaySheetOpen(true);
-  }
-
-  function openCreateModal(dateStr?: string) {
-    const useDate = dateStr || selectedDate || toYmd(new Date());
-    setFormDate(useDate);
-    setStartTime("10:00");
-    setEndTime("11:00");
-    setEndTimeTouched(false);
-    setSelectedCustomerId("");
-    setCustomerSearch("");
-    setCustomerName("");
-    setCustomerKana("");
-    setCustomerPhone("");
-    setStoreName("江戸堀");
-    setStaffName("山口");
-    setMenu("ストレッチ");
-    setPaymentMethod("現金");
-    setVisitType("再来");
-    setMemo("");
-    setError("");
-    setSuccess("");
-    setFormOpen(true);
-  }
-
-  function handleSelectCustomer(id: string) {
-    setSelectedCustomerId(id);
-    const found = customers.find((c) => c.id === id);
-    if (!found) return;
-    setCustomerName(found.name);
-    setCustomerKana(found.kana);
-    setCustomerPhone(found.phone);
-    setCustomerSearch(found.name);
-    setVisitType("再来");
-  }
-
-  async function findOrCreateCustomerId(): Promise<string | null> {
-    if (!supabase) throw new Error("Supabase未設定です。");
-
-    const name = trimmed(customerName);
-    const kana = trimmed(customerKana);
-    const rawPhone = trimmed(customerPhone);
-    const phone = normalizePhone(rawPhone);
-
-    if (!name) return null;
-
-    if (selectedCustomerId) {
-      return selectedCustomerId;
-    }
-
-    const localMatch = customers.find((c) => {
-      const sameName = trimmed(c.name) === name;
-      const samePhone = phone && normalizePhone(c.phone) === phone;
-      return sameName && (samePhone || !phone);
-    });
-
-    if (localMatch) return localMatch.id;
-
-    if (phone) {
-      const { data: phoneMatch, error: phoneMatchError } = await supabase
-        .from("customers")
-        .select("id, name, kana, phone")
-        .eq("phone", rawPhone)
+      const { data: usageExists, error: usageExistsError } = await supabase
+        .from("ticket_usages")
+        .select("id")
+        .eq("reservation_id", reservationId)
         .limit(1)
         .maybeSingle();
 
-      if (phoneMatchError) {
-        console.warn(phoneMatchError);
+      if (usageExistsError) throw usageExistsError;
+      if (usageExists) {
+        setConsumedMap((prev) => ({ ...prev, [item.id]: true }));
+        window.alert("この予約はすでに消化済みです");
+        router.push(`/sales?reservationId=${reservationId}`);
+        return;
       }
 
-      if (phoneMatch) {
-        return String((phoneMatch as CustomerRow).id);
-      }
-    }
-
-    const { data: nameMatch, error: nameMatchError } = await supabase
-      .from("customers")
-      .select("id, name, kana, phone")
-      .eq("name", name)
-      .limit(1)
-      .maybeSingle();
-
-    if (nameMatchError) {
-      console.warn(nameMatchError);
-    }
-
-    if (nameMatch) {
-      return String((nameMatch as CustomerRow).id);
-    }
-
-    // 競合回避のためID指定なし insert
-    const { data: insertedRows, error: insertError } = await supabase
-      .from("customers")
-      .insert({
-        name,
-        kana: kana || null,
-        phone: rawPhone || null,
-      })
-      .select("id")
-      .limit(1);
-
-    if (insertError) throw insertError;
-
-    const inserted = Array.isArray(insertedRows) ? insertedRows[0] : null;
-    if (!inserted?.id) {
-      throw new Error("顧客作成後のID取得に失敗しました。");
-    }
-
-    return String(inserted.id);
-  }
-
-  async function handleSaveReservation() {
-    if (!supabase) {
-      setError("Supabaseの環境変数が設定されていません。");
-      return;
-    }
-
-    if (!trimmed(customerName)) {
-      setError("顧客名を入力してください。");
-      return;
-    }
-
-    if (!trimmed(formDate)) {
-      setError("日付を入力してください。");
-      return;
-    }
-
-    if (!trimmed(startTime)) {
-      setError("開始時間を入力してください。");
-      return;
-    }
-
-    if (!trimmed(endTime)) {
-      setError("終了時間を入力してください。");
-      return;
-    }
-
-    if (!trimmed(visitType)) {
-      setError("来店区分を選択してください。");
-      return;
-    }
-
-    try {
-      setSaving(true);
-      setError("");
-      setSuccess("");
-
-      const customerId = await findOrCreateCustomerId();
-
-      const payload = {
-        customer_id: customerId ? Number(customerId) : null,
-        customer_name: trimmed(customerName),
-        date: formDate,
-        start_time: startTime,
-        end_time: endTime,
-        store_name: storeName,
-        staff_name: staffName,
-        menu,
-        payment_method: paymentMethod,
-        visit_type: visitType,
-        reservation_status: "予約済",
-        is_first_visit: visitType === "新規",
-        memo: trimmed(memo) || null,
-      };
-
-      const { error } = await supabase.from("reservations").insert(payload);
-      if (error) throw error;
-
-      setSuccess("予約を保存しました。");
-      setFormOpen(false);
-      setSelectedDate(formDate);
-      setDaySheetOpen(true);
-      await Promise.all([loadCustomers(), loadReservations()]);
-    } catch (e) {
-      console.error(e);
-      setError(`予約保存エラー: ${extractErrorMessage(e)}`);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function restoreTicketContractsFromUsages(usages: ReservationRelatedTicketUsageRow[]) {
-    if (!supabase || usages.length === 0) return;
-
-    for (const usage of usages) {
-      const contractId = toIdNumber(usage.contract_id);
-      const restoreUnitPrice = Number(usage.unit_price || 0);
-
-      if (contractId === null) continue;
-
-      const { data: contractData, error: contractFetchError } = await supabase
-        .from("ticket_contracts")
-        .select("id, used_count, remaining_count, prepaid_balance")
-        .eq("id", contractId)
+      const { data: customerRow, error: customerError } = await supabase
+        .from("customers")
+        .select("id, name, plan_type")
+        .eq("id", customerId)
         .maybeSingle();
 
-      if (contractFetchError) throw contractFetchError;
-      if (!contractData) continue;
+      if (customerError) throw customerError;
+      if (!customerRow) {
+        throw new Error("顧客情報が見つかりません。");
+      }
 
-      const contract = contractData as TicketContractRow;
-      const currentUsed = Number(contract.used_count || 0);
-      const currentRemaining = Number(contract.remaining_count || 0);
-      const currentBalance = Number(contract.prepaid_balance || 0);
+      const ticketName = resolveTicketName({
+        reservationMenu: item.menu,
+        customerPlanType: (customerRow as any).plan_type,
+      });
+
+      if (!ticketName) {
+        throw new Error(
+          "回数券名を特定できません。予約メニューか顧客プラン名を、単価表にある名前へ合わせてください。"
+        );
+      }
+
+      const unitPrice = TICKET_UNIT_PRICES[ticketName];
+      if (!unitPrice) {
+        throw new Error(`単価設定がありません: ${ticketName}`);
+      }
+
+      const { data: contractRow, error: contractError } = await supabase
+        .from("ticket_contracts")
+        .select("*")
+        .eq("customer_id", customerId)
+        .eq("ticket_name", ticketName)
+        .eq("status", "active")
+        .order("id", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (contractError) throw contractError;
+      if (!contractRow) {
+        throw new Error(`有効な回数券契約がありません: ${ticketName}`);
+      }
+
+      const remainingCount = Number((contractRow as any).remaining_count ?? 0);
+      const usedCount = Number((contractRow as any).used_count ?? 0);
+      const prepaidBalance = Number((contractRow as any).prepaid_balance ?? 0);
+
+      if (remainingCount <= 0) {
+        throw new Error("残回数がありません。");
+      }
+
+      const nextRemaining = remainingCount - 1;
+      const nextUsed = usedCount + 1;
+      const nextBalance = Math.max(prepaidBalance - unitPrice, 0);
+      const serviceType = detectServiceTypeFromTicketName(ticketName);
+
+      const { error: usageInsertError } = await supabase.from("ticket_usages").insert({
+        contract_id: (contractRow as any).id,
+        customer_id: customerId,
+        reservation_id: reservationId,
+        used_date: item.date || selectedDate,
+        ticket_name: ticketName,
+        unit_price: unitPrice,
+        staff_name: item.staff || null,
+        store_name: item.store || null,
+      });
+
+      if (usageInsertError) throw usageInsertError;
 
       const { error: contractUpdateError } = await supabase
         .from("ticket_contracts")
         .update({
-          used_count: Math.max(currentUsed - 1, 0),
-          remaining_count: currentRemaining + 1,
-          prepaid_balance: currentBalance + restoreUnitPrice,
+          used_count: nextUsed,
+          remaining_count: nextRemaining,
+          prepaid_balance: nextBalance,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", contractId);
+        .eq("id", (contractRow as any).id);
 
       if (contractUpdateError) throw contractUpdateError;
-    }
-  }
 
-  async function handleDeleteReservation(item: ReservationRow) {
-    if (!supabase) {
-      setError("Supabaseの環境変数が設定されていません。");
-      return;
-    }
+      const { error: salesInsertError } = await supabase.from("sales").insert({
+        reservation_id: reservationId,
+        customer_id: customerId,
+        customer_name: item.name || trimmed((customerRow as any).name) || null,
+        sale_date: item.date || selectedDate,
+        amount: unitPrice,
+        menu_type: serviceType,
+        sale_type: "回数券消化",
+        payment_method: "前受金消化",
+        staff_name: item.staff || null,
+        store_name: item.store || null,
+        memo: `${ticketName} 消化`,
+      });
 
-    const reservationId = toIdNumber(item.id);
-    if (reservationId === null) {
-      setError("予約IDが不正です。");
-      return;
-    }
+      if (salesInsertError) throw salesInsertError;
 
-    const warnings: string[] = [];
-
-    try {
-      setError("");
-      setSuccess("");
-
-      const [
-        { data: salesData, error: salesError },
-        { data: counselingData, error: counselingError },
-        { data: ticketUsageData, error: ticketUsageError },
-      ] = await Promise.all([
-        supabase
-          .from("sales")
-          .select("id")
-          .eq("reservation_id", reservationId),
-        supabase
-          .from("counselings")
-          .select("id")
-          .eq("reservation_id", reservationId),
-        supabase
-          .from("ticket_usages")
-          .select("id, contract_id, unit_price")
-          .eq("reservation_id", reservationId),
-      ]);
-
-      if (salesError) throw salesError;
-      if (counselingError) throw counselingError;
-      if (ticketUsageError) throw ticketUsageError;
-
-      const salesRows = (salesData as ReservationRelatedSaleRow[]) || [];
-      const counselingRows = (counselingData as ReservationRelatedCounselingRow[]) || [];
-      const ticketUsageRows = (ticketUsageData as ReservationRelatedTicketUsageRow[]) || [];
-
-      if (salesRows.length > 0) warnings.push(`売上 ${salesRows.length}件`);
-      if (counselingRows.length > 0) warnings.push(`カウンセリング ${counselingRows.length}件`);
-      if (ticketUsageRows.length > 0) warnings.push(`回数券消化履歴 ${ticketUsageRows.length}件`);
-
-      const warningText =
-        warnings.length > 0
-          ? `この予約には関連データがあります。\n${warnings.join(
-              "\n"
-            )}\n\n関連データも含めて削除し、回数券消化があれば残回数も戻します。\n本当に削除しますか？`
-          : "この予約を削除しますか？";
-
-      const ok = window.confirm(warningText);
-      if (!ok) return;
-
-      setDeletingReservationId(String(item.id));
-
-      // 1. 回数券残数を戻す
-      if (ticketUsageRows.length > 0) {
-        await restoreTicketContractsFromUsages(ticketUsageRows);
-      }
-
-      // 2. ticket_usages 削除
-      if (ticketUsageRows.length > 0) {
-        const usageIds = ticketUsageRows
-          .map((row) => toIdNumber(row.id))
-          .filter((id): id is number => id !== null);
-
-        if (usageIds.length > 0) {
-          const { error: deleteUsageError } = await supabase
-            .from("ticket_usages")
-            .delete()
-            .in("id", usageIds);
-
-          if (deleteUsageError) throw deleteUsageError;
-        }
-      }
-
-      // 3. sales 削除
-      if (salesRows.length > 0) {
-        const saleIds = salesRows
-          .map((row) => toIdNumber(row.id))
-          .filter((id): id is number => id !== null);
-
-        if (saleIds.length > 0) {
-          const { error: deleteSalesError } = await supabase
-            .from("sales")
-            .delete()
-            .in("id", saleIds);
-
-          if (deleteSalesError) throw deleteSalesError;
-        }
-      }
-
-      // 4. counselings 削除
-      if (counselingRows.length > 0) {
-        const counselingIds = counselingRows
-          .map((row) => toIdNumber(row.id))
-          .filter((id): id is number => id !== null);
-
-        if (counselingIds.length > 0) {
-          const { error: deleteCounselingError } = await supabase
-            .from("counselings")
-            .delete()
-            .in("id", counselingIds);
-
-          if (deleteCounselingError) throw deleteCounselingError;
-        }
-      }
-
-      // 5. 予約削除
-      const { error: deleteReservationError } = await supabase
+      const { error: reservationUpdateError } = await supabase
         .from("reservations")
-        .delete()
+        .update({
+          reservation_status: "売上済",
+        })
         .eq("id", reservationId);
 
-      if (deleteReservationError) throw deleteReservationError;
+      if (reservationUpdateError) throw reservationUpdateError;
 
-      setSuccess("予約を削除しました。");
-      setDaySheetOpen(false);
+      setConsumedMap((prev) => ({ ...prev, [item.id]: true }));
+      setTimelineItems((prev) =>
+        prev.map((row) =>
+          row.kind === "reservation" && row.id === item.id
+            ? { ...row, remainingCount: nextRemaining, ticketName }
+            : row
+        )
+      );
 
-      await Promise.all([loadReservations(), loadReservationFlagsForVisible()]);
-    } catch (e) {
-      console.error(e);
-      setError(`予約削除エラー: ${extractErrorMessage(e)}`);
+      window.alert(
+        `消化を記録しました。${unitPrice.toLocaleString()}円を売上計上し、残回数は ${nextRemaining} です。`
+      );
+
+      router.push(
+        `/sales?reservationId=${reservationId}&customerId=${customerId}&customerName=${encodeURIComponent(
+          item.name
+        )}&date=${encodeURIComponent(item.date || selectedDate)}&menu=${encodeURIComponent(
+          ticketName
+        )}&staffName=${encodeURIComponent(item.staff || "")}&storeName=${encodeURIComponent(
+          item.store || ""
+        )}&serviceType=${encodeURIComponent(serviceType)}&saleType=${encodeURIComponent(
+          "回数券消化"
+        )}`
+      );
+    } catch (error) {
+      console.error("consume error:", error);
+      window.alert(`消化処理に失敗しました: ${extractErrorMessage(error)}`);
     } finally {
-      setDeletingReservationId("");
+      setConsumingId("");
     }
+  };
+
+  const handleHandoverChange = (value: string) => {
+    setHandoverNote(value);
+    saveHandoverNote(selectedDate, value);
+  };
+
+  const handleClearHandover = () => {
+    const ok = window.confirm(`${selectedDateLabel} の重要な引き継ぎメモを空にしますか？`);
+    if (!ok) return;
+    setHandoverNote("");
+    saveHandoverNote(selectedDate, "");
+  };
+
+  const handlePrevDay = () => {
+    setSelectedDate((prev) => shiftDateString(prev, -1));
+  };
+
+  const handleNextDay = () => {
+    setSelectedDate((prev) => shiftDateString(prev, 1));
+  };
+
+  const handleGoToday = () => {
+    setSelectedDate(getTodayDateString());
+  };
+
+  const handleDateInputChange = (value: string) => {
+    if (!value) return;
+    setSelectedDate(value);
+  };
+
+  const statusLabel =
+    systemStatus === "ONLINE"
+      ? "Online"
+      : systemStatus === "FALLBACK"
+      ? "Fallback"
+      : "Offline";
+
+  const statCards = [
+    {
+      label: "Selected Reservations",
+      value: loadingTimeline ? "..." : String(scheduleCount),
+    },
+    {
+      label: "Active Members",
+      value: activeMembers === null ? "--" : String(activeMembers),
+    },
+    {
+      label: "System Status",
+      value: statusLabel,
+    },
+  ];
+
+  if (!authChecked) {
+    return (
+      <main
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "#0f1012",
+          color: "#ffffff",
+          fontSize: 14,
+        }}
+      >
+        認証を確認中...
+      </main>
+    );
   }
-
-  function handleChangeStartTime(value: string) {
-    setStartTime(value);
-    if (!endTimeTouched || !trimmed(endTime)) {
-      setEndTime(addOneHour(value));
-    }
-  }
-
-  function goPrevMonth() {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
-  }
-
-  function goNextMonth() {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
-  }
-
-  function handleOpenCounselingPicker() {
-    setError("");
-    setSuccess("");
-
-    if (counselingCandidates.length === 0) {
-      setError("この日に新規の顧客付き予約がありません。日付を選ぶか予約を確認してください。");
-      return;
-    }
-
-    setCounselingPickerOpen(true);
-  }
-
-  function handleGoCounseling(item: ReservationRow) {
-    if (!item.customer_id) {
-      setError("この予約に customer_id がありません。");
-      return;
-    }
-
-    setCounselingPickerOpen(false);
-    router.push(`/customer/${item.customer_id}/counseling?reservationId=${item.id}`);
-  }
-
-  function setFilterMode(nextMode: FilterMode) {
-    setSelectedFilterMode((prev) => (prev === nextMode ? "all" : nextMode));
-  }
-
-  function getSummaryCardStyle(mode: FilterMode, base: CSSProperties) {
-    const active = selectedFilterMode === mode;
-    return {
-      ...styles.summaryPill,
-      ...base,
-      ...(active ? styles.summaryPillSelected : {}),
-    };
-  }
-
-  if (!mounted) return null;
 
   return (
-    <main style={styles.page}>
-      <div style={styles.mobileWrap}>
-        <section style={styles.topBar}>
-          <div style={styles.topHeaderRow}>
-            <div style={styles.monthRow}>
-              <button type="button" onClick={goPrevMonth} style={styles.arrowBtn}>
-                ‹
-              </button>
-              <h1 style={styles.monthTitle}>{formatMonthTitle(currentMonth)}</h1>
-              <button type="button" onClick={goNextMonth} style={styles.arrowBtn}>
-                ›
-              </button>
-            </div>
+    <>
+      <style>{`
+        .gymup-home {
+          min-height: 100vh;
+          position: relative;
+          overflow: hidden;
+          background:
+            radial-gradient(circle at top left, rgba(255,255,255,0.035) 0%, transparent 28%),
+            radial-gradient(circle at bottom right, rgba(255,255,255,0.025) 0%, transparent 22%),
+            linear-gradient(180deg, #0f1012 0%, #16181b 48%, #111214 100%);
+          color: #f5f7fa;
+          font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
 
-            <div style={styles.topRightBtns}>
-              <button
-                type="button"
-                onClick={handleOpenCounselingPicker}
-                style={styles.counselingTopBtn}
-              >
-                カウンセリング
-              </button>
+        .gymup-home::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background:
+            linear-gradient(120deg, rgba(240,138,39,0.06), transparent 34%),
+            linear-gradient(300deg, rgba(240,138,39,0.04), transparent 28%);
+          pointer-events: none;
+        }
 
-              <button
-                type="button"
-                onClick={() => setFilterMode("pending")}
-                style={{
-                  ...styles.pendingFilterBtn,
-                  ...(selectedFilterMode === "pending"
-                    ? styles.pendingFilterBtnActive
-                    : {}),
-                }}
-              >
-                {selectedFilterMode === "pending" ? "未処理だけ表示中" : "未処理だけ"}
-              </button>
+        .gymup-home__container {
+          position: relative;
+          z-index: 1;
+          width: 100%;
+          max-width: 1440px;
+          margin: 0 auto;
+          padding: 34px 24px 28px;
+        }
 
-              <button type="button" onClick={() => router.push("/")} style={styles.topBtn}>
-                TOPへ戻る
-              </button>
-            </div>
-          </div>
+        .gymup-home__topbar {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 12px;
+          margin-bottom: 18px;
+        }
 
-          <div style={styles.summaryBar}>
+        .gymup-home__topbar-link,
+        .gymup-home__topbar-button {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 42px;
+          padding: 0 16px;
+          border-radius: 14px;
+          text-decoration: none;
+          font-size: 13px;
+          font-weight: 700;
+          transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .gymup-home__topbar-link {
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.08);
+          color: #f5f7fa;
+        }
+
+        .gymup-home__topbar-button {
+          border: 1px solid rgba(240,138,39,0.28);
+          background: rgba(240,138,39,0.14);
+          color: #f08a27;
+          cursor: pointer;
+        }
+
+        .gymup-home__topbar-link:hover,
+        .gymup-home__topbar-button:hover {
+          transform: translateY(-1px);
+        }
+
+        .gymup-home__grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
+          gap: 28px;
+          align-items: stretch;
+          min-height: calc(100vh - 124px);
+        }
+
+        .gymup-home__left {
+          display: flex;
+          flex-direction: column;
+          gap: 22px;
+          min-width: 0;
+        }
+
+        .gymup-home__right {
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .gymup-home__hero-card,
+        .gymup-home__menu-card,
+        .gymup-home__dashboard {
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.045);
+          box-shadow: 0 18px 48px rgba(0,0,0,0.24);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
+          border-radius: 28px;
+        }
+
+        .gymup-home__hero-card {
+          padding: 26px;
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-start;
+          min-height: 420px;
+        }
+
+        .gymup-home__menu-card {
+          padding: 22px;
+        }
+
+        .gymup-home__logo-wrap {
+          display: flex;
+          align-items: center;
+          min-height: 108px;
+          margin-bottom: 16px;
+        }
+
+        .gymup-home__logo-box {
+          width: min(100%, 520px);
+        }
+
+        .gymup-home__logo {
+          display: block;
+          width: 100%;
+          height: auto;
+          object-fit: contain;
+          filter: drop-shadow(0 12px 34px rgba(0,0,0,0.28));
+          user-select: none;
+          pointer-events: none;
+        }
+
+        .gymup-home__text-logo {
+          display: inline-flex;
+          align-items: flex-end;
+          gap: 10px;
+          padding: 8px 0;
+          border-bottom: 1px solid rgba(240,138,39,0.35);
+        }
+
+        .gymup-home__text-logo-main {
+          font-size: clamp(38px, 5vw, 72px);
+          line-height: 1;
+          font-weight: 900;
+          letter-spacing: 0.08em;
+          color: #ffffff;
+        }
+
+        .gymup-home__text-logo-sub {
+          font-size: clamp(15px, 2vw, 24px);
+          line-height: 1.1;
+          font-weight: 700;
+          letter-spacing: 0.28em;
+          color: #f08a27;
+          padding-bottom: 8px;
+        }
+
+        .gymup-home__copy {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          max-width: 640px;
+        }
+
+        .gymup-home__eyebrow {
+          display: inline-flex;
+          align-items: center;
+          align-self: flex-start;
+          min-height: 34px;
+          padding: 0 12px;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.03);
+          color: rgba(255,255,255,0.68);
+          font-size: 12px;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+        }
+
+        .gymup-home__title {
+          margin: 0;
+          font-size: clamp(34px, 5vw, 60px);
+          line-height: 1.06;
+          letter-spacing: -0.04em;
+          font-weight: 700;
+          color: #ffffff;
+        }
+
+        .gymup-home__desc {
+          margin: 0;
+          max-width: 560px;
+          color: rgba(255,255,255,0.66);
+          font-size: 15px;
+          line-height: 1.9;
+        }
+
+        .gymup-home__hero-date-nav {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+          margin-top: 8px;
+        }
+
+        .gymup-home__hero-memo {
+          margin-top: 10px;
+          border-radius: 24px;
+          padding: 18px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.03);
+        }
+
+        .gymup-home__hero-memo-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          margin-bottom: 12px;
+          flex-wrap: wrap;
+        }
+
+        .gymup-home__hero-memo-title {
+          font-size: 18px;
+          font-weight: 800;
+          color: #ffffff;
+        }
+
+        .gymup-home__hero-memo-badge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 30px;
+          padding: 0 12px;
+          border-radius: 999px;
+          background: rgba(240,138,39,0.12);
+          border: 1px solid rgba(240,138,39,0.20);
+          color: #f6b171;
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.06em;
+        }
+
+        .gymup-home__hero-memo-desc {
+          font-size: 13px;
+          line-height: 1.8;
+          color: rgba(255,255,255,0.64);
+          margin-bottom: 14px;
+        }
+
+        .gymup-home__hero-memo-textarea {
+          width: 100%;
+          min-height: 220px;
+          resize: vertical;
+          border-radius: 20px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.04);
+          color: #ffffff;
+          padding: 16px 18px;
+          font-size: 15px;
+          line-height: 1.85;
+          outline: none;
+          box-sizing: border-box;
+        }
+
+        .gymup-home__hero-memo-textarea::placeholder {
+          color: rgba(255,255,255,0.34);
+        }
+
+        .gymup-home__hero-memo-textarea:focus {
+          border-color: rgba(240,138,39,0.30);
+          box-shadow: 0 0 0 1px rgba(240,138,39,0.16);
+        }
+
+        .gymup-home__hero-memo-footer {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          flex-wrap: wrap;
+          margin-top: 12px;
+        }
+
+        .gymup-home__hero-memo-status {
+          font-size: 12px;
+          color: rgba(255,255,255,0.50);
+        }
+
+        .gymup-home__hero-memo-clear {
+          min-height: 40px;
+          padding: 0 14px;
+          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.03);
+          color: #f5f7fa;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .gymup-home__hero-memo-clear:hover,
+        .gymup-home__menu-link:hover,
+        .gymup-home__mini-link:hover,
+        .gymup-home__date-nav-btn:hover,
+        .gymup-home__date-today-btn:hover {
+          transform: translateY(-1px);
+        }
+
+        .gymup-home__section-label {
+          font-size: 12px;
+          letter-spacing: 0.14em;
+          color: rgba(255,255,255,0.45);
+          margin-bottom: 16px;
+        }
+
+        .gymup-home__menu-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+        }
+
+        .gymup-home__menu-link {
+          display: block;
+          text-decoration: none;
+          color: inherit;
+          padding: 16px;
+          border-radius: 18px;
+          border: 1px solid rgba(255,255,255,0.06);
+          background: rgba(255,255,255,0.025);
+          transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .gymup-home__menu-link:hover {
+          background: rgba(255,255,255,0.04);
+          border-color: rgba(255,255,255,0.1);
+        }
+
+        .gymup-home__menu-title {
+          margin-bottom: 6px;
+          font-size: 15px;
+          font-weight: 700;
+          color: #ffffff;
+        }
+
+        .gymup-home__menu-desc {
+          font-size: 13px;
+          line-height: 1.65;
+          color: rgba(255,255,255,0.56);
+        }
+
+        .gymup-home__dashboard {
+          overflow: hidden;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .gymup-home__dashboard-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          padding: 16px 18px;
+          border-bottom: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.025);
+        }
+
+        .gymup-home__dots {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .gymup-home__dot {
+          width: 9px;
+          height: 9px;
+          border-radius: 999px;
+          background: rgba(255,255,255,0.16);
+        }
+
+        .gymup-home__dashboard-label {
+          font-size: 13px;
+          color: rgba(255,255,255,0.54);
+          letter-spacing: 0.04em;
+        }
+
+        .gymup-home__dashboard-body {
+          padding: 20px;
+          display: flex;
+          flex-direction: column;
+          gap: 18px;
+          flex: 1;
+        }
+
+        .gymup-home__stats {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 14px;
+        }
+
+        .gymup-home__stat {
+          border-radius: 20px;
+          padding: 18px;
+          border: 1px solid rgba(255,255,255,0.07);
+          background: rgba(255,255,255,0.03);
+        }
+
+        .gymup-home__stat-label {
+          font-size: 12px;
+          color: rgba(255,255,255,0.48);
+          margin-bottom: 10px;
+          letter-spacing: 0.04em;
+        }
+
+        .gymup-home__stat-value {
+          font-size: 24px;
+          font-weight: 700;
+          letter-spacing: -0.02em;
+          color: #ffffff;
+        }
+
+        .gymup-home__panels {
+          display: grid;
+          grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+          gap: 16px;
+          flex: 1;
+        }
+
+        .gymup-home__panel-large,
+        .gymup-home__panel-small {
+          border-radius: 24px;
+          padding: 18px;
+          border: 1px solid rgba(255,255,255,0.07);
+          background: rgba(255,255,255,0.03);
+        }
+
+        .gymup-home__panel-stack {
+          display: grid;
+          gap: 16px;
+        }
+
+        .gymup-home__panel-head {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 10px;
+          margin-bottom: 16px;
+          flex-wrap: wrap;
+        }
+
+        .gymup-home__panel-title {
+          font-size: 16px;
+          font-weight: 700;
+          color: #ffffff;
+        }
+
+        .gymup-home__panel-meta {
+          font-size: 13px;
+          color: #f08a27;
+          font-weight: 600;
+        }
+
+        .gymup-home__date-nav {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+        }
+
+        .gymup-home__date-nav-btn,
+        .gymup-home__date-today-btn {
+          min-height: 36px;
+          padding: 0 12px;
+          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.04);
+          color: #f5f7fa;
+          font-size: 13px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .gymup-home__date-current {
+          min-height: 36px;
+          padding: 0 12px;
+          border-radius: 12px;
+          border: 1px solid rgba(240,138,39,0.20);
+          background: rgba(240,138,39,0.10);
+          color: #f6b171;
+          font-size: 13px;
+          font-weight: 700;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          white-space: nowrap;
+        }
+
+        .gymup-home__date-picker {
+          min-height: 36px;
+          padding: 0 12px;
+          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.04);
+          color: #f5f7fa;
+          font-size: 13px;
+          font-weight: 700;
+          outline: none;
+          box-sizing: border-box;
+        }
+
+        .gymup-home__date-picker::-webkit-calendar-picker-indicator {
+          filter: invert(1);
+          opacity: 0.9;
+          cursor: pointer;
+        }
+
+        .gymup-home__schedule {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .gymup-home__schedule-item {
+          display: grid;
+          grid-template-columns: 84px 4px minmax(0, 1fr) auto;
+          gap: 12px;
+          align-items: center;
+          padding: 14px;
+          border-radius: 16px;
+          border: 1px solid rgba(255,255,255,0.06);
+          background: rgba(255,255,255,0.028);
+          cursor: pointer;
+          transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .gymup-home__schedule-item:hover {
+          transform: translateY(-1px);
+          background: rgba(255,255,255,0.04);
+          border-color: rgba(255,255,255,0.1);
+        }
+
+        .gymup-home__schedule-timebox {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          min-width: 0;
+        }
+
+        .gymup-home__schedule-time {
+          font-size: 14px;
+          font-weight: 700;
+          color: #f5f7fa;
+        }
+
+        .gymup-home__schedule-endtime {
+          font-size: 12px;
+          color: rgba(255,255,255,0.44);
+        }
+
+        .gymup-home__schedule-line {
+          width: 4px;
+          min-height: 64px;
+          border-radius: 999px;
+          background: rgba(255,255,255,0.18);
+        }
+
+        .gymup-home__schedule-main {
+          min-width: 0;
+        }
+
+        .gymup-home__schedule-name {
+          font-size: 14px;
+          font-weight: 700;
+          color: #ffffff;
+          margin-bottom: 4px;
+          word-break: break-word;
+        }
+
+        .gymup-home__schedule-sub {
+          font-size: 12px;
+          line-height: 1.6;
+          color: rgba(255,255,255,0.56);
+          word-break: break-word;
+        }
+
+        .gymup-home__remaining {
+          margin-top: 6px;
+          display: inline-flex;
+          align-items: center;
+          min-height: 26px;
+          padding: 0 10px;
+          border-radius: 999px;
+          background: rgba(240,138,39,0.10);
+          border: 1px solid rgba(240,138,39,0.18);
+          color: #ffd7ae;
+          font-size: 11px;
+          font-weight: 700;
+        }
+
+        .gymup-home__ticketname {
+          margin-top: 6px;
+          font-size: 11px;
+          color: rgba(255,255,255,0.46);
+          word-break: break-word;
+        }
+
+        .gymup-home__attendance-note {
+          margin-top: 8px;
+          font-size: 12px;
+          color: rgba(255,255,255,0.66);
+          word-break: break-word;
+          line-height: 1.7;
+        }
+
+        .gymup-home__attendance-warning {
+          margin-top: 10px;
+          padding: 10px 12px;
+          border-radius: 12px;
+          background: rgba(248, 113, 113, 0.14);
+          border: 1px solid rgba(248, 113, 113, 0.26);
+          color: #fecaca;
+          font-size: 12px;
+          font-weight: 700;
+          line-height: 1.7;
+          word-break: break-word;
+        }
+
+        .gymup-home__attendance-warning-label {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 22px;
+          padding: 0 8px;
+          border-radius: 999px;
+          background: rgba(255,255,255,0.08);
+          color: #fff;
+          font-size: 10px;
+          font-weight: 800;
+          margin-right: 8px;
+          vertical-align: middle;
+        }
+
+        .gymup-home__schedule-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          justify-content: flex-end;
+          flex-wrap: wrap;
+        }
+
+        .gymup-home__consume-btn,
+        .gymup-home__consumed-badge {
+          min-width: 84px;
+          min-height: 38px;
+          padding: 0 12px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 700;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          white-space: nowrap;
+        }
+
+        .gymup-home__consume-btn {
+          border: 1px solid rgba(240,138,39,0.32);
+          background: rgba(240,138,39,0.12);
+          color: #f08a27;
+          cursor: pointer;
+        }
+
+        .gymup-home__consume-btn:disabled {
+          opacity: 0.6;
+          cursor: default;
+        }
+
+        .gymup-home__consumed-badge {
+          border: 1px solid rgba(92, 214, 146, 0.28);
+          background: rgba(92, 214, 146, 0.12);
+          color: #7ce7aa;
+        }
+
+        .gymup-home__target-off {
+          font-size: 12px;
+          color: rgba(255,255,255,0.5);
+          padding: 6px 10px;
+        }
+
+        .gymup-home__staff-badge {
+          width: 44px;
+          height: 44px;
+          border-radius: 999px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 18px;
+          font-weight: 800;
+          color: #ffffff;
+          flex-shrink: 0;
+          box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+        }
+
+        .gymup-home__empty {
+          padding: 20px 14px;
+          border-radius: 16px;
+          border: 1px solid rgba(255,255,255,0.06);
+          background: rgba(255,255,255,0.025);
+          font-size: 13px;
+          line-height: 1.7;
+          color: rgba(255,255,255,0.58);
+        }
+
+        .gymup-home__mini-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
+          margin-top: 14px;
+        }
+
+        .gymup-home__mini-link {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 48px;
+          padding: 0 10px;
+          border-radius: 14px;
+          text-decoration: none;
+          font-size: 13px;
+          font-weight: 600;
+          color: #f5f7fa;
+          border: 1px solid rgba(255,255,255,0.06);
+          background: rgba(255,255,255,0.028);
+          transition: transform 0.2s ease, background 0.2s ease;
+          text-align: center;
+        }
+
+        .gymup-home__mini-link:hover {
+          background: rgba(255,255,255,0.045);
+        }
+
+        .gymup-home__alerts {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          margin-top: 14px;
+        }
+
+        .gymup-home__alert {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-size: 13px;
+          line-height: 1.6;
+          color: rgba(255,255,255,0.7);
+        }
+
+        .gymup-home__alert-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 999px;
+          background: #f08a27;
+          flex-shrink: 0;
+        }
+
+        .gymup-home__ticket-link {
+          border-color: rgba(240,138,39,0.22);
+          background: rgba(240,138,39,0.08);
+          color: #ffd7ae;
+        }
+
+        .gymup-home__ticket-link:hover {
+          background: rgba(240,138,39,0.12);
+        }
+
+        @media (max-width: 1100px) {
+          .gymup-home__grid {
+            grid-template-columns: 1fr;
+            min-height: auto;
+          }
+
+          .gymup-home__hero-card {
+            min-height: auto;
+          }
+
+          .gymup-home__title {
+            font-size: clamp(34px, 7vw, 52px);
+          }
+        }
+
+        @media (max-width: 768px) {
+          .gymup-home__container {
+            padding: 18px 14px 22px;
+          }
+
+          .gymup-home__topbar {
+            justify-content: stretch;
+            flex-direction: column;
+            align-items: stretch;
+            margin-bottom: 14px;
+          }
+
+          .gymup-home__topbar-link,
+          .gymup-home__topbar-button {
+            width: 100%;
+          }
+
+          .gymup-home__grid {
+            gap: 18px;
+          }
+
+          .gymup-home__left {
+            gap: 18px;
+          }
+
+          .gymup-home__hero-card,
+          .gymup-home__menu-card,
+          .gymup-home__dashboard,
+          .gymup-home__panel-large,
+          .gymup-home__panel-small {
+            border-radius: 22px;
+          }
+
+          .gymup-home__hero-card {
+            padding: 20px;
+          }
+
+          .gymup-home__menu-card {
+            padding: 18px;
+          }
+
+          .gymup-home__logo-wrap {
+            justify-content: center;
+            min-height: auto;
+            margin-bottom: 10px;
+          }
+
+          .gymup-home__logo-box {
+            width: min(88vw, 320px);
+          }
+
+          .gymup-home__copy {
+            align-items: center;
+            text-align: center;
+            max-width: 100%;
+          }
+
+          .gymup-home__eyebrow {
+            align-self: center;
+          }
+
+          .gymup-home__title {
+            font-size: 34px;
+            line-height: 1.12;
+          }
+
+          .gymup-home__desc {
+            font-size: 14px;
+            line-height: 1.8;
+          }
+
+          .gymup-home__hero-memo-head,
+          .gymup-home__hero-memo-footer,
+          .gymup-home__panel-head,
+          .gymup-home__date-nav,
+          .gymup-home__hero-date-nav {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .gymup-home__hero-memo-clear,
+          .gymup-home__date-nav-btn,
+          .gymup-home__date-today-btn,
+          .gymup-home__date-picker {
+            width: 100%;
+          }
+
+          .gymup-home__menu-grid,
+          .gymup-home__stats,
+          .gymup-home__panels,
+          .gymup-home__mini-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .gymup-home__dashboard-body {
+            padding: 16px;
+          }
+
+          .gymup-home__schedule-item {
+            grid-template-columns: 1fr;
+            gap: 10px;
+            padding: 12px;
+          }
+
+          .gymup-home__schedule-line {
+            width: 100%;
+            min-height: 4px;
+            height: 4px;
+          }
+
+          .gymup-home__schedule-actions {
+            justify-content: flex-start;
+          }
+
+          .gymup-home__stat-value {
+            font-size: 22px;
+          }
+
+          .gymup-home__text-logo {
+            justify-content: center;
+          }
+
+          .gymup-home__date-current {
+            width: 100%;
+            box-sizing: border-box;
+          }
+        }
+      `}</style>
+
+      <main className="gymup-home">
+        <div className="gymup-home__container">
+          <div className="gymup-home__topbar">
+            <Link href="/login/staff" className="gymup-home__topbar-link">
+              スタッフログイン画面へ
+            </Link>
             <button
               type="button"
-              onClick={() => setFilterMode("pending")}
-              style={getSummaryCardStyle("pending", {
-                background: "#fee2e2",
-              })}
+              className="gymup-home__topbar-button"
+              onClick={handleStaffLogout}
             >
-              <span style={{ ...styles.summaryLabel, color: "#991b1b" }}>未処理</span>
-              <span style={{ ...styles.summaryCountDanger }}>{pendingSummary.totalPending}件</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setFilterMode("sales_pending")}
-              style={getSummaryCardStyle("sales_pending", {
-                background: "#fef3c7",
-              })}
-            >
-              <span style={{ ...styles.summaryLabel, color: "#92400e" }}>売上未</span>
-              <span style={{ ...styles.summaryCountDanger, color: "#b45309" }}>
-                {pendingSummary.salesPending}件
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setFilterMode("counseling_pending")}
-              style={getSummaryCardStyle("counseling_pending", {
-                background: "#dbeafe",
-              })}
-            >
-              <span style={{ ...styles.summaryLabel, color: "#1d4ed8" }}>
-                カウンセリング未
-              </span>
-              <span style={{ ...styles.summaryCountDanger, color: "#1d4ed8" }}>
-                {pendingSummary.counselingPending}件
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setFilterMode("ticket_pending")}
-              style={getSummaryCardStyle("ticket_pending", {
-                background: "#ede9fe",
-              })}
-            >
-              <span style={{ ...styles.summaryLabel, color: "#6d28d9" }}>
-                回数券未消化
-              </span>
-              <span style={{ ...styles.summaryCountDanger, color: "#6d28d9" }}>
-                {pendingSummary.ticketPending}件
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setFilterMode("all")}
-              style={getSummaryCardStyle("all", {
-                background: "#dcfce7",
-              })}
-            >
-              <span style={{ ...styles.summaryLabel, color: "#166534" }}>表示中</span>
-              <span style={{ ...styles.summaryCount, color: "#166534" }}>
-                {pendingSummary.visibleCount}件
-              </span>
+              スタッフログアウト
             </button>
           </div>
 
-          <div style={styles.activeFilterBar}>
-            <span style={styles.activeFilterLabel}>現在の表示:</span>
-            <span style={styles.activeFilterValue}>
-              {selectedFilterMode === "all" && "すべて"}
-              {selectedFilterMode === "pending" && "未処理のみ"}
-              {selectedFilterMode === "sales_pending" && "売上未のみ"}
-              {selectedFilterMode === "counseling_pending" && "カウンセリング未のみ"}
-              {selectedFilterMode === "ticket_pending" && "回数券未消化のみ"}
-            </span>
-          </div>
-
-          <div style={styles.filterRow}>
-            {STORE_OPTIONS.map((store) => (
-              <button
-                key={store}
-                type="button"
-                onClick={() => setSelectedStoreFilter(store)}
-                style={{
-                  ...styles.storeChip,
-                  ...(selectedStoreFilter === store ? styles.storeChipActive : {}),
-                }}
-              >
-                {store}
-              </button>
-            ))}
-          </div>
-
-          <div style={styles.legendBox}>
-            {["山口", "中西", "池田", "石川", "羽田", "菱谷", "井上", "林", "その他"].map(
-              (name) => (
-                <div key={name} style={styles.legendItem}>
-                  <span
-                    style={{
-                      ...styles.legendDot,
-                      background: getStaffColor(name),
-                    }}
-                  />
-                  {name}
-                </div>
-              )
-            )}
-          </div>
-
-          <div style={styles.legendBoxStore}>
-            {["江戸堀", "箕面", "福島", "福島P", "天満橋", "中崎町", "江坂"].map((name) => (
-              <div key={name} style={styles.legendItem}>
-                <span
-                  style={{
-                    ...styles.legendDot,
-                    background: getStoreColor(name),
-                  }}
-                />
-                {name}
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {error ? <div style={styles.errorBox}>{error}</div> : null}
-        {success ? <div style={styles.successBox}>{success}</div> : null}
-
-        <section style={styles.calendarCard}>
-          <div style={styles.weekHeader}>
-            {WEEK_LABELS.map((label, index) => (
-              <div
-                key={label}
-                style={{
-                  ...styles.weekLabel,
-                  color:
-                    index === 5 ? "#2563eb" : index === 6 ? "#ef4444" : "#94a3b8",
-                }}
-              >
-                {label}
-              </div>
-            ))}
-          </div>
-
-          <div style={styles.calendarGrid}>
-            {calendarDays.map((dateObj) => {
-              const ymd = toYmd(dateObj);
-              const items = reservationsByDate.get(ymd) || [];
-              const isCurrentMonth = dateObj.getMonth() === currentMonth.getMonth();
-              const isToday = ymd === toYmd(new Date());
-              const isSelected = ymd === selectedDate;
-
-              const pendingCount = items.filter((item) =>
-                getPendingFlags({
-                  item,
-                  salesReservationIdSet,
-                  counseledReservationIdSet,
-                  ticketUsedReservationIdSet,
-                }).isPending
-              ).length;
-
-              return (
-                <button
-                  key={ymd}
-                  type="button"
-                  onClick={() => openDay(ymd)}
-                  style={{
-                    ...styles.dayCell,
-                    ...(isSelected ? styles.dayCellSelected : {}),
-                    opacity: isCurrentMonth ? 1 : 0.4,
-                    ...(pendingCount > 0 ? styles.dayCellPending : {}),
-                  }}
-                >
-                  <div style={styles.dayHead}>
-                    <span
-                      style={{
-                        ...styles.dayNumber,
-                        color:
-                          dateObj.getDay() === 0
-                            ? "#ef4444"
-                            : dateObj.getDay() === 6
-                            ? "#2563eb"
-                            : "#0f172a",
-                        ...(isToday ? styles.todayBadge : {}),
-                      }}
-                    >
-                      {dateObj.getDate()}
-                    </span>
-
-                    {pendingCount > 0 ? (
-                      <span style={styles.dayPendingBadge}>{pendingCount}</span>
-                    ) : null}
-                  </div>
-
-                  <div style={styles.eventListMini}>
-                    {items.slice(0, 3).map((item) => {
-                      const flags = getPendingFlags({
-                        item,
-                        salesReservationIdSet,
-                        counseledReservationIdSet,
-                        ticketUsedReservationIdSet,
-                      });
-
-                      return (
-                        <div
-                          key={String(item.id)}
-                          style={{
-                            ...styles.eventMini,
-                            borderLeft: `4px solid ${getStaffColor(item.staff_name)}`,
-                            ...(flags.isPending ? styles.eventMiniPending : {}),
-                          }}
-                        >
-                          <div style={styles.eventMiniLine}>
-                            <span
-                              style={{
-                                ...styles.eventMiniStoreDot,
-                                background: getStoreColor(item.store_name),
-                              }}
-                            />
-                            <span style={styles.eventMiniText}>
-                              {trimmed(item.start_time) || "--:--"} {trimmed(item.customer_name) || "顧客名未設定"}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {items.length > 3 ? (
-                      <div style={styles.moreText}>+{items.length - 3}件</div>
-                    ) : null}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        <button type="button" onClick={() => openCreateModal()} style={styles.fab}>
-          ＋
-        </button>
-
-        {daySheetOpen ? (
-          <div style={styles.sheetOverlay} onClick={() => setDaySheetOpen(false)}>
-            <div style={styles.sheet} onClick={(e) => e.stopPropagation()}>
-              <div style={styles.sheetHandle} />
-
-              <div style={styles.sheetHeader}>
-                <div>
-                  <div style={styles.sheetSubTitle}>予約一覧</div>
-                  <h2 style={styles.sheetTitle}>{formatJapaneseDate(selectedDate)}</h2>
-                </div>
-
-                <div style={styles.sheetHeaderBtns}>
-                  <button
-                    type="button"
-                    onClick={() => openCreateModal(selectedDate)}
-                    style={styles.sheetActionBtnPrimary}
-                  >
-                    ＋予約追加
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDaySheetOpen(false)}
-                    style={styles.sheetCloseBtn}
-                  >
-                    閉じる
-                  </button>
-                </div>
-              </div>
-
-              <div style={styles.staffAttendanceBox}>
-                <div style={styles.staffAttendanceTitle}>スタッフ出勤</div>
-                {selectedDayAttendance.length === 0 ? (
-                  <div style={styles.staffAttendanceEmpty}>
-                    この日の出勤データはありません。
-                  </div>
-                ) : (
-                  <div style={styles.staffAttendanceList}>
-                    {selectedDayAttendance.map((row) => (
-                      <div key={String(row.id)} style={styles.staffAttendanceCard}>
-                        <div style={styles.staffAttendanceTop}>
-                          <span
-                            style={{
-                              ...styles.staffAttendanceBadge,
-                              background: getStaffColor(row.staff_name),
-                            }}
-                          >
-                            {trimmed(row.staff_name) || "スタッフ未設定"}
-                          </span>
-                          <span style={styles.staffAttendanceStore}>
-                            {trimmed(row.store_name) || "店舗未設定"}
-                          </span>
-                        </div>
-                        <div style={styles.staffAttendanceTime}>
-                          {formatAttendanceTime(row.clock_in || row.start_time)} 〜{" "}
-                          {formatAttendanceTime(row.clock_out || row.end_time)}
-                        </div>
+          <div className="gymup-home__grid">
+            <div className="gymup-home__left">
+              <div className="gymup-home__hero-card">
+                <div className="gymup-home__logo-wrap">
+                  <div className="gymup-home__logo-box">
+                    {!logoError ? (
+                      <img
+                        src="/logo.png"
+                        alt="GYMUP"
+                        className="gymup-home__logo"
+                        onError={() => setLogoError(true)}
+                      />
+                    ) : (
+                      <div className="gymup-home__text-logo" aria-label="GYMUP CRM">
+                        <div className="gymup-home__text-logo-main">GYMUP</div>
+                        <div className="gymup-home__text-logo-sub">CRM</div>
                       </div>
-                    ))}
+                    )}
                   </div>
-                )}
-              </div>
-
-              {selectedDayReservations.length === 0 ? (
-                <div style={styles.emptyBox}>この日の予約はありません。</div>
-              ) : (
-                <div style={styles.cardList}>
-                  {selectedDayReservations.map((item) => {
-                    const flags = getPendingFlags({
-                      item,
-                      salesReservationIdSet,
-                      counseledReservationIdSet,
-                      ticketUsedReservationIdSet,
-                    });
-
-                    const isTicket = isTicketMenu(item.menu);
-                    const isSold =
-                      trimmed(item.reservation_status) === "売上済" ||
-                      salesReservationIdSet.has(Number(item.id));
-                    const isCounseled = counseledReservationIdSet.has(Number(item.id));
-                    const isTicketUsed = ticketUsedReservationIdSet.has(Number(item.id));
-
-                    return (
-                      <div
-                        key={String(item.id)}
-                        style={{
-                          ...styles.reserveCard,
-                          ...(flags.isPending ? styles.reserveCardPending : {}),
-                        }}
-                      >
-                        <div style={styles.reserveCardHead}>
-                          <div style={styles.reserveTime}>
-                            {trimmed(item.start_time) || "--:--"}
-                            {trimmed(item.end_time) ? ` 〜 ${trimmed(item.end_time)}` : ""}
-                          </div>
-
-                          <div style={styles.reserveRightBadges}>
-                            <span
-                              style={{
-                                ...styles.badge,
-                                background: getStoreColor(item.store_name),
-                              }}
-                            >
-                              {trimmed(item.store_name) || "店舗未設定"}
-                            </span>
-                            <span
-                              style={{
-                                ...styles.badge,
-                                background: getStaffColor(item.staff_name),
-                              }}
-                            >
-                              {trimmed(item.staff_name) || "スタッフ未設定"}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div style={styles.reserveNameRow}>
-                          <div style={styles.reserveCustomerName}>
-                            {trimmed(item.customer_name) || "顧客名未設定"}
-                          </div>
-
-                          {isNewVisit(item) ? (
-                            <span style={styles.newBadge}>新規</span>
-                          ) : (
-                            <span style={styles.repeatBadge}>再来</span>
-                          )}
-                        </div>
-
-                        <div style={styles.reserveMeta}>
-                          <span>メニュー: {trimmed(item.menu) || "—"}</span>
-                          <span>支払: {trimmed(item.payment_method) || "—"}</span>
-                        </div>
-
-                        <div style={styles.statusRow}>
-                          <span style={isSold ? styles.doneBadge : styles.pendingBadge}>
-                            {isSold ? "売上済" : "売上未"}
-                          </span>
-
-                          {isNewVisit(item) ? (
-                            <span
-                              style={
-                                isCounseled ? styles.doneBadgeBlue : styles.pendingBadgeYellow
-                              }
-                            >
-                              {isCounseled ? "カウンセリング済" : "カウンセリング未"}
-                            </span>
-                          ) : null}
-
-                          {isTicket ? (
-                            <>
-                              <span style={styles.ticketBadge}>回数券予約</span>
-                              <span
-                                style={
-                                  isTicketUsed
-                                    ? styles.doneBadgePurple
-                                    : styles.pendingBadgePurple
-                                }
-                              >
-                                {isTicketUsed ? "回数券消化済" : "回数券未消化"}
-                              </span>
-                            </>
-                          ) : null}
-                        </div>
-
-                        {trimmed(item.memo) ? (
-                          <div style={styles.memoBox}>{trimmed(item.memo)}</div>
-                        ) : null}
-
-                        <div style={styles.actionRow}>
-                          <button
-                            type="button"
-                            onClick={() => router.push(`/reservation/detail/${item.id}`)}
-                            style={styles.actionBtnDark}
-                          >
-                            詳細
-                          </button>
-
-                          {!isSold ? (
-                            <button
-                              type="button"
-                              onClick={() => router.push(buildSalesHref(item))}
-                              style={styles.actionBtnBlue}
-                            >
-                              {isTicket ? "回数券消化" : "売上登録"}
-                            </button>
-                          ) : null}
-
-                          {isNewVisit(item) && !isCounseled ? (
-                            <button
-                              type="button"
-                              onClick={() => handleGoCounseling(item)}
-                              style={styles.actionBtnOrange}
-                            >
-                              カウンセリング
-                            </button>
-                          ) : null}
-
-                          <button
-                            type="button"
-                            onClick={() => void handleDeleteReservation(item)}
-                            disabled={deletingReservationId === String(item.id)}
-                            style={{
-                              ...styles.actionBtnDelete,
-                              opacity: deletingReservationId === String(item.id) ? 0.7 : 1,
-                              cursor:
-                                deletingReservationId === String(item.id)
-                                  ? "not-allowed"
-                                  : "pointer",
-                            }}
-                          >
-                            {deletingReservationId === String(item.id) ? "削除中..." : "削除"}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        ) : null}
-
-        {formOpen ? (
-          <div style={styles.modalOverlay} onClick={() => setFormOpen(false)}>
-            <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
-              <div style={styles.modalHeader}>
-                <h3 style={styles.modalTitle}>新規予約</h3>
-                <button type="button" onClick={() => setFormOpen(false)} style={styles.modalCloseBtn}>
-                  ×
-                </button>
-              </div>
-
-              <div style={styles.formGrid}>
-                <div style={styles.formBlockFull}>
-                  <label style={styles.label}>顧客検索</label>
-                  <input
-                    value={customerSearch}
-                    onChange={(e) => setCustomerSearch(e.target.value)}
-                    placeholder="名前・かな・電話で検索"
-                    style={styles.input}
-                  />
-                  {filteredCustomers.length > 0 ? (
-                    <div style={styles.customerSearchList}>
-                      {filteredCustomers.map((c) => (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() => handleSelectCustomer(c.id)}
-                          style={styles.customerSearchItem}
-                        >
-                          <div style={styles.customerSearchName}>{c.name || "名称なし"}</div>
-                          <div style={styles.customerSearchSub}>
-                            {c.kana || "かな未設定"} / {c.phone || "電話未設定"}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
                 </div>
 
-                <div>
-                  <label style={styles.label}>顧客名</label>
-                  <input
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    style={styles.input}
-                  />
-                </div>
+                <div className="gymup-home__copy">
+                  <div className="gymup-home__eyebrow">GYM / PILATES CRM</div>
 
-                <div>
-                  <label style={styles.label}>かな</label>
-                  <input
-                    value={customerKana}
-                    onChange={(e) => setCustomerKana(e.target.value)}
-                    style={styles.input}
-                  />
-                </div>
+                  <h1 className="gymup-home__title">
+                    現場の管理を、
+                    <br />
+                    ひとつに整理する。
+                  </h1>
 
-                <div>
-                  <label style={styles.label}>電話</label>
-                  <input
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    style={styles.input}
-                  />
-                </div>
+                  <p className="gymup-home__desc">
+                    予約、顧客、売上、勤怠、会計、サブスク管理まで。
+                    GYMUP CRMは、ジム・ピラティス運営に必要な業務を見やすく整理し、
+                    日々の現場で使いやすい形にまとめる管理システムです。
+                  </p>
 
-                <div>
-                  <label style={styles.label}>日付</label>
-                  <input
-                    type="date"
-                    value={formDate}
-                    onChange={(e) => setFormDate(e.target.value)}
-                    style={styles.input}
-                  />
-                </div>
-
-                <div>
-                  <label style={styles.label}>開始時間</label>
-                  <input
-                    type="time"
-                    value={startTime}
-                    onChange={(e) => handleChangeStartTime(e.target.value)}
-                    style={styles.input}
-                  />
-                </div>
-
-                <div>
-                  <label style={styles.label}>終了時間</label>
-                  <input
-                    type="time"
-                    value={endTime}
-                    onChange={(e) => {
-                      setEndTimeTouched(true);
-                      setEndTime(e.target.value);
-                    }}
-                    style={styles.input}
-                  />
-                </div>
-
-                <div>
-                  <label style={styles.label}>店舗</label>
-                  <select
-                    value={storeName}
-                    onChange={(e) => setStoreName(e.target.value)}
-                    style={styles.input}
-                  >
-                    {STORE_OPTIONS_FOR_FORM.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={styles.label}>担当スタッフ</label>
-                  <select
-                    value={staffName}
-                    onChange={(e) => setStaffName(e.target.value)}
-                    style={styles.input}
-                  >
-                    {STAFF_OPTIONS.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={styles.label}>メニュー</label>
-                  <select value={menu} onChange={(e) => setMenu(e.target.value)} style={styles.input}>
-                    {MENU_OPTIONS.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={styles.label}>支払方法</label>
-                  <select
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                    style={styles.input}
-                  >
-                    {PAYMENT_OPTIONS.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={styles.label}>来店区分</label>
-                  <select
-                    value={visitType}
-                    onChange={(e) => setVisitType(e.target.value)}
-                    style={styles.input}
-                  >
-                    {VISIT_TYPE_OPTIONS.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div style={styles.formBlockFull}>
-                  <label style={styles.label}>メモ</label>
-                  <textarea
-                    value={memo}
-                    onChange={(e) => setMemo(e.target.value)}
-                    style={styles.textarea}
-                    rows={4}
-                  />
-                </div>
-              </div>
-
-              <div style={styles.modalFooter}>
-                <button type="button" onClick={() => setFormOpen(false)} style={styles.cancelBtn}>
-                  キャンセル
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleSaveReservation()}
-                  style={styles.saveBtn}
-                  disabled={saving}
-                >
-                  {saving ? "保存中..." : "保存する"}
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        {counselingPickerOpen ? (
-          <div style={styles.modalOverlay} onClick={() => setCounselingPickerOpen(false)}>
-            <div style={styles.modalSmall} onClick={(e) => e.stopPropagation()}>
-              <div style={styles.modalHeader}>
-                <h3 style={styles.modalTitle}>カウンセリング対象を選択</h3>
-                <button
-                  type="button"
-                  onClick={() => setCounselingPickerOpen(false)}
-                  style={styles.modalCloseBtn}
-                >
-                  ×
-                </button>
-              </div>
-
-              {counselingCandidates.length === 0 ? (
-                <div style={styles.emptyBox}>対象がありません。</div>
-              ) : (
-                <div style={styles.cardList}>
-                  {counselingCandidates.map((item) => (
+                  <div className="gymup-home__hero-date-nav">
                     <button
-                      key={String(item.id)}
                       type="button"
-                      onClick={() => handleGoCounseling(item)}
-                      style={styles.counselingSelectCard}
+                      className="gymup-home__date-nav-btn"
+                      onClick={handlePrevDay}
                     >
-                      <div style={styles.counselingSelectTime}>
-                        {trimmed(item.start_time) || "--:--"}
-                        {trimmed(item.end_time) ? ` 〜 ${trimmed(item.end_time)}` : ""}
-                      </div>
-                      <div style={styles.counselingSelectName}>
-                        {trimmed(item.customer_name) || "顧客名未設定"}
-                      </div>
-                      <div style={styles.counselingSelectSub}>
-                        {trimmed(item.menu) || "メニュー未設定"} / {trimmed(item.staff_name) || "担当未設定"}
-                      </div>
+                      ← 前日
                     </button>
+
+                    <div className="gymup-home__date-current">{selectedDate}</div>
+
+                    <button
+                      type="button"
+                      className="gymup-home__date-nav-btn"
+                      onClick={handleNextDay}
+                    >
+                      翌日 →
+                    </button>
+
+                    <input
+                      type="date"
+                      className="gymup-home__date-picker"
+                      value={selectedDate}
+                      onChange={(e) => handleDateInputChange(e.target.value)}
+                    />
+
+                    <button
+                      type="button"
+                      className="gymup-home__date-today-btn"
+                      onClick={handleGoToday}
+                    >
+                      今日に戻る
+                    </button>
+                  </div>
+
+                  <div className="gymup-home__hero-memo">
+                    <div className="gymup-home__hero-memo-head">
+                      <div className="gymup-home__hero-memo-title">重要な引き継ぎメモ</div>
+                      <div className="gymup-home__hero-memo-badge">{selectedDate}</div>
+                    </div>
+
+                    <div className="gymup-home__hero-memo-desc">
+                      選択中の日付ごとにメモを分けて保存できます。左の重要事項も右のスケジュールも同じ日付で連動します。
+                    </div>
+
+                    <textarea
+                      className="gymup-home__hero-memo-textarea"
+                      placeholder={`例）
+・山田様 14:00 来店前に前回の姿勢写真確認
+・佐藤様 回数券の残り説明が必要
+・本日は福島店の売上登録を閉店前に確認
+・新規体験の方はカウンセリングシート入力を必ず案内
+・未消化の前受金処理があれば会計管理で確認`}
+                      value={handoverNote}
+                      onChange={(e) => handleHandoverChange(e.target.value)}
+                    />
+
+                    <div className="gymup-home__hero-memo-footer">
+                      <div className="gymup-home__hero-memo-status">
+                        {selectedDateLabel} の内容をこの端末に自動保存
+                      </div>
+                      <button
+                        type="button"
+                        className="gymup-home__hero-memo-clear"
+                        onClick={handleClearHandover}
+                      >
+                        この日のメモをクリア
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="gymup-home__menu-card">
+                <div className="gymup-home__section-label">MAIN MENU</div>
+
+                <div className="gymup-home__menu-grid">
+                  {quickLinks.map((item) => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`gymup-home__menu-link ${
+                        item.href === "/ticket-contracts" ? "gymup-home__ticket-link" : ""
+                      }`}
+                    >
+                      <div className="gymup-home__menu-title">{item.title}</div>
+                      <div className="gymup-home__menu-desc">{item.desc}</div>
+                    </Link>
                   ))}
                 </div>
-              )}
+              </div>
+            </div>
+
+            <div className="gymup-home__right">
+              <div className="gymup-home__dashboard">
+                <div className="gymup-home__dashboard-top">
+                  <div className="gymup-home__dots">
+                    <span className="gymup-home__dot" />
+                    <span className="gymup-home__dot" />
+                    <span className="gymup-home__dot" />
+                  </div>
+                  <div className="gymup-home__dashboard-label">Dashboard Preview</div>
+                </div>
+
+                <div className="gymup-home__dashboard-body">
+                  <div className="gymup-home__stats">
+                    {statCards.map((stat) => (
+                      <div key={stat.label} className="gymup-home__stat">
+                        <div className="gymup-home__stat-label">{stat.label}</div>
+                        <div className="gymup-home__stat-value">{stat.value}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="gymup-home__panels">
+                    <div className="gymup-home__panel-large">
+                      <div className="gymup-home__panel-head">
+                        <div>
+                          <div className="gymup-home__panel-title">Schedule</div>
+                          <div className="gymup-home__panel-meta">{selectedDateLabel}</div>
+                        </div>
+
+                        <div className="gymup-home__date-nav">
+                          <button
+                            type="button"
+                            className="gymup-home__date-nav-btn"
+                            onClick={handlePrevDay}
+                          >
+                            ← 前日
+                          </button>
+
+                          <div className="gymup-home__date-current">{selectedDate}</div>
+
+                          <button
+                            type="button"
+                            className="gymup-home__date-nav-btn"
+                            onClick={handleNextDay}
+                          >
+                            翌日 →
+                          </button>
+
+                          <input
+                            type="date"
+                            className="gymup-home__date-picker"
+                            value={selectedDate}
+                            onChange={(e) => handleDateInputChange(e.target.value)}
+                          />
+
+                          <button
+                            type="button"
+                            className="gymup-home__date-today-btn"
+                            onClick={handleGoToday}
+                          >
+                            今日に戻る
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="gymup-home__schedule">
+                        {loadingTimeline ? (
+                          <div className="gymup-home__empty">予定を読み込み中です...</div>
+                        ) : timelineItems.length > 0 ? (
+                          timelineItems.map((item) => {
+                            if (item.kind === "attendance") {
+                              const accent = getStaffAccent(item.name.replace("勤務", ""));
+                              return (
+                                <div
+                                  key={item.id}
+                                  className="gymup-home__schedule-item"
+                                  style={{ cursor: "default" }}
+                                >
+                                  <div className="gymup-home__schedule-timebox">
+                                    <div className="gymup-home__schedule-time">{item.time}</div>
+                                    <div className="gymup-home__schedule-endtime">
+                                      {item.endTime || "--:--"}
+                                    </div>
+                                  </div>
+
+                                  <div
+                                    className="gymup-home__schedule-line"
+                                    style={{ background: accent.line }}
+                                  />
+
+                                  <div className="gymup-home__schedule-main">
+                                    <div className="gymup-home__schedule-name">{item.name}</div>
+                                    <div className="gymup-home__schedule-sub">
+                                      スタッフ出勤
+                                    </div>
+
+                                    {item.highlightedNote ? (
+                                      <div className="gymup-home__attendance-warning">
+                                        <span className="gymup-home__attendance-warning-label">
+                                          不可時間
+                                        </span>
+                                        {item.highlightedNote}
+                                      </div>
+                                    ) : item.note ? (
+                                      <div className="gymup-home__attendance-note">
+                                        {item.note}
+                                      </div>
+                                    ) : null}
+                                  </div>
+
+                                  <div className="gymup-home__schedule-actions">
+                                    <div
+                                      className="gymup-home__staff-badge"
+                                      style={{ background: accent.color }}
+                                    >
+                                      {accent.label}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            const accent = getStaffAccent(item.staff);
+
+                            return (
+                              <div
+                                key={item.id}
+                                className="gymup-home__schedule-item"
+                                onClick={() => handleOpenTraining(item)}
+                                role="button"
+                                tabIndex={0}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" || e.key === " ") {
+                                    e.preventDefault();
+                                    handleOpenTraining(item);
+                                  }
+                                }}
+                              >
+                                <div className="gymup-home__schedule-timebox">
+                                  <div className="gymup-home__schedule-time">{item.time}</div>
+                                  <div className="gymup-home__schedule-endtime">--:--</div>
+                                </div>
+
+                                <div
+                                  className="gymup-home__schedule-line"
+                                  style={{ background: accent.line }}
+                                />
+
+                                <div className="gymup-home__schedule-main">
+                                  <div className="gymup-home__schedule-name">{item.name}</div>
+                                  <div className="gymup-home__schedule-sub">
+                                    {item.menu} / {item.staff}
+                                    {item.store ? ` / ${item.store}` : ""}
+                                  </div>
+
+                                  {isTicketMenu(item.menu) ? (
+                                    <>
+                                      <div className="gymup-home__remaining">
+                                        残回数:{" "}
+                                        {typeof item.remainingCount === "number"
+                                          ? item.remainingCount
+                                          : "—"}
+                                      </div>
+                                      {item.ticketName ? (
+                                        <div className="gymup-home__ticketname">
+                                          契約: {item.ticketName}
+                                        </div>
+                                      ) : null}
+                                    </>
+                                  ) : null}
+                                </div>
+
+                                <div className="gymup-home__schedule-actions">
+                                  {!isTicketMenu(item.menu) ? (
+                                    <div className="gymup-home__target-off">対象外</div>
+                                  ) : consumedMap[item.id] ? (
+                                    <div className="gymup-home__consumed-badge">消化済み</div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      className="gymup-home__consume-btn"
+                                      onClick={(e) => handleConsume(item, e)}
+                                      disabled={consumingId === item.id}
+                                    >
+                                      {consumingId === item.id ? "処理中..." : "消化"}
+                                    </button>
+                                  )}
+                                  <div
+                                    className="gymup-home__staff-badge"
+                                    style={{ background: accent.color }}
+                                  >
+                                    {accent.label}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="gymup-home__empty">
+                            {selectedDateLabel} の予定はありません。
+                            {timelineError ? `（${timelineError}）` : ""}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="gymup-home__panel-stack">
+                      <div className="gymup-home__panel-small">
+                        <div className="gymup-home__panel-title">Operations</div>
+                        <div className="gymup-home__mini-grid">
+                          <Link href="/reservation" className="gymup-home__mini-link">
+                            予約管理
+                          </Link>
+                          <Link href="/sales" className="gymup-home__mini-link">
+                            売上管理
+                          </Link>
+                          <Link href="/attendance" className="gymup-home__mini-link">
+                            勤怠管理
+                          </Link>
+                          <Link href="/subscription" className="gymup-home__mini-link">
+                            サブスク管理
+                          </Link>
+                          <Link href="/ticket-contracts" className="gymup-home__mini-link gymup-home__ticket-link">
+                            回数券購入登録
+                          </Link>
+                          <Link href="/accounting" className="gymup-home__mini-link">
+                            前受金確認
+                          </Link>
+                        </div>
+                      </div>
+
+                      <div className="gymup-home__panel-small">
+                        <div className="gymup-home__panel-title">System Notes</div>
+                        <div className="gymup-home__alerts">
+                          <div className="gymup-home__alert">
+                            <span className="gymup-home__alert-dot" />
+                            <span>予約とスタッフ出勤を同じ時系列で表示</span>
+                          </div>
+                          <div className="gymup-home__alert">
+                            <span className="gymup-home__alert-dot" />
+                            <span>勤務メモは不可時間として目立つ表示に強化</span>
+                          </div>
+                          <div className="gymup-home__alert">
+                            <span className="gymup-home__alert-dot" />
+                            <span>回数券だけ消化ボタンを表示</span>
+                          </div>
+                          <div className="gymup-home__alert">
+                            <span className="gymup-home__alert-dot" />
+                            <span>消化後は売上ページへ自動移動</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="gymup-home__panel-small">
+                        <div className="gymup-home__panel-title">メモ運用</div>
+                        <div className="gymup-home__alerts">
+                          <div className="gymup-home__alert">
+                            <span className="gymup-home__alert-dot" />
+                            <span>{selectedDate} のメモを表示中</span>
+                          </div>
+                          <div className="gymup-home__alert">
+                            <span className="gymup-home__alert-dot" />
+                            <span>日付ごとに別メモで保存</span>
+                          </div>
+                          <div className="gymup-home__alert">
+                            <span className="gymup-home__alert-dot" />
+                            <span>入力内容はこの端末に自動保存</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        ) : null}
-      </div>
-    </main>
+        </div>
+      </main>
+    </>
   );
 }
-
-const styles: Record<string, CSSProperties> = {
-  page: {
-    minHeight: "100vh",
-    background: "linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)",
-    padding: "0 0 100px",
-  },
-  mobileWrap: {
-    width: "100%",
-    maxWidth: 420,
-    margin: "0 auto",
-    minHeight: "100vh",
-    position: "relative",
-  },
-  topBar: {
-    position: "sticky",
-    top: 0,
-    zIndex: 20,
-    padding: "14px 12px 12px",
-    background: "rgba(248,250,252,0.92)",
-    backdropFilter: "blur(10px)",
-    borderBottom: "1px solid rgba(226,232,240,0.9)",
-  },
-  topHeaderRow: {
-    display: "grid",
-    gap: 10,
-    marginBottom: 10,
-  },
-  monthRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  monthTitle: {
-    margin: 0,
-    fontSize: 24,
-    fontWeight: 900,
-    color: "#0f172a",
-    textAlign: "center",
-    flex: 1,
-  },
-  arrowBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 999,
-    border: "1px solid #e2e8f0",
-    background: "#fff",
-    color: "#111827",
-    fontSize: 24,
-    cursor: "pointer",
-    flexShrink: 0,
-  },
-  topRightBtns: {
-    display: "flex",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  topBtn: {
-    border: "none",
-    background: "#111827",
-    color: "#fff",
-    padding: "10px 12px",
-    borderRadius: 999,
-    fontSize: 12,
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  counselingTopBtn: {
-    border: "none",
-    background: "linear-gradient(135deg, #f59e0b, #d97706)",
-    color: "#fff",
-    padding: "10px 12px",
-    borderRadius: 999,
-    fontSize: 12,
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  pendingFilterBtn: {
-    border: "1px solid #e2e8f0",
-    background: "#fff",
-    color: "#111827",
-    padding: "10px 12px",
-    borderRadius: 999,
-    fontSize: 12,
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  pendingFilterBtnActive: {
-    background: "#fee2e2",
-    color: "#b91c1c",
-    border: "1px solid #fecaca",
-  },
-  summaryBar: {
-    display: "flex",
-    gap: 8,
-    overflowX: "auto",
-    paddingBottom: 4,
-    marginBottom: 8,
-  },
-  summaryPill: {
-    border: "none",
-    borderRadius: 16,
-    padding: "10px 12px",
-    minWidth: 96,
-    display: "grid",
-    gap: 4,
-    boxShadow: "0 6px 16px rgba(0,0,0,0.05)",
-    flexShrink: 0,
-    cursor: "pointer",
-    textAlign: "left",
-  },
-  summaryPillSelected: {
-    outline: "2px solid #111827",
-    transform: "translateY(-1px)",
-  },
-  summaryLabel: {
-    fontSize: 11,
-    color: "#64748b",
-    fontWeight: 700,
-  },
-  summaryCount: {
-    fontSize: 18,
-    color: "#0f172a",
-    fontWeight: 900,
-  },
-  summaryCountDanger: {
-    fontSize: 18,
-    color: "#dc2626",
-    fontWeight: 900,
-  },
-  activeFilterBar: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-    marginBottom: 10,
-  },
-  activeFilterLabel: {
-    fontSize: 11,
-    color: "#64748b",
-    fontWeight: 800,
-  },
-  activeFilterValue: {
-    fontSize: 12,
-    color: "#111827",
-    fontWeight: 900,
-    background: "#fff",
-    border: "1px solid #e2e8f0",
-    borderRadius: 999,
-    padding: "6px 10px",
-  },
-  filterRow: {
-    display: "flex",
-    gap: 8,
-    overflowX: "auto",
-    paddingBottom: 4,
-    marginBottom: 10,
-  },
-  storeChip: {
-    border: "1px solid #e2e8f0",
-    background: "#fff",
-    color: "#334155",
-    borderRadius: 999,
-    padding: "9px 12px",
-    fontWeight: 800,
-    fontSize: 12,
-    cursor: "pointer",
-    flexShrink: 0,
-  },
-  storeChipActive: {
-    background: "#111827",
-    color: "#fff",
-    border: "1px solid #111827",
-  },
-  legendBox: {
-    display: "flex",
-    gap: 10,
-    overflowX: "auto",
-    paddingBottom: 4,
-    marginBottom: 8,
-  },
-  legendBoxStore: {
-    display: "flex",
-    gap: 10,
-    overflowX: "auto",
-    paddingBottom: 2,
-  },
-  legendItem: {
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-    fontSize: 11,
-    color: "#475569",
-    fontWeight: 700,
-    flexShrink: 0,
-    background: "#fff",
-    borderRadius: 999,
-    padding: "6px 10px",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
-  },
-  legendDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 999,
-    flexShrink: 0,
-  },
-  errorBox: {
-    margin: "12px",
-    background: "#fee2e2",
-    color: "#991b1b",
-    borderRadius: 14,
-    padding: "12px 14px",
-    fontWeight: 700,
-    fontSize: 13,
-  },
-  successBox: {
-    margin: "12px",
-    background: "#dcfce7",
-    color: "#166534",
-    borderRadius: 14,
-    padding: "12px 14px",
-    fontWeight: 700,
-    fontSize: 13,
-  },
-  calendarCard: {
-    padding: "6px 8px 18px",
-  },
-  weekHeader: {
-    display: "grid",
-    gridTemplateColumns: "repeat(7, 1fr)",
-    gap: 5,
-    marginBottom: 7,
-    padding: "0 3px",
-  },
-  weekLabel: {
-    textAlign: "center",
-    fontWeight: 700,
-    fontSize: 11,
-  },
-  calendarGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(7, 1fr)",
-    gap: 5,
-  },
-  dayCell: {
-    border: "none",
-    background: "#ffffff",
-    borderRadius: 16,
-    minHeight: 100,
-    padding: "7px 5px",
-    textAlign: "left",
-    boxShadow: "0 6px 16px rgba(0,0,0,0.05)",
-    display: "flex",
-    flexDirection: "column",
-    gap: 5,
-    cursor: "pointer",
-  },
-  dayCellSelected: {
-    outline: "2px solid #111827",
-  },
-  dayCellPending: {
-    boxShadow: "0 10px 24px rgba(239,68,68,0.10)",
-  },
-  dayHead: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  dayNumber: {
-    fontSize: 14,
-    fontWeight: 900,
-    minWidth: 24,
-    textAlign: "center",
-  },
-  todayBadge: {
-    background: "#111827",
-    color: "#fff",
-    borderRadius: 999,
-    padding: "2px 8px",
-  },
-  dayPendingBadge: {
-    minWidth: 18,
-    height: 18,
-    borderRadius: 999,
-    background: "#ef4444",
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: 900,
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "0 5px",
-  },
-  eventListMini: {
-    display: "grid",
-    gap: 4,
-  },
-  eventMini: {
-    background: "#f8fafc",
-    borderRadius: 8,
-    padding: "3px 4px 3px 6px",
-    overflow: "hidden",
-  },
-  eventMiniPending: {
-    background: "#fff1f2",
-  },
-  eventMiniLine: {
-    display: "flex",
-    alignItems: "center",
-    gap: 4,
-    minWidth: 0,
-  },
-  eventMiniStoreDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 999,
-    flexShrink: 0,
-  },
-  eventMiniText: {
-    display: "block",
-    fontSize: 9,
-    fontWeight: 700,
-    color: "#334155",
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    minWidth: 0,
-  },
-  moreText: {
-    fontSize: 9,
-    fontWeight: 700,
-    color: "#64748b",
-    paddingLeft: 2,
-  },
-  fab: {
-    position: "fixed",
-    right: "max(calc(50% - 200px), 18px)",
-    bottom: 22,
-    width: 60,
-    height: 60,
-    borderRadius: 999,
-    border: "none",
-    background: "#111827",
-    color: "#fff",
-    fontSize: 32,
-    boxShadow: "0 18px 36px rgba(0,0,0,0.22)",
-    zIndex: 40,
-    cursor: "pointer",
-  },
-  sheetOverlay: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(15,23,42,0.35)",
-    zIndex: 50,
-    display: "flex",
-    alignItems: "flex-end",
-    justifyContent: "center",
-  },
-  sheet: {
-    width: "100%",
-    maxWidth: 420,
-    maxHeight: "86vh",
-    background: "#f8fafc",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    overflow: "auto",
-    padding: "8px 12px 24px",
-  },
-  sheetHandle: {
-    width: 48,
-    height: 5,
-    borderRadius: 999,
-    background: "#cbd5e1",
-    margin: "6px auto 14px",
-  },
-  sheetHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 10,
-    marginBottom: 14,
-  },
-  sheetSubTitle: {
-    fontSize: 11,
-    color: "#64748b",
-    fontWeight: 700,
-    marginBottom: 4,
-  },
-  sheetTitle: {
-    margin: 0,
-    fontSize: 22,
-    color: "#0f172a",
-    fontWeight: 900,
-  },
-  sheetHeaderBtns: {
-    display: "flex",
-    gap: 8,
-    flexWrap: "wrap",
-    justifyContent: "flex-end",
-  },
-  sheetActionBtnPrimary: {
-    border: "none",
-    background: "#111827",
-    color: "#fff",
-    padding: "10px 12px",
-    borderRadius: 12,
-    fontWeight: 800,
-    fontSize: 12,
-    cursor: "pointer",
-  },
-  sheetCloseBtn: {
-    border: "1px solid #e2e8f0",
-    background: "#fff",
-    color: "#334155",
-    padding: "10px 12px",
-    borderRadius: 12,
-    fontWeight: 800,
-    fontSize: 12,
-    cursor: "pointer",
-  },
-  staffAttendanceBox: {
-    background: "#fff",
-    borderRadius: 18,
-    padding: 14,
-    marginBottom: 14,
-    boxShadow: "0 6px 16px rgba(0,0,0,0.05)",
-  },
-  staffAttendanceTitle: {
-    fontSize: 14,
-    fontWeight: 900,
-    color: "#111827",
-    marginBottom: 10,
-  },
-  staffAttendanceEmpty: {
-    fontSize: 13,
-    color: "#64748b",
-    fontWeight: 700,
-  },
-  staffAttendanceList: {
-    display: "grid",
-    gap: 10,
-  },
-  staffAttendanceCard: {
-    background: "#f8fafc",
-    borderRadius: 14,
-    padding: 12,
-    border: "1px solid #e2e8f0",
-  },
-  staffAttendanceTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 8,
-    flexWrap: "wrap",
-  },
-  staffAttendanceBadge: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: 900,
-    padding: "6px 10px",
-    borderRadius: 999,
-  },
-  staffAttendanceStore: {
-    fontSize: 12,
-    fontWeight: 800,
-    color: "#475569",
-    background: "#fff",
-    border: "1px solid #e2e8f0",
-    borderRadius: 999,
-    padding: "6px 10px",
-  },
-  staffAttendanceTime: {
-    fontSize: 14,
-    fontWeight: 900,
-    color: "#0f172a",
-  },
-  emptyBox: {
-    background: "#fff",
-    borderRadius: 16,
-    padding: "18px 14px",
-    color: "#64748b",
-    fontWeight: 700,
-    fontSize: 13,
-    textAlign: "center",
-  },
-  cardList: {
-    display: "grid",
-    gap: 10,
-  },
-  reserveCard: {
-    background: "#fff",
-    borderRadius: 18,
-    padding: 14,
-    boxShadow: "0 6px 16px rgba(0,0,0,0.05)",
-    border: "1px solid #e2e8f0",
-  },
-  reserveCardPending: {
-    border: "2px solid #ef4444",
-    boxShadow: "0 10px 24px rgba(239,68,68,0.12)",
-  },
-  reserveCardHead: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 8,
-    marginBottom: 10,
-  },
-  reserveTime: {
-    fontSize: 16,
-    fontWeight: 900,
-    color: "#0f172a",
-  },
-  reserveRightBadges: {
-    display: "flex",
-    gap: 6,
-    flexWrap: "wrap",
-    justifyContent: "flex-end",
-  },
-  badge: {
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: 800,
-    padding: "5px 8px",
-    borderRadius: 999,
-  },
-  reserveNameRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-    marginBottom: 8,
-  },
-  reserveCustomerName: {
-    fontSize: 18,
-    fontWeight: 900,
-    color: "#111827",
-  },
-  newBadge: {
-    background: "#dbeafe",
-    color: "#1d4ed8",
-    borderRadius: 999,
-    padding: "4px 8px",
-    fontSize: 11,
-    fontWeight: 800,
-  },
-  repeatBadge: {
-    background: "#f1f5f9",
-    color: "#475569",
-    borderRadius: 999,
-    padding: "4px 8px",
-    fontSize: 11,
-    fontWeight: 800,
-  },
-  reserveMeta: {
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-    color: "#475569",
-    fontWeight: 700,
-    fontSize: 12,
-    marginBottom: 10,
-  },
-  statusRow: {
-    display: "flex",
-    gap: 6,
-    flexWrap: "wrap",
-    marginBottom: 10,
-  },
-  pendingBadge: {
-    background: "#fee2e2",
-    color: "#991b1b",
-    borderRadius: 999,
-    padding: "5px 8px",
-    fontSize: 11,
-    fontWeight: 800,
-  },
-  doneBadge: {
-    background: "#dcfce7",
-    color: "#166534",
-    borderRadius: 999,
-    padding: "5px 8px",
-    fontSize: 11,
-    fontWeight: 800,
-  },
-  doneBadgeBlue: {
-    background: "#dbeafe",
-    color: "#1d4ed8",
-    borderRadius: 999,
-    padding: "5px 8px",
-    fontSize: 11,
-    fontWeight: 800,
-  },
-  pendingBadgeYellow: {
-    background: "#fef3c7",
-    color: "#92400e",
-    borderRadius: 999,
-    padding: "5px 8px",
-    fontSize: 11,
-    fontWeight: 800,
-  },
-  ticketBadge: {
-    background: "#ede9fe",
-    color: "#6d28d9",
-    borderRadius: 999,
-    padding: "5px 8px",
-    fontSize: 11,
-    fontWeight: 800,
-  },
-  doneBadgePurple: {
-    background: "#e9d5ff",
-    color: "#6d28d9",
-    borderRadius: 999,
-    padding: "5px 8px",
-    fontSize: 11,
-    fontWeight: 800,
-  },
-  pendingBadgePurple: {
-    background: "#f3e8ff",
-    color: "#7c3aed",
-    borderRadius: 999,
-    padding: "5px 8px",
-    fontSize: 11,
-    fontWeight: 800,
-  },
-  memoBox: {
-    background: "#f8fafc",
-    borderRadius: 12,
-    padding: "10px 12px",
-    color: "#475569",
-    fontSize: 12,
-    lineHeight: 1.6,
-    marginBottom: 10,
-    whiteSpace: "pre-wrap",
-  },
-  actionRow: {
-    display: "flex",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  actionBtnDark: {
-    border: "none",
-    background: "#111827",
-    color: "#fff",
-    borderRadius: 12,
-    padding: "10px 12px",
-    fontSize: 12,
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  actionBtnBlue: {
-    border: "none",
-    background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
-    color: "#fff",
-    borderRadius: 12,
-    padding: "10px 12px",
-    fontSize: 12,
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  actionBtnOrange: {
-    border: "none",
-    background: "linear-gradient(135deg, #f59e0b, #d97706)",
-    color: "#fff",
-    borderRadius: 12,
-    padding: "10px 12px",
-    fontSize: 12,
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  actionBtnDelete: {
-    border: "none",
-    background: "linear-gradient(135deg, #ef4444, #dc2626)",
-    color: "#fff",
-    borderRadius: 12,
-    padding: "10px 12px",
-    fontSize: 12,
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  modalOverlay: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(15,23,42,0.35)",
-    zIndex: 60,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 12,
-  },
-  modal: {
-    width: "100%",
-    maxWidth: 420,
-    maxHeight: "88vh",
-    overflow: "auto",
-    background: "#fff",
-    borderRadius: 22,
-    padding: 16,
-    boxShadow: "0 24px 60px rgba(0,0,0,0.18)",
-  },
-  modalSmall: {
-    width: "100%",
-    maxWidth: 420,
-    maxHeight: "80vh",
-    overflow: "auto",
-    background: "#fff",
-    borderRadius: 22,
-    padding: 16,
-    boxShadow: "0 24px 60px rgba(0,0,0,0.18)",
-  },
-  modalHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 14,
-  },
-  modalTitle: {
-    margin: 0,
-    fontSize: 20,
-    fontWeight: 900,
-    color: "#0f172a",
-  },
-  modalCloseBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 999,
-    border: "1px solid #e2e8f0",
-    background: "#fff",
-    color: "#111827",
-    fontSize: 20,
-    cursor: "pointer",
-  },
-  formGrid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 12,
-  },
-  formBlockFull: {
-    gridColumn: "1 / -1",
-  },
-  label: {
-    display: "block",
-    fontSize: 12,
-    fontWeight: 800,
-    color: "#334155",
-    marginBottom: 6,
-  },
-  input: {
-    width: "100%",
-    boxSizing: "border-box",
-    border: "1px solid #e2e8f0",
-    borderRadius: 12,
-    padding: "11px 12px",
-    fontSize: 14,
-    background: "#fff",
-    color: "#0f172a",
-  },
-  textarea: {
-    width: "100%",
-    boxSizing: "border-box",
-    border: "1px solid #e2e8f0",
-    borderRadius: 12,
-    padding: "11px 12px",
-    fontSize: 14,
-    background: "#fff",
-    color: "#0f172a",
-    resize: "vertical",
-  },
-  customerSearchList: {
-    display: "grid",
-    gap: 8,
-    marginTop: 8,
-    maxHeight: 220,
-    overflowY: "auto",
-    paddingRight: 2,
-  },
-  customerSearchItem: {
-    border: "1px solid #e2e8f0",
-    background: "#f8fafc",
-    borderRadius: 12,
-    padding: "10px 12px",
-    textAlign: "left",
-    cursor: "pointer",
-  },
-  customerSearchName: {
-    fontSize: 14,
-    fontWeight: 800,
-    color: "#0f172a",
-    marginBottom: 4,
-  },
-  customerSearchSub: {
-    fontSize: 11,
-    color: "#64748b",
-    fontWeight: 700,
-  },
-  modalFooter: {
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: 8,
-    marginTop: 16,
-  },
-  cancelBtn: {
-    border: "1px solid #e2e8f0",
-    background: "#fff",
-    color: "#334155",
-    borderRadius: 12,
-    padding: "11px 14px",
-    fontWeight: 800,
-    fontSize: 13,
-    cursor: "pointer",
-  },
-  saveBtn: {
-    border: "none",
-    background: "#111827",
-    color: "#fff",
-    borderRadius: 12,
-    padding: "11px 14px",
-    fontWeight: 800,
-    fontSize: 13,
-    cursor: "pointer",
-  },
-  counselingSelectCard: {
-    border: "1px solid #e2e8f0",
-    background: "#f8fafc",
-    borderRadius: 16,
-    padding: 14,
-    textAlign: "left",
-    cursor: "pointer",
-  },
-  counselingSelectTime: {
-    fontSize: 13,
-    fontWeight: 900,
-    color: "#0f172a",
-    marginBottom: 6,
-  },
-  counselingSelectName: {
-    fontSize: 17,
-    fontWeight: 900,
-    color: "#111827",
-    marginBottom: 6,
-  },
-  counselingSelectSub: {
-    fontSize: 12,
-    color: "#64748b",
-    fontWeight: 700,
-  },
-};
