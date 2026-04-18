@@ -61,6 +61,7 @@ type StaffAttendanceItem = {
   work_date: string;
   clock_in?: string | null;
   clock_out?: string | null;
+  memo?: string | null;
 };
 
 type ReservationHistoryItem = {
@@ -94,6 +95,18 @@ type FilterMode =
   | "ticket_pending";
 
 type SearchMode = "customer" | "staff";
+
+type DayTimelineItem =
+  | {
+      type: "attendance";
+      sortTime: string;
+      attendance: StaffAttendanceItem;
+    }
+  | {
+      type: "reservation";
+      sortTime: string;
+      reservation: ReservationRow;
+    };
 
 const STORE_OPTIONS = [
   "すべて",
@@ -172,7 +185,6 @@ const VISIT_TYPE_OPTIONS = ["新規", "再来"];
 const WEEK_LABELS = ["月", "火", "水", "木", "金", "土", "日"];
 
 const TICKET_UNIT_PRICES: Record<string, number> = {
-  // ストレッチ旧価格
   "40分4回_旧": 5330,
   "40分8回_旧": 5090,
   "40分12回_旧": 5000,
@@ -186,7 +198,6 @@ const TICKET_UNIT_PRICES: Record<string, number> = {
   "120分8回_旧": 15270,
   "120分12回_旧": 15000,
 
-  // ストレッチ新価格
   "40分4回_新": 5330,
   "40分8回_新": 5090,
   "40分12回_新": 5000,
@@ -200,7 +211,6 @@ const TICKET_UNIT_PRICES: Record<string, number> = {
   "120分8回_新": 15270,
   "120分12回_新": 15000,
 
-  // トレーニング
   "ダイエット16回": 11000,
   "ゴールド24回": 10450,
   "プラチナ32回": 10230,
@@ -305,6 +315,12 @@ function getStoreColor(storeName?: string | null) {
   if (store.includes("中崎町")) return "#eab308";
   if (store.includes("江坂")) return "#10b981";
   return "#6b7280";
+}
+
+function getStaffShortLabel(staffName?: string | null) {
+  const name = trimmed(staffName);
+  if (!name) return "他";
+  return name.slice(0, 1);
 }
 
 function sortReservations(a: ReservationRow, b: ReservationRow) {
@@ -653,14 +669,14 @@ export default function ReservationPage() {
 
       const { data, error } = await supabase
         .from("attendance_records")
-        .select("id, staff_name, work_date, clock_in, clock_out")
+        .select("id, staff_name, work_date, clock_in, clock_out, memo")
         .gte("work_date", monthStart)
         .lte("work_date", monthEnd)
         .order("work_date", { ascending: true })
         .order("clock_in", { ascending: true });
 
       if (error) {
-        if ((error as any).code === "PGRST205") {
+        if ((error as { code?: string }).code === "PGRST205") {
           setAttendanceItems([]);
           return;
         }
@@ -668,12 +684,13 @@ export default function ReservationPage() {
       }
 
       setAttendanceItems(
-        ((data as any[]) || []).map((row) => ({
+        ((data as Record<string, unknown>[]) || []).map((row) => ({
           id: String(row.id),
           staff_name: trimmed(row.staff_name),
           work_date: trimmed(row.work_date),
-          clock_in: row.clock_in ?? null,
-          clock_out: row.clock_out ?? null,
+          clock_in: row.clock_in ? String(row.clock_in) : null,
+          clock_out: row.clock_out ? String(row.clock_out) : null,
+          memo: row.memo ? String(row.memo) : null,
         }))
       );
     } catch (e) {
@@ -870,6 +887,27 @@ export default function ReservationPage() {
       .sort((a, b) => trimmed(a.clock_in).localeCompare(trimmed(b.clock_in)));
   }, [attendanceItems, selectedDate]);
 
+  const selectedDayTimeline = useMemo(() => {
+    const timeline: DayTimelineItem[] = [
+      ...selectedDayAttendance.map((attendance) => ({
+        type: "attendance" as const,
+        sortTime: trimmed(attendance.clock_in) || "00:00",
+        attendance,
+      })),
+      ...selectedDayReservations.map((reservation) => ({
+        type: "reservation" as const,
+        sortTime: trimmed(reservation.start_time) || "00:00",
+        reservation,
+      })),
+    ];
+
+    return timeline.sort((a, b) => {
+      if (a.sortTime !== b.sortTime) return a.sortTime.localeCompare(b.sortTime);
+      if (a.type !== b.type) return a.type === "attendance" ? -1 : 1;
+      return 0;
+    });
+  }, [selectedDayAttendance, selectedDayReservations]);
+
   const counselingCandidates = useMemo(() => {
     return selectedDayReservations.filter(
       (item) =>
@@ -1056,9 +1094,9 @@ export default function ReservationPage() {
       .limit(1)
       .maybeSingle();
 
-      if (nameMatchError) {
-        console.warn(nameMatchError);
-      }
+    if (nameMatchError) {
+      console.warn(nameMatchError);
+    }
 
     if (nameMatch) {
       return String((nameMatch as CustomerRow).id);
@@ -1264,7 +1302,7 @@ export default function ReservationPage() {
 
       const ticketName = resolveTicketName({
         reservationMenu: item.menu,
-        customerPlanType: (customerRow as any).plan_type,
+        customerPlanType: (customerRow as { plan_type?: string | null }).plan_type,
       });
 
       if (!ticketName) {
@@ -1296,9 +1334,16 @@ export default function ReservationPage() {
         return;
       }
 
-      const remainingCount = Number((contractRow as any).remaining_count ?? 0);
-      const usedCount = Number((contractRow as any).used_count ?? 0);
-      const prepaidBalance = Number((contractRow as any).prepaid_balance ?? 0);
+      const currentContract = contractRow as {
+        id: number | string;
+        remaining_count?: number | null;
+        used_count?: number | null;
+        prepaid_balance?: number | null;
+      };
+
+      const remainingCount = Number(currentContract.remaining_count ?? 0);
+      const usedCount = Number(currentContract.used_count ?? 0);
+      const prepaidBalance = Number(currentContract.prepaid_balance ?? 0);
 
       if (remainingCount <= 0) {
         setError("残回数がありません。");
@@ -1317,7 +1362,7 @@ export default function ReservationPage() {
       const serviceType = detectServiceTypeFromTicketName(ticketName);
 
       const { error: usageInsertError } = await supabase.from("ticket_usages").insert({
-        contract_id: (contractRow as any).id,
+        contract_id: currentContract.id,
         customer_id: customerId,
         reservation_id: reservationId,
         used_date: trimmed(item.date),
@@ -1337,14 +1382,19 @@ export default function ReservationPage() {
           prepaid_balance: nextBalance,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", (contractRow as any).id);
+        .eq("id", currentContract.id);
 
       if (contractUpdateError) throw contractUpdateError;
+
+      const customerNameValue =
+        trimmed(item.customer_name) ||
+        trimmed((customerRow as { name?: string | null }).name) ||
+        null;
 
       const { error: salesInsertError } = await supabase.from("sales").insert({
         reservation_id: reservationId,
         customer_id: customerId,
-        customer_name: trimmed(item.customer_name) || trimmed((customerRow as any).name) || null,
+        customer_name: customerNameValue,
         sale_date: trimmed(item.date),
         amount: unitPrice,
         menu_type: serviceType,
@@ -1375,6 +1425,18 @@ export default function ReservationPage() {
         loadReservationFlagsForVisible(),
         loadAttendance(),
       ]);
+
+      router.push(
+        `/sales?reservationId=${reservationId}&customerId=${customerId}&customerName=${encodeURIComponent(
+          customerNameValue || ""
+        )}&date=${encodeURIComponent(trimmed(item.date))}&menu=${encodeURIComponent(
+          ticketName
+        )}&staffName=${encodeURIComponent(trimmed(item.staff_name))}&storeName=${encodeURIComponent(
+          trimmed(item.store_name)
+        )}&serviceType=${encodeURIComponent(serviceType)}&saleType=${encodeURIComponent(
+          "回数券消化"
+        )}`
+      );
     } catch (e) {
       console.error(e);
       setError(`回数券消化エラー: ${extractErrorMessage(e)}`);
@@ -1418,6 +1480,26 @@ export default function ReservationPage() {
 
     setCounselingPickerOpen(false);
     router.push(`/customer/${item.customer_id}/counseling?reservationId=${item.id}`);
+  }
+
+  async function handleReservationTap(item: ReservationRow) {
+    const isTicket = isTicketMenu(item.menu);
+    const reservationId = toIdNumber(item.id);
+    const isSold =
+      trimmed(item.reservation_status) === "売上済" ||
+      (reservationId !== null && salesReservationIdSet.has(reservationId));
+
+    if (isSold) {
+      router.push(`/reservation/detail/${item.id}`);
+      return;
+    }
+
+    if (isTicket) {
+      await handleTicketConsumeAndCreateSale(item);
+      return;
+    }
+
+    router.push(buildSalesHref(item));
   }
 
   function setFilterMode(nextMode: FilterMode) {
@@ -1794,7 +1876,7 @@ export default function ReservationPage() {
 
               <div style={styles.sheetHeader}>
                 <div>
-                  <div style={styles.sheetSubTitle}>予約一覧</div>
+                  <div style={styles.sheetSubTitle}>予約 / 出勤一覧</div>
                   <h2 style={styles.sheetTitle}>{formatJapaneseDate(selectedDate)}</h2>
                 </div>
 
@@ -1816,40 +1898,59 @@ export default function ReservationPage() {
                 </div>
               </div>
 
-              <div style={styles.attendanceBox}>
-                <div style={styles.attendanceTitle}>スタッフ出勤</div>
-
-                {selectedDayAttendance.length === 0 ? (
-                  <div style={styles.attendanceEmpty}>この日の出勤データはありません。</div>
-                ) : (
-                  <div style={styles.attendanceList}>
-                    {selectedDayAttendance.map((item) => (
-                      <div key={item.id} style={styles.attendanceItem}>
-                        <span
-                          style={{
-                            ...styles.attendanceDot,
-                            background: getStaffColor(item.staff_name),
-                          }}
-                        />
-                        <div style={styles.attendanceMain}>
-                          <div style={styles.attendanceName}>
-                            {item.staff_name || "スタッフ未設定"}
-                          </div>
-                          <div style={styles.attendanceTime}>
-                            {trimmed(item.clock_in) || "--:--"} 〜 {trimmed(item.clock_out) || "--:--"}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {selectedDayReservations.length === 0 ? (
-                <div style={styles.emptyBox}>この日の予約はありません。</div>
+              {selectedDayTimeline.length === 0 ? (
+                <div style={styles.emptyBox}>この日の予定はありません。</div>
               ) : (
                 <div style={styles.cardList}>
-                  {selectedDayReservations.map((item) => {
+                  {selectedDayTimeline.map((timelineItem) => {
+                    if (timelineItem.type === "attendance") {
+                      const item = timelineItem.attendance;
+                      return (
+                        <div
+                          key={`attendance-${item.id}`}
+                          style={{
+                            ...styles.timelineCard,
+                            borderLeft: `6px solid ${getStaffColor(item.staff_name)}`,
+                          }}
+                        >
+                          <div style={styles.timelineRow}>
+                            <div style={styles.timelineTimeBlock}>
+                              <div style={styles.timelineTimeMain}>
+                                {trimmed(item.clock_in) || "--:--"}
+                              </div>
+                              <div style={styles.timelineTimeSub}>
+                                {trimmed(item.clock_out) || "--:--"}
+                              </div>
+                            </div>
+
+                            <div style={styles.timelineContent}>
+                              <div style={styles.timelineTitle}>
+                                {trimmed(item.staff_name) || "スタッフ未設定"}勤務
+                              </div>
+                              <div style={styles.timelineMetaText}>
+                                スタッフ出勤
+                              </div>
+                              {trimmed(item.memo) ? (
+                                <div style={styles.attendanceMemoBox}>
+                                  不可時間メモ: {trimmed(item.memo)}
+                                </div>
+                              ) : null}
+                            </div>
+
+                            <div
+                              style={{
+                                ...styles.staffAvatar,
+                                background: getStaffColor(item.staff_name),
+                              }}
+                            >
+                              {getStaffShortLabel(item.staff_name)}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    const item = timelineItem.reservation;
                     const flags = getPendingFlags({
                       item,
                       salesReservationIdSet,
@@ -1865,134 +1966,90 @@ export default function ReservationPage() {
                     const isTicketUsed = ticketUsedReservationIdSet.has(Number(item.id));
 
                     return (
-                      <div
+                      <button
                         key={String(item.id)}
+                        type="button"
+                        onClick={() => void handleReservationTap(item)}
                         style={{
-                          ...styles.reserveCard,
+                          ...styles.timelineCardButton,
                           ...(flags.isPending ? styles.reserveCardPending : {}),
+                          borderLeft: `6px solid ${getStaffColor(item.staff_name)}`,
                         }}
                       >
-                        <div style={styles.reserveCardHead}>
-                          <div style={styles.reserveTime}>
-                            {trimmed(item.start_time) || "--:--"}
-                            {trimmed(item.end_time) ? ` 〜 ${trimmed(item.end_time)}` : ""}
+                        <div style={styles.timelineRow}>
+                          <div style={styles.timelineTimeBlock}>
+                            <div style={styles.timelineTimeMain}>
+                              {trimmed(item.start_time) || "--:--"}
+                            </div>
+                            <div style={styles.timelineTimeSub}>
+                              {trimmed(item.end_time) || "--:--"}
+                            </div>
                           </div>
 
-                          <div style={styles.reserveRightBadges}>
-                            <span
-                              style={{
-                                ...styles.badge,
-                                background: getStoreColor(item.store_name),
-                              }}
-                            >
-                              {trimmed(item.store_name) || "店舗未設定"}
-                            </span>
-                            <span
-                              style={{
-                                ...styles.badge,
-                                background: getStaffColor(item.staff_name),
-                              }}
-                            >
-                              {trimmed(item.staff_name) || "スタッフ未設定"}
-                            </span>
-                          </div>
-                        </div>
+                          <div style={styles.timelineContent}>
+                            <div style={styles.timelineTitle}>
+                              {trimmed(item.customer_name) || "顧客名未設定"}
+                            </div>
 
-                        <div style={styles.reserveNameRow}>
-                          <div style={styles.reserveCustomerName}>
-                            {trimmed(item.customer_name) || "顧客名未設定"}
-                          </div>
+                            <div style={styles.timelineMetaText}>
+                              {trimmed(item.menu) || "—"} / {trimmed(item.staff_name) || "—"}
+                              {trimmed(item.store_name) ? ` / ${trimmed(item.store_name)}` : ""}
+                            </div>
 
-                          {isNewVisit(item) ? (
-                            <span style={styles.newBadge}>新規</span>
-                          ) : (
-                            <span style={styles.repeatBadge}>再来</span>
-                          )}
-                        </div>
-
-                        <div style={styles.reserveMeta}>
-                          <span>メニュー: {trimmed(item.menu) || "—"}</span>
-                          <span>支払: {trimmed(item.payment_method) || "—"}</span>
-                        </div>
-
-                        <div style={styles.statusRow}>
-                          <span style={isSold ? styles.doneBadge : styles.pendingBadge}>
-                            {isSold ? "売上済" : "売上未"}
-                          </span>
-
-                          {isNewVisit(item) ? (
-                            <span
-                              style={
-                                isCounseled ? styles.doneBadgeBlue : styles.pendingBadgeYellow
-                              }
-                            >
-                              {isCounseled ? "カウンセリング済" : "カウンセリング未"}
-                            </span>
-                          ) : null}
-
-                          {isTicket ? (
-                            <>
-                              <span style={styles.ticketBadge}>回数券予約</span>
-                              <span
-                                style={
-                                  isTicketUsed
-                                    ? styles.doneBadgePurple
-                                    : styles.pendingBadgePurple
-                                }
-                              >
-                                {isTicketUsed ? "回数券消化済" : "回数券未消化"}
+                            <div style={styles.statusRow}>
+                              <span style={isSold ? styles.doneBadge : styles.pendingBadge}>
+                                {isSold ? "売上済" : "売上未"}
                               </span>
-                            </>
-                          ) : null}
-                        </div>
 
-                        {trimmed(item.memo) ? (
-                          <div style={styles.memoBox}>{trimmed(item.memo)}</div>
-                        ) : null}
+                              {isNewVisit(item) ? (
+                                <span
+                                  style={
+                                    isCounseled ? styles.doneBadgeBlue : styles.pendingBadgeYellow
+                                  }
+                                >
+                                  {isCounseled ? "カウンセリング済" : "カウンセリング未"}
+                                </span>
+                              ) : null}
 
-                        <div style={styles.actionRow}>
-                          <button
-                            type="button"
-                            onClick={() => router.push(`/reservation/detail/${item.id}`)}
-                            style={styles.actionBtnDark}
+                              {isTicket ? (
+                                <>
+                                  <span style={styles.ticketBadge}>回数券</span>
+                                  <span
+                                    style={
+                                      isTicketUsed
+                                        ? styles.doneBadgePurple
+                                        : styles.pendingBadgePurple
+                                    }
+                                  >
+                                    {isTicketUsed ? "消化済" : "未消化"}
+                                  </span>
+                                </>
+                              ) : null}
+                            </div>
+
+                            {trimmed(item.memo) ? (
+                              <div style={styles.memoBoxMini}>{trimmed(item.memo)}</div>
+                            ) : null}
+
+                            <div style={styles.tapHint}>
+                              {isSold
+                                ? "タップで詳細"
+                                : isTicket
+                                ? "タップで回数券消化＋売上登録"
+                                : "タップで売上登録"}
+                            </div>
+                          </div>
+
+                          <div
+                            style={{
+                              ...styles.staffAvatar,
+                              background: getStaffColor(item.staff_name),
+                            }}
                           >
-                            詳細
-                          </button>
-
-                          {!isSold ? (
-                            isTicket ? (
-                              <button
-                                type="button"
-                                onClick={() => void handleTicketConsumeAndCreateSale(item)}
-                                style={styles.actionBtnBlue}
-                                disabled={consumingReservationId === String(item.id)}
-                              >
-                                {consumingReservationId === String(item.id)
-                                  ? "処理中..."
-                                  : "回数券消化"}
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => router.push(buildSalesHref(item))}
-                                style={styles.actionBtnBlue}
-                              >
-                                売上登録
-                              </button>
-                            )
-                          ) : null}
-
-                          {isNewVisit(item) && !isCounseled ? (
-                            <button
-                              type="button"
-                              onClick={() => handleGoCounseling(item)}
-                              style={styles.actionBtnOrange}
-                            >
-                              カウンセリング
-                            </button>
-                          ) : null}
+                            {getStaffShortLabel(item.staff_name)}
+                          </div>
                         </div>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -2797,55 +2854,6 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 12,
     cursor: "pointer",
   },
-  attendanceBox: {
-    background: "#ffffff",
-    borderRadius: 16,
-    padding: "12px",
-    boxShadow: "0 6px 16px rgba(0,0,0,0.05)",
-    marginBottom: 12,
-  },
-  attendanceTitle: {
-    fontSize: 14,
-    fontWeight: 900,
-    color: "#0f172a",
-    marginBottom: 10,
-  },
-  attendanceEmpty: {
-    fontSize: 12,
-    color: "#64748b",
-    fontWeight: 700,
-  },
-  attendanceList: {
-    display: "grid",
-    gap: 8,
-  },
-  attendanceItem: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    borderRadius: 12,
-    background: "#f8fafc",
-    padding: "10px 12px",
-  },
-  attendanceDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-    flexShrink: 0,
-  },
-  attendanceMain: {
-    minWidth: 0,
-  },
-  attendanceName: {
-    fontSize: 13,
-    fontWeight: 900,
-    color: "#0f172a",
-  },
-  attendanceTime: {
-    fontSize: 12,
-    color: "#64748b",
-    marginTop: 2,
-  },
   emptyBox: {
     background: "#fff",
     borderRadius: 16,
@@ -2859,83 +2867,93 @@ const styles: Record<string, CSSProperties> = {
     display: "grid",
     gap: 10,
   },
-  reserveCard: {
+  timelineCard: {
     background: "#fff",
     borderRadius: 18,
     padding: 14,
     boxShadow: "0 6px 16px rgba(0,0,0,0.05)",
     border: "1px solid #e2e8f0",
   },
+  timelineCardButton: {
+    border: "1px solid #e2e8f0",
+    background: "#fff",
+    borderRadius: 18,
+    padding: 14,
+    boxShadow: "0 6px 16px rgba(0,0,0,0.05)",
+    textAlign: "left",
+    cursor: "pointer",
+  },
+  timelineRow: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  timelineTimeBlock: {
+    width: 58,
+    flexShrink: 0,
+  },
+  timelineTimeMain: {
+    fontSize: 18,
+    fontWeight: 900,
+    color: "#0f172a",
+    lineHeight: 1.1,
+  },
+  timelineTimeSub: {
+    marginTop: 6,
+    fontSize: 12,
+    color: "#64748b",
+    fontWeight: 700,
+  },
+  timelineContent: {
+    flex: 1,
+    minWidth: 0,
+  },
+  timelineTitle: {
+    fontSize: 20,
+    fontWeight: 900,
+    color: "#111827",
+    lineHeight: 1.3,
+    marginBottom: 6,
+  },
+  timelineMetaText: {
+    fontSize: 12,
+    color: "#475569",
+    fontWeight: 700,
+    lineHeight: 1.7,
+  },
+  attendanceMemoBox: {
+    marginTop: 10,
+    background: "#fff1f2",
+    border: "1px solid #fecdd3",
+    color: "#be123c",
+    borderRadius: 12,
+    padding: "10px 12px",
+    fontSize: 12,
+    fontWeight: 800,
+    lineHeight: 1.6,
+    whiteSpace: "pre-wrap",
+  },
+  staffAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 999,
+    color: "#fff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 18,
+    fontWeight: 900,
+    flexShrink: 0,
+  },
   reserveCardPending: {
     border: "2px solid #ef4444",
     boxShadow: "0 10px 24px rgba(239,68,68,0.12)",
-  },
-  reserveCardHead: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 8,
-    marginBottom: 10,
-  },
-  reserveTime: {
-    fontSize: 16,
-    fontWeight: 900,
-    color: "#0f172a",
-  },
-  reserveRightBadges: {
-    display: "flex",
-    gap: 6,
-    flexWrap: "wrap",
-    justifyContent: "flex-end",
-  },
-  badge: {
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: 800,
-    padding: "5px 8px",
-    borderRadius: 999,
-  },
-  reserveNameRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-    marginBottom: 8,
-  },
-  reserveCustomerName: {
-    fontSize: 18,
-    fontWeight: 900,
-    color: "#111827",
-  },
-  newBadge: {
-    background: "#dbeafe",
-    color: "#1d4ed8",
-    borderRadius: 999,
-    padding: "4px 8px",
-    fontSize: 11,
-    fontWeight: 800,
-  },
-  repeatBadge: {
-    background: "#f1f5f9",
-    color: "#475569",
-    borderRadius: 999,
-    padding: "4px 8px",
-    fontSize: 11,
-    fontWeight: 800,
-  },
-  reserveMeta: {
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-    color: "#475569",
-    fontWeight: 700,
-    fontSize: 12,
-    marginBottom: 10,
   },
   statusRow: {
     display: "flex",
     gap: 6,
     flexWrap: "wrap",
+    marginTop: 10,
     marginBottom: 10,
   },
   pendingBadge: {
@@ -3001,43 +3019,24 @@ const styles: Record<string, CSSProperties> = {
     color: "#475569",
     fontSize: 12,
     lineHeight: 1.6,
-    marginBottom: 10,
+    marginTop: 10,
     whiteSpace: "pre-wrap",
   },
-  actionRow: {
-    display: "flex",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  actionBtnDark: {
-    border: "none",
-    background: "#111827",
-    color: "#fff",
+  memoBoxMini: {
+    background: "#f8fafc",
     borderRadius: 12,
     padding: "10px 12px",
+    color: "#475569",
     fontSize: 12,
-    fontWeight: 800,
-    cursor: "pointer",
+    lineHeight: 1.6,
+    marginTop: 10,
+    whiteSpace: "pre-wrap",
   },
-  actionBtnBlue: {
-    border: "none",
-    background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
-    color: "#fff",
-    borderRadius: 12,
-    padding: "10px 12px",
-    fontSize: 12,
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  actionBtnOrange: {
-    border: "none",
-    background: "linear-gradient(135deg, #f59e0b, #d97706)",
-    color: "#fff",
-    borderRadius: 12,
-    padding: "10px 12px",
-    fontSize: 12,
-    fontWeight: 800,
-    cursor: "pointer",
+  tapHint: {
+    marginTop: 10,
+    fontSize: 11,
+    fontWeight: 900,
+    color: "#2563eb",
   },
   modalOverlay: {
     position: "fixed",
