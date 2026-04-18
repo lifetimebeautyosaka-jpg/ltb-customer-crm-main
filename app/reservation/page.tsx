@@ -533,6 +533,7 @@ export default function ReservationPage() {
   const [counseledReservationIds, setCounseledReservationIds] = useState<number[]>([]);
   const [ticketUsedReservationIds, setTicketUsedReservationIds] = useState<number[]>([]);
   const [consumingReservationId, setConsumingReservationId] = useState("");
+  const [deletingReservationId, setDeletingReservationId] = useState("");
 
   const [globalSearch, setGlobalSearch] = useState("");
   const [searchMode, setSearchMode] = useState<SearchMode>("customer");
@@ -1178,7 +1179,7 @@ export default function ReservationPage() {
       setFormOpen(false);
       setSelectedDate(formDate);
       setDaySheetOpen(true);
-      await Promise.all([loadCustomers(), loadReservations()]);
+      await Promise.all([loadCustomers(), loadReservations(), loadReservationFlagsForVisible()]);
     } catch (e) {
       console.error(e);
       setError(`予約保存エラー: ${extractErrorMessage(e)}`);
@@ -1442,6 +1443,163 @@ export default function ReservationPage() {
       setError(`回数券消化エラー: ${extractErrorMessage(e)}`);
     } finally {
       setConsumingReservationId("");
+    }
+  }
+
+  async function handleDeleteReservation(item: ReservationRow) {
+    if (!supabase) {
+      setError("Supabaseの環境変数が設定されていません。");
+      return;
+    }
+
+    const reservationId = toIdNumber(item.id);
+    if (!reservationId) {
+      setError("予約IDが不正です。");
+      return;
+    }
+
+    try {
+      setDeletingReservationId(String(item.id));
+      setError("");
+      setSuccess("");
+
+      const [
+        { data: salesRows, error: salesError },
+        { data: counselingRows, error: counselingError },
+        { data: ticketUsageRows, error: ticketUsageError },
+      ] = await Promise.all([
+        supabase
+          .from("sales")
+          .select("id")
+          .eq("reservation_id", reservationId),
+        supabase
+          .from("counselings")
+          .select("id")
+          .eq("reservation_id", reservationId),
+        supabase
+          .from("ticket_usages")
+          .select("id, contract_id, unit_price")
+          .eq("reservation_id", reservationId),
+      ]);
+
+      if (salesError) throw salesError;
+      if (counselingError) throw counselingError;
+      if (ticketUsageError) throw ticketUsageError;
+
+      const warnings: string[] = [];
+      if ((salesRows || []).length > 0) warnings.push(`売上 ${(salesRows || []).length}件`);
+      if ((counselingRows || []).length > 0) warnings.push(`カウンセリング ${(counselingRows || []).length}件`);
+      if ((ticketUsageRows || []).length > 0) warnings.push(`回数券消化 ${(ticketUsageRows || []).length}件`);
+
+      const ok = window.confirm(
+        warnings.length > 0
+          ? `この予約には関連データがあります。\n${warnings.join(
+              "\n"
+            )}\n\n関連データも含めて削除し、回数券消化があれば残回数も戻します。\n本当に削除しますか？`
+          : "この予約を削除しますか？"
+      );
+      if (!ok) return;
+
+      for (const usage of ticketUsageRows || []) {
+        const contractId = toIdNumber((usage as { contract_id?: unknown }).contract_id);
+        if (!contractId) continue;
+
+        const { data: contractRow, error: contractFetchError } = await supabase
+          .from("ticket_contracts")
+          .select("id, used_count, remaining_count, prepaid_balance")
+          .eq("id", contractId)
+          .maybeSingle();
+
+        if (contractFetchError) throw contractFetchError;
+
+        if (contractRow) {
+          const currentUsed = Number((contractRow as { used_count?: number | null }).used_count || 0);
+          const currentRemaining = Number(
+            (contractRow as { remaining_count?: number | null }).remaining_count || 0
+          );
+          const currentBalance = Number(
+            (contractRow as { prepaid_balance?: number | null }).prepaid_balance || 0
+          );
+          const restorePrice = Number((usage as { unit_price?: number | null }).unit_price || 0);
+
+          const { error: contractUpdateError } = await supabase
+            .from("ticket_contracts")
+            .update({
+              used_count: Math.max(currentUsed - 1, 0),
+              remaining_count: currentRemaining + 1,
+              prepaid_balance: currentBalance + restorePrice,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", contractId);
+
+          if (contractUpdateError) throw contractUpdateError;
+        }
+      }
+
+      if ((ticketUsageRows || []).length > 0) {
+        const usageIds = (ticketUsageRows || [])
+          .map((row) => toIdNumber((row as { id?: unknown }).id))
+          .filter((id): id is number => id !== null);
+
+        if (usageIds.length > 0) {
+          const { error: deleteTicketUsageError } = await supabase
+            .from("ticket_usages")
+            .delete()
+            .in("id", usageIds);
+
+          if (deleteTicketUsageError) throw deleteTicketUsageError;
+        }
+      }
+
+      if ((salesRows || []).length > 0) {
+        const saleIds = (salesRows || [])
+          .map((row) => toIdNumber((row as { id?: unknown }).id))
+          .filter((id): id is number => id !== null);
+
+        if (saleIds.length > 0) {
+          const { error: deleteSalesError } = await supabase
+            .from("sales")
+            .delete()
+            .in("id", saleIds);
+
+          if (deleteSalesError) throw deleteSalesError;
+        }
+      }
+
+      if ((counselingRows || []).length > 0) {
+        const counselingIds = (counselingRows || [])
+          .map((row) => toIdNumber((row as { id?: unknown }).id))
+          .filter((id): id is number => id !== null);
+
+        if (counselingIds.length > 0) {
+          const { error: deleteCounselingError } = await supabase
+            .from("counselings")
+            .delete()
+            .in("id", counselingIds);
+
+          if (deleteCounselingError) throw deleteCounselingError;
+        }
+      }
+
+      const { error: deleteReservationError } = await supabase
+        .from("reservations")
+        .delete()
+        .eq("id", reservationId);
+
+      if (deleteReservationError) throw deleteReservationError;
+
+      setSuccess("予約を削除しました。");
+
+      await Promise.all([
+        loadReservations(),
+        loadReservationFlagsForVisible(),
+        loadAttendance(),
+      ]);
+    } catch (e) {
+      console.error(e);
+      setError(`予約削除エラー: ${extractErrorMessage(e)}`);
+    } finally {
+      setDeletingReservationId("");
     }
   }
 
@@ -1959,19 +2117,18 @@ export default function ReservationPage() {
                     });
 
                     const isTicket = isTicketMenu(item.menu);
+                    const reservationIdNum = Number(item.id);
                     const isSold =
                       trimmed(item.reservation_status) === "売上済" ||
-                      salesReservationIdSet.has(Number(item.id));
-                    const isCounseled = counseledReservationIdSet.has(Number(item.id));
-                    const isTicketUsed = ticketUsedReservationIdSet.has(Number(item.id));
+                      salesReservationIdSet.has(reservationIdNum);
+                    const isCounseled = counseledReservationIdSet.has(reservationIdNum);
+                    const isTicketUsed = ticketUsedReservationIdSet.has(reservationIdNum);
 
                     return (
-                      <button
+                      <div
                         key={String(item.id)}
-                        type="button"
-                        onClick={() => void handleReservationTap(item)}
                         style={{
-                          ...styles.timelineCardButton,
+                          ...styles.timelineCard,
                           ...(flags.isPending ? styles.reserveCardPending : {}),
                           borderLeft: `6px solid ${getStaffColor(item.staff_name)}`,
                         }}
@@ -1987,56 +2144,106 @@ export default function ReservationPage() {
                           </div>
 
                           <div style={styles.timelineContent}>
-                            <div style={styles.timelineTitle}>
-                              {trimmed(item.customer_name) || "顧客名未設定"}
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => void handleReservationTap(item)}
+                              style={styles.timelineMainAction}
+                            >
+                              <div style={styles.timelineTitle}>
+                                {trimmed(item.customer_name) || "顧客名未設定"}
+                              </div>
 
-                            <div style={styles.timelineMetaText}>
-                              {trimmed(item.menu) || "—"} / {trimmed(item.staff_name) || "—"}
-                              {trimmed(item.store_name) ? ` / ${trimmed(item.store_name)}` : ""}
-                            </div>
+                              <div style={styles.timelineMetaText}>
+                                {trimmed(item.menu) || "—"} / {trimmed(item.staff_name) || "—"}
+                                {trimmed(item.store_name) ? ` / ${trimmed(item.store_name)}` : ""}
+                              </div>
 
-                            <div style={styles.statusRow}>
-                              <span style={isSold ? styles.doneBadge : styles.pendingBadge}>
-                                {isSold ? "売上済" : "売上未"}
-                              </span>
-
-                              {isNewVisit(item) ? (
-                                <span
-                                  style={
-                                    isCounseled ? styles.doneBadgeBlue : styles.pendingBadgeYellow
-                                  }
-                                >
-                                  {isCounseled ? "カウンセリング済" : "カウンセリング未"}
+                              <div style={styles.statusRow}>
+                                <span style={isSold ? styles.doneBadge : styles.pendingBadge}>
+                                  {isSold ? "売上済" : "売上未"}
                                 </span>
-                              ) : null}
 
-                              {isTicket ? (
-                                <>
-                                  <span style={styles.ticketBadge}>回数券</span>
+                                {isNewVisit(item) ? (
                                   <span
                                     style={
-                                      isTicketUsed
-                                        ? styles.doneBadgePurple
-                                        : styles.pendingBadgePurple
+                                      isCounseled ? styles.doneBadgeBlue : styles.pendingBadgeYellow
                                     }
                                   >
-                                    {isTicketUsed ? "消化済" : "未消化"}
+                                    {isCounseled ? "カウンセリング済" : "カウンセリング未"}
                                   </span>
-                                </>
+                                ) : null}
+
+                                {isTicket ? (
+                                  <>
+                                    <span style={styles.ticketBadge}>回数券</span>
+                                    <span
+                                      style={
+                                        isTicketUsed
+                                          ? styles.doneBadgePurple
+                                          : styles.pendingBadgePurple
+                                      }
+                                    >
+                                      {isTicketUsed ? "消化済" : "未消化"}
+                                    </span>
+                                  </>
+                                ) : null}
+                              </div>
+
+                              {trimmed(item.memo) ? (
+                                <div style={styles.memoBoxMini}>{trimmed(item.memo)}</div>
                               ) : null}
-                            </div>
 
-                            {trimmed(item.memo) ? (
-                              <div style={styles.memoBoxMini}>{trimmed(item.memo)}</div>
-                            ) : null}
+                              <div style={styles.tapHint}>
+                                {isSold
+                                  ? "タップで詳細"
+                                  : isTicket
+                                  ? "タップで回数券消化＋売上登録"
+                                  : "タップで売上登録"}
+                              </div>
+                            </button>
 
-                            <div style={styles.tapHint}>
-                              {isSold
-                                ? "タップで詳細"
-                                : isTicket
-                                ? "タップで回数券消化＋売上登録"
-                                : "タップで売上登録"}
+                            <div style={styles.cardActionRow}>
+                              <button
+                                type="button"
+                                onClick={() => router.push(`/reservation/detail/${item.id}`)}
+                                style={styles.actionBtnDark}
+                              >
+                                詳細
+                              </button>
+
+                              {!isSold ? (
+                                <button
+                                  type="button"
+                                  onClick={() => void handleReservationTap(item)}
+                                  disabled={consumingReservationId === String(item.id)}
+                                  style={styles.actionBtnBlue}
+                                >
+                                  {consumingReservationId === String(item.id)
+                                    ? "処理中..."
+                                    : isTicket
+                                    ? "消化/売上"
+                                    : "売上登録"}
+                                </button>
+                              ) : null}
+
+                              {isNewVisit(item) && !isCounseled ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleGoCounseling(item)}
+                                  style={styles.actionBtnOrange}
+                                >
+                                  カウンセリング
+                                </button>
+                              ) : null}
+
+                              <button
+                                type="button"
+                                onClick={() => void handleDeleteReservation(item)}
+                                disabled={deletingReservationId === String(item.id)}
+                                style={styles.actionBtnDelete}
+                              >
+                                {deletingReservationId === String(item.id) ? "削除中..." : "削除"}
+                              </button>
                             </div>
                           </div>
 
@@ -2049,7 +2256,7 @@ export default function ReservationPage() {
                             {getStaffShortLabel(item.staff_name)}
                           </div>
                         </div>
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -2874,15 +3081,6 @@ const styles: Record<string, CSSProperties> = {
     boxShadow: "0 6px 16px rgba(0,0,0,0.05)",
     border: "1px solid #e2e8f0",
   },
-  timelineCardButton: {
-    border: "1px solid #e2e8f0",
-    background: "#fff",
-    borderRadius: 18,
-    padding: 14,
-    boxShadow: "0 6px 16px rgba(0,0,0,0.05)",
-    textAlign: "left",
-    cursor: "pointer",
-  },
   timelineRow: {
     display: "flex",
     alignItems: "flex-start",
@@ -2907,6 +3105,15 @@ const styles: Record<string, CSSProperties> = {
   timelineContent: {
     flex: 1,
     minWidth: 0,
+  },
+  timelineMainAction: {
+    width: "100%",
+    border: "none",
+    background: "transparent",
+    padding: 0,
+    margin: 0,
+    textAlign: "left",
+    cursor: "pointer",
   },
   timelineTitle: {
     fontSize: 20,
@@ -3037,6 +3244,52 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 11,
     fontWeight: 900,
     color: "#2563eb",
+  },
+  cardActionRow: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    marginTop: 12,
+  },
+  actionBtnDark: {
+    border: "none",
+    background: "#111827",
+    color: "#fff",
+    borderRadius: 12,
+    padding: "10px 12px",
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  actionBtnBlue: {
+    border: "none",
+    background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+    color: "#fff",
+    borderRadius: 12,
+    padding: "10px 12px",
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  actionBtnOrange: {
+    border: "none",
+    background: "linear-gradient(135deg, #f59e0b, #d97706)",
+    color: "#fff",
+    borderRadius: 12,
+    padding: "10px 12px",
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  actionBtnDelete: {
+    border: "none",
+    background: "linear-gradient(135deg, #ef4444, #dc2626)",
+    color: "#fff",
+    borderRadius: 12,
+    padding: "10px 12px",
+    fontSize: 12,
+    fontWeight: 800,
+    cursor: "pointer",
   },
   modalOverlay: {
     position: "fixed",
