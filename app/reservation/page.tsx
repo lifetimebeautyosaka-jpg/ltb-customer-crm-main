@@ -676,7 +676,7 @@ export default function ReservationPage() {
 
       const { data, error } = await supabase
         .from("attendance_records")
-        .select("id, staff_name, work_date, clock_in, clock_out, memo")
+        .select("id, staff_name, work_date, clock_in, clock_out")
         .gte("work_date", monthStart)
         .lte("work_date", monthEnd)
         .order("work_date", { ascending: true })
@@ -697,7 +697,7 @@ export default function ReservationPage() {
           work_date: trimmed(row.work_date),
           clock_in: row.clock_in ? String(row.clock_in) : null,
           clock_out: row.clock_out ? String(row.clock_out) : null,
-          memo: row.memo ? String(row.memo) : null,
+          memo: null,
         }))
       );
     } catch (e) {
