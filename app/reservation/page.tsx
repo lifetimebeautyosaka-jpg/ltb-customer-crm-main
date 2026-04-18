@@ -367,10 +367,14 @@ function isNewVisit(item: ReservationRow) {
   return getVisitTypeLabel(item) === "新規" || item.is_first_visit === true;
 }
 
-function toIdNumber(value: string | number | null | undefined) {
+function toIdNumber(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
-  const num = Number(value);
-  return Number.isFinite(num) ? num : null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
+  }
+  return null;
 }
 
 function isTicketMenu(menu?: string | null) {
@@ -1468,14 +1472,8 @@ export default function ReservationPage() {
         { data: counselingRows, error: counselingError },
         { data: ticketUsageRows, error: ticketUsageError },
       ] = await Promise.all([
-        supabase
-          .from("sales")
-          .select("id")
-          .eq("reservation_id", reservationId),
-        supabase
-          .from("counselings")
-          .select("id")
-          .eq("reservation_id", reservationId),
+        supabase.from("sales").select("id").eq("reservation_id", reservationId),
+        supabase.from("counselings").select("id").eq("reservation_id", reservationId),
         supabase
           .from("ticket_usages")
           .select("id, contract_id, unit_price")
@@ -2068,7 +2066,7 @@ export default function ReservationPage() {
                           key={`attendance-${item.id}`}
                           style={{
                             ...styles.timelineCard,
-                            borderLeft: `6px solid ${getStaffColor(item.staff_name)}`,
+                            borderLeft: `5px solid ${getStaffColor(item.staff_name)}`,
                           }}
                         >
                           <div style={styles.timelineRow}>
@@ -2117,12 +2115,16 @@ export default function ReservationPage() {
                     });
 
                     const isTicket = isTicketMenu(item.menu);
-                    const reservationIdNum = Number(item.id);
+                    const reservationIdNum = toIdNumber(item.id);
                     const isSold =
                       trimmed(item.reservation_status) === "売上済" ||
-                      salesReservationIdSet.has(reservationIdNum);
-                    const isCounseled = counseledReservationIdSet.has(reservationIdNum);
-                    const isTicketUsed = ticketUsedReservationIdSet.has(reservationIdNum);
+                      (reservationIdNum !== null && salesReservationIdSet.has(reservationIdNum));
+                    const isCounseled =
+                      reservationIdNum !== null &&
+                      counseledReservationIdSet.has(reservationIdNum);
+                    const isTicketUsed =
+                      reservationIdNum !== null &&
+                      ticketUsedReservationIdSet.has(reservationIdNum);
 
                     return (
                       <div
@@ -2130,7 +2132,7 @@ export default function ReservationPage() {
                         style={{
                           ...styles.timelineCard,
                           ...(flags.isPending ? styles.reserveCardPending : {}),
-                          borderLeft: `6px solid ${getStaffColor(item.staff_name)}`,
+                          borderLeft: `5px solid ${getStaffColor(item.staff_name)}`,
                         }}
                       >
                         <div style={styles.timelineRow}>
@@ -3007,21 +3009,21 @@ const styles: Record<string, CSSProperties> = {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     overflow: "auto",
-    padding: "8px 12px 24px",
+    padding: "8px 12px 20px",
   },
   sheetHandle: {
     width: 48,
     height: 5,
     borderRadius: 999,
     background: "#cbd5e1",
-    margin: "6px auto 14px",
+    margin: "6px auto 12px",
   },
   sheetHeader: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "flex-start",
     gap: 10,
-    marginBottom: 14,
+    marginBottom: 12,
   },
   sheetSubTitle: {
     fontSize: 11,
@@ -3031,7 +3033,7 @@ const styles: Record<string, CSSProperties> = {
   },
   sheetTitle: {
     margin: 0,
-    fontSize: 22,
+    fontSize: 20,
     color: "#0f172a",
     fontWeight: 900,
   },
@@ -3045,7 +3047,7 @@ const styles: Record<string, CSSProperties> = {
     border: "none",
     background: "#111827",
     color: "#fff",
-    padding: "10px 12px",
+    padding: "9px 11px",
     borderRadius: 12,
     fontWeight: 800,
     fontSize: 12,
@@ -3055,7 +3057,7 @@ const styles: Record<string, CSSProperties> = {
     border: "1px solid #e2e8f0",
     background: "#fff",
     color: "#334155",
-    padding: "10px 12px",
+    padding: "9px 11px",
     borderRadius: 12,
     fontWeight: 800,
     fontSize: 12,
@@ -3072,33 +3074,33 @@ const styles: Record<string, CSSProperties> = {
   },
   cardList: {
     display: "grid",
-    gap: 10,
+    gap: 8,
   },
   timelineCard: {
     background: "#fff",
-    borderRadius: 18,
-    padding: 14,
-    boxShadow: "0 6px 16px rgba(0,0,0,0.05)",
+    borderRadius: 16,
+    padding: 10,
+    boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
     border: "1px solid #e2e8f0",
   },
   timelineRow: {
     display: "flex",
     alignItems: "flex-start",
-    gap: 12,
+    gap: 9,
   },
   timelineTimeBlock: {
-    width: 58,
+    width: 50,
     flexShrink: 0,
   },
   timelineTimeMain: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: 900,
     color: "#0f172a",
     lineHeight: 1.1,
   },
   timelineTimeSub: {
-    marginTop: 6,
-    fontSize: 12,
+    marginTop: 4,
+    fontSize: 11,
     color: "#64748b",
     fontWeight: 700,
   },
@@ -3116,107 +3118,107 @@ const styles: Record<string, CSSProperties> = {
     cursor: "pointer",
   },
   timelineTitle: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 900,
     color: "#111827",
-    lineHeight: 1.3,
-    marginBottom: 6,
+    lineHeight: 1.2,
+    marginBottom: 4,
   },
   timelineMetaText: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#475569",
     fontWeight: 700,
-    lineHeight: 1.7,
+    lineHeight: 1.45,
   },
   attendanceMemoBox: {
-    marginTop: 10,
+    marginTop: 8,
     background: "#fff1f2",
     border: "1px solid #fecdd3",
     color: "#be123c",
-    borderRadius: 12,
-    padding: "10px 12px",
-    fontSize: 12,
+    borderRadius: 10,
+    padding: "8px 10px",
+    fontSize: 11,
     fontWeight: 800,
-    lineHeight: 1.6,
+    lineHeight: 1.5,
     whiteSpace: "pre-wrap",
   },
   staffAvatar: {
-    width: 42,
-    height: 42,
+    width: 34,
+    height: 34,
     borderRadius: 999,
     color: "#fff",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: 900,
     flexShrink: 0,
   },
   reserveCardPending: {
     border: "2px solid #ef4444",
-    boxShadow: "0 10px 24px rgba(239,68,68,0.12)",
+    boxShadow: "0 8px 18px rgba(239,68,68,0.10)",
   },
   statusRow: {
     display: "flex",
-    gap: 6,
+    gap: 5,
     flexWrap: "wrap",
-    marginTop: 10,
-    marginBottom: 10,
+    marginTop: 7,
+    marginBottom: 7,
   },
   pendingBadge: {
     background: "#fee2e2",
     color: "#991b1b",
     borderRadius: 999,
-    padding: "5px 8px",
-    fontSize: 11,
+    padding: "4px 7px",
+    fontSize: 10,
     fontWeight: 800,
   },
   doneBadge: {
     background: "#dcfce7",
     color: "#166534",
     borderRadius: 999,
-    padding: "5px 8px",
-    fontSize: 11,
+    padding: "4px 7px",
+    fontSize: 10,
     fontWeight: 800,
   },
   doneBadgeBlue: {
     background: "#dbeafe",
     color: "#1d4ed8",
     borderRadius: 999,
-    padding: "5px 8px",
-    fontSize: 11,
+    padding: "4px 7px",
+    fontSize: 10,
     fontWeight: 800,
   },
   pendingBadgeYellow: {
     background: "#fef3c7",
     color: "#92400e",
     borderRadius: 999,
-    padding: "5px 8px",
-    fontSize: 11,
+    padding: "4px 7px",
+    fontSize: 10,
     fontWeight: 800,
   },
   ticketBadge: {
     background: "#ede9fe",
     color: "#6d28d9",
     borderRadius: 999,
-    padding: "5px 8px",
-    fontSize: 11,
+    padding: "4px 7px",
+    fontSize: 10,
     fontWeight: 800,
   },
   doneBadgePurple: {
     background: "#e9d5ff",
     color: "#6d28d9",
     borderRadius: 999,
-    padding: "5px 8px",
-    fontSize: 11,
+    padding: "4px 7px",
+    fontSize: 10,
     fontWeight: 800,
   },
   pendingBadgePurple: {
     background: "#f3e8ff",
     color: "#7c3aed",
     borderRadius: 999,
-    padding: "5px 8px",
-    fontSize: 11,
+    padding: "4px 7px",
+    fontSize: 10,
     fontWeight: 800,
   },
   memoBox: {
@@ -3231,65 +3233,69 @@ const styles: Record<string, CSSProperties> = {
   },
   memoBoxMini: {
     background: "#f8fafc",
-    borderRadius: 12,
-    padding: "10px 12px",
+    borderRadius: 10,
+    padding: "7px 9px",
     color: "#475569",
-    fontSize: 12,
-    lineHeight: 1.6,
-    marginTop: 10,
+    fontSize: 11,
+    lineHeight: 1.45,
+    marginTop: 7,
     whiteSpace: "pre-wrap",
   },
   tapHint: {
-    marginTop: 10,
-    fontSize: 11,
+    marginTop: 7,
+    fontSize: 10,
     fontWeight: 900,
     color: "#2563eb",
   },
   cardActionRow: {
     display: "flex",
-    gap: 8,
+    gap: 6,
     flexWrap: "wrap",
-    marginTop: 12,
+    marginTop: 9,
   },
   actionBtnDark: {
     border: "none",
     background: "#111827",
     color: "#fff",
-    borderRadius: 12,
-    padding: "10px 12px",
-    fontSize: 12,
+    borderRadius: 10,
+    padding: "8px 10px",
+    fontSize: 11,
     fontWeight: 800,
     cursor: "pointer",
+    lineHeight: 1.2,
   },
   actionBtnBlue: {
     border: "none",
     background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
     color: "#fff",
-    borderRadius: 12,
-    padding: "10px 12px",
-    fontSize: 12,
+    borderRadius: 10,
+    padding: "8px 10px",
+    fontSize: 11,
     fontWeight: 800,
     cursor: "pointer",
+    lineHeight: 1.2,
   },
   actionBtnOrange: {
     border: "none",
     background: "linear-gradient(135deg, #f59e0b, #d97706)",
     color: "#fff",
-    borderRadius: 12,
-    padding: "10px 12px",
-    fontSize: 12,
+    borderRadius: 10,
+    padding: "8px 10px",
+    fontSize: 11,
     fontWeight: 800,
     cursor: "pointer",
+    lineHeight: 1.2,
   },
   actionBtnDelete: {
     border: "none",
     background: "linear-gradient(135deg, #ef4444, #dc2626)",
     color: "#fff",
-    borderRadius: 12,
-    padding: "10px 12px",
-    fontSize: 12,
+    borderRadius: 10,
+    padding: "8px 10px",
+    fontSize: 11,
     fontWeight: 800,
     cursor: "pointer",
+    lineHeight: 1.2,
   },
   modalOverlay: {
     position: "fixed",
