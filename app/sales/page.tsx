@@ -1321,9 +1321,9 @@ export default function SalesPage() {
     return () => window.removeEventListener("resize", updateWidth);
   }, []);
 
-  const compact = windowWidth < 900;
-  const tablet = windowWidth < 1180;
-  const mobile = windowWidth < 768;
+  const desktop = windowWidth >= 1280;
+  const tablet = windowWidth < 1280;
+  const mobile = windowWidth < 820;
 
   const presetOptionsForService = useMemo(() => {
     return PRICE_PRESETS.filter((preset) => preset.serviceType === serviceType);
@@ -2161,22 +2161,22 @@ export default function SalesPage() {
   const pageStyle: CSSProperties = {
     minHeight: "100vh",
     background: "linear-gradient(135deg, #f7f7f8 0%, #eceef1 45%, #e7eaef 100%)",
-    padding: mobile ? "12px 12px 100px" : "24px",
+    padding: mobile ? "12px 12px 100px" : tablet ? "16px 16px 110px" : "24px",
     color: "#111827",
   };
 
   const innerStyle: CSSProperties = {
-    maxWidth: "1480px",
+    maxWidth: desktop ? "1480px" : "1100px",
     margin: "0 auto",
     display: "grid",
-    gap: mobile ? "12px" : "18px",
+    gap: mobile ? "12px" : "16px",
   };
 
   const cardStyle: CSSProperties = {
-    background: "rgba(255,255,255,0.9)",
+    background: "rgba(255,255,255,0.92)",
     border: "1px solid rgba(255,255,255,0.95)",
-    borderRadius: mobile ? "16px" : "24px",
-    padding: mobile ? "12px" : "20px",
+    borderRadius: mobile ? "16px" : "22px",
+    padding: mobile ? "12px" : tablet ? "16px" : "20px",
     boxShadow: "0 12px 40px rgba(15, 23, 42, 0.08)",
     backdropFilter: "blur(12px)",
   };
@@ -2184,14 +2184,14 @@ export default function SalesPage() {
   const headerStyle: CSSProperties = {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: mobile ? "stretch" : "center",
+    alignItems: tablet ? "stretch" : "center",
     gap: "12px",
-    flexDirection: mobile ? "column" : "row",
+    flexDirection: tablet ? "column" : "row",
   };
 
   const titleStyle: CSSProperties = {
     margin: 0,
-    fontSize: mobile ? "22px" : "34px",
+    fontSize: mobile ? "22px" : tablet ? "28px" : "34px",
     fontWeight: 800,
     letterSpacing: "0.02em",
   };
@@ -2205,16 +2205,16 @@ export default function SalesPage() {
 
   const topActionsStyle: CSSProperties = {
     display: "grid",
-    gridTemplateColumns: mobile ? "1fr" : "repeat(3, auto)",
+    gridTemplateColumns: mobile ? "1fr" : "repeat(3, minmax(0, 1fr))",
     gap: "10px",
-    width: mobile ? "100%" : "auto",
+    width: "100%",
   };
 
   const linkButtonStyle: CSSProperties = {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    padding: mobile ? "13px 16px" : "11px 16px",
+    padding: mobile ? "13px 16px" : "12px 16px",
     borderRadius: "14px",
     textDecoration: "none",
     fontWeight: 700,
@@ -2224,7 +2224,7 @@ export default function SalesPage() {
     color: "#111827",
     width: "100%",
     boxSizing: "border-box",
-    minHeight: mobile ? "48px" : "44px",
+    minHeight: "46px",
   };
 
   const primaryButtonStyle: CSSProperties = {
@@ -2241,7 +2241,7 @@ export default function SalesPage() {
     cursor: "pointer",
     boxShadow: "0 10px 24px rgba(17, 24, 39, 0.22)",
     boxSizing: "border-box",
-    minHeight: mobile ? "48px" : "44px",
+    minHeight: "46px",
   };
 
   const secondaryButtonStyle: CSSProperties = {
@@ -2272,13 +2272,9 @@ export default function SalesPage() {
     fontWeight: 800,
   };
 
-  const gridStyle: CSSProperties = {
+  const formGridStyle: CSSProperties = {
     display: "grid",
-    gridTemplateColumns: mobile
-      ? "1fr"
-      : tablet
-      ? "repeat(2, minmax(0, 1fr))"
-      : "repeat(4, minmax(0, 1fr))",
+    gridTemplateColumns: mobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
     gap: "12px",
   };
 
@@ -2299,7 +2295,7 @@ export default function SalesPage() {
     outline: "none",
     background: "#fff",
     boxSizing: "border-box",
-    minHeight: mobile ? "48px" : "44px",
+    minHeight: "46px",
   };
 
   const textareaStyle: CSSProperties = {
@@ -2313,7 +2309,7 @@ export default function SalesPage() {
     display: "grid",
     gridTemplateColumns: mobile
       ? "repeat(2, minmax(0, 1fr))"
-      : compact
+      : tablet
       ? "repeat(3, minmax(0, 1fr))"
       : "repeat(6, minmax(0, 1fr))",
     gap: "10px",
@@ -2335,7 +2331,7 @@ export default function SalesPage() {
   };
 
   const statValueStyle: CSSProperties = {
-    fontSize: mobile ? "15px" : "24px",
+    fontSize: mobile ? "15px" : tablet ? "18px" : "24px",
     fontWeight: 800,
     letterSpacing: "0.01em",
     lineHeight: 1.3,
@@ -2367,48 +2363,6 @@ export default function SalesPage() {
     fontWeight: 800,
     whiteSpace: "nowrap",
   });
-
-  const tableWrapStyle: CSSProperties = {
-    width: "100%",
-    overflowX: "auto",
-    borderRadius: "18px",
-    border: "1px solid #e5e7eb",
-    background: "#fff",
-  };
-
-  const tableStyle: CSSProperties = {
-    width: "100%",
-    minWidth: mobile ? "760px" : "980px",
-    borderCollapse: "collapse",
-    fontSize: mobile ? "12px" : "14px",
-  };
-
-  const thStyle: CSSProperties = {
-    textAlign: "left",
-    padding: mobile ? "10px 10px" : "13px 14px",
-    fontWeight: 800,
-    color: "#374151",
-    background: "#f9fafb",
-    borderBottom: "1px solid #e5e7eb",
-    whiteSpace: "nowrap",
-    fontSize: mobile ? "12px" : "14px",
-  };
-
-  const tdStyle: CSSProperties = {
-    padding: mobile ? "10px 10px" : "13px 14px",
-    borderBottom: "1px solid #f1f5f9",
-    verticalAlign: "top",
-    fontSize: mobile ? "12px" : "14px",
-  };
-
-  const mobileListCardStyle: CSSProperties = {
-    border: "1px solid #e5e7eb",
-    borderRadius: "16px",
-    background: "#fff",
-    padding: "12px",
-    display: "grid",
-    gap: "8px",
-  };
 
   const stickyActionBarStyle: CSSProperties = {
     position: mobile ? "sticky" : "static",
@@ -2512,7 +2466,7 @@ export default function SalesPage() {
             </div>
             <div style={statCardStyle}>
               <div style={statLabelStyle}>予約ステータス</div>
-              <div style={{ ...statValueStyle, fontSize: mobile ? "14px" : "20px" }}>
+              <div style={{ ...statValueStyle, fontSize: mobile ? "14px" : tablet ? "16px" : "20px" }}>
                 {reservationStatus || "—"}
               </div>
             </div>
@@ -2524,8 +2478,8 @@ export default function SalesPage() {
             style={{
               display: "flex",
               justifyContent: "space-between",
-              alignItems: mobile ? "stretch" : "center",
-              flexDirection: mobile ? "column" : "row",
+              alignItems: tablet ? "stretch" : "center",
+              flexDirection: tablet ? "column" : "row",
               gap: "12px",
               marginBottom: "16px",
             }}
@@ -2537,7 +2491,7 @@ export default function SalesPage() {
                 display: "flex",
                 gap: "10px",
                 flexWrap: "wrap",
-                width: mobile ? "100%" : "auto",
+                width: tablet ? "100%" : "auto",
               }}
             >
               {prefillLoading && <span style={pillStyle("#dbeafe", "#1d4ed8")}>予約読込中</span>}
@@ -2550,7 +2504,7 @@ export default function SalesPage() {
             </div>
           </div>
 
-          <div style={gridStyle}>
+          <div style={formGridStyle}>
             <div>
               <label style={labelStyle}>日付</label>
               <input
@@ -2663,7 +2617,7 @@ export default function SalesPage() {
               </div>
             </div>
 
-            <div style={{ gridColumn: tablet ? "auto" : "1 / -1" }}>
+            <div style={{ gridColumn: "1 / -1" }}>
               <label style={labelStyle}>メモ</label>
               <textarea
                 value={note}
@@ -2696,10 +2650,10 @@ export default function SalesPage() {
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                alignItems: mobile ? "stretch" : "center",
+                alignItems: tablet ? "stretch" : "center",
                 gap: "12px",
                 flexWrap: "wrap",
-                flexDirection: mobile ? "column" : "row",
+                flexDirection: tablet ? "column" : "row",
                 marginBottom: "12px",
               }}
             >
@@ -2708,7 +2662,7 @@ export default function SalesPage() {
               <button
                 type="button"
                 onClick={addPaymentRow}
-                style={{ ...secondaryButtonStyle, width: mobile ? "100%" : "auto" }}
+                style={{ ...secondaryButtonStyle, width: tablet ? "100%" : "auto" }}
               >
                 ＋ 支払いを追加
               </button>
@@ -2721,10 +2675,10 @@ export default function SalesPage() {
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
-                      alignItems: mobile ? "stretch" : "center",
+                      alignItems: tablet ? "stretch" : "center",
                       gap: "10px",
                       flexWrap: "wrap",
-                      flexDirection: mobile ? "column" : "row",
+                      flexDirection: tablet ? "column" : "row",
                     }}
                   >
                     <div style={paymentTitleStyle}>支払い {index + 1}</div>
@@ -2732,7 +2686,7 @@ export default function SalesPage() {
                     <button
                       type="button"
                       onClick={() => removePaymentRow(row.id)}
-                      style={{ ...dangerButtonStyle, width: mobile ? "100%" : "auto" }}
+                      style={{ ...dangerButtonStyle, width: tablet ? "100%" : "auto" }}
                     >
                       削除
                     </button>
@@ -2741,15 +2695,11 @@ export default function SalesPage() {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: mobile
-                        ? "1fr"
-                        : tablet
-                        ? "repeat(2, minmax(0, 1fr))"
-                        : "repeat(5, minmax(0, 1fr))",
+                      gridTemplateColumns: mobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
                       gap: "12px",
                     }}
                   >
-                    <div style={{ gridColumn: mobile ? "auto" : tablet ? "1 / -1" : "1 / 3" }}>
+                    <div style={{ gridColumn: mobile ? "auto" : "1 / -1" }}>
                       <label style={labelStyle}>料金プリセット</label>
                       <select
                         value={row.presetId}
@@ -2898,9 +2848,9 @@ export default function SalesPage() {
                 style={{
                   display: "flex",
                   justifyContent: "space-between",
-                  alignItems: mobile ? "stretch" : "center",
+                  alignItems: tablet ? "stretch" : "center",
                   gap: "12px",
-                  flexDirection: mobile ? "column" : "row",
+                  flexDirection: tablet ? "column" : "row",
                 }}
               >
                 <div
@@ -2915,9 +2865,9 @@ export default function SalesPage() {
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: mobile ? "1fr 1fr" : "auto auto",
+                    gridTemplateColumns: mobile ? "1fr 1fr" : "repeat(2, minmax(0, 1fr))",
                     gap: "10px",
-                    width: mobile ? "100%" : "auto",
+                    width: tablet ? "100%" : "auto",
                   }}
                 >
                   <button
@@ -2950,8 +2900,8 @@ export default function SalesPage() {
             style={{
               display: "flex",
               justifyContent: "space-between",
-              alignItems: mobile ? "stretch" : "center",
-              flexDirection: mobile ? "column" : "row",
+              alignItems: tablet ? "stretch" : "center",
+              flexDirection: tablet ? "column" : "row",
               gap: "12px",
               marginBottom: "14px",
             }}
@@ -2963,14 +2913,14 @@ export default function SalesPage() {
               placeholder="顧客名 / 担当 / 店舗 / メモ で検索"
               style={{
                 ...inputStyle,
-                maxWidth: mobile ? "100%" : "360px",
+                maxWidth: tablet ? "100%" : "360px",
               }}
             />
           </div>
 
           {loading ? (
             <div style={{ color: "#6b7280" }}>読込中...</div>
-          ) : mobile ? (
+          ) : tablet ? (
             <div style={{ display: "grid", gap: "10px" }}>
               {filteredSales.length === 0 ? (
                 <div style={{ color: "#6b7280" }}>売上データがありません</div>
@@ -3093,38 +3043,53 @@ export default function SalesPage() {
               )}
             </div>
           ) : (
-            <div style={tableWrapStyle}>
-              <table style={tableStyle}>
+            <div
+              style={{
+                width: "100%",
+                overflowX: "auto",
+                borderRadius: "18px",
+                border: "1px solid #e5e7eb",
+                background: "#fff",
+              }}
+            >
+              <table
+                style={{
+                  width: "100%",
+                  minWidth: "980px",
+                  borderCollapse: "collapse",
+                  fontSize: "14px",
+                }}
+              >
                 <thead>
                   <tr>
-                    <th style={thStyle}>日付</th>
-                    <th style={thStyle}>顧客名</th>
-                    <th style={thStyle}>メニュー</th>
-                    <th style={thStyle}>サービス</th>
-                    <th style={thStyle}>会計区分</th>
-                    <th style={thStyle}>支払方法</th>
-                    <th style={thStyle}>金額</th>
-                    <th style={thStyle}>担当</th>
-                    <th style={thStyle}>店舗</th>
-                    <th style={thStyle}>予約ID</th>
-                    <th style={thStyle}>メモ</th>
-                    <th style={thStyle}>操作</th>
+                    <th style={tableHeadStyle()}>日付</th>
+                    <th style={tableHeadStyle()}>顧客名</th>
+                    <th style={tableHeadStyle()}>メニュー</th>
+                    <th style={tableHeadStyle()}>サービス</th>
+                    <th style={tableHeadStyle()}>会計区分</th>
+                    <th style={tableHeadStyle()}>支払方法</th>
+                    <th style={tableHeadStyle()}>金額</th>
+                    <th style={tableHeadStyle()}>担当</th>
+                    <th style={tableHeadStyle()}>店舗</th>
+                    <th style={tableHeadStyle()}>予約ID</th>
+                    <th style={tableHeadStyle()}>メモ</th>
+                    <th style={tableHeadStyle()}>操作</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredSales.length === 0 ? (
                     <tr>
-                      <td style={tdStyle} colSpan={12}>
+                      <td style={tableCellStyle()} colSpan={12}>
                         売上データがありません
                       </td>
                     </tr>
                   ) : (
                     filteredSales.map((sale) => (
                       <tr key={sale.id}>
-                        <td style={tdStyle}>{formatDateJP(sale.date)}</td>
-                        <td style={tdStyle}>{sale.customerName}</td>
-                        <td style={tdStyle}>{sale.menuName}</td>
-                        <td style={tdStyle}>
+                        <td style={tableCellStyle()}>{formatDateJP(sale.date)}</td>
+                        <td style={tableCellStyle()}>{sale.customerName}</td>
+                        <td style={tableCellStyle()}>{sale.menuName}</td>
+                        <td style={tableCellStyle()}>
                           <span
                             style={{
                               ...pillStyle("#f3f4f6"),
@@ -3134,7 +3099,7 @@ export default function SalesPage() {
                             {sale.serviceType}
                           </span>
                         </td>
-                        <td style={tdStyle}>
+                        <td style={tableCellStyle()}>
                           <span
                             style={{
                               ...pillStyle("#f3f4f6"),
@@ -3144,15 +3109,17 @@ export default function SalesPage() {
                             {sale.accountingType}
                           </span>
                         </td>
-                        <td style={tdStyle}>{sale.paymentMethod}</td>
-                        <td style={{ ...tdStyle, fontWeight: 800 }}>{formatCurrency(sale.amount)}</td>
-                        <td style={tdStyle}>{sale.staff}</td>
-                        <td style={tdStyle}>{sale.storeName}</td>
-                        <td style={tdStyle}>{sale.reservationId ?? "—"}</td>
-                        <td style={{ ...tdStyle, whiteSpace: "pre-wrap", minWidth: "220px" }}>
+                        <td style={tableCellStyle()}>{sale.paymentMethod}</td>
+                        <td style={{ ...tableCellStyle(), fontWeight: 800 }}>
+                          {formatCurrency(sale.amount)}
+                        </td>
+                        <td style={tableCellStyle()}>{sale.staff}</td>
+                        <td style={tableCellStyle()}>{sale.storeName}</td>
+                        <td style={tableCellStyle()}>{sale.reservationId ?? "—"}</td>
+                        <td style={{ ...tableCellStyle(), whiteSpace: "pre-wrap", minWidth: "220px" }}>
                           {sale.note || "—"}
                         </td>
-                        <td style={tdStyle}>
+                        <td style={tableCellStyle()}>
                           <button
                             type="button"
                             onClick={() => handleDeleteSale(sale.id)}
@@ -3173,16 +3140,14 @@ export default function SalesPage() {
         <section style={cardStyle}>
           <h2 style={{ ...miniTitleStyle, marginBottom: "14px" }}>日次集計</h2>
 
-          {mobile ? (
+          {tablet ? (
             <div style={{ display: "grid", gap: "12px" }}>
               {dailySummaryRows.length === 0 ? (
                 <div style={{ color: "#6b7280" }}>集計データがありません</div>
               ) : (
                 dailySummaryRows.map((row) => (
-                  <div key={row.date} style={mobileListCardStyle}>
-                    <div style={{ fontWeight: 900, fontSize: "14px" }}>
-                      {formatDateJP(row.date)}
-                    </div>
+                  <div key={row.date} style={mobileSaleCompactCardStyle}>
+                    <div style={{ fontWeight: 900, fontSize: "14px" }}>{formatDateJP(row.date)}</div>
                     <div style={{ display: "grid", gap: "6px", fontSize: "13px", lineHeight: 1.6 }}>
                       <div>ストレッチ現金: {formatCurrency(row.stretchCash)}</div>
                       <div>ストレッチカード: {formatCurrency(row.stretchCard)}</div>
@@ -3203,50 +3168,71 @@ export default function SalesPage() {
               )}
             </div>
           ) : (
-            <div style={tableWrapStyle}>
-              <table style={tableStyle}>
+            <div
+              style={{
+                width: "100%",
+                overflowX: "auto",
+                borderRadius: "18px",
+                border: "1px solid #e5e7eb",
+                background: "#fff",
+              }}
+            >
+              <table
+                style={{
+                  width: "100%",
+                  minWidth: "1180px",
+                  borderCollapse: "collapse",
+                  fontSize: "14px",
+                }}
+              >
                 <thead>
                   <tr>
-                    <th style={thStyle}>日付</th>
-                    <th style={thStyle}>ストレッチ現金</th>
-                    <th style={thStyle}>ストレッチカード</th>
-                    <th style={thStyle}>ストレッチその他</th>
-                    <th style={thStyle}>ストレッチ回数券</th>
-                    <th style={thStyle}>トレ現金</th>
-                    <th style={thStyle}>トレカード</th>
-                    <th style={thStyle}>トレその他</th>
-                    <th style={thStyle}>トレ回数券</th>
-                    <th style={thStyle}>純売上合計</th>
-                    <th style={thStyle}>前受現金</th>
-                    <th style={thStyle}>前受カード等</th>
-                    <th style={thStyle}>前受合計</th>
-                    <th style={thStyle}>総合計</th>
+                    <th style={tableHeadStyle()}>日付</th>
+                    <th style={tableHeadStyle()}>ストレッチ現金</th>
+                    <th style={tableHeadStyle()}>ストレッチカード</th>
+                    <th style={tableHeadStyle()}>ストレッチその他</th>
+                    <th style={tableHeadStyle()}>ストレッチ回数券</th>
+                    <th style={tableHeadStyle()}>トレ現金</th>
+                    <th style={tableHeadStyle()}>トレカード</th>
+                    <th style={tableHeadStyle()}>トレその他</th>
+                    <th style={tableHeadStyle()}>トレ回数券</th>
+                    <th style={tableHeadStyle()}>純売上合計</th>
+                    <th style={tableHeadStyle()}>前受現金</th>
+                    <th style={tableHeadStyle()}>前受カード等</th>
+                    <th style={tableHeadStyle()}>前受合計</th>
+                    <th style={tableHeadStyle()}>総合計</th>
                   </tr>
                 </thead>
                 <tbody>
                   {dailySummaryRows.length === 0 ? (
                     <tr>
-                      <td style={tdStyle} colSpan={14}>
+                      <td style={tableCellStyle()} colSpan={14}>
                         集計データがありません
                       </td>
                     </tr>
                   ) : (
                     dailySummaryRows.map((row) => (
                       <tr key={row.date}>
-                        <td style={tdStyle}>{formatDateJP(row.date)}</td>
-                        <td style={tdStyle}>{formatCurrency(row.stretchCash)}</td>
-                        <td style={tdStyle}>{formatCurrency(row.stretchCard)}</td>
-                        <td style={tdStyle}>{formatCurrency(row.stretchReceived)}</td>
-                        <td style={tdStyle}>{formatCurrency(row.stretchTicket)}</td>
-                        <td style={tdStyle}>{formatCurrency(row.trainingCash)}</td>
-                        <td style={tdStyle}>{formatCurrency(row.trainingCard)}</td>
-                        <td style={tdStyle}>{formatCurrency(row.trainingReceived)}</td>
-                        <td style={tdStyle}>{formatCurrency(row.trainingTicket)}</td>
-                        <td style={{ ...tdStyle, fontWeight: 800 }}>{formatCurrency(row.netSalesTotal)}</td>
-                        <td style={tdStyle}>{formatCurrency(row.advanceCash)}</td>
-                        <td style={tdStyle}>{formatCurrency(row.advanceCard)}</td>
-                        <td style={{ ...tdStyle, fontWeight: 800 }}>{formatCurrency(row.advanceTotal)}</td>
-                        <td style={{ ...tdStyle, fontWeight: 800 }}>{formatCurrency(row.grandTotal)}</td>
+                        <td style={tableCellStyle()}>{formatDateJP(row.date)}</td>
+                        <td style={tableCellStyle()}>{formatCurrency(row.stretchCash)}</td>
+                        <td style={tableCellStyle()}>{formatCurrency(row.stretchCard)}</td>
+                        <td style={tableCellStyle()}>{formatCurrency(row.stretchReceived)}</td>
+                        <td style={tableCellStyle()}>{formatCurrency(row.stretchTicket)}</td>
+                        <td style={tableCellStyle()}>{formatCurrency(row.trainingCash)}</td>
+                        <td style={tableCellStyle()}>{formatCurrency(row.trainingCard)}</td>
+                        <td style={tableCellStyle()}>{formatCurrency(row.trainingReceived)}</td>
+                        <td style={tableCellStyle()}>{formatCurrency(row.trainingTicket)}</td>
+                        <td style={{ ...tableCellStyle(), fontWeight: 800 }}>
+                          {formatCurrency(row.netSalesTotal)}
+                        </td>
+                        <td style={tableCellStyle()}>{formatCurrency(row.advanceCash)}</td>
+                        <td style={tableCellStyle()}>{formatCurrency(row.advanceCard)}</td>
+                        <td style={{ ...tableCellStyle(), fontWeight: 800 }}>
+                          {formatCurrency(row.advanceTotal)}
+                        </td>
+                        <td style={{ ...tableCellStyle(), fontWeight: 800 }}>
+                          {formatCurrency(row.grandTotal)}
+                        </td>
                       </tr>
                     ))
                   )}
@@ -3259,7 +3245,7 @@ export default function SalesPage() {
         <section
           style={{
             display: "grid",
-            gridTemplateColumns: mobile ? "1fr" : "repeat(3, minmax(0, 1fr))",
+            gridTemplateColumns: tablet ? "1fr" : "repeat(3, minmax(0, 1fr))",
             gap: "14px",
           }}
         >
@@ -3347,4 +3333,26 @@ export default function SalesPage() {
       </div>
     </div>
   );
+}
+
+function tableHeadStyle(): CSSProperties {
+  return {
+    textAlign: "left",
+    padding: "13px 14px",
+    fontWeight: 800,
+    color: "#374151",
+    background: "#f9fafb",
+    borderBottom: "1px solid #e5e7eb",
+    whiteSpace: "nowrap",
+    fontSize: "14px",
+  };
+}
+
+function tableCellStyle(): CSSProperties {
+  return {
+    padding: "13px 14px",
+    borderBottom: "1px solid #f1f5f9",
+    verticalAlign: "top",
+    fontSize: "14px",
+  };
 }
