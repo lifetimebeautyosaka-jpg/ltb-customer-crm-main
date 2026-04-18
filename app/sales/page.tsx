@@ -354,7 +354,6 @@ const PRICE_PRESETS: PricePreset[] = [
     amount: 6600,
   },
 
-  // ===== ストレッチ新価格：初回体験 =====
   {
     id: "stretch_trial_60",
     serviceType: "ストレッチ",
@@ -388,7 +387,6 @@ const PRICE_PRESETS: PricePreset[] = [
     note: "土日祝は+1,000円",
   },
 
-  // ===== ストレッチ新価格：単発 =====
   {
     id: "stretch_single_40",
     serviceType: "ストレッチ",
@@ -425,7 +423,74 @@ const PRICE_PRESETS: PricePreset[] = [
     amount: 1500,
   },
 
-  // ===== ストレッチ新価格：回数券 =====
+  // ===== ストレッチ回数券 単価プルダウン（新価格）=====
+  {
+    id: "stretch_new_unit_40",
+    serviceType: "ストレッチ",
+    label: "新価格 回数券単価 40分 5,500円",
+    menuName: "ストレッチ新単価 40分",
+    amount: 5500,
+    note: "新価格の回数券単価",
+  },
+  {
+    id: "stretch_new_unit_60",
+    serviceType: "ストレッチ",
+    label: "新価格 回数券単価 60分 8,500円",
+    menuName: "ストレッチ新単価 60分",
+    amount: 8500,
+    note: "新価格の回数券単価",
+  },
+  {
+    id: "stretch_new_unit_80",
+    serviceType: "ストレッチ",
+    label: "新価格 回数券単価 80分 11,250円",
+    menuName: "ストレッチ新単価 80分",
+    amount: 11250,
+    note: "新価格の回数券単価",
+  },
+  {
+    id: "stretch_new_unit_120",
+    serviceType: "ストレッチ",
+    label: "新価格 回数券単価 120分 17,000円",
+    menuName: "ストレッチ新単価 120分",
+    amount: 17000,
+    note: "新価格の回数券単価",
+  },
+
+  // ===== ストレッチ回数券 単価プルダウン（旧価格）=====
+  {
+    id: "stretch_old_unit_40",
+    serviceType: "ストレッチ",
+    label: "旧価格 回数券単価 40分 5,330円",
+    menuName: "ストレッチ旧単価 40分",
+    amount: 5330,
+    note: "旧価格の回数券単価",
+  },
+  {
+    id: "stretch_old_unit_60",
+    serviceType: "ストレッチ",
+    label: "旧価格 回数券単価 60分 7,980円",
+    menuName: "ストレッチ旧単価 60分",
+    amount: 7980,
+    note: "旧価格の回数券単価",
+  },
+  {
+    id: "stretch_old_unit_80",
+    serviceType: "ストレッチ",
+    label: "旧価格 回数券単価 80分 10,670円",
+    menuName: "ストレッチ旧単価 80分",
+    amount: 10670,
+    note: "旧価格の回数券単価",
+  },
+  {
+    id: "stretch_old_unit_120",
+    serviceType: "ストレッチ",
+    label: "旧価格 回数券単価 120分 16,000円",
+    menuName: "ストレッチ旧単価 120分",
+    amount: 16000,
+    note: "旧価格の回数券単価",
+  },
+
   {
     id: "stretch_new_4_40",
     serviceType: "ストレッチ",
@@ -525,7 +590,6 @@ const PRICE_PRESETS: PricePreset[] = [
     accountingType: "前受金",
   },
 
-  // ===== ストレッチ旧価格：回数券 =====
   {
     id: "stretch_old_4_40",
     serviceType: "ストレッチ",
@@ -1256,6 +1320,29 @@ export default function SalesPage() {
   const presetOptionsForService = useMemo(() => {
     return PRICE_PRESETS.filter((preset) => preset.serviceType === serviceType);
   }, [serviceType]);
+
+  const groupedPresetOptions = useMemo(() => {
+    if (serviceType === "ストレッチ") {
+      return {
+        trial: presetOptionsForService.filter((p) => p.id.startsWith("stretch_trial")),
+        single: presetOptionsForService.filter(
+          (p) =>
+            p.id.startsWith("stretch_single") || p.id.startsWith("stretch_extension")
+        ),
+        unit: presetOptionsForService.filter((p) => p.id.includes("_unit_")),
+        ticket: presetOptionsForService.filter(
+          (p) =>
+            p.accountingType === "前受金" && !p.id.includes("_unit_")
+        ),
+        manual: presetOptionsForService.filter((p) => p.id.startsWith("manual_")),
+      };
+    }
+
+    return {
+      training: presetOptionsForService.filter((p) => !p.id.startsWith("manual_")),
+      manual: presetOptionsForService.filter((p) => p.id.startsWith("manual_")),
+    };
+  }, [presetOptionsForService, serviceType]);
 
   const applyQueryParams = (customerList: Customer[]) => {
     const queryFrom = getQueryParam("from");
@@ -2053,7 +2140,7 @@ export default function SalesPage() {
   const pageStyle: CSSProperties = {
     minHeight: "100vh",
     background: "linear-gradient(135deg, #f7f7f8 0%, #eceef1 45%, #e7eaef 100%)",
-    padding: mobile ? "14px" : "24px",
+    padding: mobile ? "12px 12px 100px" : "24px",
     color: "#111827",
   };
 
@@ -2061,14 +2148,14 @@ export default function SalesPage() {
     maxWidth: "1480px",
     margin: "0 auto",
     display: "grid",
-    gap: mobile ? "14px" : "18px",
+    gap: mobile ? "12px" : "18px",
   };
 
   const cardStyle: CSSProperties = {
-    background: "rgba(255,255,255,0.84)",
-    border: "1px solid rgba(255,255,255,0.9)",
-    borderRadius: mobile ? "18px" : "24px",
-    padding: mobile ? "14px" : "20px",
+    background: "rgba(255,255,255,0.9)",
+    border: "1px solid rgba(255,255,255,0.95)",
+    borderRadius: mobile ? "16px" : "24px",
+    padding: mobile ? "12px" : "20px",
     boxShadow: "0 12px 40px rgba(15, 23, 42, 0.08)",
     backdropFilter: "blur(12px)",
   };
@@ -2083,44 +2170,47 @@ export default function SalesPage() {
 
   const titleStyle: CSSProperties = {
     margin: 0,
-    fontSize: mobile ? "24px" : "34px",
+    fontSize: mobile ? "22px" : "34px",
     fontWeight: 800,
     letterSpacing: "0.02em",
   };
 
   const subTextStyle: CSSProperties = {
     margin: "6px 0 0",
-    fontSize: "14px",
+    fontSize: mobile ? "13px" : "14px",
     color: "#6b7280",
+    lineHeight: 1.6,
   };
 
   const topActionsStyle: CSSProperties = {
-    display: "flex",
+    display: "grid",
+    gridTemplateColumns: mobile ? "1fr" : "repeat(3, auto)",
     gap: "10px",
-    flexWrap: "wrap",
+    width: mobile ? "100%" : "auto",
   };
 
   const linkButtonStyle: CSSProperties = {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    padding: "11px 16px",
+    padding: mobile ? "13px 16px" : "11px 16px",
     borderRadius: "14px",
     textDecoration: "none",
     fontWeight: 700,
-    fontSize: "14px",
+    fontSize: mobile ? "15px" : "14px",
     border: "1px solid #d1d5db",
     background: "#fff",
     color: "#111827",
-    width: mobile ? "100%" : "auto",
+    width: "100%",
     boxSizing: "border-box",
+    minHeight: mobile ? "48px" : "44px",
   };
 
   const primaryButtonStyle: CSSProperties = {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    padding: "13px 18px",
+    padding: mobile ? "14px 18px" : "13px 18px",
     borderRadius: "16px",
     border: "none",
     background: "linear-gradient(135deg, #111827 0%, #374151 100%)",
@@ -2130,6 +2220,7 @@ export default function SalesPage() {
     cursor: "pointer",
     boxShadow: "0 10px 24px rgba(17, 24, 39, 0.22)",
     boxSizing: "border-box",
+    minHeight: mobile ? "48px" : "44px",
   };
 
   const secondaryButtonStyle: CSSProperties = {
@@ -2156,7 +2247,7 @@ export default function SalesPage() {
 
   const miniTitleStyle: CSSProperties = {
     margin: 0,
-    fontSize: mobile ? "16px" : "18px",
+    fontSize: mobile ? "15px" : "18px",
     fontWeight: 800,
   };
 
@@ -2167,7 +2258,7 @@ export default function SalesPage() {
       : tablet
       ? "repeat(2, minmax(0, 1fr))"
       : "repeat(4, minmax(0, 1fr))",
-    gap: "14px",
+    gap: "12px",
   };
 
   const labelStyle: CSSProperties = {
@@ -2187,11 +2278,12 @@ export default function SalesPage() {
     outline: "none",
     background: "#fff",
     boxSizing: "border-box",
+    minHeight: mobile ? "48px" : "44px",
   };
 
   const textareaStyle: CSSProperties = {
     ...inputStyle,
-    minHeight: mobile ? "100px" : "120px",
+    minHeight: mobile ? "96px" : "120px",
     resize: "vertical",
     lineHeight: 1.6,
   };
@@ -2203,12 +2295,12 @@ export default function SalesPage() {
       : compact
       ? "repeat(3, minmax(0, 1fr))"
       : "repeat(6, minmax(0, 1fr))",
-    gap: "12px",
+    gap: "10px",
   };
 
   const statCardStyle: CSSProperties = {
-    borderRadius: "20px",
-    padding: mobile ? "14px" : "16px",
+    borderRadius: "18px",
+    padding: mobile ? "12px" : "16px",
     background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
     border: "1px solid #e5e7eb",
     boxShadow: "0 6px 18px rgba(15, 23, 42, 0.05)",
@@ -2222,14 +2314,15 @@ export default function SalesPage() {
   };
 
   const statValueStyle: CSSProperties = {
-    fontSize: mobile ? "16px" : "24px",
+    fontSize: mobile ? "15px" : "24px",
     fontWeight: 800,
     letterSpacing: "0.01em",
+    lineHeight: 1.3,
   };
 
   const paymentRowCardStyle: CSSProperties = {
     border: "1px solid #e5e7eb",
-    borderRadius: "18px",
+    borderRadius: "16px",
     padding: mobile ? "12px" : "14px",
     background: "#fafafa",
     display: "grid",
@@ -2296,6 +2389,17 @@ export default function SalesPage() {
     gap: "8px",
   };
 
+  const stickyActionBarStyle: CSSProperties = {
+    position: mobile ? "sticky" : "static",
+    bottom: mobile ? 10 : undefined,
+    zIndex: mobile ? 15 : undefined,
+    background: mobile ? "rgba(255,255,255,0.92)" : "transparent",
+    backdropFilter: mobile ? "blur(10px)" : undefined,
+    border: mobile ? "1px solid #e5e7eb" : "none",
+    borderRadius: mobile ? "16px" : "0",
+    padding: mobile ? "10px" : "0",
+  };
+
   if (!mounted) return null;
 
   return (
@@ -2350,7 +2454,7 @@ export default function SalesPage() {
             </div>
             <div style={statCardStyle}>
               <div style={statLabelStyle}>予約ステータス</div>
-              <div style={{ ...statValueStyle, fontSize: mobile ? "15px" : "20px" }}>
+              <div style={{ ...statValueStyle, fontSize: mobile ? "14px" : "20px" }}>
                 {reservationStatus || "—"}
               </div>
             </div>
@@ -2370,7 +2474,14 @@ export default function SalesPage() {
           >
             <h2 style={miniTitleStyle}>売上登録</h2>
 
-            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: "10px",
+                flexWrap: "wrap",
+                width: mobile ? "100%" : "auto",
+              }}
+            >
               {prefillLoading && <span style={pillStyle("#dbeafe", "#1d4ed8")}>予約読込中</span>}
               {getQueryParam("from") === "signup" && (
                 <span style={pillStyle("#ede9fe", "#6d28d9")}>signup流入</span>
@@ -2485,7 +2596,6 @@ export default function SalesPage() {
                   ...inputStyle,
                   display: "flex",
                   alignItems: "center",
-                  minHeight: "46px",
                   color: selectedCustomer ? "#111827" : "#9ca3af",
                 }}
               >
@@ -2516,6 +2626,7 @@ export default function SalesPage() {
                 border: "1px solid #fdba74",
                 fontSize: "13px",
                 color: "#9a3412",
+                lineHeight: 1.6,
               }}
             >
               この予約にはすでに {existingSalesForReservation.length} 件の売上があります。
@@ -2588,11 +2699,82 @@ export default function SalesPage() {
                         style={inputStyle}
                       >
                         <option value="">プリセットを選択</option>
-                        {presetOptionsForService.map((preset) => (
-                          <option key={preset.id} value={preset.id}>
-                            {preset.label}
-                          </option>
-                        ))}
+
+                        {serviceType === "ストレッチ" ? (
+                          <>
+                            {groupedPresetOptions.trial.length > 0 && (
+                              <optgroup label="初回体験">
+                                {groupedPresetOptions.trial.map((preset) => (
+                                  <option key={preset.id} value={preset.id}>
+                                    {preset.label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+
+                            {groupedPresetOptions.single.length > 0 && (
+                              <optgroup label="単発・延長">
+                                {groupedPresetOptions.single.map((preset) => (
+                                  <option key={preset.id} value={preset.id}>
+                                    {preset.label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+
+                            {groupedPresetOptions.unit.length > 0 && (
+                              <optgroup label="回数券単価（新旧）">
+                                {groupedPresetOptions.unit.map((preset) => (
+                                  <option key={preset.id} value={preset.id}>
+                                    {preset.label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+
+                            {groupedPresetOptions.ticket.length > 0 && (
+                              <optgroup label="回数券販売（前受金）">
+                                {groupedPresetOptions.ticket.map((preset) => (
+                                  <option key={preset.id} value={preset.id}>
+                                    {preset.label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+
+                            {groupedPresetOptions.manual.length > 0 && (
+                              <optgroup label="その他">
+                                {groupedPresetOptions.manual.map((preset) => (
+                                  <option key={preset.id} value={preset.id}>
+                                    {preset.label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            {groupedPresetOptions.training.length > 0 && (
+                              <optgroup label="トレーニング料金">
+                                {groupedPresetOptions.training.map((preset) => (
+                                  <option key={preset.id} value={preset.id}>
+                                    {preset.label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+
+                            {groupedPresetOptions.manual.length > 0 && (
+                              <optgroup label="その他">
+                                {groupedPresetOptions.manual.map((preset) => (
+                                  <option key={preset.id} value={preset.id}>
+                                    {preset.label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                          </>
+                        )}
                       </select>
                     </div>
 
@@ -2653,45 +2835,53 @@ export default function SalesPage() {
               ))}
             </div>
 
-            <div
-              style={{
-                marginTop: "14px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: mobile ? "stretch" : "center",
-                gap: "12px",
-                flexDirection: mobile ? "column" : "row",
-              }}
-            >
+            <div style={{ marginTop: "14px", ...stickyActionBarStyle }}>
               <div
                 style={{
-                  fontWeight: 800,
-                  fontSize: mobile ? "16px" : "18px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: mobile ? "stretch" : "center",
+                  gap: "12px",
+                  flexDirection: mobile ? "column" : "row",
                 }}
               >
-                合計: {formatCurrency(totalAmount)}
-              </div>
-
-              <div style={{ display: "flex", gap: "10px", width: mobile ? "100%" : "auto" }}>
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  style={{ ...ghostButtonStyle, width: mobile ? "50%" : "auto" }}
-                >
-                  リセット
-                </button>
-                <button
-                  type="button"
-                  onClick={handleAddSale}
-                  disabled={saving}
+                <div
                   style={{
-                    ...primaryButtonStyle,
-                    width: mobile ? "50%" : "auto",
-                    opacity: saving ? 0.7 : 1,
+                    fontWeight: 800,
+                    fontSize: mobile ? "16px" : "18px",
                   }}
                 >
-                  {saving ? "登録中..." : "売上登録"}
-                </button>
+                  合計: {formatCurrency(totalAmount)}
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: mobile ? "1fr 1fr" : "auto auto",
+                    gap: "10px",
+                    width: mobile ? "100%" : "auto",
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    style={{ ...ghostButtonStyle, width: "100%" }}
+                  >
+                    リセット
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddSale}
+                    disabled={saving}
+                    style={{
+                      ...primaryButtonStyle,
+                      width: "100%",
+                      opacity: saving ? 0.7 : 1,
+                    }}
+                  >
+                    {saving ? "登録中..." : "売上登録"}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -2757,7 +2947,7 @@ export default function SalesPage() {
                       </span>
                     </div>
 
-                    <div style={{ fontSize: "13px", color: "#374151" }}>
+                    <div style={{ fontSize: "13px", color: "#374151", lineHeight: 1.7 }}>
                       <div>日付: {formatDateJP(sale.date)}</div>
                       <div>メニュー: {sale.menuName}</div>
                       <div>支払: {sale.paymentMethod}</div>
@@ -2859,56 +3049,87 @@ export default function SalesPage() {
         <section style={cardStyle}>
           <h2 style={{ ...miniTitleStyle, marginBottom: "14px" }}>日次集計</h2>
 
-          <div style={tableWrapStyle}>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <th style={thStyle}>日付</th>
-                  <th style={thStyle}>ストレッチ現金</th>
-                  <th style={thStyle}>ストレッチカード</th>
-                  <th style={thStyle}>ストレッチその他</th>
-                  <th style={thStyle}>ストレッチ回数券</th>
-                  <th style={thStyle}>トレ現金</th>
-                  <th style={thStyle}>トレカード</th>
-                  <th style={thStyle}>トレその他</th>
-                  <th style={thStyle}>トレ回数券</th>
-                  <th style={thStyle}>純売上合計</th>
-                  <th style={thStyle}>前受現金</th>
-                  <th style={thStyle}>前受カード等</th>
-                  <th style={thStyle}>前受合計</th>
-                  <th style={thStyle}>総合計</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dailySummaryRows.length === 0 ? (
+          {mobile ? (
+            <div style={{ display: "grid", gap: "12px" }}>
+              {dailySummaryRows.length === 0 ? (
+                <div style={{ color: "#6b7280" }}>集計データがありません</div>
+              ) : (
+                dailySummaryRows.map((row) => (
+                  <div key={row.date} style={mobileListCardStyle}>
+                    <div style={{ fontWeight: 900, fontSize: "14px" }}>
+                      {formatDateJP(row.date)}
+                    </div>
+                    <div style={{ display: "grid", gap: "6px", fontSize: "13px", lineHeight: 1.6 }}>
+                      <div>ストレッチ現金: {formatCurrency(row.stretchCash)}</div>
+                      <div>ストレッチカード: {formatCurrency(row.stretchCard)}</div>
+                      <div>ストレッチその他: {formatCurrency(row.stretchReceived)}</div>
+                      <div>ストレッチ回数券: {formatCurrency(row.stretchTicket)}</div>
+                      <div>トレ現金: {formatCurrency(row.trainingCash)}</div>
+                      <div>トレカード: {formatCurrency(row.trainingCard)}</div>
+                      <div>トレその他: {formatCurrency(row.trainingReceived)}</div>
+                      <div>トレ回数券: {formatCurrency(row.trainingTicket)}</div>
+                      <div style={{ fontWeight: 800 }}>純売上合計: {formatCurrency(row.netSalesTotal)}</div>
+                      <div>前受現金: {formatCurrency(row.advanceCash)}</div>
+                      <div>前受カード等: {formatCurrency(row.advanceCard)}</div>
+                      <div style={{ fontWeight: 800 }}>前受合計: {formatCurrency(row.advanceTotal)}</div>
+                      <div style={{ fontWeight: 900 }}>総合計: {formatCurrency(row.grandTotal)}</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : (
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
                   <tr>
-                    <td style={tdStyle} colSpan={14}>
-                      集計データがありません
-                    </td>
+                    <th style={thStyle}>日付</th>
+                    <th style={thStyle}>ストレッチ現金</th>
+                    <th style={thStyle}>ストレッチカード</th>
+                    <th style={thStyle}>ストレッチその他</th>
+                    <th style={thStyle}>ストレッチ回数券</th>
+                    <th style={thStyle}>トレ現金</th>
+                    <th style={thStyle}>トレカード</th>
+                    <th style={thStyle}>トレその他</th>
+                    <th style={thStyle}>トレ回数券</th>
+                    <th style={thStyle}>純売上合計</th>
+                    <th style={thStyle}>前受現金</th>
+                    <th style={thStyle}>前受カード等</th>
+                    <th style={thStyle}>前受合計</th>
+                    <th style={thStyle}>総合計</th>
                   </tr>
-                ) : (
-                  dailySummaryRows.map((row) => (
-                    <tr key={row.date}>
-                      <td style={tdStyle}>{formatDateJP(row.date)}</td>
-                      <td style={tdStyle}>{formatCurrency(row.stretchCash)}</td>
-                      <td style={tdStyle}>{formatCurrency(row.stretchCard)}</td>
-                      <td style={tdStyle}>{formatCurrency(row.stretchReceived)}</td>
-                      <td style={tdStyle}>{formatCurrency(row.stretchTicket)}</td>
-                      <td style={tdStyle}>{formatCurrency(row.trainingCash)}</td>
-                      <td style={tdStyle}>{formatCurrency(row.trainingCard)}</td>
-                      <td style={tdStyle}>{formatCurrency(row.trainingReceived)}</td>
-                      <td style={tdStyle}>{formatCurrency(row.trainingTicket)}</td>
-                      <td style={{ ...tdStyle, fontWeight: 800 }}>{formatCurrency(row.netSalesTotal)}</td>
-                      <td style={tdStyle}>{formatCurrency(row.advanceCash)}</td>
-                      <td style={tdStyle}>{formatCurrency(row.advanceCard)}</td>
-                      <td style={{ ...tdStyle, fontWeight: 800 }}>{formatCurrency(row.advanceTotal)}</td>
-                      <td style={{ ...tdStyle, fontWeight: 800 }}>{formatCurrency(row.grandTotal)}</td>
+                </thead>
+                <tbody>
+                  {dailySummaryRows.length === 0 ? (
+                    <tr>
+                      <td style={tdStyle} colSpan={14}>
+                        集計データがありません
+                      </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ) : (
+                    dailySummaryRows.map((row) => (
+                      <tr key={row.date}>
+                        <td style={tdStyle}>{formatDateJP(row.date)}</td>
+                        <td style={tdStyle}>{formatCurrency(row.stretchCash)}</td>
+                        <td style={tdStyle}>{formatCurrency(row.stretchCard)}</td>
+                        <td style={tdStyle}>{formatCurrency(row.stretchReceived)}</td>
+                        <td style={tdStyle}>{formatCurrency(row.stretchTicket)}</td>
+                        <td style={tdStyle}>{formatCurrency(row.trainingCash)}</td>
+                        <td style={tdStyle}>{formatCurrency(row.trainingCard)}</td>
+                        <td style={tdStyle}>{formatCurrency(row.trainingReceived)}</td>
+                        <td style={tdStyle}>{formatCurrency(row.trainingTicket)}</td>
+                        <td style={{ ...tdStyle, fontWeight: 800 }}>{formatCurrency(row.netSalesTotal)}</td>
+                        <td style={tdStyle}>{formatCurrency(row.advanceCash)}</td>
+                        <td style={tdStyle}>{formatCurrency(row.advanceCard)}</td>
+                        <td style={{ ...tdStyle, fontWeight: 800 }}>{formatCurrency(row.advanceTotal)}</td>
+                        <td style={{ ...tdStyle, fontWeight: 800 }}>{formatCurrency(row.grandTotal)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
 
         <section
