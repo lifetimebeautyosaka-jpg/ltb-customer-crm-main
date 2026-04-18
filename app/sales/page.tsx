@@ -151,6 +151,15 @@ type TicketIssuePresetInfo = {
   priceVersion: "新" | "旧";
 };
 
+type GroupedPresetOptions = {
+  trial: PricePreset[];
+  single: PricePreset[];
+  unit: PricePreset[];
+  ticket: PricePreset[];
+  training: PricePreset[];
+  manual: PricePreset[];
+};
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -423,7 +432,6 @@ const PRICE_PRESETS: PricePreset[] = [
     amount: 1500,
   },
 
-  // ===== ストレッチ回数券 単価プルダウン（新価格）=====
   {
     id: "stretch_new_unit_40",
     serviceType: "ストレッチ",
@@ -457,7 +465,6 @@ const PRICE_PRESETS: PricePreset[] = [
     note: "新価格の回数券単価",
   },
 
-  // ===== ストレッチ回数券 単価プルダウン（旧価格）=====
   {
     id: "stretch_old_unit_40",
     serviceType: "ストレッチ",
@@ -1285,6 +1292,7 @@ export default function SalesPage() {
   const [reservationId, setReservationId] = useState("");
   const [reservationStatus, setReservationStatus] = useState("");
   const [existingSalesForReservation, setExistingSalesForReservation] = useState<Sale[]>([]);
+  const [openedSaleActionIds, setOpenedSaleActionIds] = useState<string[]>([]);
 
   const [payments, setPayments] = useState<PaymentRow[]>([createPaymentRow()]);
 
@@ -1321,27 +1329,32 @@ export default function SalesPage() {
     return PRICE_PRESETS.filter((preset) => preset.serviceType === serviceType);
   }, [serviceType]);
 
-  const groupedPresetOptions = useMemo(() => {
+  const groupedPresetOptions = useMemo<GroupedPresetOptions>(() => {
+    const result: GroupedPresetOptions = {
+      trial: [],
+      single: [],
+      unit: [],
+      ticket: [],
+      training: [],
+      manual: [],
+    };
+
     if (serviceType === "ストレッチ") {
-      return {
-        trial: presetOptionsForService.filter((p) => p.id.startsWith("stretch_trial")),
-        single: presetOptionsForService.filter(
-          (p) =>
-            p.id.startsWith("stretch_single") || p.id.startsWith("stretch_extension")
-        ),
-        unit: presetOptionsForService.filter((p) => p.id.includes("_unit_")),
-        ticket: presetOptionsForService.filter(
-          (p) =>
-            p.accountingType === "前受金" && !p.id.includes("_unit_")
-        ),
-        manual: presetOptionsForService.filter((p) => p.id.startsWith("manual_")),
-      };
+      result.trial = presetOptionsForService.filter((p) => p.id.startsWith("stretch_trial"));
+      result.single = presetOptionsForService.filter(
+        (p) => p.id.startsWith("stretch_single") || p.id.startsWith("stretch_extension")
+      );
+      result.unit = presetOptionsForService.filter((p) => p.id.includes("_unit_"));
+      result.ticket = presetOptionsForService.filter(
+        (p) => p.accountingType === "前受金" && !p.id.includes("_unit_")
+      );
+      result.manual = presetOptionsForService.filter((p) => p.id.startsWith("manual_"));
+      return result;
     }
 
-    return {
-      training: presetOptionsForService.filter((p) => !p.id.startsWith("manual_")),
-      manual: presetOptionsForService.filter((p) => p.id.startsWith("manual_")),
-    };
+    result.training = presetOptionsForService.filter((p) => !p.id.startsWith("manual_"));
+    result.manual = presetOptionsForService.filter((p) => p.id.startsWith("manual_"));
+    return result;
   }, [presetOptionsForService, serviceType]);
 
   const applyQueryParams = (customerList: Customer[]) => {
@@ -1795,10 +1808,17 @@ export default function SalesPage() {
     setReservationStatus("");
     setExistingSalesForReservation([]);
     setPayments([createPaymentRow()]);
+    setOpenedSaleActionIds([]);
 
     if (typeof window !== "undefined") {
       window.history.replaceState({}, "", "/sales");
     }
+  };
+
+  const toggleSaleActions = (saleId: string) => {
+    setOpenedSaleActionIds((prev) =>
+      prev.includes(saleId) ? prev.filter((id) => id !== saleId) : [...prev, saleId]
+    );
   };
 
   const handleAddSale = async () => {
@@ -2079,6 +2099,7 @@ export default function SalesPage() {
         await loadExistingSalesForReservation(String(target.reservationId));
       }
 
+      setOpenedSaleActionIds((prev) => prev.filter((id) => id !== saleId));
       alert("売上を削除しました");
     } catch (error) {
       console.error("handleDeleteSale error:", error);
@@ -2398,6 +2419,43 @@ export default function SalesPage() {
     border: mobile ? "1px solid #e5e7eb" : "none",
     borderRadius: mobile ? "16px" : "0",
     padding: mobile ? "10px" : "0",
+  };
+
+  const mobileSaleCompactCardStyle: CSSProperties = {
+    border: "1px solid #e5e7eb",
+    borderRadius: "16px",
+    background: "#fff",
+    padding: "12px",
+    display: "grid",
+    gap: "8px",
+    boxShadow: "0 4px 10px rgba(15,23,42,0.04)",
+  };
+
+  const mobileSaleTopRowStyle: CSSProperties = {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "10px",
+    alignItems: "flex-start",
+  };
+
+  const actionToggleBtnStyle: CSSProperties = {
+    border: "1px solid #cbd5e1",
+    background: "#fff",
+    color: "#111827",
+    borderRadius: "999px",
+    padding: "7px 12px",
+    fontSize: "12px",
+    fontWeight: 800,
+    cursor: "pointer",
+    minHeight: "38px",
+  };
+
+  const actionDrawerStyle: CSSProperties = {
+    marginTop: "4px",
+    paddingTop: "8px",
+    borderTop: "1px dashed #e5e7eb",
+    display: "grid",
+    gap: "8px",
   };
 
   if (!mounted) return null;
@@ -2913,59 +2971,125 @@ export default function SalesPage() {
           {loading ? (
             <div style={{ color: "#6b7280" }}>読込中...</div>
           ) : mobile ? (
-            <div style={{ display: "grid", gap: "12px" }}>
+            <div style={{ display: "grid", gap: "10px" }}>
               {filteredSales.length === 0 ? (
                 <div style={{ color: "#6b7280" }}>売上データがありません</div>
               ) : (
-                filteredSales.map((sale) => (
-                  <div key={sale.id} style={mobileListCardStyle}>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: "10px",
-                        alignItems: "flex-start",
-                      }}
-                    >
-                      <div style={{ fontWeight: 800 }}>{sale.customerName}</div>
-                      <div style={{ fontWeight: 800 }}>{formatCurrency(sale.amount)}</div>
-                    </div>
+                filteredSales.map((sale) => {
+                  const actionOpened = openedSaleActionIds.includes(sale.id);
 
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                      <span
-                        style={{ ...pillStyle("#f3f4f6"), ...getServiceBadgeStyle(sale.serviceType) }}
-                      >
-                        {sale.serviceType}
-                      </span>
-                      <span
+                  return (
+                    <div key={sale.id} style={mobileSaleCompactCardStyle}>
+                      <div style={mobileSaleTopRowStyle}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div
+                            style={{
+                              fontWeight: 900,
+                              fontSize: "14px",
+                              color: "#111827",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {sale.customerName}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "12px",
+                              color: "#64748b",
+                              marginTop: "2px",
+                            }}
+                          >
+                            {formatDateJP(sale.date)} / {sale.staff}
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            fontWeight: 900,
+                            fontSize: "14px",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {formatCurrency(sale.amount)}
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                        <span
+                          style={{ ...pillStyle("#f3f4f6"), ...getServiceBadgeStyle(sale.serviceType) }}
+                        >
+                          {sale.serviceType}
+                        </span>
+                        <span
+                          style={{
+                            ...pillStyle("#f3f4f6"),
+                            ...getAccountingBadgeStyle(sale.accountingType),
+                          }}
+                        >
+                          {sale.accountingType}
+                        </span>
+                        <span style={pillStyle("#f8fafc", "#475569")}>{sale.paymentMethod}</span>
+                      </div>
+
+                      <div
                         style={{
-                          ...pillStyle("#f3f4f6"),
-                          ...getAccountingBadgeStyle(sale.accountingType),
+                          fontSize: "12px",
+                          color: "#475569",
+                          lineHeight: 1.5,
                         }}
                       >
-                        {sale.accountingType}
-                      </span>
-                    </div>
+                        {sale.menuName} / {sale.storeName}
+                        {sale.reservationId ? ` / 予約ID: ${sale.reservationId}` : ""}
+                      </div>
 
-                    <div style={{ fontSize: "13px", color: "#374151", lineHeight: 1.7 }}>
-                      <div>日付: {formatDateJP(sale.date)}</div>
-                      <div>メニュー: {sale.menuName}</div>
-                      <div>支払: {sale.paymentMethod}</div>
-                      <div>担当: {sale.staff}</div>
-                      <div>店舗: {sale.storeName}</div>
-                      {sale.reservationId ? <div>予約ID: {sale.reservationId}</div> : null}
-                      {sale.note ? <div style={{ whiteSpace: "pre-wrap" }}>メモ: {sale.note}</div> : null}
-                    </div>
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => toggleSaleActions(sale.id)}
+                          style={actionToggleBtnStyle}
+                        >
+                          {actionOpened ? "操作を閉じる" : "操作"}
+                        </button>
+                      </div>
 
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteSale(sale.id)}
-                      style={{ ...dangerButtonStyle, width: "100%" }}
-                    >
-                      削除
-                    </button>
-                  </div>
-                ))
+                      {actionOpened ? (
+                        <div style={actionDrawerStyle}>
+                          <div
+                            style={{
+                              fontSize: "13px",
+                              color: "#374151",
+                              lineHeight: 1.7,
+                              display: "grid",
+                              gap: "2px",
+                            }}
+                          >
+                            <div>日付: {formatDateJP(sale.date)}</div>
+                            <div>メニュー: {sale.menuName}</div>
+                            <div>サービス: {sale.serviceType}</div>
+                            <div>会計区分: {sale.accountingType}</div>
+                            <div>支払: {sale.paymentMethod}</div>
+                            <div>担当: {sale.staff}</div>
+                            <div>店舗: {sale.storeName}</div>
+                            {sale.reservationId ? <div>予約ID: {sale.reservationId}</div> : null}
+                            {sale.note ? (
+                              <div style={{ whiteSpace: "pre-wrap" }}>メモ: {sale.note}</div>
+                            ) : null}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSale(sale.id)}
+                            style={{ ...dangerButtonStyle, width: "100%" }}
+                          >
+                            削除
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })
               )}
             </div>
           ) : (
