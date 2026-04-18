@@ -429,7 +429,6 @@ export default function ReservationDetailPage() {
   }
 }
   
-    if (!supabase || !reservation) return;
 async function handleDeleteReservation() {
   if (!supabase || !reservation) return;
 
@@ -460,43 +459,51 @@ async function handleDeleteReservation() {
     setSuccess("");
 
     if (ticketUsages.length > 0) {
-      await restoreCustomerTicketsFromUsages(ticketUsages);
+      try {
+        await restoreCustomerTicketsFromUsages(ticketUsages);
+      } catch (e) {
+        throw new Error(`回数券残数の復元で失敗: ${extractErrorMessage(e)}`);
+      }
     }
 
-    {
-      const { error: deleteTicketUsageError } = await supabase
+    try {
+      const { error } = await supabase
         .from("ticket_usages")
         .delete()
         .eq("reservation_id", reservationIdNum);
-
-      if (deleteTicketUsageError) throw deleteTicketUsageError;
+      if (error) throw error;
+    } catch (e) {
+      throw new Error(`ticket_usages の削除で失敗: ${extractErrorMessage(e)}`);
     }
 
-    {
-      const { error: deleteSalesError } = await supabase
+    try {
+      const { error } = await supabase
         .from("sales")
         .delete()
         .eq("reservation_id", reservationIdNum);
-
-      if (deleteSalesError) throw deleteSalesError;
+      if (error) throw error;
+    } catch (e) {
+      throw new Error(`sales の削除で失敗: ${extractErrorMessage(e)}`);
     }
 
-    {
-      const { error: deleteCounselingsError } = await supabase
+    try {
+      const { error } = await supabase
         .from("counselings")
         .delete()
         .eq("reservation_id", reservationIdNum);
-
-      if (deleteCounselingsError) throw deleteCounselingsError;
+      if (error) throw error;
+    } catch (e) {
+      throw new Error(`counselings の削除で失敗: ${extractErrorMessage(e)}`);
     }
 
-    {
-      const { error: deleteReservationError } = await supabase
+    try {
+      const { error } = await supabase
         .from("reservations")
         .delete()
         .eq("id", reservationIdNum);
-
-      if (deleteReservationError) throw deleteReservationError;
+      if (error) throw error;
+    } catch (e) {
+      throw new Error(`reservations の削除で失敗: ${extractErrorMessage(e)}`);
     }
 
     window.alert("予約を削除しました");
