@@ -760,8 +760,6 @@ export default function MyPage() {
     次回予約を入れる
   </Link>
 
-  👉ここに追加👇
-
   <Link href="/mypage/meal" className="mypage-secondary-btn">
     食事管理を見る
   </Link>
@@ -770,6 +768,10 @@ export default function MyPage() {
     食事を送る
   </Link>
 </div>
+</section>
+
+<section className="mypage-card">
+  <div className="mypage-label">SHOP</div>
 
           <section className="mypage-card">
             <div className="mypage-label">SHOP</div>
