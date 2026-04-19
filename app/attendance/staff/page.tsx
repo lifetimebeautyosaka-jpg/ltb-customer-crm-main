@@ -185,10 +185,6 @@ function calcLateNightMinutes(clockIn?: string | null, clockOut?: string | null)
   return Math.max(0, total);
 }
 
-function makeStaffIdFromName(name: string) {
-  return `staff_${name.trim().replace(/\s+/g, "_")}`;
-}
-
 function monthLabel(month: string) {
   if (!month) return "—";
   const [y, m] = month.split("-");
@@ -205,11 +201,9 @@ export default function AttendanceStaffPage() {
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const [staffId, setStaffId] = useState("");
+  const [staffList, setStaffList] = useState<StaffMasterRow[]>([]);
+  const [selectedStaffId, setSelectedStaffId] = useState("");
   const [staffName, setStaffName] = useState("");
-  const [newStaffName, setNewStaffName] = useState("");
-
-  const [staffOptions, setStaffOptions] = useState<StaffMasterRow[]>([]);
 
   const [todayRow, setTodayRow] = useState<AttendanceRow | null>(null);
   const [monthRows, setMonthRows] = useState<AttendanceRow[]>([]);
@@ -238,20 +232,11 @@ export default function AttendanceStaffPage() {
     if (!mounted) return;
 
     const loggedIn =
-      localStorage.getItem("gymup_logged_in") ||
-      localStorage.getItem("isLoggedIn");
+      localStorage.getItem("gymup_logged_in") || localStorage.getItem("isLoggedIn");
 
     if (loggedIn !== "true") {
       window.location.href = "/login";
       return;
-    }
-
-    const savedStaffId = localStorage.getItem("gymup_current_staff_id") || "";
-    const savedStaffName = localStorage.getItem("gymup_current_staff_name") || "";
-
-    if (savedStaffId && savedStaffName) {
-      setStaffId(savedStaffId);
-      setStaffName(savedStaffName);
     }
 
     const timer = window.setInterval(() => {
@@ -263,66 +248,75 @@ export default function AttendanceStaffPage() {
 
   useEffect(() => {
     if (!mounted) return;
-    void loadStaffOptions();
+    void initBase();
   }, [mounted]);
 
   useEffect(() => {
     if (!mounted) return;
-    if (!staffId) {
-      setLoading(false);
+    if (!selectedStaffId) {
       setTodayRow(null);
       setMonthRows([]);
+      setLoading(false);
       return;
     }
-    void init();
-  }, [mounted, staffId, selectedMonth]);
+    void loadStaffAttendance(selectedStaffId);
+  }, [mounted, selectedStaffId, selectedMonth]);
 
   const mobile = windowWidth < 768;
 
-  async function loadStaffOptions() {
-    if (!supabase) return;
+  async function loadStaffMaster() {
+    if (!supabase) return [];
 
-    try {
-      const { data, error } = await supabase
-        .from("staff_master")
-        .select("id, staff_id, staff_name, is_active")
-        .eq("is_active", true)
-        .order("staff_name", { ascending: true })
-        .limit(10);
-
-      if (error) {
-        if (error.message.includes("schema cache")) {
-          throw new Error("staff_master テーブルが未作成です。SupabaseのSQLを先に実行してください。");
-        }
-        throw new Error(error.message);
-      }
-
-      setStaffOptions((data as StaffMasterRow[] | null) || []);
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : "スタッフ一覧の取得に失敗しました。";
-      setErrorMessage(msg);
-    }
-  }
-
-  async function ensureStaffMaster(clientStaffId: string, clientStaffName: string) {
-    if (!supabase) return;
-
-    const { error } = await supabase.from("staff_master").upsert(
-      {
-        staff_id: clientStaffId,
-        staff_name: clientStaffName,
-        is_active: true,
-      },
-      {
-        onConflict: "staff_id",
-      }
-    );
+    const { data, error } = await supabase
+      .from("staff_master")
+      .select("id, staff_id, staff_name, is_active")
+      .eq("is_active", true)
+      .order("staff_name", { ascending: true });
 
     if (error) {
       if (error.message.includes("schema cache")) {
         throw new Error("staff_master テーブルが未作成です。SupabaseのSQLを先に実行してください。");
       }
       throw new Error(error.message);
+    }
+
+    return ((data as StaffMasterRow[] | null) || []).filter((row) => row.staff_id && row.staff_name);
+  }
+
+  async function initBase() {
+    if (!supabase) {
+      setErrorMessage("NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY が未設定です。");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setErrorMessage("");
+
+      const list = await loadStaffMaster();
+      setStaffList(list);
+
+      const savedStaffId = localStorage.getItem("gymup_current_staff_id") || "";
+      const matchedSaved = list.find((row) => row.staff_id === savedStaffId);
+
+      if (matchedSaved) {
+        setSelectedStaffId(matchedSaved.staff_id);
+        setStaffName(matchedSaved.staff_name);
+      } else if (list.length > 0) {
+        setSelectedStaffId(list[0].staff_id);
+        setStaffName(list[0].staff_name);
+        localStorage.setItem("gymup_current_staff_id", list[0].staff_id);
+        localStorage.setItem("gymup_current_staff_name", list[0].staff_name);
+      } else {
+        setSelectedStaffId("");
+        setStaffName("");
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "初期化に失敗しました。";
+      setErrorMessage(msg);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -376,9 +370,12 @@ export default function AttendanceStaffPage() {
     setMonthRows((data as AttendanceRow[] | null) || []);
   }
 
-  async function init() {
+  async function loadStaffAttendance(clientStaffId: string) {
+    const matched = staffList.find((row) => row.staff_id === clientStaffId);
+    setStaffName(matched?.staff_name || "");
+
     if (!supabase) {
-      setErrorMessage("NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY が未設定です。");
+      setErrorMessage("Supabaseの環境変数が未設定です。");
       setLoading(false);
       return;
     }
@@ -386,61 +383,22 @@ export default function AttendanceStaffPage() {
     try {
       setLoading(true);
       setErrorMessage("");
-      await ensureStaffMaster(staffId, staffName || "スタッフ");
-      await loadTodayAttendance(staffId);
-      await loadMonthAttendance(staffId);
-      await loadStaffOptions();
+      await loadTodayAttendance(clientStaffId);
+      await loadMonthAttendance(clientStaffId);
     } catch (error) {
-      const msg = error instanceof Error ? error.message : "読み込みに失敗しました。";
+      const msg = error instanceof Error ? error.message : "勤怠読み込みに失敗しました。";
       setErrorMessage(msg);
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleAddStaff() {
-    const name = newStaffName.trim();
-    if (!name) {
-      alert("追加するスタッフ名を入力してください。");
-      return;
-    }
-
-    if (staffOptions.length >= 10) {
-      alert("スタッフ登録は最大10名までです。");
-      return;
-    }
-
-    const generatedId = makeStaffIdFromName(name);
-
-    try {
-      setSaving(true);
-      setErrorMessage("");
-
-      await ensureStaffMaster(generatedId, name);
-      await loadStaffOptions();
-
-      localStorage.setItem("gymup_current_staff_name", name);
-      localStorage.setItem("gymup_current_staff_id", generatedId);
-
-      setStaffName(name);
-      setStaffId(generatedId);
-      setNewStaffName("");
-
-      alert("スタッフを追加しました。");
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : "スタッフ追加に失敗しました。";
-      setErrorMessage(msg);
-      alert(msg);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function handleSelectStaff(row: StaffMasterRow) {
-    localStorage.setItem("gymup_current_staff_name", row.staff_name);
-    localStorage.setItem("gymup_current_staff_id", row.staff_id);
-    setStaffName(row.staff_name);
-    setStaffId(row.staff_id);
+  function handleSelectStaff(nextStaffId: string) {
+    const matched = staffList.find((row) => row.staff_id === nextStaffId);
+    setSelectedStaffId(nextStaffId);
+    setStaffName(matched?.staff_name || "");
+    localStorage.setItem("gymup_current_staff_id", nextStaffId);
+    localStorage.setItem("gymup_current_staff_name", matched?.staff_name || "");
   }
 
   async function handleClockIn() {
@@ -449,7 +407,7 @@ export default function AttendanceStaffPage() {
       return;
     }
 
-    if (!staffId || !staffName) {
+    if (!selectedStaffId || !staffName) {
       alert("先にスタッフを選択してください。");
       return;
     }
@@ -458,12 +416,10 @@ export default function AttendanceStaffPage() {
       setSaving(true);
       setErrorMessage("");
 
-      await ensureStaffMaster(staffId, staffName);
-
       const { data, error: existingError } = await supabase
         .from("staff_attendance")
         .select("*")
-        .eq("staff_id", staffId)
+        .eq("staff_id", selectedStaffId)
         .eq("work_date", todayJst)
         .order("id", { ascending: false })
         .limit(1);
@@ -476,7 +432,7 @@ export default function AttendanceStaffPage() {
 
       if (!existing) {
         const { error: insertError } = await supabase.from("staff_attendance").insert({
-          staff_id: staffId,
+          staff_id: selectedStaffId,
           staff_name: staffName,
           work_date: todayJst,
           clock_in: nowIso,
@@ -494,7 +450,7 @@ export default function AttendanceStaffPage() {
       } else {
         if (existing.clock_in) {
           alert("本日はすでに出勤済みです。");
-          await loadTodayAttendance(staffId);
+          await loadTodayAttendance(selectedStaffId);
           return;
         }
 
@@ -512,8 +468,8 @@ export default function AttendanceStaffPage() {
         if (updateError) throw new Error(updateError.message);
       }
 
-      await loadTodayAttendance(staffId);
-      await loadMonthAttendance(staffId);
+      await loadTodayAttendance(selectedStaffId);
+      await loadMonthAttendance(selectedStaffId);
       alert("出勤を記録しました。");
     } catch (error) {
       const msg = error instanceof Error ? error.message : "出勤登録に失敗しました。";
@@ -530,7 +486,7 @@ export default function AttendanceStaffPage() {
       return;
     }
 
-    if (!staffId || !staffName) {
+    if (!selectedStaffId || !staffName) {
       alert("先にスタッフを選択してください。");
       return;
     }
@@ -542,7 +498,7 @@ export default function AttendanceStaffPage() {
       const { data, error: fetchError } = await supabase
         .from("staff_attendance")
         .select("*")
-        .eq("staff_id", staffId)
+        .eq("staff_id", selectedStaffId)
         .eq("work_date", todayJst)
         .order("id", { ascending: false })
         .limit(1);
@@ -585,8 +541,8 @@ export default function AttendanceStaffPage() {
 
       if (updateError) throw new Error(updateError.message);
 
-      await loadTodayAttendance(staffId);
-      await loadMonthAttendance(staffId);
+      await loadTodayAttendance(selectedStaffId);
+      await loadMonthAttendance(selectedStaffId);
       alert("退勤を記録しました。");
     } catch (error) {
       const msg = error instanceof Error ? error.message : "退勤登録に失敗しました。";
@@ -603,6 +559,11 @@ export default function AttendanceStaffPage() {
       return;
     }
 
+    if (!selectedStaffId) {
+      alert("先にスタッフを選択してください。");
+      return;
+    }
+
     if (!todayRow?.id) {
       alert("まだ本日の勤怠データがありません。先に出勤してください。");
       return;
@@ -612,7 +573,7 @@ export default function AttendanceStaffPage() {
       setSaving(true);
       setErrorMessage("");
 
-      const updatePayload: Record<string, any> = {
+      const updatePayload: Record<string, unknown> = {
         break_minutes: breakMinutes,
         note,
         updated_at: new Date().toISOString(),
@@ -637,8 +598,8 @@ export default function AttendanceStaffPage() {
 
       if (error) throw new Error(error.message);
 
-      await loadTodayAttendance(staffId);
-      await loadMonthAttendance(staffId);
+      await loadTodayAttendance(selectedStaffId);
+      await loadMonthAttendance(selectedStaffId);
       alert("休憩・メモを保存しました。");
     } catch (error) {
       const msg = error instanceof Error ? error.message : "保存に失敗しました。";
@@ -715,7 +676,7 @@ export default function AttendanceStaffPage() {
       <div style={containerStyle}>
         <div style={topBarStyle}>
           <div style={topLinkGroupStyle}>
-            <Link href="/dashboard" style={backLinkStyle}>
+            <Link href="/dashboard" style={mainBackLinkStyle}>
               ← ダッシュボードへ
             </Link>
             <Link href="/attendance" style={subBackLinkStyle}>
@@ -723,42 +684,50 @@ export default function AttendanceStaffPage() {
             </Link>
           </div>
 
-          <div style={topRightStyle}>
-            <span style={eyebrowStyle}>STAFF TIMECARD</span>
-          </div>
+          <div style={eyebrowStyle}>STAFF TIMECARD</div>
         </div>
 
         <section style={heroCardStyle} className="attendance-hero-grid">
           <div style={heroLeftStyle} className="attendance-hero-left">
             <div style={miniLabelStyle}>GYMUP ATTENDANCE</div>
-            <h1 style={titleStyle}>スタッフ用タイムカード</h1>
+            <h1 style={titleStyle}>スタッフ打刻ページ</h1>
             <p style={descStyle}>
-              スタッフを選ぶだけで、
+              自分の名前を選んで、
               <br className="attendance-pc-break" />
-              出勤・退勤・今日の勤務状況・今月の勤怠を分かりやすく確認できます。
+              出勤・退勤・休憩・メモを入力する専用ページです。
             </p>
 
             <div style={heroButtonRowStyle} className="attendance-button-row">
-              <Link
-                href="/attendance/staff/payslip"
-                style={secondaryLinkButtonStyle}
-                className="attendance-sub-button"
+              <button
+                onClick={handleClockIn}
+                disabled={saving || !staffName || Boolean(todayRow?.clock_in)}
+                style={{
+                  ...primaryButtonStyle,
+                  opacity: saving || !staffName || Boolean(todayRow?.clock_in) ? 0.55 : 1,
+                }}
               >
-                給与明細を見る
-              </Link>
-              <Link
-                href="/attendance/admin"
-                style={secondaryLinkButtonStyle}
-                className="attendance-sub-button"
+                出勤する
+              </button>
+
+              <button
+                onClick={handleClockOut}
+                disabled={saving || !staffName || !Boolean(todayRow?.clock_in) || Boolean(todayRow?.clock_out)}
+                style={{
+                  ...secondaryButtonStyle,
+                  opacity:
+                    saving || !staffName || !Boolean(todayRow?.clock_in) || Boolean(todayRow?.clock_out)
+                      ? 0.55
+                      : 1,
+                }}
               >
-                管理者ページへ
-              </Link>
+                退勤する
+              </button>
             </div>
           </div>
 
           <div style={heroRightStyle}>
             <div style={statusCardStyle}>
-              <div style={statusCardLabelStyle}>本日の勤務ステータス</div>
+              <div style={statusCardLabelStyle}>TODAY STATUS</div>
 
               <div
                 style={{
@@ -772,10 +741,10 @@ export default function AttendanceStaffPage() {
               </div>
 
               <div style={statusMetaGridStyle}>
-                <MiniInfo label="選択中スタッフ" value={staffName || "未選択"} />
+                <MiniInfo label="スタッフ名" value={staffName || "未選択"} />
                 <MiniInfo label="勤務日" value={todayJst} />
-                <MiniInfo label="出勤時刻" value={formatTimeJP(todayRow?.clock_in)} />
-                <MiniInfo label="退勤時刻" value={formatTimeJP(todayRow?.clock_out)} />
+                <MiniInfo label="出勤" value={formatTimeJP(todayRow?.clock_in)} />
+                <MiniInfo label="退勤" value={formatTimeJP(todayRow?.clock_out)} />
               </div>
             </div>
           </div>
@@ -786,70 +755,28 @@ export default function AttendanceStaffPage() {
         <section style={panelStyle}>
           <div style={sectionHeaderStyle}>
             <div>
-              <div style={sectionMiniStyle}>STAFF SELECT</div>
-              <h2 style={sectionTitleStyle}>スタッフ選択</h2>
-            </div>
-          </div>
-
-          <div style={staffSelectWrapStyle}>
-            {staffOptions.length === 0 ? (
-              <div style={emptyBoxStyle}>登録済みスタッフがまだいません。</div>
-            ) : (
-              <div style={staffButtonGridStyle}>
-                {staffOptions.map((row) => {
-                  const active = row.staff_id === staffId;
-                  return (
-                    <button
-                      key={row.staff_id}
-                      type="button"
-                      onClick={() => handleSelectStaff(row)}
-                      style={{
-                        ...staffSelectButtonStyle,
-                        ...(active ? staffSelectButtonActiveStyle : {}),
-                      }}
-                    >
-                      {row.staff_name}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div style={{ marginTop: 18 }}>
-            <div style={sectionMiniStyle}>ADD STAFF</div>
-            <div style={addStaffRowStyle} className="attendance-button-row">
-              <input
-                value={newStaffName}
-                onChange={(e) => setNewStaffName(e.target.value)}
-                placeholder="新しく追加するスタッフ名"
-                style={inputStyle}
-              />
-              <button
-                type="button"
-                onClick={handleAddStaff}
-                style={secondaryButtonStyle}
-                disabled={saving || staffOptions.length >= 10}
-              >
-                スタッフ追加
-              </button>
-            </div>
-            <div style={helpTextStyle}>
-              最大10名まで登録できます。現在 {staffOptions.length} / 10 名
-            </div>
-          </div>
-        </section>
-
-        <section style={panelStyle}>
-          <div style={sectionHeaderStyle}>
-            <div>
-              <div style={sectionMiniStyle}>TODAY SETTINGS</div>
-              <h2 style={sectionTitleStyle}>今日の設定</h2>
+              <div style={sectionMiniStyle}>STAFF SETTINGS</div>
+              <h2 style={sectionTitleStyle}>スタッフ選択・今日の入力</h2>
             </div>
           </div>
 
           <div style={formGridStyle} className="attendance-settings-grid">
-            <FieldCard label="表示する月">
+            <FieldCard label="スタッフ名">
+              <select
+                value={selectedStaffId}
+                onChange={(e) => handleSelectStaff(e.target.value)}
+                style={inputStyle}
+              >
+                <option value="">スタッフを選択</option>
+                {staffList.map((staff) => (
+                  <option key={staff.staff_id} value={staff.staff_id}>
+                    {staff.staff_name}
+                  </option>
+                ))}
+              </select>
+            </FieldCard>
+
+            <FieldCard label="対象月">
               <input
                 type="month"
                 value={selectedMonth}
@@ -883,12 +810,14 @@ export default function AttendanceStaffPage() {
                 </button>
               </div>
             </FieldCard>
+          </div>
 
+          <div style={{ marginTop: 16 }}>
             <FieldCard label="今日のメモ">
               <textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                rows={3}
+                rows={4}
                 style={textareaStyle}
                 placeholder="遅刻・早退・連絡事項など"
               />
@@ -909,57 +838,30 @@ export default function AttendanceStaffPage() {
         <section style={metricGridStyle} className="attendance-metrics-grid four">
           <MetricCard label="本日の状態" value={getStatusLabel()} accentColor={statusTone.color} />
           <MetricCard label="本日の勤務時間" value={minutesToText(workedMinutes)} />
-          <MetricCard label="今月の出勤日数" value={`${monthSummary.workDays}日`} />
-          <MetricCard label="今月の総勤務時間" value={minutesToText(monthSummary.totalMinutes)} />
+          <MetricCard label="今月出勤日数" value={`${monthSummary.workDays}日`} />
+          <MetricCard label="対象月" value={monthLabel(selectedMonth)} />
         </section>
 
         <section style={metricGridStyle} className="attendance-metrics-grid four">
-          <MetricCard label="通常勤務時間" value={minutesToText(monthSummary.regularMinutes)} />
+          <MetricCard label="今月総勤務" value={minutesToText(monthSummary.totalMinutes)} />
+          <MetricCard label="通常勤務" value={minutesToText(monthSummary.regularMinutes)} />
           <MetricCard label="残業時間" value={minutesToText(monthSummary.overtimeMinutes)} />
           <MetricCard label="深夜時間" value={minutesToText(monthSummary.lateNightMinutes)} />
-          <MetricCard label="表示中の月" value={monthLabel(selectedMonth)} />
         </section>
 
         <section style={panelStyle}>
           <div style={sectionHeaderStyle}>
             <div>
               <div style={sectionMiniStyle}>TODAY TIMECARD</div>
-              <h2 style={sectionTitleStyle}>今日の打刻</h2>
+              <h2 style={sectionTitleStyle}>本日の打刻状況</h2>
             </div>
           </div>
 
           <div style={miniInfoGridStyle} className="attendance-miniinfo-grid">
             <MiniInfo label="スタッフ名" value={staffName || "未選択"} />
             <MiniInfo label="勤務日" value={todayJst} />
-            <MiniInfo label="出勤時刻" value={formatTimeJP(todayRow?.clock_in)} />
-            <MiniInfo label="退勤時刻" value={formatTimeJP(todayRow?.clock_out)} />
-          </div>
-
-          <div style={actionRowStyle} className="attendance-button-row">
-            <button
-              onClick={handleClockIn}
-              disabled={saving || !staffName || Boolean(todayRow?.clock_in)}
-              style={{
-                ...primaryButtonStyle,
-                opacity: saving || !staffName || Boolean(todayRow?.clock_in) ? 0.55 : 1,
-              }}
-            >
-              出勤する
-            </button>
-
-            <button
-              onClick={handleClockOut}
-              disabled={saving || !staffName || !Boolean(todayRow?.clock_in) || Boolean(todayRow?.clock_out)}
-              style={{
-                ...secondaryButtonStyle,
-                opacity:
-                  saving || !staffName || !Boolean(todayRow?.clock_in) || Boolean(todayRow?.clock_out)
-                    ? 0.55
-                    : 1,
-              }}
-            >
-              退勤する
-            </button>
+            <MiniInfo label="出勤" value={formatTimeJP(todayRow?.clock_in)} />
+            <MiniInfo label="退勤" value={formatTimeJP(todayRow?.clock_out)} />
           </div>
         </section>
 
@@ -967,13 +869,13 @@ export default function AttendanceStaffPage() {
           <div style={sectionHeaderStyle}>
             <div>
               <div style={sectionMiniStyle}>MONTHLY RECORDS</div>
-              <h2 style={sectionTitleStyle}>月別勤怠一覧</h2>
+              <h2 style={sectionTitleStyle}>今月の自分の勤怠一覧</h2>
             </div>
           </div>
 
           {loading ? (
             <div style={loadingStyle}>読み込み中...</div>
-          ) : !staffId ? (
+          ) : !selectedStaffId ? (
             <div style={emptyBoxStyle}>先にスタッフを選択してください。</div>
           ) : monthRows.length === 0 ? (
             <div style={emptyBoxStyle}>この月の勤怠データはまだありません。</div>
@@ -998,7 +900,7 @@ export default function AttendanceStaffPage() {
                   </div>
 
                   <div style={noteBoxStyle}>
-                    <div style={noteLabelStyle}>備考</div>
+                    <div style={noteLabelStyle}>メモ</div>
                     <div>{row.note || "—"}</div>
                   </div>
                 </div>
@@ -1017,7 +919,7 @@ export default function AttendanceStaffPage() {
                     <th style={thStyle}>残業</th>
                     <th style={thStyle}>深夜</th>
                     <th style={thStyle}>総勤務</th>
-                    <th style={thStyle}>備考</th>
+                    <th style={thStyle}>メモ</th>
                     <th style={thStyle}>更新日時</th>
                   </tr>
                 </thead>
@@ -1174,7 +1076,7 @@ const topLinkGroupStyle: CSSProperties = {
   flexWrap: "wrap",
 };
 
-const backLinkStyle: CSSProperties = {
+const mainBackLinkStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   minHeight: 40,
@@ -1192,12 +1094,6 @@ const subBackLinkStyle: CSSProperties = {
   textDecoration: "none",
   fontSize: 14,
   fontWeight: 600,
-};
-
-const topRightStyle: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 10,
 };
 
 const eyebrowStyle: CSSProperties = {
@@ -1265,21 +1161,6 @@ const heroButtonRowStyle: CSSProperties = {
   gap: 12,
   flexWrap: "wrap",
   marginTop: 24,
-};
-
-const secondaryLinkButtonStyle: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  minHeight: 48,
-  padding: "0 18px",
-  borderRadius: 14,
-  background: "rgba(255,255,255,0.84)",
-  border: "1px solid rgba(203,213,225,0.95)",
-  color: "#0f172a",
-  textDecoration: "none",
-  fontWeight: 700,
-  fontSize: 14,
 };
 
 const statusCardStyle: CSSProperties = {
@@ -1400,7 +1281,6 @@ const inputStyle: CSSProperties = {
 
 const textareaStyle: CSSProperties = {
   width: "100%",
-  minHeight: 120,
   borderRadius: 14,
   border: "1px solid rgba(203,213,225,0.9)",
   background: "rgba(255,255,255,0.82)",
@@ -1445,20 +1325,20 @@ const actionRowStyle: CSSProperties = {
 };
 
 const primaryButtonStyle: CSSProperties = {
-  minHeight: 54,
+  minHeight: 50,
   border: "none",
   borderRadius: 16,
   background: "linear-gradient(135deg, #2563eb, #60a5fa)",
   color: "#ffffff",
   fontWeight: 800,
-  fontSize: 15,
+  fontSize: 14,
   cursor: "pointer",
-  padding: "0 20px",
+  padding: "0 18px",
   boxShadow: "0 12px 28px rgba(37,99,235,0.22)",
 };
 
 const secondaryButtonStyle: CSSProperties = {
-  minHeight: 54,
+  minHeight: 50,
   border: "1px solid rgba(203,213,225,0.95)",
   borderRadius: 16,
   background: "rgba(255,255,255,0.84)",
@@ -1501,7 +1381,7 @@ const miniInfoGridStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
   gap: 12,
-  marginBottom: 16,
+  marginBottom: 0,
 };
 
 const miniInfoCardStyle: CSSProperties = {
@@ -1631,48 +1511,6 @@ const loadingStyle: CSSProperties = {
   padding: "16px 0",
 };
 
-const staffSelectWrapStyle: CSSProperties = {
-  display: "grid",
-  gap: 12,
-};
-
-const staffButtonGridStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-  gap: 12,
-};
-
-const staffSelectButtonStyle: CSSProperties = {
-  minHeight: 54,
-  borderRadius: 16,
-  border: "1px solid rgba(203,213,225,0.95)",
-  background: "rgba(255,255,255,0.84)",
-  color: "#0f172a",
-  fontWeight: 700,
-  fontSize: 15,
-  cursor: "pointer",
-  padding: "0 16px",
-};
-
-const staffSelectButtonActiveStyle: CSSProperties = {
-  background: "linear-gradient(135deg, #2563eb, #60a5fa)",
-  color: "#ffffff",
-  border: "1px solid rgba(37,99,235,0.45)",
-  boxShadow: "0 12px 28px rgba(37,99,235,0.22)",
-};
-
-const addStaffRowStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "minmax(0, 1fr) auto",
-  gap: 12,
-};
-
-const helpTextStyle: CSSProperties = {
-  marginTop: 8,
-  fontSize: 12,
-  color: "rgba(15,23,42,0.52)",
-};
-
 const responsiveStyle = `
 .attendance-hero-grid,
 .attendance-button-row,
@@ -1706,7 +1544,6 @@ const responsiveStyle = `
   }
 
   .attendance-hero-grid {
-    grid-template-columns: 1fr !important;
     gap: 14px !important;
     padding: 14px !important;
     border-radius: 22px !important;
@@ -1721,11 +1558,6 @@ const responsiveStyle = `
   .attendance-button-row {
     flex-direction: column !important;
     gap: 10px !important;
-  }
-
-  .attendance-sub-button {
-    width: 100% !important;
-    min-height: 52px !important;
   }
 
   .attendance-settings-grid {
