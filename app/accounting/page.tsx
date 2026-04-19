@@ -865,16 +865,16 @@ export default function AccountingPage() {
             </div>
 
             <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-              <Link href="/" style={linkButtonStyle}>
-                TOPへ
-              </Link>
-              <Link href="/signup/list" style={linkButtonStyle}>
-                入会申請一覧へ
-              </Link>
-              <Link href="/sales" style={linkButtonStyle}>
-                売上管理へ
-              </Link>
-            </div>
+  <Link href="/dashboard" style={linkButtonStyle}>
+    ダッシュボードへ
+  </Link>
+  <Link href="/signup/list" style={linkButtonStyle}>
+    入会申請一覧へ
+  </Link>
+  <Link href="/sales" style={linkButtonStyle}>
+    売上管理へ
+  </Link>
+</div>
           </div>
         </section>
 
