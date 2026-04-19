@@ -57,6 +57,10 @@ const quickLinks = [
   { title: "勤怠管理", href: "/attendance", desc: "打刻・勤務時間・確認" },
   { title: "会計管理", href: "/accounting", desc: "前受金・会計区分・集計" },
   { title: "サブスク管理", href: "/subscription", desc: "契約状況・残回数・継続管理" },
+
+  // 👇これ追加
+  { title: "食事管理", href: "/meal", desc: "食事投稿・フィードバック管理" },
+
   { title: "回数券購入登録", href: "/ticket-contracts", desc: "前受金として回数券契約を登録" },
 ];
 
