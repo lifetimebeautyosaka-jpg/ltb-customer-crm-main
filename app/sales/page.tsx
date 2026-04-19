@@ -2433,30 +2433,38 @@ export default function SalesPage() {
 
   if (!mounted) return null;
 
-  return (
-    <div style={pageStyle}>
-      <div style={innerStyle}>
-        <section style={cardStyle}>
-          <div style={headerStyle}>
-            <div>
-              <h1 style={titleStyle}>売上管理</h1>
-              <p style={subTextStyle}>
-                料金プリセット対応 / 予約連動 / 回数券消化 / 回数券自動発行対応
-              </p>
-            </div>
 
-            <div style={topActionsStyle}>
-  <Link href="/dashboard" style={linkButtonStyle}>
-    ダッシュボードへ
-  </Link>
-  <Link href="/signup/list" style={linkButtonStyle}>
-    入会申請一覧へ
-  </Link>
-  <button type="button" onClick={exportSalesCsv} style={secondaryButtonStyle}>
-    CSV出力
-  </button>
-</div>
+            return (
+  <div style={pageStyle}>
+    <div style={innerStyle}>
+      <section style={cardStyle}>
+        <div style={headerStyle}>
+          <div>
+            <h1 style={titleStyle}>売上管理</h1>
+            <p style={subTextStyle}>
+              料金プリセット対応 / 予約連動 / 回数券消化 / 回数券自動発行対応
+            </p>
+          </div>
 
+          <div style={topActionsStyle}>
+            <Link href="/dashboard" style={linkButtonStyle}>
+              ダッシュボードへ
+            </Link>
+
+            <Link href="/signup/list" style={linkButtonStyle}>
+              入会申請一覧へ
+            </Link>
+
+            <button
+              type="button"
+              onClick={exportSalesCsv}
+              style={secondaryButtonStyle}
+            >
+              CSV出力
+            </button>
+          </div>
+        </div>
+      </section>
         <section style={cardStyle}>
           <div style={statGridStyle}>
             <div style={statCardStyle}>
