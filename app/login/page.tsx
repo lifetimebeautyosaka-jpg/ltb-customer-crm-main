@@ -1,43 +1,95 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+
+type Mode = "staff" | "admin";
 
 export default function LoginPage() {
   const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
 
-  const [adminId, setAdminId] = useState("");
+  const [mode, setMode] = useState<Mode>("staff");
+
+  const [staffEmail, setStaffEmail] = useState("");
+  const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
+
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  const goStaff = () => {
-    localStorage.setItem("gymup_logged_in", "true");
-    localStorage.setItem("gymup_user_role", "staff");
-    localStorage.setItem("gymup_staff_logged_in", "true");
-
-    localStorage.removeItem("gymup_member_logged_in");
-    localStorage.removeItem("gymup_member_id");
-
-    router.push("/dashboard");
+  const clearStatus = () => {
+    setMessage("");
+    setError("");
   };
 
-  const goAdmin = () => {
-    setError("");
+  const handleStaffLogin = async () => {
+    clearStatus();
 
-    if (adminId !== "admin" || adminPassword !== "1234") {
-      setError("管理者IDまたはパスワードが違います。");
+    if (!staffEmail.trim()) {
+      setError("スタッフ用メールアドレスを入力してください。");
       return;
     }
 
-    localStorage.setItem("gymup_logged_in", "true");
-    localStorage.setItem("gymup_user_role", "admin");
+    try {
+      setLoading(true);
 
-    localStorage.removeItem("gymup_staff_logged_in");
-    localStorage.removeItem("gymup_member_logged_in");
-    localStorage.removeItem("gymup_member_id");
+      const { error } = await supabase.auth.signInWithOtp({
+        email: staffEmail.trim().toLowerCase(),
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+        },
+      });
 
-    router.push("/dashboard");
+      if (error) {
+        throw error;
+      }
+
+      setMessage(
+        "スタッフ用ログインメールを送信しました。メール内のリンクからログインしてください。"
+      );
+    } catch (e: any) {
+      setError(e?.message || "スタッフ用ログインメールの送信に失敗しました。");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAdminLogin = async () => {
+    clearStatus();
+
+    if (!adminEmail.trim()) {
+      setError("管理者メールアドレスを入力してください。");
+      return;
+    }
+
+    if (!adminPassword.trim()) {
+      setError("管理者パスワードを入力してください。");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const { error } = await supabase.auth.signInWithPassword({
+        email: adminEmail.trim().toLowerCase(),
+        password: adminPassword,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      router.push("/dashboard");
+      router.refresh();
+    } catch (e: any) {
+      setError(e?.message || "管理者ログインに失敗しました。");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -55,7 +107,7 @@ export default function LoginPage() {
       <div
         style={{
           width: "100%",
-          maxWidth: 460,
+          maxWidth: 480,
           borderRadius: 32,
           padding: "32px 24px",
           background:
@@ -90,7 +142,7 @@ export default function LoginPage() {
             color: "#ffffff",
           }}
         >
-          ログイン選択
+          ログイン
         </h1>
 
         <p
@@ -102,93 +154,110 @@ export default function LoginPage() {
             color: "rgba(226,232,240,0.72)",
           }}
         >
-          スタッフはワンタップ、管理者はIDとパスワードでログインします
+          スタッフはメールログイン、
+          <br />
+          管理者はメールアドレスとパスワードでログインします
         </p>
 
-        <section
+        <div
           style={{
-            textAlign: "left",
-            padding: "20px 18px",
-            borderRadius: 24,
-            background: "rgba(255,255,255,0.04)",
-            border: "1px solid rgba(255,255,255,0.06)",
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 10,
             marginBottom: 18,
           }}
         >
-          <div
-            style={{
-              fontSize: 12,
-              fontWeight: 800,
-              letterSpacing: "0.08em",
-              color: "#fdba74",
-              marginBottom: 10,
+          <button
+            type="button"
+            onClick={() => {
+              setMode("staff");
+              clearStatus();
             }}
-          >
-            STAFF
-          </div>
-
-          <div
             style={{
+              height: 46,
+              borderRadius: 16,
+              border:
+                mode === "staff"
+                  ? "none"
+                  : "1px solid rgba(255,255,255,0.10)",
+              background:
+                mode === "staff"
+                  ? "linear-gradient(135deg, #f97316 0%, #ea580c 100%)"
+                  : "rgba(255,255,255,0.05)",
+              color: "#fff",
               fontSize: 14,
-              lineHeight: 1.8,
-              color: "rgba(226,232,240,0.72)",
-              marginBottom: 14,
+              fontWeight: 900,
+              cursor: "pointer",
             }}
           >
-            スタッフはパスワードなしでそのまま入れます
-          </div>
+            スタッフ
+          </button>
 
           <button
             type="button"
-            onClick={goStaff}
+            onClick={() => {
+              setMode("admin");
+              clearStatus();
+            }}
             style={{
-              width: "100%",
-              height: 54,
-              border: "none",
-              borderRadius: 18,
-              background: "linear-gradient(135deg, #f97316 0%, #ea580c 100%)",
+              height: 46,
+              borderRadius: 16,
+              border:
+                mode === "admin"
+                  ? "none"
+                  : "1px solid rgba(255,255,255,0.10)",
+              background:
+                mode === "admin"
+                  ? "linear-gradient(135deg, #f97316 0%, #ea580c 100%)"
+                  : "rgba(255,255,255,0.05)",
               color: "#fff",
-              fontSize: 15,
+              fontSize: 14,
               fontWeight: 900,
               cursor: "pointer",
-              boxShadow: "0 18px 36px rgba(249,115,22,0.28)",
             }}
           >
-            スタッフで入る
+            管理者
           </button>
-        </section>
+        </div>
 
-        <section
-          style={{
-            textAlign: "left",
-            padding: "20px 18px",
-            borderRadius: 24,
-            background: "rgba(255,255,255,0.04)",
-            border: "1px solid rgba(255,255,255,0.06)",
-          }}
-        >
-          <div
+        {mode === "staff" ? (
+          <section
             style={{
-              fontSize: 12,
-              fontWeight: 800,
-              letterSpacing: "0.08em",
-              color: "#fdba74",
-              marginBottom: 12,
+              textAlign: "left",
+              padding: "20px 18px",
+              borderRadius: 24,
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.06)",
             }}
           >
-            ADMIN
-          </div>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 800,
+                letterSpacing: "0.08em",
+                color: "#fdba74",
+                marginBottom: 12,
+              }}
+            >
+              STAFF LOGIN
+            </div>
 
-          <div
-            style={{
-              display: "grid",
-              gap: 12,
-            }}
-          >
+            <div
+              style={{
+                fontSize: 14,
+                lineHeight: 1.8,
+                color: "rgba(226,232,240,0.72)",
+                marginBottom: 14,
+              }}
+            >
+              登録済みのスタッフメールアドレスにログインリンクを送信します。
+            </div>
+
             <input
-              value={adminId}
-              onChange={(e) => setAdminId(e.target.value)}
-              placeholder="管理者ID"
+              type="email"
+              value={staffEmail}
+              onChange={(e) => setStaffEmail(e.target.value)}
+              placeholder="スタッフ用メールアドレス"
               style={{
                 width: "100%",
                 height: 50,
@@ -200,6 +269,70 @@ export default function LoginPage() {
                 padding: "0 14px",
                 outline: "none",
                 boxSizing: "border-box",
+                marginBottom: 12,
+              }}
+            />
+
+            <button
+              type="button"
+              onClick={handleStaffLogin}
+              disabled={loading}
+              style={{
+                width: "100%",
+                height: 54,
+                border: "none",
+                borderRadius: 18,
+                background: "linear-gradient(135deg, #f97316 0%, #ea580c 100%)",
+                color: "#fff",
+                fontSize: 15,
+                fontWeight: 900,
+                cursor: "pointer",
+                boxShadow: "0 18px 36px rgba(249,115,22,0.28)",
+                opacity: loading ? 0.7 : 1,
+              }}
+            >
+              {loading ? "送信中..." : "ログインメールを送る"}
+            </button>
+          </section>
+        ) : (
+          <section
+            style={{
+              textAlign: "left",
+              padding: "20px 18px",
+              borderRadius: 24,
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.06)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 800,
+                letterSpacing: "0.08em",
+                color: "#fdba74",
+                marginBottom: 12,
+              }}
+            >
+              ADMIN LOGIN
+            </div>
+
+            <input
+              type="email"
+              value={adminEmail}
+              onChange={(e) => setAdminEmail(e.target.value)}
+              placeholder="管理者メールアドレス"
+              style={{
+                width: "100%",
+                height: 50,
+                borderRadius: 16,
+                border: "1px solid rgba(255,255,255,0.10)",
+                background: "rgba(255,255,255,0.06)",
+                color: "#ffffff",
+                fontSize: 14,
+                padding: "0 14px",
+                outline: "none",
+                boxSizing: "border-box",
+                marginBottom: 12,
               }}
             />
 
@@ -207,7 +340,7 @@ export default function LoginPage() {
               type="password"
               value={adminPassword}
               onChange={(e) => setAdminPassword(e.target.value)}
-              placeholder="パスワード"
+              placeholder="管理者パスワード"
               style={{
                 width: "100%",
                 height: 50,
@@ -219,29 +352,14 @@ export default function LoginPage() {
                 padding: "0 14px",
                 outline: "none",
                 boxSizing: "border-box",
+                marginBottom: 12,
               }}
             />
 
-            {error ? (
-              <div
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: 14,
-                  background: "rgba(239,68,68,0.12)",
-                  border: "1px solid rgba(239,68,68,0.22)",
-                  color: "#fca5a5",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  textAlign: "center",
-                }}
-              >
-                {error}
-              </div>
-            ) : null}
-
             <button
               type="button"
-              onClick={goAdmin}
+              onClick={handleAdminLogin}
+              disabled={loading}
               style={{
                 width: "100%",
                 height: 54,
@@ -253,12 +371,50 @@ export default function LoginPage() {
                 fontWeight: 900,
                 cursor: "pointer",
                 boxShadow: "0 18px 36px rgba(17,24,39,0.28)",
+                opacity: loading ? 0.7 : 1,
               }}
             >
-              管理者で入る
+              {loading ? "ログイン中..." : "管理者でログイン"}
             </button>
+          </section>
+        )}
+
+        {message ? (
+          <div
+            style={{
+              marginTop: 14,
+              padding: "10px 12px",
+              borderRadius: 14,
+              background: "rgba(34,197,94,0.12)",
+              border: "1px solid rgba(34,197,94,0.22)",
+              color: "#86efac",
+              fontSize: 13,
+              fontWeight: 700,
+              textAlign: "center",
+              lineHeight: 1.7,
+            }}
+          >
+            {message}
           </div>
-        </section>
+        ) : null}
+
+        {error ? (
+          <div
+            style={{
+              marginTop: 14,
+              padding: "10px 12px",
+              borderRadius: 14,
+              background: "rgba(239,68,68,0.12)",
+              border: "1px solid rgba(239,68,68,0.22)",
+              color: "#fca5a5",
+              fontSize: 13,
+              fontWeight: 700,
+              textAlign: "center",
+            }}
+          >
+            {error}
+          </div>
+        ) : null}
 
         <Link
           href="/"
