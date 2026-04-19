@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { createClient } from "@supabase/supabase-js";
 
@@ -36,21 +35,20 @@ const LOGIN_ACCOUNTS = [
 type RoleType = "admin" | "staff";
 
 export default function LoginPage() {
-  const router = useRouter();
-
   const [role, setRole] = useState<RoleType>("staff");
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState("");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (loading) return;
 
-    setError("");
     setLoading(true);
+    setError("");
+    setStatus("ログイン確認中...");
 
     try {
       if (!supabase) {
@@ -80,31 +78,35 @@ export default function LoginPage() {
         return;
       }
 
-      const { data, error: signInError } = await supabase.auth.signInWithPassword(
-        {
+      setStatus("Supabase認証中...");
+
+      const { data, error: signInError } =
+        await supabase.auth.signInWithPassword({
           email: account.email,
           password: trimmedPassword,
-        }
-      );
+        });
 
       if (signInError) {
-        console.error("signIn error:", signInError);
         setError(`ログイン失敗: ${signInError.message}`);
         return;
       }
 
       if (!data.user) {
-        setError("ログインに失敗しました");
+        setError("ログイン失敗: user取得不可");
         return;
       }
+
+      setStatus("ログイン成功。保存中...");
 
       localStorage.setItem(AUTH_STORAGE_KEY, "true");
       localStorage.setItem(ROLE_STORAGE_KEY, account.role);
       localStorage.setItem(STAFF_NAME_STORAGE_KEY, account.staffName);
 
-      router.replace("/dashboard");
+      setStatus("ダッシュボードへ移動中...");
+
+      window.location.href = "/dashboard";
     } catch (err) {
-      console.error("login catch error:", err);
+      console.error(err);
       setError("ログイン処理中にエラーが発生しました");
     } finally {
       setLoading(false);
@@ -127,6 +129,7 @@ export default function LoginPage() {
             onClick={() => {
               setRole("staff");
               setError("");
+              setStatus("");
             }}
           >
             スタッフ
@@ -137,6 +140,7 @@ export default function LoginPage() {
             onClick={() => {
               setRole("admin");
               setError("");
+              setStatus("");
             }}
           >
             管理者
@@ -162,6 +166,7 @@ export default function LoginPage() {
             autoComplete="current-password"
           />
 
+          {status ? <p style={styles.status}>{status}</p> : null}
           {error ? <p style={styles.error}>{error}</p> : null}
 
           <button type="submit" style={styles.button} disabled={loading}>
@@ -185,9 +190,9 @@ const styles: Record<string, React.CSSProperties> = {
   },
   card: {
     width: "100%",
-    maxWidth: 320,
+    maxWidth: 360,
     padding: 24,
-    borderRadius: 12,
+    borderRadius: 16,
     background: "#1a1a1a",
     textAlign: "center",
     boxSizing: "border-box",
@@ -228,14 +233,14 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 10,
   },
   input: {
-    padding: 10,
-    borderRadius: 6,
+    padding: 12,
+    borderRadius: 8,
     border: "none",
     fontSize: 16,
   },
   button: {
     padding: 12,
-    borderRadius: 6,
+    borderRadius: 8,
     border: "none",
     background: "#ff7a00",
     color: "#000",
@@ -245,6 +250,11 @@ const styles: Record<string, React.CSSProperties> = {
   },
   error: {
     color: "#ff5a5a",
+    fontSize: 12,
+    margin: 0,
+  },
+  status: {
+    color: "#ddd",
     fontSize: 12,
     margin: 0,
   },
