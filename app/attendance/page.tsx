@@ -5,24 +5,24 @@ import { CSSProperties } from "react";
 
 const menuCards = [
   {
-    title: "スタッフ用",
+    title: "スタッフ打刻",
     sub: "出勤・退勤・休憩入力",
     href: "/attendance/staff",
     stat: "STAFF",
     description:
-      "スタッフ本人がその日の出勤・退勤を記録するためのページです。",
+      "スタッフ本人が出勤・退勤・休憩・メモを入力するためのページです。",
   },
   {
-    title: "管理者用",
-    sub: "勤怠一覧・集計確認",
+    title: "管理者集計",
+    sub: "勤怠一覧・月別集計確認",
     href: "/attendance/admin",
     stat: "ADMIN",
     description:
-      "全スタッフの勤怠、月別集計、残業・深夜時間を確認できます。",
+      "全スタッフの勤怠、月別集計、残業・深夜時間、給与概算を確認できます。",
   },
   {
     title: "給与明細",
-    sub: "スタッフ別の給与概算",
+    sub: "スタッフ別の給与概算確認",
     href: "/attendance/admin/payslip",
     stat: "PAYSLIP",
     description:
@@ -49,11 +49,10 @@ export default function AttendancePage() {
       <div style={noiseStyle} />
 
       <div style={containerStyle}>
-  <div style={topBarStyle}>
-
-    <Link href="/dashboard" style={backLinkStyle}>
-      ← ダッシュボードへ戻る
-    </Link>
+        <div style={topBarStyle}>
+          <Link href="/dashboard" style={backLinkStyle}>
+            ← ダッシュボードへ戻る
+          </Link>
 
           <div style={topIconsStyle}>
             <div style={topDotStyle} />
@@ -65,11 +64,11 @@ export default function AttendancePage() {
         <section style={heroCardStyle} className="attendance-hero-grid">
           <div style={heroLeftStyle} className="attendance-hero-left">
             <div style={miniLabelStyle}>GYMUP CRM</div>
-            <h1 style={heroTitleStyle}>Attendance Dashboard</h1>
+            <h1 style={heroTitleStyle}>勤怠管理トップ</h1>
             <p style={heroSubStyle}>
-              勤怠管理・給与確認・賃金台帳出力を、
+              スタッフ打刻・管理者集計・給与明細・賃金台帳を、
               <br className="attendance-pc-break" />
-              ひとつの画面からスムーズに操作できます。
+              この画面からまとめて開けます。
             </p>
 
             <div style={heroButtonRowStyle} className="attendance-button-row">
@@ -143,20 +142,20 @@ export default function AttendancePage() {
 
               <div style={chartBottomStyle}>
                 <div>
-                  <div style={chartValueLabelStyle}>今月稼働</div>
-                  <div style={chartValueStyle}>ACTIVE</div>
+                  <div style={chartValueLabelStyle}>勤怠メニュー</div>
+                  <div style={chartValueStyle}>READY</div>
                 </div>
-                <div style={chartBadgeStyle}>LIVE</div>
+                <div style={chartBadgeStyle}>ACTIVE</div>
               </div>
             </div>
           </div>
         </section>
 
         <section style={statsGridStyle} className="attendance-stats-grid">
-          <StatCard label="打刻管理" value="CLOCK" />
-          <StatCard label="月次集計" value="SUMMARY" />
-          <StatCard label="給与確認" value="PAYROLL" />
-          <StatCard label="帳票出力" value="EXPORT" />
+          <StatCard label="スタッフ打刻" value="CLOCK" />
+          <StatCard label="管理者集計" value="SUMMARY" />
+          <StatCard label="給与明細" value="PAYROLL" />
+          <StatCard label="賃金台帳" value="EXPORT" />
         </section>
 
         <section style={menuSectionStyle}>
