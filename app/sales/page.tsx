@@ -1314,6 +1314,12 @@ export default function SalesPage() {
       window.location.href = "/login";
       return;
     }
+
+    const initialReservationId =
+      getQueryParam("reservationId") || getQueryParam("reservation_id");
+    if (initialReservationId) {
+      setReservationId(initialReservationId);
+    }
   }, []);
 
   useEffect(() => {
@@ -1372,7 +1378,7 @@ export default function SalesPage() {
     const queryFrom = getQueryParam("from");
     const querySignupId = getQueryParam("signup_id");
 
-    const queryDate = getQueryParam("date");
+    const queryDate = getQueryParam("date") || getQueryParam("saleDate");
     const queryCustomerId = getQueryParam("customerId") || getQueryParam("customer_id");
     const queryCustomerName =
       getQueryParam("customerName") ||
@@ -1418,11 +1424,14 @@ export default function SalesPage() {
     const queryAmount = getQueryParam("amount");
     const queryMemo = getQueryParam("memo");
 
+    if (queryReservationId) {
+      setReservationId(queryReservationId);
+    }
+
     if (queryDate) setDate(queryDate);
     if (queryStore) setStoreName(queryStore);
     if (queryStaff) setStaff(queryStaff);
     if (queryMenu) setMenuName(queryMenu);
-    if (queryReservationId) setReservationId(queryReservationId);
 
     if (queryService === "ストレッチ" || queryService === "トレーニング") {
       setServiceType(queryService);
@@ -1479,6 +1488,7 @@ export default function SalesPage() {
       queryMenu ? `申込メニュー: ${queryMenu}` : "",
       queryAmount ? `申込金額: ${queryAmount}` : "",
       queryMemo ? `申込メモ: ${queryMemo}` : "",
+      queryReservationId ? `予約ID: ${queryReservationId}` : "",
     ];
 
     setNote((prev) => mergeNoteLines(prev, lines));
@@ -1571,6 +1581,10 @@ export default function SalesPage() {
         setCustomerId(String(row.customer_id));
       }
 
+      if (row.customer_name) {
+        setNote((prev) => mergeNoteLines(prev, [`予約顧客: ${row.customer_name}`]));
+      }
+
       if (row.menu) {
         setMenuName(row.menu);
         setServiceType(detectServiceTypeFromMenu(row.menu));
@@ -1584,13 +1598,14 @@ export default function SalesPage() {
         const normalized = normalizePaymentMethod(row.payment_method);
         setPayments((prev) =>
           prev.map((payment, index) =>
-            index === 0 ? { ...payment, paymentMethod: normalized } : payment
+            index === 0 && payment.saleType !== "回数券消化"
+              ? { ...payment, paymentMethod: normalized }
+              : payment
           )
         );
       }
 
       const noteLines = [
-        row.customer_name ? `予約顧客: ${row.customer_name}` : "",
         row.memo ? `予約メモ: ${row.memo}` : "",
       ];
 
@@ -2433,38 +2448,38 @@ export default function SalesPage() {
 
   if (!mounted) return null;
 
+  return (
+    <div style={pageStyle}>
+      <div style={innerStyle}>
+        <section style={cardStyle}>
+          <div style={headerStyle}>
+            <div>
+              <h1 style={titleStyle}>売上管理</h1>
+              <p style={subTextStyle}>
+                料金プリセット対応 / 予約連動 / 回数券消化 / 回数券自動発行対応
+              </p>
+            </div>
 
-            return (
-  <div style={pageStyle}>
-    <div style={innerStyle}>
-      <section style={cardStyle}>
-        <div style={headerStyle}>
-          <div>
-            <h1 style={titleStyle}>売上管理</h1>
-            <p style={subTextStyle}>
-              料金プリセット対応 / 予約連動 / 回数券消化 / 回数券自動発行対応
-            </p>
+            <div style={topActionsStyle}>
+              <Link href="/dashboard" style={linkButtonStyle}>
+                ダッシュボードへ
+              </Link>
+
+              <Link href="/signup/list" style={linkButtonStyle}>
+                入会申請一覧へ
+              </Link>
+
+              <button
+                type="button"
+                onClick={exportSalesCsv}
+                style={secondaryButtonStyle}
+              >
+                CSV出力
+              </button>
+            </div>
           </div>
+        </section>
 
-          <div style={topActionsStyle}>
-            <Link href="/dashboard" style={linkButtonStyle}>
-              ダッシュボードへ
-            </Link>
-
-            <Link href="/signup/list" style={linkButtonStyle}>
-              入会申請一覧へ
-            </Link>
-
-            <button
-              type="button"
-              onClick={exportSalesCsv}
-              style={secondaryButtonStyle}
-            >
-              CSV出力
-            </button>
-          </div>
-        </div>
-      </section>
         <section style={cardStyle}>
           <div style={statGridStyle}>
             <div style={statCardStyle}>
