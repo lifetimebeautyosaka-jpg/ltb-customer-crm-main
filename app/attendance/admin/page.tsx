@@ -172,14 +172,14 @@ export default function AttendanceAdminPage() {
       localStorage.getItem("gymup_logged_in") ||
       localStorage.getItem("isLoggedIn");
 
-    const role = localStorage.getItem("gymup_user_role");
+    const role = (localStorage.getItem("gymup_user_role") || "").trim();
 
     if (loggedIn !== "true") {
       window.location.href = "/login";
       return;
     }
 
-    if (role !== "admin") {
+    if (role === "staff") {
       window.location.href = "/attendance/staff";
       return;
     }
@@ -188,7 +188,6 @@ export default function AttendanceAdminPage() {
   }, [mounted]);
 
   const mobile = windowWidth < 768;
-  const tablet = windowWidth < 1100;
 
   async function fetchAttendance() {
     if (!supabase) {
@@ -600,7 +599,7 @@ export default function AttendanceAdminPage() {
             </div>
           </div>
 
-          <div style={staffMasterAddWrapStyle}>
+          <div style={staffMasterAddWrapStyle} className="staff-master-add-grid">
             <div style={staffMasterAddLeftStyle}>
               <FieldCard label="新しいスタッフ名">
                 <input
