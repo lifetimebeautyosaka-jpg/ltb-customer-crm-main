@@ -7,9 +7,13 @@ export default function StaffLoginPage() {
   const router = useRouter();
 
   const handleEnter = () => {
+    localStorage.setItem("gymup_logged_in", "true");
+    localStorage.setItem("gymup_user_role", "staff");
     localStorage.setItem("gymup_staff_logged_in", "true");
+
     localStorage.removeItem("gymup_member_logged_in");
     localStorage.removeItem("gymup_member_id");
+
     router.push("/dashboard");
   };
 
@@ -75,7 +79,7 @@ export default function StaffLoginPage() {
             color: "rgba(226,232,240,0.72)",
           }}
         >
-          管理画面ダッシュボードへ進みます
+          スタッフ権限でダッシュボードへ進みます
         </p>
 
         <button
