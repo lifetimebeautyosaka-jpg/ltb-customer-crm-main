@@ -18,9 +18,6 @@ const AUTH_STORAGE_KEY = "gymup_logged_in";
 const ROLE_STORAGE_KEY = "gymup_user_role";
 const STAFF_NAME_STORAGE_KEY = "gymup_current_staff_name";
 
-/**
- * 🔥 あなたの設定 完全版
- */
 const LOGIN_ACCOUNTS = [
   {
     loginId: "admin",
@@ -49,40 +46,69 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (loading) return;
+
     setError("");
-
-    if (!supabase) {
-      setError("Supabase未設定");
-      return;
-    }
-
-    const account = LOGIN_ACCOUNTS.find(
-      (a) => a.loginId === loginId && a.role === role
-    );
-
-    if (!account) {
-      setError("IDが違います");
-      return;
-    }
-
     setLoading(true);
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: account.email,
-      password: password,
-    });
+    try {
+      if (!supabase) {
+        setError("Supabase未設定です。.env.local を確認してください。");
+        return;
+      }
 
-    if (error || !data.user) {
-      setError("パスワードが違います");
+      const trimmedId = loginId.trim();
+      const trimmedPassword = password.trim();
+
+      if (!trimmedId) {
+        setError("IDを入力してください");
+        return;
+      }
+
+      if (!trimmedPassword) {
+        setError("パスワードを入力してください");
+        return;
+      }
+
+      const account = LOGIN_ACCOUNTS.find(
+        (a) => a.loginId === trimmedId && a.role === role
+      );
+
+      if (!account) {
+        setError("IDが違います");
+        return;
+      }
+
+      const { data, error: signInError } = await supabase.auth.signInWithPassword(
+        {
+          email: account.email,
+          password: trimmedPassword,
+        }
+      );
+
+      if (signInError) {
+        console.error("signIn error:", signInError);
+        setError(`ログイン失敗: ${signInError.message}`);
+        return;
+      }
+
+      if (!data.user) {
+        setError("ログインに失敗しました");
+        return;
+      }
+
+      localStorage.setItem(AUTH_STORAGE_KEY, "true");
+      localStorage.setItem(ROLE_STORAGE_KEY, account.role);
+      localStorage.setItem(STAFF_NAME_STORAGE_KEY, account.staffName);
+
+      router.replace("/dashboard");
+    } catch (err) {
+      console.error("login catch error:", err);
+      setError("ログイン処理中にエラーが発生しました");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    localStorage.setItem(AUTH_STORAGE_KEY, "true");
-    localStorage.setItem(ROLE_STORAGE_KEY, account.role);
-    localStorage.setItem(STAFF_NAME_STORAGE_KEY, account.staffName);
-
-    router.push("/dashboard");
   };
 
   return (
@@ -96,14 +122,22 @@ export default function LoginPage() {
 
         <div style={styles.tabs}>
           <button
+            type="button"
             style={role === "staff" ? styles.activeTab : styles.tab}
-            onClick={() => setRole("staff")}
+            onClick={() => {
+              setRole("staff");
+              setError("");
+            }}
           >
             スタッフ
           </button>
           <button
+            type="button"
             style={role === "admin" ? styles.activeTab : styles.tab}
-            onClick={() => setRole("admin")}
+            onClick={() => {
+              setRole("admin");
+              setError("");
+            }}
           >
             管理者
           </button>
@@ -116,6 +150,7 @@ export default function LoginPage() {
             value={loginId}
             onChange={(e) => setLoginId(e.target.value)}
             style={styles.input}
+            autoComplete="username"
           />
 
           <input
@@ -124,11 +159,12 @@ export default function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             style={styles.input}
+            autoComplete="current-password"
           />
 
-          {error && <p style={styles.error}>{error}</p>}
+          {error ? <p style={styles.error}>{error}</p> : null}
 
-          <button style={styles.button} disabled={loading}>
+          <button type="submit" style={styles.button} disabled={loading}>
             {loading ? "ログイン中..." : "ログイン"}
           </button>
         </form>
@@ -145,13 +181,16 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     background: "#111",
     color: "#fff",
+    padding: "16px",
   },
   card: {
-    width: 320,
+    width: "100%",
+    maxWidth: 320,
     padding: 24,
     borderRadius: 12,
     background: "#1a1a1a",
     textAlign: "center",
+    boxSizing: "border-box",
   },
   logoWrap: {
     marginBottom: 12,
@@ -163,6 +202,8 @@ const styles: Record<string, React.CSSProperties> = {
   tabs: {
     display: "flex",
     marginBottom: 16,
+    borderRadius: 8,
+    overflow: "hidden",
   },
   tab: {
     flex: 1,
@@ -170,6 +211,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#333",
     border: "none",
     color: "#fff",
+    cursor: "pointer",
   },
   activeTab: {
     flex: 1,
@@ -178,6 +220,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "none",
     color: "#000",
     fontWeight: "bold",
+    cursor: "pointer",
   },
   form: {
     display: "flex",
@@ -188,6 +231,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 10,
     borderRadius: 6,
     border: "none",
+    fontSize: 16,
   },
   button: {
     padding: 12,
@@ -197,9 +241,11 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#000",
     fontWeight: "bold",
     cursor: "pointer",
+    fontSize: 16,
   },
   error: {
-    color: "red",
+    color: "#ff5a5a",
     fontSize: 12,
+    margin: 0,
   },
 };
