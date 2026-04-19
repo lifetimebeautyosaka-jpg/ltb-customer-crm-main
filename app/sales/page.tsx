@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createClient } from "@supabase/supabase-js";
 
@@ -1275,6 +1276,8 @@ function getServiceBadgeStyle(type: ServiceType): CSSProperties {
 }
 
 export default function SalesPage() {
+  const router = useRouter();
+
   const [mounted, setMounted] = useState(false);
   const [windowWidth, setWindowWidth] = useState(1400);
 
@@ -1324,6 +1327,14 @@ export default function SalesPage() {
   const desktop = windowWidth >= 1280;
   const tablet = windowWidth < 1280;
   const mobile = windowWidth < 820;
+
+  const goToCustomerDetail = (sale: Sale) => {
+    if (!sale.customerId) {
+      alert("この売上には顧客IDが紐づいていません");
+      return;
+    }
+    router.push(`/customer/${sale.customerId}`);
+  };
 
   const presetOptionsForService = useMemo(() => {
     return PRICE_PRESETS.filter((preset) => preset.serviceType === serviceType);
@@ -2412,6 +2423,14 @@ export default function SalesPage() {
     gap: "8px",
   };
 
+  const customerLinkStyle: CSSProperties = {
+    fontWeight: 900,
+    color: "#111827",
+    cursor: "pointer",
+    textDecoration: "underline",
+    textUnderlineOffset: "3px",
+  };
+
   if (!mounted) return null;
 
   return (
@@ -2465,8 +2484,12 @@ export default function SalesPage() {
               </div>
             </div>
             <div style={statCardStyle}>
-              <div style={statLabelStyle}>予約ステータス</div>
-              <div style={{ ...statValueStyle, fontSize: mobile ? "14px" : tablet ? "16px" : "20px" }}>
+              <div
+                style={{
+                  ...statLabelStyle,
+                  fontSize: mobile ? "14px" : tablet ? "16px" : "20px",
+                }}
+              >
                 {reservationStatus || "—"}
               </div>
             </div>
@@ -2932,18 +2955,26 @@ export default function SalesPage() {
                     <div key={sale.id} style={mobileSaleCompactCardStyle}>
                       <div style={mobileSaleTopRowStyle}>
                         <div style={{ minWidth: 0, flex: 1 }}>
-                          <div
+                          <button
+                            type="button"
+                            onClick={() => goToCustomerDetail(sale)}
                             style={{
-                              fontWeight: 900,
-                              fontSize: "14px",
-                              color: "#111827",
+                              border: "none",
+                              background: "transparent",
+                              padding: 0,
+                              margin: 0,
+                              ...customerLinkStyle,
                               whiteSpace: "nowrap",
                               overflow: "hidden",
                               textOverflow: "ellipsis",
+                              display: "block",
+                              textAlign: "left",
+                              width: "100%",
+                              fontSize: "14px",
                             }}
                           >
                             {sale.customerName}
-                          </div>
+                          </button>
                           <div
                             style={{
                               fontSize: "12px",
@@ -2994,7 +3025,20 @@ export default function SalesPage() {
                         {sale.reservationId ? ` / 予約ID: ${sale.reservationId}` : ""}
                       </div>
 
-                      <div>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "1fr 1fr",
+                          gap: "8px",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => goToCustomerDetail(sale)}
+                          style={actionToggleBtnStyle}
+                        >
+                          顧客詳細
+                        </button>
                         <button
                           type="button"
                           onClick={() => toggleSaleActions(sale.id)}
@@ -3087,7 +3131,22 @@ export default function SalesPage() {
                     filteredSales.map((sale) => (
                       <tr key={sale.id}>
                         <td style={tableCellStyle()}>{formatDateJP(sale.date)}</td>
-                        <td style={tableCellStyle()}>{sale.customerName}</td>
+                        <td style={tableCellStyle()}>
+                          <button
+                            type="button"
+                            onClick={() => goToCustomerDetail(sale)}
+                            style={{
+                              border: "none",
+                              background: "transparent",
+                              padding: 0,
+                              margin: 0,
+                              ...customerLinkStyle,
+                              fontSize: "14px",
+                            }}
+                          >
+                            {sale.customerName}
+                          </button>
+                        </td>
                         <td style={tableCellStyle()}>{sale.menuName}</td>
                         <td style={tableCellStyle()}>
                           <span
@@ -3120,13 +3179,22 @@ export default function SalesPage() {
                           {sale.note || "—"}
                         </td>
                         <td style={tableCellStyle()}>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteSale(sale.id)}
-                            style={dangerButtonStyle}
-                          >
-                            削除
-                          </button>
+                          <div style={{ display: "grid", gap: "8px" }}>
+                            <button
+                              type="button"
+                              onClick={() => goToCustomerDetail(sale)}
+                              style={secondaryButtonStyle}
+                            >
+                              顧客詳細
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSale(sale.id)}
+                              style={dangerButtonStyle}
+                            >
+                              削除
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
