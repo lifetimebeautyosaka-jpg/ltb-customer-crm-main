@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { ChangeEvent, useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
 type Customer = {
   id: string | number;
@@ -20,22 +20,24 @@ type Meal = {
   createdAt: string;
 };
 
-function getTodayString() {
-  return new Date().toISOString().slice(0, 10);
+function todayString() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = `${d.getMonth() + 1}`.padStart(2, "0");
+  const day = `${d.getDate()}`.padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 export default function CustomerMealNewPage() {
   const params = useParams();
-  const router = useRouter();
-  const customerId = String(params?.id ?? "");
+  const customerId = String(params?.id || "");
 
   const [mounted, setMounted] = useState(false);
   const [customer, setCustomer] = useState<Customer | null>(null);
 
-  const [date, setDate] = useState(getTodayString());
-  const [comment, setComment] = useState("");
+  const [date, setDate] = useState(todayString());
   const [image, setImage] = useState("");
-  const [preview, setPreview] = useState("");
+  const [comment, setComment] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -52,32 +54,19 @@ export default function CustomerMealNewPage() {
         localStorage.getItem("gymup_customers") ||
         localStorage.getItem("customers");
 
-      if (savedCustomers) {
-        const parsed = JSON.parse(savedCustomers);
-        if (Array.isArray(parsed)) {
-          const found = parsed.find(
-            (item: Customer) => String(item.id) === customerId
-          );
-          setCustomer(found || null);
-        }
-      }
-    } catch {
+      const parsedCustomers: Customer[] = savedCustomers
+        ? JSON.parse(savedCustomers)
+        : [];
+
+      const foundCustomer =
+        parsedCustomers.find((c) => String(c.id) === customerId) || null;
+
+      setCustomer(foundCustomer);
+    } catch (error) {
+      console.error(error);
       setCustomer(null);
     }
   }, [customerId]);
-
-  const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result || "");
-      setImage(result);
-      setPreview(result);
-    };
-    reader.readAsDataURL(file);
-  };
 
   const handleSave = () => {
     if (!date) {
@@ -86,16 +75,16 @@ export default function CustomerMealNewPage() {
     }
 
     if (!comment.trim()) {
-      alert("コメントを入力してください");
+      alert("食事内容を入力してください");
       return;
     }
 
-    setSaving(true);
-
     try {
-      const storageKey = `gymup_meals_${customerId}`;
-      const savedMeals = localStorage.getItem(storageKey);
+      setSaving(true);
+
+      const savedMeals = localStorage.getItem(`gymup_meals_${customerId}`);
       const parsedMeals: Meal[] = savedMeals ? JSON.parse(savedMeals) : [];
+      const safeMeals = Array.isArray(parsedMeals) ? parsedMeals : [];
 
       const newMeal: Meal = {
         id:
@@ -103,18 +92,19 @@ export default function CustomerMealNewPage() {
             ? crypto.randomUUID()
             : String(Date.now()),
         date,
-        image: image || "",
+        image: image.trim() || "",
         comment: comment.trim(),
         feedback: "",
         createdAt: new Date().toISOString(),
       };
 
-      const nextMeals = [newMeal, ...(Array.isArray(parsedMeals) ? parsedMeals : [])];
-      localStorage.setItem(storageKey, JSON.stringify(nextMeals));
+      const updatedMeals = [newMeal, ...safeMeals];
+      localStorage.setItem(`gymup_meals_${customerId}`, JSON.stringify(updatedMeals));
 
       alert("食事投稿を保存しました");
-      router.push(`/customer/${customerId}/meal`);
-    } catch {
+      window.location.href = `/customer/${customerId}/meal`;
+    } catch (error) {
+      console.error(error);
       alert("保存に失敗しました");
     } finally {
       setSaving(false);
@@ -133,8 +123,8 @@ export default function CustomerMealNewPage() {
         fontFamily: "system-ui, sans-serif",
       }}
     >
-      <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
-        <div
+      <div style={{ maxWidth: "980px", margin: "0 auto", display: "grid", gap: "20px" }}>
+        <section
           style={{
             background: "rgba(255,255,255,0.50)",
             backdropFilter: "blur(18px)",
@@ -144,7 +134,6 @@ export default function CustomerMealNewPage() {
             padding: "28px",
             boxShadow:
               "0 20px 60px rgba(15, 23, 42, 0.10), inset 0 1px 0 rgba(255,255,255,0.92)",
-            marginBottom: "24px",
           }}
         >
           <div
@@ -166,7 +155,7 @@ export default function CustomerMealNewPage() {
                   marginBottom: "10px",
                 }}
               >
-                MEAL POST
+                NEW MEAL POST
               </div>
 
               <h1
@@ -178,7 +167,7 @@ export default function CustomerMealNewPage() {
                   lineHeight: 1.15,
                 }}
               >
-                食事投稿
+                {customer ? `${customer.name} 様の食事投稿` : "食事投稿"}
               </h1>
 
               <p
@@ -189,7 +178,7 @@ export default function CustomerMealNewPage() {
                   lineHeight: 1.8,
                 }}
               >
-                {customer?.name || "顧客"} の食事内容を投稿します
+                食事内容・画像URLを登録できます
               </p>
             </div>
 
@@ -197,112 +186,103 @@ export default function CustomerMealNewPage() {
               <Link href={`/customer/${customerId}/meal`} style={subButtonStyle}>
                 ← 食事一覧へ
               </Link>
-              <Link href={`/customer/${customerId}`} style={subButtonStyle}>
-                顧客詳細へ
+
+              <Link href="/meal" style={subButtonStyle}>
+                食事管理トップ
               </Link>
             </div>
           </div>
-        </div>
+        </section>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 320px",
-            gap: "24px",
-            alignItems: "start",
-          }}
-        >
-          <section style={cardStyle}>
-            <h2 style={sectionTitleStyle}>投稿内容</h2>
-
-            <div style={formGridStyle}>
-              <div>
-                <label style={labelStyle}>日付</label>
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  style={inputStyle}
-                />
-              </div>
-
-              <div>
-                <label style={labelStyle}>画像</label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  style={fileInputStyle}
-                />
-              </div>
-
-              <div style={{ gridColumn: "1 / -1" }}>
-                <label style={labelStyle}>コメント</label>
-                <textarea
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  placeholder="例：朝食はサラダ、ゆで卵、プロテイン。昼は鶏むね肉とご飯。夜は控えめにしました。"
-                  style={{ ...inputStyle, minHeight: "180px", resize: "vertical" }}
-                />
-              </div>
+        <section style={cardStyle}>
+          <div style={{ display: "grid", gap: "16px" }}>
+            <div>
+              <label style={labelStyle}>日付</label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                style={inputStyle}
+              />
             </div>
 
-            <div style={{ marginTop: "18px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
-              <button onClick={handleSave} style={mainButtonStyle} disabled={saving}>
-                {saving ? "保存中..." : "投稿を保存する"}
-              </button>
+            <div>
+              <label style={labelStyle}>画像URL（任意）</label>
+              <input
+                type="text"
+                value={image}
+                onChange={(e) => setImage(e.target.value)}
+                placeholder="https://..."
+                style={inputStyle}
+              />
+            </div>
 
-              <button
-                onClick={() => router.push(`/customer/${customerId}/meal`)}
-                style={subButtonPlainStyle}
+            {image.trim() ? (
+              <div
+                style={{
+                  borderRadius: "18px",
+                  overflow: "hidden",
+                  border: "1px solid rgba(226,232,240,1)",
+                  background: "#fff",
+                }}
               >
-                キャンセル
-              </button>
-            </div>
-          </section>
-
-          <section style={sideCardStyle}>
-            <h2 style={sectionTitleStyle}>プレビュー</h2>
-
-            <div style={infoBoxStyle}>
-              <div style={infoLabelStyle}>顧客名</div>
-              <div style={infoValueStyle}>{customer?.name || "未設定"}</div>
-            </div>
-
-            <div style={infoBoxStyle}>
-              <div style={infoLabelStyle}>日付</div>
-              <div style={infoValueStyle}>{date || "-"}</div>
-            </div>
-
-            <div style={infoBoxStyle}>
-              <div style={infoLabelStyle}>コメント</div>
-              <div style={contentTextStyle}>
-                {comment.trim() || "コメントはまだありません"}
-              </div>
-            </div>
-
-            <div style={infoBoxStyle}>
-              <div style={infoLabelStyle}>画像プレビュー</div>
-              {preview ? (
                 <img
-                  src={preview}
-                  alt="画像プレビュー"
+                  src={image}
+                  alt="preview"
                   style={{
                     width: "100%",
-                    borderRadius: "14px",
+                    maxHeight: "360px",
                     objectFit: "cover",
-                    maxHeight: "260px",
                     display: "block",
                   }}
                 />
-              ) : (
-                <div style={{ ...contentTextStyle, color: "#6b7280" }}>
-                  画像はまだ選択されていません
-                </div>
-              )}
+              </div>
+            ) : null}
+
+            <div>
+              <label style={labelStyle}>食事内容</label>
+              <textarea
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="例：朝食 / オートミール・卵・サラダ"
+                style={textareaStyle}
+              />
             </div>
-          </section>
-        </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                gap: "12px",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setDate(todayString());
+                  setImage("");
+                  setComment("");
+                }}
+                style={subButtonStyleButton}
+              >
+                リセット
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                style={{
+                  ...mainButtonStyle,
+                  opacity: saving ? 0.7 : 1,
+                  cursor: saving ? "not-allowed" : "pointer",
+                }}
+              >
+                {saving ? "保存中..." : "保存する"}
+              </button>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );
@@ -319,36 +299,12 @@ const cardStyle: React.CSSProperties = {
     "0 16px 44px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.92)",
 };
 
-const sideCardStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.48)",
-  backdropFilter: "blur(18px)",
-  WebkitBackdropFilter: "blur(18px)",
-  border: "1px solid rgba(255,255,255,0.75)",
-  borderRadius: "24px",
-  padding: "22px",
-  boxShadow:
-    "0 16px 44px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.92)",
-};
-
-const sectionTitleStyle: React.CSSProperties = {
-  margin: "0 0 18px 0",
-  fontSize: "24px",
-  fontWeight: 800,
-  color: "#111827",
-};
-
-const formGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-  gap: "16px",
-};
-
 const labelStyle: React.CSSProperties = {
   display: "block",
-  fontSize: "14px",
-  fontWeight: 600,
-  color: "#374151",
   marginBottom: "8px",
+  fontSize: "13px",
+  fontWeight: 700,
+  color: "#374151",
 };
 
 const inputStyle: React.CSSProperties = {
@@ -363,64 +319,11 @@ const inputStyle: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
-const fileInputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "10px 12px",
-  borderRadius: "14px",
-  border: "1px solid rgba(203,213,225,0.9)",
-  background: "rgba(255,255,255,0.88)",
-  fontSize: "14px",
-  color: "#111827",
-  boxSizing: "border-box",
-};
-
-const infoBoxStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(226,232,240,0.95)",
-  borderRadius: "16px",
-  padding: "14px",
-  marginBottom: "12px",
-};
-
-const infoLabelStyle: React.CSSProperties = {
-  fontSize: "12px",
-  color: "#6b7280",
-  marginBottom: "6px",
-};
-
-const infoValueStyle: React.CSSProperties = {
-  fontSize: "15px",
-  color: "#111827",
-  fontWeight: 700,
-};
-
-const contentTextStyle: React.CSSProperties = {
-  fontSize: "14px",
-  color: "#374151",
+const textareaStyle: React.CSSProperties = {
+  ...inputStyle,
+  minHeight: "160px",
+  resize: "vertical",
   lineHeight: 1.8,
-  whiteSpace: "pre-wrap",
-};
-
-const mainButtonStyle: React.CSSProperties = {
-  border: "none",
-  borderRadius: "14px",
-  padding: "13px 20px",
-  background: "#111827",
-  color: "#ffffff",
-  fontWeight: 700,
-  fontSize: "15px",
-  cursor: "pointer",
-};
-
-const subButtonPlainStyle: React.CSSProperties = {
-  border: "1px solid rgba(203,213,225,0.95)",
-  borderRadius: "14px",
-  padding: "13px 20px",
-  background: "rgba(255,255,255,0.85)",
-  color: "#111827",
-  fontWeight: 700,
-  fontSize: "15px",
-  cursor: "pointer",
 };
 
 const subButtonStyle: React.CSSProperties = {
@@ -431,4 +334,26 @@ const subButtonStyle: React.CSSProperties = {
   border: "1px solid rgba(203,213,225,0.95)",
   color: "#111827",
   fontWeight: 700,
+  textAlign: "center",
+};
+
+const subButtonStyleButton: React.CSSProperties = {
+  borderRadius: "14px",
+  padding: "12px 16px",
+  background: "rgba(255,255,255,0.85)",
+  border: "1px solid rgba(203,213,225,0.95)",
+  color: "#111827",
+  fontWeight: 700,
+  textAlign: "center",
+  cursor: "pointer",
+};
+
+const mainButtonStyle: React.CSSProperties = {
+  borderRadius: "14px",
+  padding: "12px 16px",
+  background: "#111827",
+  border: "none",
+  color: "#ffffff",
+  fontWeight: 700,
+  textAlign: "center",
 };
