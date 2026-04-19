@@ -7,14 +7,34 @@ import { createClient } from "@/lib/supabase/client";
 
 type Mode = "staff" | "admin";
 
+function normalizeLoginId(raw: string) {
+  return raw.trim().toLowerCase().replace(/\s+/g, "");
+}
+
+function buildAuthEmail(id: string, mode: Mode) {
+  const normalized = normalizeLoginId(id);
+
+  if (!normalized) return "";
+
+  if (normalized.includes("@")) {
+    return normalized;
+  }
+
+  return mode === "admin"
+    ? `${normalized}@admin.gymup.local`
+    : `${normalized}@staff.gymup.local`;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
 
   const [mode, setMode] = useState<Mode>("staff");
 
-  const [staffEmail, setStaffEmail] = useState("");
-  const [adminEmail, setAdminEmail] = useState("");
+  const [staffId, setStaffId] = useState("");
+  const [staffPassword, setStaffPassword] = useState("");
+
+  const [adminId, setAdminId] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
 
   const [loading, setLoading] = useState(false);
@@ -29,30 +49,34 @@ export default function LoginPage() {
   const handleStaffLogin = async () => {
     clearStatus();
 
-    if (!staffEmail.trim()) {
-      setError("スタッフ用メールアドレスを入力してください。");
+    if (!staffId.trim()) {
+      setError("スタッフIDを入力してください。");
+      return;
+    }
+
+    if (!staffPassword.trim()) {
+      setError("スタッフパスワードを入力してください。");
       return;
     }
 
     try {
       setLoading(true);
 
-      const { error } = await supabase.auth.signInWithOtp({
-        email: staffEmail.trim().toLowerCase(),
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
-        },
+      const email = buildAuthEmail(staffId, "staff");
+
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password: staffPassword,
       });
 
       if (error) {
         throw error;
       }
 
-      setMessage(
-        "スタッフ用ログインメールを送信しました。メール内のリンクからログインしてください。"
-      );
+      router.push("/dashboard");
+      router.refresh();
     } catch (e: any) {
-      setError(e?.message || "スタッフ用ログインメールの送信に失敗しました。");
+      setError(e?.message || "スタッフログインに失敗しました。");
     } finally {
       setLoading(false);
     }
@@ -61,8 +85,8 @@ export default function LoginPage() {
   const handleAdminLogin = async () => {
     clearStatus();
 
-    if (!adminEmail.trim()) {
-      setError("管理者メールアドレスを入力してください。");
+    if (!adminId.trim()) {
+      setError("管理者IDを入力してください。");
       return;
     }
 
@@ -74,8 +98,10 @@ export default function LoginPage() {
     try {
       setLoading(true);
 
+      const email = buildAuthEmail(adminId, "admin");
+
       const { error } = await supabase.auth.signInWithPassword({
-        email: adminEmail.trim().toLowerCase(),
+        email,
         password: adminPassword,
       });
 
@@ -154,9 +180,9 @@ export default function LoginPage() {
             color: "rgba(226,232,240,0.72)",
           }}
         >
-          スタッフはメールログイン、
+          スタッフも管理者も
           <br />
-          管理者はメールアドレスとパスワードでログインします
+          IDとパスワードでログインします
         </p>
 
         <div
@@ -250,14 +276,36 @@ export default function LoginPage() {
                 marginBottom: 14,
               }}
             >
-              登録済みのスタッフメールアドレスにログインリンクを送信します。
+              スタッフIDとパスワードでログインします。
             </div>
 
             <input
-              type="email"
-              value={staffEmail}
-              onChange={(e) => setStaffEmail(e.target.value)}
-              placeholder="スタッフ用メールアドレス"
+              type="text"
+              value={staffId}
+              onChange={(e) => setStaffId(e.target.value)}
+              placeholder="スタッフID"
+              autoComplete="username"
+              style={{
+                width: "100%",
+                height: 50,
+                borderRadius: 16,
+                border: "1px solid rgba(255,255,255,0.10)",
+                background: "rgba(255,255,255,0.06)",
+                color: "#ffffff",
+                fontSize: 14,
+                padding: "0 14px",
+                outline: "none",
+                boxSizing: "border-box",
+                marginBottom: 12,
+              }}
+            />
+
+            <input
+              type="password"
+              value={staffPassword}
+              onChange={(e) => setStaffPassword(e.target.value)}
+              placeholder="スタッフパスワード"
+              autoComplete="current-password"
               style={{
                 width: "100%",
                 height: 50,
@@ -291,7 +339,7 @@ export default function LoginPage() {
                 opacity: loading ? 0.7 : 1,
               }}
             >
-              {loading ? "送信中..." : "ログインメールを送る"}
+              {loading ? "ログイン中..." : "スタッフでログイン"}
             </button>
           </section>
         ) : (
@@ -316,11 +364,23 @@ export default function LoginPage() {
               ADMIN LOGIN
             </div>
 
+            <div
+              style={{
+                fontSize: 14,
+                lineHeight: 1.8,
+                color: "rgba(226,232,240,0.72)",
+                marginBottom: 14,
+              }}
+            >
+              管理者IDとパスワードでログインします。
+            </div>
+
             <input
-              type="email"
-              value={adminEmail}
-              onChange={(e) => setAdminEmail(e.target.value)}
-              placeholder="管理者メールアドレス"
+              type="text"
+              value={adminId}
+              onChange={(e) => setAdminId(e.target.value)}
+              placeholder="管理者ID"
+              autoComplete="username"
               style={{
                 width: "100%",
                 height: 50,
@@ -341,6 +401,7 @@ export default function LoginPage() {
               value={adminPassword}
               onChange={(e) => setAdminPassword(e.target.value)}
               placeholder="管理者パスワード"
+              autoComplete="current-password"
               style={{
                 width: "100%",
                 height: 50,
@@ -410,11 +471,27 @@ export default function LoginPage() {
               fontSize: 13,
               fontWeight: 700,
               textAlign: "center",
+              lineHeight: 1.7,
             }}
           >
             {error}
           </div>
         ) : null}
+
+        <div
+          style={{
+            marginTop: 18,
+            fontSize: 12,
+            lineHeight: 1.8,
+            color: "rgba(226,232,240,0.56)",
+          }}
+        >
+          例:
+          <br />
+          スタッフID → yamaguchi
+          <br />
+          管理者ID → admin
+        </div>
 
         <Link
           href="/"
