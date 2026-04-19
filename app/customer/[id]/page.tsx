@@ -64,6 +64,20 @@ type CustomerTicketRow = {
   created_at?: string | null;
 };
 
+type TicketUsageRow = {
+  id: string | number;
+  reservation_id?: number | null;
+  ticket_id?: string | number | null;
+  customer_id?: string | number | null;
+  customer_name?: string | null;
+  ticket_name?: string | null;
+  service_type?: string | null;
+  used_date?: string | null;
+  before_count?: number | null;
+  after_count?: number | null;
+  created_at?: string | null;
+};
+
 type CounselingSheetRow = {
   id?: string;
   customer_id: string;
@@ -525,6 +539,7 @@ export default function CustomerDetailPage() {
   const [sessions, setSessions] = useState<TrainingSessionRow[]>([]);
   const [sales, setSales] = useState<SaleRow[]>([]);
   const [tickets, setTickets] = useState<CustomerTicketRow[]>([]);
+  const [ticketUsages, setTicketUsages] = useState<TicketUsageRow[]>([]);
   const [counselingSheet, setCounselingSheet] =
     useState<CounselingSheetRow | null>(null);
 
@@ -641,6 +656,19 @@ export default function CustomerDetailPage() {
         );
       }
 
+      const { data: usageData, error: usageFetchError } = await supabase
+        .from("ticket_usages")
+        .select(
+          "id, reservation_id, ticket_id, customer_id, customer_name, ticket_name, service_type, used_date, before_count, after_count, created_at"
+        )
+        .eq("customer_id", customerIdForQuery)
+        .order("used_date", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      if (usageFetchError) {
+        console.warn("ticket_usages取得エラー:", usageFetchError.message);
+      }
+
       const { data: counselingData, error: counselingError } = await supabase
         .from("counseling_sheets")
         .select("*")
@@ -658,6 +686,7 @@ export default function CustomerDetailPage() {
       setSessions((sessionData as TrainingSessionRow[]) || []);
       setSales((salesData as SaleRow[]) || []);
       setTickets((ticketData as CustomerTicketRow[]) || []);
+      setTicketUsages((usageData as TicketUsageRow[]) || []);
       setCounselingSheet((counselingData as CounselingSheetRow) || null);
     } catch (e: any) {
       setError(e?.message || "データ取得に失敗しました。");
@@ -760,6 +789,10 @@ export default function CustomerDetailPage() {
       return sum + Math.max(Number(item.remaining_count || 0), 0);
     }, 0);
   }, [tickets]);
+
+  const totalUsedTickets = useMemo(() => {
+    return ticketUsages.length;
+  }, [ticketUsages]);
 
   const weightChartSessions = useMemo(() => {
     return sessions.filter(
@@ -1147,6 +1180,11 @@ export default function CustomerDetailPage() {
               value={`${activeTickets.length}件`}
               sub="現在利用可能"
             />
+            <MetricCard
+              label="消化履歴"
+              value={`${totalUsedTickets}件`}
+              sub="ticket_usages件数"
+            />
           </div>
         </section>
 
@@ -1230,6 +1268,70 @@ export default function CustomerDetailPage() {
                   </article>
                 );
               })}
+            </div>
+          )}
+        </section>
+
+        <section
+          style={{ ...CARD_STYLE, borderRadius: 24, padding: mobile ? 16 : 20 }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: mobile ? "stretch" : "center",
+              gap: 12,
+              flexWrap: "wrap",
+              flexDirection: mobile ? "column" : "row",
+              marginBottom: 16,
+            }}
+          >
+            <h2 style={sectionTitleStyle}>回数券消化履歴</h2>
+            <div style={{ fontSize: 13, color: "#64748b", fontWeight: 700 }}>
+              新しい順に表示
+            </div>
+          </div>
+
+          {ticketUsages.length === 0 ? (
+            <div style={emptyBoxStyle}>まだ回数券の消化履歴はありません。</div>
+          ) : (
+            <div style={{ display: "grid", gap: 12 }}>
+              {ticketUsages.map((usage) => (
+                <article key={String(usage.id)} style={historyItemStyle}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      flexWrap: "wrap",
+                      alignItems: "flex-start",
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 220 }}>
+                      <div style={historyDateStyle}>
+                        {formatDate(usage.used_date || usage.created_at)}
+                      </div>
+
+                      <div style={historySubStyle}>
+                        回数券名 {usage.ticket_name || "—"}
+                      </div>
+                      <div style={historySubStyle}>
+                        サービス種別 {usage.service_type || "—"}
+                      </div>
+                      <div style={historySubStyle}>
+                        残数 {usage.before_count ?? "—"} → {usage.after_count ?? "—"}
+                      </div>
+                      <div style={historySubStyle}>
+                        予約ID{" "}
+                        {usage.reservation_id !== null &&
+                        usage.reservation_id !== undefined
+                          ? usage.reservation_id
+                          : "—"}
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              ))}
             </div>
           )}
         </section>
