@@ -215,22 +215,33 @@ function getStoreColor(storeName?: string | null) {
 }
 
 function buildSalesHref(item: ReservationRow) {
-  const reservationId = String(item.id ?? "");
+  const reservationId = trimmed(item.id);
   const customerId = trimmed(item.customer_id);
-  const customerName = encodeURIComponent(trimmed(item.customer_name));
+  const customerName = trimmed(item.customer_name);
   const date = trimmed(item.date);
   const menu = trimmed(item.menu);
-  const staffName = encodeURIComponent(trimmed(item.staff_name));
-  const paymentMethod = encodeURIComponent(trimmed(item.payment_method));
-  const storeName = encodeURIComponent(trimmed(item.store_name));
+  const staffName = trimmed(item.staff_name);
+  const paymentMethod = trimmed(item.payment_method);
+  const storeName = trimmed(item.store_name);
 
   const isTicket = isTicketMenu(menu);
-  const serviceType = encodeURIComponent(detectServiceTypeFromMenu(menu));
-  const saleType = encodeURIComponent(isTicket ? "回数券消化" : "通常売上");
+  const serviceType = detectServiceTypeFromMenu(menu);
+  const saleType = isTicket ? "回数券消化" : "通常売上";
 
-  return `/sales?reservationId=${reservationId}&customerId=${customerId}&customerName=${customerName}&date=${date}&menu=${encodeURIComponent(
-    menu
-  )}&staffName=${staffName}&paymentMethod=${paymentMethod}&storeName=${storeName}&serviceType=${serviceType}&saleType=${saleType}`;
+  const params = new URLSearchParams({
+    reservationId,
+    customerId,
+    customerName,
+    date,
+    menu,
+    staffName,
+    paymentMethod,
+    storeName,
+    serviceType,
+    saleType,
+  });
+
+  return `/sales?${params.toString()}`;
 }
 
 function extractErrorMessage(error: unknown): string {
@@ -288,7 +299,7 @@ export default function ReservationDetailPage() {
       localStorage.getItem("gymup_logged_in") || localStorage.getItem("isLoggedIn");
 
     if (loggedIn !== "true") {
-      router.push("/login/staff");
+      router.push("/login");
       return;
     }
 
@@ -395,126 +406,127 @@ export default function ReservationDetailPage() {
   }
 
   async function restoreCustomerTicketsFromUsages(usages: TicketUsageRow[]) {
-  if (!supabase || usages.length === 0) return;
+    if (!supabase || usages.length === 0) return;
 
-  for (const usage of usages) {
-    const ticketId = toNumberOrNull(usage.ticket_id);
-    if (!ticketId) continue;
+    for (const usage of usages) {
+      const ticketId = toNumberOrNull(usage.ticket_id);
+      if (!ticketId) continue;
 
-    const { data: ticketData, error: ticketFetchError } = await supabase
-      .from("customer_tickets")
-      .select("id, remaining_count, status")
-      .eq("id", ticketId)
-      .maybeSingle();
+      const { data: ticketData, error: ticketFetchError } = await supabase
+        .from("customer_tickets")
+        .select("id, remaining_count, status")
+        .eq("id", ticketId)
+        .maybeSingle();
 
-    if (ticketFetchError) throw ticketFetchError;
-    if (!ticketData) continue;
+      if (ticketFetchError) throw ticketFetchError;
+      if (!ticketData) continue;
 
-    const currentRemaining = Number(
-      (ticketData as { remaining_count?: number | null }).remaining_count || 0
-    );
-    const beforeCount = toNumberOrNull(usage.before_count);
-    const nextRemaining = beforeCount !== null ? beforeCount : currentRemaining + 1;
-    const nextStatus = nextRemaining > 0 ? "利用中" : "消化済み";
+      const currentRemaining = Number(
+        (ticketData as { remaining_count?: number | null }).remaining_count || 0
+      );
+      const beforeCount = toNumberOrNull(usage.before_count);
+      const nextRemaining = beforeCount !== null ? beforeCount : currentRemaining + 1;
+      const nextStatus = nextRemaining > 0 ? "利用中" : "消化済み";
 
-    const { error: ticketUpdateError } = await supabase
-      .from("customer_tickets")
-      .update({
-        remaining_count: nextRemaining,
-        status: nextStatus,
-      })
-      .eq("id", ticketId);
+      const { error: ticketUpdateError } = await supabase
+        .from("customer_tickets")
+        .update({
+          remaining_count: nextRemaining,
+          status: nextStatus,
+        })
+        .eq("id", ticketId);
 
-    if (ticketUpdateError) throw ticketUpdateError;
-  }
-}
-  
-async function handleDeleteReservation() {
-  if (!supabase || !reservation) return;
-
-  const reservationIdNum = toNumberOrNull(reservation.id);
-  if (reservationIdNum === null) {
-    setError("予約IDが不正です。");
-    return;
+      if (ticketUpdateError) throw ticketUpdateError;
+    }
   }
 
-  const warnings: string[] = [];
-  if (sales.length > 0) warnings.push(`売上 ${sales.length}件`);
-  if (counselings.length > 0) warnings.push(`カウンセリング ${counselings.length}件`);
-  if (ticketUsages.length > 0) warnings.push(`回数券消化履歴 ${ticketUsages.length}件`);
+  async function handleDeleteReservation() {
+    if (!supabase || !reservation) return;
 
-  const warningText =
-    warnings.length > 0
-      ? `この予約には関連データがあります。\n${warnings.join(
-          "\n"
-        )}\n\n関連データも含めて削除し、回数券消化があれば残回数も戻します。\n本当に削除しますか？`
-      : "この予約を削除しますか？";
+    const reservationIdNum = toNumberOrNull(reservation.id);
+    if (reservationIdNum === null) {
+      setError("予約IDが不正です。");
+      return;
+    }
 
-  const ok = window.confirm(warningText);
-  if (!ok) return;
+    const warnings: string[] = [];
+    if (sales.length > 0) warnings.push(`売上 ${sales.length}件`);
+    if (counselings.length > 0) warnings.push(`カウンセリング ${counselings.length}件`);
+    if (ticketUsages.length > 0) warnings.push(`回数券消化履歴 ${ticketUsages.length}件`);
 
-  try {
-    setDeleting(true);
-    setError("");
-    setSuccess("");
+    const warningText =
+      warnings.length > 0
+        ? `この予約には関連データがあります。\n${warnings.join(
+            "\n"
+          )}\n\n関連データも含めて削除し、回数券消化があれば残回数も戻します。\n本当に削除しますか？`
+        : "この予約を削除しますか？";
 
-    if (ticketUsages.length > 0) {
-      try {
-        await restoreCustomerTicketsFromUsages(ticketUsages);
-      } catch (e) {
-        throw new Error(`回数券残数の復元で失敗: ${extractErrorMessage(e)}`);
+    const ok = window.confirm(warningText);
+    if (!ok) return;
+
+    try {
+      setDeleting(true);
+      setError("");
+      setSuccess("");
+
+      if (ticketUsages.length > 0) {
+        try {
+          await restoreCustomerTicketsFromUsages(ticketUsages);
+        } catch (e) {
+          throw new Error(`回数券残数の復元で失敗: ${extractErrorMessage(e)}`);
+        }
       }
-    }
 
-    try {
-      const { error } = await supabase
-        .from("ticket_usages")
-        .delete()
-        .eq("reservation_id", reservationIdNum);
-      if (error) throw error;
+      try {
+        const { error } = await supabase
+          .from("ticket_usages")
+          .delete()
+          .eq("reservation_id", reservationIdNum);
+        if (error) throw error;
+      } catch (e) {
+        throw new Error(`ticket_usages の削除で失敗: ${extractErrorMessage(e)}`);
+      }
+
+      try {
+        const { error } = await supabase
+          .from("sales")
+          .delete()
+          .eq("reservation_id", reservationIdNum);
+        if (error) throw error;
+      } catch (e) {
+        throw new Error(`sales の削除で失敗: ${extractErrorMessage(e)}`);
+      }
+
+      try {
+        const { error } = await supabase
+          .from("counselings")
+          .delete()
+          .eq("reservation_id", reservationIdNum);
+        if (error) throw error;
+      } catch (e) {
+        throw new Error(`counselings の削除で失敗: ${extractErrorMessage(e)}`);
+      }
+
+      try {
+        const { error } = await supabase
+          .from("reservations")
+          .delete()
+          .eq("id", reservationIdNum);
+        if (error) throw error;
+      } catch (e) {
+        throw new Error(`reservations の削除で失敗: ${extractErrorMessage(e)}`);
+      }
+
+      window.alert("予約を削除しました");
+      router.push("/reservation");
     } catch (e) {
-      throw new Error(`ticket_usages の削除で失敗: ${extractErrorMessage(e)}`);
+      console.error(e);
+      setError(`予約削除エラー: ${extractErrorMessage(e)}`);
+    } finally {
+      setDeleting(false);
     }
-
-    try {
-      const { error } = await supabase
-        .from("sales")
-        .delete()
-        .eq("reservation_id", reservationIdNum);
-      if (error) throw error;
-    } catch (e) {
-      throw new Error(`sales の削除で失敗: ${extractErrorMessage(e)}`);
-    }
-
-    try {
-      const { error } = await supabase
-        .from("counselings")
-        .delete()
-        .eq("reservation_id", reservationIdNum);
-      if (error) throw error;
-    } catch (e) {
-      throw new Error(`counselings の削除で失敗: ${extractErrorMessage(e)}`);
-    }
-
-    try {
-      const { error } = await supabase
-        .from("reservations")
-        .delete()
-        .eq("id", reservationIdNum);
-      if (error) throw error;
-    } catch (e) {
-      throw new Error(`reservations の削除で失敗: ${extractErrorMessage(e)}`);
-    }
-
-    window.alert("予約を削除しました");
-    router.push("/reservation");
-  } catch (e) {
-    console.error(e);
-    setError(`予約削除エラー: ${extractErrorMessage(e)}`);
-  } finally {
-    setDeleting(false);
   }
-}
+
   const isSold = useMemo(() => {
     if (!reservation) return false;
     return trimmed(reservation.reservation_status) === "売上済" || sales.length > 0;
