@@ -19,18 +19,18 @@ const ROLE_STORAGE_KEY = "gymup_user_role";
 const STAFF_NAME_STORAGE_KEY = "gymup_current_staff_name";
 
 /**
- * 🔥ここだけ変更
+ * 🔥 あなたの設定 完全版
  */
 const LOGIN_ACCOUNTS = [
   {
     loginId: "admin",
-    email: "admin@example.com",
+    email: "lifetimebeauty.osaka@gmail.com",
     role: "admin" as const,
     staffName: "管理者",
   },
   {
     loginId: "staff1",
-    email: "staff1@example.com",
+    email: "staff@test.com",
     role: "staff" as const,
     staffName: "スタッフ1",
   },
@@ -88,19 +88,12 @@ export default function LoginPage() {
   return (
     <main style={styles.page}>
       <div style={styles.card}>
-        {/* ロゴ */}
         <div style={styles.logoWrap}>
-          <Image
-            src="/logo.png"
-            alt="GYMUP"
-            width={80}
-            height={80}
-          />
+          <Image src="/logo.png" alt="GYMUP" width={80} height={80} />
         </div>
 
         <h1 style={styles.title}>GYMUP CRM</h1>
 
-        {/* タブ */}
         <div style={styles.tabs}>
           <button
             style={role === "staff" ? styles.activeTab : styles.tab}
@@ -116,7 +109,6 @@ export default function LoginPage() {
           </button>
         </div>
 
-        {/* フォーム */}
         <form onSubmit={handleLogin} style={styles.form}>
           <input
             type="text"
