@@ -37,10 +37,9 @@ export default function LoginPage() {
   const [role, setRole] = useState<RoleType>("staff");
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
-  const [showLoginPanel, setShowLoginPanel] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const title = role === "staff" ? "スタッフログイン" : "管理者ログイン";
 
@@ -114,140 +113,68 @@ export default function LoginPage() {
 
   return (
     <main style={styles.page}>
-      <div style={styles.bgLayer} />
       <div style={styles.bgGlowTop} />
-      <div style={styles.bgGlowLeft} />
       <div style={styles.bgGlowBottom} />
 
       <section style={styles.card}>
-        <div style={styles.innerGlow} />
-
         <div style={styles.logoWrap}>
-          <img
-            src="/gymup-logo.png"
-            alt="GYMUP"
-            style={styles.logo}
-          />
+          <img src="/gymup-logo.png" alt="GYMUP" style={styles.logo} />
         </div>
 
         <h1 style={styles.title}>{title}</h1>
         <p style={styles.subtitle}>管理画面へログイン</p>
 
-        <button
-          type="button"
-          onClick={() => {
-            setShowLoginPanel(true);
-            setError("");
-            setStatus("");
-          }}
-          style={styles.primaryButton}
-        >
-          ダッシュボードへ
-        </button>
-
-        <button
-          type="button"
-          onClick={() => (window.location.href = "/")}
-          style={styles.backButton}
-        >
-          戻る
-        </button>
-
-        <div
-          style={{
-            ...styles.overlay,
-            opacity: showLoginPanel ? 1 : 0,
-            pointerEvents: showLoginPanel ? "auto" : "none",
-          }}
-          onClick={() => {
-            if (!loading) {
-              setShowLoginPanel(false);
+        <div style={styles.segmentWrap}>
+          <button
+            type="button"
+            onClick={() => {
+              setRole("staff");
               setError("");
               setStatus("");
-            }
-          }}
-        />
-
-        <div
-          style={{
-            ...styles.sheet,
-            transform: showLoginPanel ? "translateY(0)" : "translateY(120%)",
-            opacity: showLoginPanel ? 1 : 0,
-            pointerEvents: showLoginPanel ? "auto" : "none",
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div style={styles.sheetHandle} />
-
-          <div style={styles.sheetHeader}>
-            <h2 style={styles.sheetTitle}>{title}</h2>
-            <button
-              type="button"
-              onClick={() => {
-                if (!loading) {
-                  setShowLoginPanel(false);
-                  setError("");
-                  setStatus("");
-                }
-              }}
-              style={styles.closeButton}
-            >
-              閉じる
-            </button>
-          </div>
-
-          <div style={styles.segmentWrap}>
-            <button
-              type="button"
-              onClick={() => {
-                setRole("staff");
-                setError("");
-                setStatus("");
-              }}
-              style={role === "staff" ? styles.segmentActive : styles.segmentButton}
-            >
-              スタッフ
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setRole("admin");
-                setError("");
-                setStatus("");
-              }}
-              style={role === "admin" ? styles.segmentActive : styles.segmentButton}
-            >
-              管理者
-            </button>
-          </div>
-
-          <form onSubmit={handleLogin} style={styles.form}>
-            <input
-              type="text"
-              placeholder={role === "staff" ? "ID（例: staff1）" : "ID（例: admin）"}
-              value={loginId}
-              onChange={(e) => setLoginId(e.target.value)}
-              style={styles.input}
-              autoComplete="username"
-            />
-
-            <input
-              type="password"
-              placeholder="パスワード"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              style={styles.input}
-              autoComplete="current-password"
-            />
-
-            {status ? <p style={styles.status}>{status}</p> : null}
-            {error ? <p style={styles.error}>{error}</p> : null}
-
-            <button type="submit" disabled={loading} style={styles.loginButton}>
-              {loading ? "ログイン中..." : "ログイン"}
-            </button>
-          </form>
+            }}
+            style={role === "staff" ? styles.segmentActive : styles.segmentButton}
+          >
+            スタッフ
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setRole("admin");
+              setError("");
+              setStatus("");
+            }}
+            style={role === "admin" ? styles.segmentActive : styles.segmentButton}
+          >
+            管理者
+          </button>
         </div>
+
+        <form onSubmit={handleLogin} style={styles.form}>
+          <input
+            type="text"
+            placeholder={role === "staff" ? "ID（例: staff1）" : "ID（例: admin）"}
+            value={loginId}
+            onChange={(e) => setLoginId(e.target.value)}
+            style={styles.input}
+            autoComplete="username"
+          />
+
+          <input
+            type="password"
+            placeholder="パスワード"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            style={styles.input}
+            autoComplete="current-password"
+          />
+
+          {status ? <p style={styles.status}>{status}</p> : null}
+          {error ? <p style={styles.error}>{error}</p> : null}
+
+          <button type="submit" disabled={loading} style={styles.loginButton}>
+            {loading ? "ログイン中..." : "ログイン"}
+          </button>
+        </form>
       </section>
     </main>
   );
@@ -261,221 +188,97 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    padding: "24px 18px",
+    padding: "24px 16px",
     background:
-      "linear-gradient(180deg, #03102b 0%, #061633 26%, #07183b 55%, #04112b 100%)",
-  },
-  bgLayer: {
-    position: "absolute",
-    inset: 0,
-    background:
-      "radial-gradient(circle at 50% 12%, rgba(86,122,255,0.22), transparent 18%), radial-gradient(circle at 14% 34%, rgba(255,129,70,0.08), transparent 18%), radial-gradient(circle at 82% 74%, rgba(72,110,255,0.18), transparent 24%)",
-    pointerEvents: "none",
+      "linear-gradient(180deg, #041126 0%, #07182f 45%, #041126 100%)",
   },
   bgGlowTop: {
     position: "absolute",
-    top: "-6%",
+    top: "-10%",
     left: "50%",
     transform: "translateX(-50%)",
-    width: "72vw",
-    maxWidth: 760,
+    width: "70vw",
+    maxWidth: 700,
     height: 260,
     borderRadius: "50%",
-    background: "rgba(76,112,255,0.18)",
-    filter: "blur(110px)",
-    pointerEvents: "none",
-  },
-  bgGlowLeft: {
-    position: "absolute",
-    left: "-8%",
-    top: "28%",
-    width: "34vw",
-    maxWidth: 280,
-    height: 280,
-    borderRadius: "50%",
-    background: "rgba(255,132,72,0.08)",
-    filter: "blur(90px)",
+    background: "rgba(95, 124, 255, 0.10)",
+    filter: "blur(100px)",
     pointerEvents: "none",
   },
   bgGlowBottom: {
     position: "absolute",
-    bottom: "-8%",
-    right: "-6%",
-    width: "48vw",
-    maxWidth: 420,
-    height: 260,
+    bottom: "-10%",
+    right: "-5%",
+    width: "40vw",
+    maxWidth: 360,
+    height: 240,
     borderRadius: "50%",
-    background: "rgba(57,95,255,0.16)",
-    filter: "blur(110px)",
+    background: "rgba(95, 124, 255, 0.08)",
+    filter: "blur(90px)",
     pointerEvents: "none",
   },
   card: {
     position: "relative",
     zIndex: 1,
     width: "100%",
-    maxWidth: 760,
-    minHeight: 650,
-    borderRadius: 40,
-    padding: "56px 30px 34px",
-    background:
-      "linear-gradient(180deg, rgba(6,14,40,0.86) 0%, rgba(5,12,35,0.92) 100%)",
+    maxWidth: 460,
+    padding: "38px 26px 26px",
+    borderRadius: 28,
+    background: "rgba(8, 18, 40, 0.90)",
     border: "1px solid rgba(255,255,255,0.08)",
     boxShadow:
-      "0 30px 80px rgba(0,0,0,0.44), inset 0 1px 0 rgba(255,255,255,0.05)",
+      "0 24px 70px rgba(0,0,0,0.40), inset 0 1px 0 rgba(255,255,255,0.04)",
     backdropFilter: "blur(14px)",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
     boxSizing: "border-box",
-    overflow: "hidden",
-  },
-  innerGlow: {
-    position: "absolute",
-    inset: 0,
-    borderRadius: 40,
-    background:
-      "radial-gradient(circle at 18% 18%, rgba(255,130,80,0.06), transparent 22%), radial-gradient(circle at 84% 82%, rgba(75,116,255,0.12), transparent 24%)",
-    pointerEvents: "none",
   },
   logoWrap: {
-    position: "relative",
-    zIndex: 1,
-    marginBottom: 42,
     display: "flex",
     justifyContent: "center",
-    alignItems: "center",
+    marginBottom: 24,
   },
   logo: {
-    width: "min(260px, 72vw)",
+    width: "min(240px, 72vw)",
     height: "auto",
     display: "block",
-    filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.35))",
   },
   title: {
-    position: "relative",
-    zIndex: 1,
-    margin: "0 0 14px",
+    margin: "0 0 10px",
     color: "#ffffff",
-    fontSize: "clamp(32px, 6vw, 60px)",
-    lineHeight: 1.12,
+    fontSize: "clamp(28px, 5vw, 38px)",
+    lineHeight: 1.2,
     fontWeight: 800,
-    letterSpacing: "0.02em",
     textAlign: "center",
+    letterSpacing: "0.02em",
   },
   subtitle: {
-    position: "relative",
-    zIndex: 1,
-    margin: "0 0 42px",
-    color: "rgba(255,255,255,0.56)",
-    fontSize: "clamp(16px, 2.8vw, 22px)",
-    fontWeight: 500,
+    margin: "0 0 24px",
+    color: "rgba(255,255,255,0.60)",
+    fontSize: 15,
     textAlign: "center",
   },
-  primaryButton: {
-    position: "relative",
-    zIndex: 1,
-    width: "100%",
-    maxWidth: 560,
-    height: 88,
-    border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: 24,
-    background:
-      "linear-gradient(180deg, rgba(34,38,58,0.96) 0%, rgba(22,26,46,0.96) 100%)",
-    color: "#ffffff",
-    fontSize: "clamp(20px, 3.2vw, 34px)",
-    fontWeight: 800,
-    cursor: "pointer",
-    boxShadow: "0 16px 36px rgba(0,0,0,0.28)",
-  },
-  backButton: {
-    position: "relative",
-    zIndex: 1,
-    marginTop: 28,
-    border: "none",
-    background: "transparent",
-    color: "rgba(255,255,255,0.56)",
-    fontSize: "clamp(18px, 2.8vw, 28px)",
-    cursor: "pointer",
-  },
-  overlay: {
-    position: "absolute",
-    inset: 0,
-    background: "rgba(0,0,0,0.32)",
-    transition: "opacity 0.28s ease",
-  },
-  sheet: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 3,
-    background:
-      "linear-gradient(180deg, rgba(11,20,49,0.98) 0%, rgba(8,15,40,0.98) 100%)",
-    borderTop: "1px solid rgba(255,255,255,0.08)",
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    padding: "14px 22px 24px",
-    boxShadow: "0 -20px 50px rgba(0,0,0,0.34)",
-    transition: "transform 0.34s ease, opacity 0.34s ease",
-    boxSizing: "border-box",
-  },
-  sheetHandle: {
-    width: 56,
-    height: 6,
-    borderRadius: 999,
-    background: "rgba(255,255,255,0.20)",
-    margin: "0 auto 14px",
-  },
-  sheetHeader: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    marginBottom: 16,
-  },
-  sheetTitle: {
-    margin: 0,
-    color: "#fff",
-    fontSize: "clamp(22px, 3vw, 30px)",
-    fontWeight: 800,
-  },
-  closeButton: {
-    height: 38,
-    padding: "0 14px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.06)",
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: 700,
-    cursor: "pointer",
-  },
   segmentWrap: {
-    width: "100%",
     display: "grid",
     gridTemplateColumns: "1fr 1fr",
-    borderRadius: 16,
-    overflow: "hidden",
-    border: "1px solid rgba(255,255,255,0.08)",
-    background: "rgba(255,255,255,0.05)",
-    marginBottom: 14,
+    gap: 10,
+    marginBottom: 18,
   },
   segmentButton: {
-    height: 52,
-    border: "none",
-    background: "transparent",
+    height: 48,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(255,255,255,0.04)",
     color: "rgba(255,255,255,0.86)",
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: 700,
     cursor: "pointer",
   },
   segmentActive: {
-    height: 52,
-    border: "none",
-    background: "linear-gradient(180deg, #ff930f 0%, #ff7b00 100%)",
-    color: "#111111",
-    fontSize: 18,
+    height: 48,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "rgba(255,255,255,0.12)",
+    color: "#ffffff",
+    fontSize: 15,
     fontWeight: 800,
     cursor: "pointer",
   },
@@ -485,11 +288,11 @@ const styles: Record<string, React.CSSProperties> = {
   },
   input: {
     width: "100%",
-    height: 58,
+    height: 54,
     padding: "0 16px",
-    borderRadius: 16,
+    borderRadius: 14,
     border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.06)",
+    background: "rgba(255,255,255,0.05)",
     color: "#ffffff",
     fontSize: 16,
     outline: "none",
@@ -497,15 +300,15 @@ const styles: Record<string, React.CSSProperties> = {
   },
   loginButton: {
     width: "100%",
-    height: 58,
-    border: "none",
-    borderRadius: 18,
-    background: "linear-gradient(180deg, #ff930f 0%, #ff7b00 100%)",
-    color: "#111",
-    fontSize: 18,
+    height: 56,
+    border: "1px solid rgba(255,255,255,0.12)",
+    borderRadius: 16,
+    background: "linear-gradient(180deg, #24334f 0%, #1a263d 100%)",
+    color: "#ffffff",
+    fontSize: 17,
     fontWeight: 800,
     cursor: "pointer",
-    boxShadow: "0 12px 24px rgba(255,123,0,0.24)",
+    boxShadow: "0 10px 24px rgba(0,0,0,0.22)",
   },
   status: {
     margin: "2px 0 0",
@@ -517,7 +320,7 @@ const styles: Record<string, React.CSSProperties> = {
   error: {
     margin: "2px 0 0",
     textAlign: "center",
-    color: "#ff7d7d",
+    color: "#ff8b8b",
     fontSize: 13,
     lineHeight: 1.6,
     fontWeight: 700,
