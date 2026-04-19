@@ -2078,17 +2078,27 @@ export default function SalesPage() {
 
       await fetchSales();
 
-      if (reservationId) {
-        await loadExistingSalesForReservation(reservationId);
-      }
+if (reservationId) {
+  await loadExistingSalesForReservation(reservationId);
+}
 
-      alert(
-        issuedTicketIds.length > 0
-          ? `売上を登録し、回数券を ${issuedTicketIds.length} 件自動発行しました`
-          : isFromSignup
-          ? "売上を登録し、入会申請も売上登録済に更新しました"
-          : "売上を登録しました"
-      );
+alert(
+  issuedTicketIds.length > 0
+    ? `売上を登録し、回数券を ${issuedTicketIds.length} 件自動発行しました`
+    : isFromSignup
+    ? "売上を登録し、入会申請も売上登録済に更新しました"
+    : "売上を登録しました"
+);
+
+// 👇これ追加（ここが本体）
+if (reservationId) {
+  window.location.href = `/reservation/detail/${reservationId}`;
+  return;
+}
+
+resetForm();
+await fetchCustomers();
+await fetchSales();
 
       resetForm();
       await fetchCustomers();
