@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CSSProperties, useEffect, useMemo, useState } from "react";
+import { CSSProperties, ReactNode, useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 type AttendanceRow = {
@@ -33,9 +33,14 @@ type StaffSummaryRow = {
 
 function formatDateJP(value?: string | null) {
   if (!value) return "—";
-  const d = new Date(value);
+  const d = new Date(`${value}T00:00:00`);
   if (Number.isNaN(d.getTime())) return value;
-  return new Intl.DateTimeFormat("ja-JP").format(d);
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "short",
+  }).format(d);
 }
 
 function formatDateTimeJP(value?: string | null) {
@@ -43,6 +48,7 @@ function formatDateTimeJP(value?: string | null) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
   return new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -57,6 +63,7 @@ function formatTimeJP(value?: string | null) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "--:--";
   return new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -332,6 +339,11 @@ export default function AttendanceAdminPage() {
     );
   }
 
+  function handleClearFilter() {
+    setMonthFilter(getCurrentMonth());
+    setStaffFilter("");
+  }
+
   if (!mounted) return null;
 
   return (
@@ -345,9 +357,15 @@ export default function AttendanceAdminPage() {
 
       <div style={containerStyle}>
         <div style={topBarStyle}>
-          <Link href="/attendance" style={backLinkStyle}>
-            ← 勤怠トップへ戻る
-          </Link>
+          <div style={topLinkGroupStyle}>
+            <Link href="/dashboard" style={mainBackLinkStyle}>
+              ← ダッシュボードへ
+            </Link>
+            <Link href="/attendance" style={subBackLinkStyle}>
+              勤怠トップへ
+            </Link>
+          </div>
+
           <div style={eyebrowStyle}>ATTENDANCE ADMIN</div>
         </div>
 
@@ -356,15 +374,15 @@ export default function AttendanceAdminPage() {
             <div style={miniLabelStyle}>GYMUP ATTENDANCE</div>
             <h1 style={titleStyle}>管理者勤怠ページ</h1>
             <p style={descStyle}>
-              月別・スタッフ別の累積集計、勤務時間、残業、深夜、給与概算を
+              月別・スタッフ別の勤怠を集計し、
               <br className="attendance-pc-break" />
-              ひとつの画面で確認できます。
+              全体状況とスタッフ別の勤務状況を見やすく確認できます。
             </p>
           </div>
 
           <div style={heroRightStyle}>
             <div style={heroActionCardStyle}>
-              <div style={heroActionLabelStyle}>ADMIN ACTIONS</div>
+              <div style={heroActionLabelStyle}>管理メニュー</div>
 
               <div style={heroActionButtonWrapStyle} className="attendance-button-row">
                 <Link
@@ -398,8 +416,8 @@ export default function AttendanceAdminPage() {
         <section style={panelStyle}>
           <div style={sectionHeaderStyle}>
             <div>
-              <div style={sectionMiniStyle}>FILTERS</div>
-              <h2 style={sectionTitleStyle}>絞り込み・給与条件</h2>
+              <div style={sectionMiniStyle}>FILTER & CALC</div>
+              <h2 style={sectionTitleStyle}>絞り込み・給与計算条件</h2>
             </div>
           </div>
 
@@ -457,6 +475,15 @@ export default function AttendanceAdminPage() {
               />
             </FieldCard>
           </div>
+
+          <div style={filterActionRowStyle} className="attendance-button-row">
+            <button type="button" onClick={handleClearFilter} style={secondaryButtonStyle}>
+              絞り込みを戻す
+            </button>
+            <div style={filterHelpStyle}>
+              表示中: {monthLabel(monthFilter)} {staffFilter ? ` / ${staffFilter}` : " / 全スタッフ"}
+            </div>
+          </div>
         </section>
 
         <section style={metricGridStyle} className="attendance-metrics-grid five">
@@ -478,7 +505,7 @@ export default function AttendanceAdminPage() {
           <div style={sectionHeaderStyle}>
             <div>
               <div style={sectionMiniStyle}>STAFF SUMMARY</div>
-              <h2 style={sectionTitleStyle}>スタッフ別累積集計</h2>
+              <h2 style={sectionTitleStyle}>スタッフ別サマリー</h2>
             </div>
           </div>
 
@@ -489,7 +516,10 @@ export default function AttendanceAdminPage() {
               {staffSummaries.map((item) => (
                 <div key={item.staffName} style={staffSummaryCardStyle}>
                   <div style={staffSummaryTopStyle}>
-                    <div style={staffSummaryNameStyle}>{item.staffName}</div>
+                    <div>
+                      <div style={staffSummaryNameStyle}>{item.staffName}</div>
+                      <div style={staffSummarySubStyle}>月内累積サマリー</div>
+                    </div>
                     <div style={staffSummaryPayStyle}>{formatCurrency(item.estimatedPay)}</div>
                   </div>
 
@@ -533,6 +563,10 @@ export default function AttendanceAdminPage() {
                     <MiniInfo label="残業" value={minutesToText(row.overtime_minutes ?? 0)} />
                     <MiniInfo label="深夜" value={minutesToText(row.late_night_minutes ?? 0)} />
                     <MiniInfo label="総勤務" value={minutesToText(row.total_work_minutes ?? 0)} />
+                    <MiniInfo
+                      label="更新日時"
+                      value={formatDateTimeJP(row.updated_at || row.created_at)}
+                    />
                   </div>
 
                   <div style={noteBoxStyle}>
@@ -623,7 +657,7 @@ function FieldCard({
   children,
 }: {
   label: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div style={fieldCardStyle}>
@@ -707,7 +741,24 @@ const topBarStyle: CSSProperties = {
   flexWrap: "wrap",
 };
 
-const backLinkStyle: CSSProperties = {
+const topLinkGroupStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap",
+};
+
+const mainBackLinkStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  color: "#1d4ed8",
+  textDecoration: "none",
+  fontSize: 14,
+  fontWeight: 700,
+  minHeight: 40,
+};
+
+const subBackLinkStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   color: "rgba(30,41,59,0.78)",
@@ -892,6 +943,21 @@ const filterGridStyle: CSSProperties = {
   gap: 14,
 };
 
+const filterActionRowStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap",
+  marginTop: 16,
+};
+
+const filterHelpStyle: CSSProperties = {
+  fontSize: 13,
+  color: "rgba(15,23,42,0.58)",
+  fontWeight: 700,
+};
+
 const fieldCardStyle: CSSProperties = {
   borderRadius: 22,
   padding: 16,
@@ -988,6 +1054,13 @@ const staffSummaryNameStyle: CSSProperties = {
   fontSize: 18,
   fontWeight: 800,
   color: "#0f172a",
+};
+
+const staffSummarySubStyle: CSSProperties = {
+  marginTop: 4,
+  fontSize: 12,
+  color: "rgba(15,23,42,0.48)",
+  fontWeight: 700,
 };
 
 const staffSummaryPayStyle: CSSProperties = {
