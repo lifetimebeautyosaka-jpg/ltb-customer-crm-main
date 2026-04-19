@@ -2446,18 +2446,16 @@ export default function SalesPage() {
             </div>
 
             <div style={topActionsStyle}>
-              <Link href="/" style={linkButtonStyle}>
-                TOPへ
-              </Link>
-              <Link href="/signup/list" style={linkButtonStyle}>
-                入会申請一覧へ
-              </Link>
-              <button type="button" onClick={exportSalesCsv} style={secondaryButtonStyle}>
-                CSV出力
-              </button>
-            </div>
-          </div>
-        </section>
+  <Link href="/dashboard" style={linkButtonStyle}>
+    ダッシュボードへ
+  </Link>
+  <Link href="/signup/list" style={linkButtonStyle}>
+    入会申請一覧へ
+  </Link>
+  <button type="button" onClick={exportSalesCsv} style={secondaryButtonStyle}>
+    CSV出力
+  </button>
+</div>
 
         <section style={cardStyle}>
           <div style={statGridStyle}>
