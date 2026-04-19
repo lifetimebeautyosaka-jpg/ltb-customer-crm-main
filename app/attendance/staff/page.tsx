@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CSSProperties, useEffect, useMemo, useState } from "react";
+import { CSSProperties, ReactNode, useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 type AttendanceRow = {
@@ -711,9 +711,14 @@ export default function AttendanceStaffPage() {
 
       <div style={containerStyle}>
         <div style={topBarStyle}>
-          <Link href="/attendance" style={backLinkStyle}>
-            ← 勤怠トップへ戻る
-          </Link>
+          <div style={topLinkGroupStyle}>
+            <Link href="/dashboard" style={backLinkStyle}>
+              ← ダッシュボードへ
+            </Link>
+            <Link href="/attendance" style={subBackLinkStyle}>
+              勤怠トップへ
+            </Link>
+          </div>
 
           <div style={topRightStyle}>
             <span style={eyebrowStyle}>STAFF TIMECARD</span>
@@ -723,11 +728,11 @@ export default function AttendanceStaffPage() {
         <section style={heroCardStyle} className="attendance-hero-grid">
           <div style={heroLeftStyle} className="attendance-hero-left">
             <div style={miniLabelStyle}>GYMUP ATTENDANCE</div>
-            <h1 style={titleStyle}>スタッフ打刻ページ</h1>
+            <h1 style={titleStyle}>スタッフ用タイムカード</h1>
             <p style={descStyle}>
-              出勤・退勤・休憩時間を記録し、
+              出勤と退勤を記録して、
               <br className="attendance-pc-break" />
-              月ごとの勤怠と給与概算をひとつの画面で確認できます。
+              今日の勤務状況・今月の勤怠・給与概算までまとめて確認できます。
             </p>
 
             <div style={heroButtonRowStyle} className="attendance-button-row">
@@ -743,14 +748,14 @@ export default function AttendanceStaffPage() {
                 style={secondaryLinkButtonStyle}
                 className="attendance-sub-button"
               >
-                管理者ページ
+                管理者ページへ
               </Link>
             </div>
           </div>
 
           <div style={heroRightStyle}>
             <div style={statusCardStyle}>
-              <div style={statusCardLabelStyle}>TODAY STATUS</div>
+              <div style={statusCardLabelStyle}>本日の勤務ステータス</div>
 
               <div
                 style={{
@@ -766,8 +771,8 @@ export default function AttendanceStaffPage() {
               <div style={statusMetaGridStyle}>
                 <MiniInfo label="スタッフ名" value={staffName || "未設定"} />
                 <MiniInfo label="勤務日" value={todayJst} />
-                <MiniInfo label="出勤" value={formatTimeJP(todayRow?.clock_in)} />
-                <MiniInfo label="退勤" value={formatTimeJP(todayRow?.clock_out)} />
+                <MiniInfo label="出勤時刻" value={formatTimeJP(todayRow?.clock_in)} />
+                <MiniInfo label="退勤時刻" value={formatTimeJP(todayRow?.clock_out)} />
               </div>
             </div>
           </div>
@@ -779,7 +784,7 @@ export default function AttendanceStaffPage() {
           <div style={sectionHeaderStyle}>
             <div>
               <div style={sectionMiniStyle}>STAFF SETTINGS</div>
-              <h2 style={sectionTitleStyle}>スタッフ設定・給与条件</h2>
+              <h2 style={sectionTitleStyle}>スタッフ情報・給与設定</h2>
             </div>
           </div>
 
@@ -793,7 +798,7 @@ export default function AttendanceStaffPage() {
               />
             </FieldCard>
 
-            <FieldCard label="対象月">
+            <FieldCard label="表示する月">
               <input
                 type="month"
                 value={selectedMonth}
@@ -859,7 +864,7 @@ export default function AttendanceStaffPage() {
           </div>
 
           <div style={{ marginTop: 16 }}>
-            <FieldCard label="備考">
+            <FieldCard label="備考メモ">
               <textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
@@ -872,7 +877,7 @@ export default function AttendanceStaffPage() {
 
           <div style={actionRowStyle} className="attendance-button-row">
             <button onClick={handleSaveStaff} style={secondaryButtonStyle} disabled={saving}>
-              スタッフ保存
+              スタッフ情報を保存
             </button>
             <button
               onClick={handleSaveMemo}
@@ -887,37 +892,41 @@ export default function AttendanceStaffPage() {
         <section style={metricGridStyle} className="attendance-metrics-grid four">
           <MetricCard label="本日の状態" value={getStatusLabel()} accentColor={statusTone.color} />
           <MetricCard label="本日の勤務時間" value={minutesToText(workedMinutes)} />
-          <MetricCard label="今月出勤日数" value={`${monthSummary.workDays}日`} />
-          <MetricCard label="今月総勤務" value={minutesToText(monthSummary.totalMinutes)} />
+          <MetricCard label="今月の出勤日数" value={`${monthSummary.workDays}日`} />
+          <MetricCard label="今月の総勤務時間" value={minutesToText(monthSummary.totalMinutes)} />
         </section>
 
         <section style={metricGridStyle} className="attendance-metrics-grid four">
-          <MetricCard label="通常勤務" value={minutesToText(monthSummary.regularMinutes)} />
+          <MetricCard label="通常勤務時間" value={minutesToText(monthSummary.regularMinutes)} />
           <MetricCard label="残業時間" value={minutesToText(monthSummary.overtimeMinutes)} />
           <MetricCard label="深夜時間" value={minutesToText(monthSummary.lateNightMinutes)} />
-          <MetricCard label="対象月" value={monthLabel(selectedMonth)} />
+          <MetricCard label="表示中の月" value={monthLabel(selectedMonth)} />
         </section>
 
         <section style={metricGridStyle} className="attendance-metrics-grid four">
           <MetricCard label="通常賃金" value={formatCurrency(salarySummary.regularPay)} />
           <MetricCard label="残業賃金" value={formatCurrency(salarySummary.overtimePay)} />
           <MetricCard label="深夜賃金" value={formatCurrency(salarySummary.lateNightPay)} />
-          <MetricCard label="今月の給与概算" value={formatCurrency(salarySummary.totalPay)} accentColor="#2563eb" />
+          <MetricCard
+            label="今月の給与概算"
+            value={formatCurrency(salarySummary.totalPay)}
+            accentColor="#2563eb"
+          />
         </section>
 
         <section style={panelStyle}>
           <div style={sectionHeaderStyle}>
             <div>
               <div style={sectionMiniStyle}>TODAY TIMECARD</div>
-              <h2 style={sectionTitleStyle}>本日の打刻</h2>
+              <h2 style={sectionTitleStyle}>今日の打刻</h2>
             </div>
           </div>
 
           <div style={miniInfoGridStyle} className="attendance-miniinfo-grid">
             <MiniInfo label="スタッフ名" value={staffName || "未設定"} />
             <MiniInfo label="勤務日" value={todayJst} />
-            <MiniInfo label="出勤" value={formatTimeJP(todayRow?.clock_in)} />
-            <MiniInfo label="退勤" value={formatTimeJP(todayRow?.clock_out)} />
+            <MiniInfo label="出勤時刻" value={formatTimeJP(todayRow?.clock_in)} />
+            <MiniInfo label="退勤時刻" value={formatTimeJP(todayRow?.clock_out)} />
           </div>
 
           <div style={actionRowStyle} className="attendance-button-row">
@@ -952,7 +961,7 @@ export default function AttendanceStaffPage() {
           <div style={sectionHeaderStyle}>
             <div>
               <div style={sectionMiniStyle}>MONTHLY RECORDS</div>
-              <h2 style={sectionTitleStyle}>月別出勤簿</h2>
+              <h2 style={sectionTitleStyle}>月別勤怠一覧</h2>
             </div>
           </div>
 
@@ -1066,7 +1075,7 @@ function FieldCard({
   children,
 }: {
   label: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div style={fieldCardStyle}>
@@ -1150,7 +1159,24 @@ const topBarStyle: CSSProperties = {
   flexWrap: "wrap",
 };
 
+const topLinkGroupStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap",
+};
+
 const backLinkStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 40,
+  color: "#1d4ed8",
+  textDecoration: "none",
+  fontSize: 14,
+  fontWeight: 700,
+};
+
+const subBackLinkStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   minHeight: 40,
