@@ -470,7 +470,11 @@ export default function MyPage() {
         .mypage-secondary-btn,
         .mypage-shop-btn {
           text-decoration: none;
-          transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+          transition:
+            transform 0.2s ease,
+            background 0.2s ease,
+            border-color 0.2s ease,
+            box-shadow 0.2s ease;
         }
 
         .mypage-primary-btn {
@@ -704,8 +708,14 @@ export default function MyPage() {
             </p>
 
             <div className="mypage-grid">
-              <InfoCard label="現在のプラン" value={loading ? "読込中..." : subscription.planName || "未設定"} />
-              <InfoCard label="契約状況" value={loading ? "読込中..." : subscription.status || "未設定"} />
+              <InfoCard
+                label="現在のプラン"
+                value={loading ? "読込中..." : subscription.planName || "未設定"}
+              />
+              <InfoCard
+                label="契約状況"
+                value={loading ? "読込中..." : subscription.status || "未設定"}
+              />
               <InfoCard
                 label="残りの回数"
                 value={loading ? "読込中..." : `${subscription.remainingCount}回`}
@@ -752,26 +762,23 @@ export default function MyPage() {
             )}
 
             <div className="mypage-actions">
-  <Link href="/reservation" className="mypage-primary-btn">
-    予約を確認する
-  </Link>
+              <Link href="/reservation" className="mypage-primary-btn">
+                予約を確認する
+              </Link>
 
-  <Link href="/reservation" className="mypage-secondary-btn">
-    次回予約を入れる
-  </Link>
+              <Link href="/reservation" className="mypage-secondary-btn">
+                次回予約を入れる
+              </Link>
 
-  <Link href="/mypage/meal" className="mypage-secondary-btn">
-    食事管理を見る
-  </Link>
+              <Link href="/mypage/meal" className="mypage-secondary-btn">
+                食事管理を見る
+              </Link>
 
-  <Link href="/mypage/meal/new" className="mypage-primary-btn">
-    食事を送る
-  </Link>
-</div>
-</section>
-
-<section className="mypage-card">
-  <div className="mypage-label">SHOP</div>
+              <Link href="/mypage/meal/new" className="mypage-primary-btn">
+                食事を送る
+              </Link>
+            </div>
+          </section>
 
           <section className="mypage-card">
             <div className="mypage-label">SHOP</div>
