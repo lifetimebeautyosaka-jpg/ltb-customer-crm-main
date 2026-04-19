@@ -195,10 +195,6 @@ function monthLabel(month: string) {
   return `${y}年${Number(m)}月`;
 }
 
-function formatCurrency(value: number) {
-  return `¥${Math.round(value || 0).toLocaleString()}`;
-}
-
 export default function AttendanceStaffPage() {
   const supabase = useMemo(() => getSupabaseClient(), []);
 
@@ -220,10 +216,6 @@ export default function AttendanceStaffPage() {
   const [breakMinutes, setBreakMinutes] = useState(30);
   const [note, setNote] = useState("");
   const [liveNow, setLiveNow] = useState(Date.now());
-
-  const [hourlyWage, setHourlyWage] = useState("1200");
-  const [overtimeRate, setOvertimeRate] = useState("1.25");
-  const [lateNightRate, setLateNightRate] = useState("1.25");
 
   const todayJst = formatJstDate(getJstNow());
 
@@ -648,24 +640,6 @@ export default function AttendanceStaffPage() {
     );
   }, [monthRows]);
 
-  const salarySummary = useMemo(() => {
-    const wage = Number(hourlyWage || 0);
-    const overtimeMultiplier = Number(overtimeRate || 1.25);
-    const lateNightMultiplier = Number(lateNightRate || 1.25);
-
-    const regularPay = (monthSummary.regularMinutes / 60) * wage;
-    const overtimePay = (monthSummary.overtimeMinutes / 60) * wage * overtimeMultiplier;
-    const lateNightPay = (monthSummary.lateNightMinutes / 60) * wage * lateNightMultiplier;
-    const totalPay = regularPay + overtimePay + lateNightPay;
-
-    return {
-      regularPay,
-      overtimePay,
-      lateNightPay,
-      totalPay,
-    };
-  }, [monthSummary, hourlyWage, overtimeRate, lateNightRate]);
-
   function getStatusLabel() {
     if (!todayRow?.clock_in) return "未出勤";
     if (todayRow.clock_in && !todayRow.clock_out) return "勤務中";
@@ -730,9 +704,9 @@ export default function AttendanceStaffPage() {
             <div style={miniLabelStyle}>GYMUP ATTENDANCE</div>
             <h1 style={titleStyle}>スタッフ用タイムカード</h1>
             <p style={descStyle}>
-              出勤と退勤を記録して、
+              出勤と退勤の記録を中心に、
               <br className="attendance-pc-break" />
-              今日の勤務状況・今月の勤怠・給与概算までまとめて確認できます。
+              今日の状況と今月の勤怠を分かりやすく確認できます。
             </p>
 
             <div style={heroButtonRowStyle} className="attendance-button-row">
@@ -784,7 +758,7 @@ export default function AttendanceStaffPage() {
           <div style={sectionHeaderStyle}>
             <div>
               <div style={sectionMiniStyle}>STAFF SETTINGS</div>
-              <h2 style={sectionTitleStyle}>スタッフ情報・給与設定</h2>
+              <h2 style={sectionTitleStyle}>スタッフ設定</h2>
             </div>
           </div>
 
@@ -833,42 +807,11 @@ export default function AttendanceStaffPage() {
               </div>
             </FieldCard>
 
-            <FieldCard label="時給">
-              <input
-                type="number"
-                value={hourlyWage}
-                onChange={(e) => setHourlyWage(e.target.value)}
-                style={inputStyle}
-              />
-            </FieldCard>
-
-            <FieldCard label="残業倍率">
-              <input
-                type="number"
-                step="0.01"
-                value={overtimeRate}
-                onChange={(e) => setOvertimeRate(e.target.value)}
-                style={inputStyle}
-              />
-            </FieldCard>
-
-            <FieldCard label="深夜倍率">
-              <input
-                type="number"
-                step="0.01"
-                value={lateNightRate}
-                onChange={(e) => setLateNightRate(e.target.value)}
-                style={inputStyle}
-              />
-            </FieldCard>
-          </div>
-
-          <div style={{ marginTop: 16 }}>
-            <FieldCard label="備考メモ">
+            <FieldCard label="本日のメモ">
               <textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                rows={4}
+                rows={3}
                 style={textareaStyle}
                 placeholder="遅刻・早退・連絡事項など"
               />
@@ -877,14 +820,14 @@ export default function AttendanceStaffPage() {
 
           <div style={actionRowStyle} className="attendance-button-row">
             <button onClick={handleSaveStaff} style={secondaryButtonStyle} disabled={saving}>
-              スタッフ情報を保存
+              スタッフ名を保存
             </button>
             <button
               onClick={handleSaveMemo}
               style={secondaryButtonStyle}
               disabled={saving || !todayRow}
             >
-              休憩・備考を保存
+              休憩・メモを保存
             </button>
           </div>
         </section>
@@ -901,17 +844,6 @@ export default function AttendanceStaffPage() {
           <MetricCard label="残業時間" value={minutesToText(monthSummary.overtimeMinutes)} />
           <MetricCard label="深夜時間" value={minutesToText(monthSummary.lateNightMinutes)} />
           <MetricCard label="表示中の月" value={monthLabel(selectedMonth)} />
-        </section>
-
-        <section style={metricGridStyle} className="attendance-metrics-grid four">
-          <MetricCard label="通常賃金" value={formatCurrency(salarySummary.regularPay)} />
-          <MetricCard label="残業賃金" value={formatCurrency(salarySummary.overtimePay)} />
-          <MetricCard label="深夜賃金" value={formatCurrency(salarySummary.lateNightPay)} />
-          <MetricCard
-            label="今月の給与概算"
-            value={formatCurrency(salarySummary.totalPay)}
-            accentColor="#2563eb"
-          />
         </section>
 
         <section style={panelStyle}>
@@ -1358,7 +1290,7 @@ const sectionTitleStyle: CSSProperties = {
 
 const formGridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(6, minmax(0, 1fr))",
+  gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
   gap: 14,
 };
 
@@ -1392,6 +1324,7 @@ const inputStyle: CSSProperties = {
 
 const textareaStyle: CSSProperties = {
   width: "100%",
+  minHeight: 120,
   borderRadius: 14,
   border: "1px solid rgba(203,213,225,0.9)",
   background: "rgba(255,255,255,0.82)",
@@ -1436,20 +1369,20 @@ const actionRowStyle: CSSProperties = {
 };
 
 const primaryButtonStyle: CSSProperties = {
-  minHeight: 50,
+  minHeight: 54,
   border: "none",
   borderRadius: 16,
   background: "linear-gradient(135deg, #2563eb, #60a5fa)",
   color: "#ffffff",
   fontWeight: 800,
-  fontSize: 14,
+  fontSize: 15,
   cursor: "pointer",
-  padding: "0 18px",
+  padding: "0 20px",
   boxShadow: "0 12px 28px rgba(37,99,235,0.22)",
 };
 
 const secondaryButtonStyle: CSSProperties = {
-  minHeight: 50,
+  minHeight: 54,
   border: "1px solid rgba(203,213,225,0.95)",
   borderRadius: 16,
   background: "rgba(255,255,255,0.84)",
@@ -1655,6 +1588,7 @@ const responsiveStyle = `
   }
 
   .attendance-hero-grid {
+    grid-template-columns: 1fr !important;
     gap: 14px !important;
     padding: 14px !important;
     border-radius: 22px !important;
