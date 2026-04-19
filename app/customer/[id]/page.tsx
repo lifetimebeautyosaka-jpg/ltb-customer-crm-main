@@ -196,7 +196,8 @@ function normalizeCustomer(row: CustomerRow): NormalizedCustomer {
     phone: row.phone || row.phone_number || "",
     email: row.email || "",
     gender: row.gender || "",
-    age: row.age !== null && row.age !== undefined ? String(row.age) : "",
+    age:
+      row.age !== null && row.age !== undefined ? String(row.age) : "",
     birthday: row.birthday || "",
     address: row.address || "",
     goal: row.goal || row.goals || "",
@@ -254,7 +255,6 @@ function buildChartPoints(values: number[], width: number, height: number) {
 function calcTicketComputedStatus(ticket: CustomerTicketRow) {
   const baseStatus = ticket.status || "";
   const remaining = Number(ticket.remaining_count || 0);
-
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -330,6 +330,14 @@ function summarizeCounseling(sheet: CounselingSheetRow | null) {
     notes: sheet.notes?.trim() ? sheet.notes : "未登録",
     updatedAt: formatDateTime(sheet.updated_at || sheet.created_at),
   };
+}
+
+function goToReservationDetail(
+  router: ReturnType<typeof useRouter>,
+  reservationId?: number | null
+) {
+  if (!reservationId) return;
+  router.push(`/reservation/detail/${reservationId}`);
 }
 
 function InfoItem({
@@ -427,7 +435,9 @@ function ChartSection({
         <div style={emptyBoxStyle}>{emptyLabel}</div>
       ) : sessions.length === 1 ? (
         <div style={singleChartBoxStyle}>
-          <div style={singleChartValueStyle}>{formatMetric(values[0], unit)}</div>
+          <div style={singleChartValueStyle}>
+            {formatMetric(values[0], unit)}
+          </div>
           <div style={singleChartDateStyle}>
             {formatDate(sessions[0].session_date)}
           </div>
@@ -525,13 +535,11 @@ function ChartSection({
 export default function CustomerDetailPage() {
   const params = useParams();
   const router = useRouter();
-
   const rawId = params?.id;
   const customerId = Array.isArray(rawId) ? rawId[0] : String(rawId ?? "");
 
   const [mounted, setMounted] = useState(false);
   const [windowWidth, setWindowWidth] = useState(1400);
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -555,8 +563,10 @@ export default function CustomerDetailPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+
     const updateWidth = () => setWindowWidth(window.innerWidth);
     updateWidth();
+
     window.addEventListener("resize", updateWidth);
     return () => window.removeEventListener("resize", updateWidth);
   }, []);
@@ -611,21 +621,9 @@ export default function CustomerDetailPage() {
 
       const { data: sessionData, error: sessionError } = await supabase
         .from("training_sessions")
-        .select(`
-          id,
-          customer_id,
-          session_date,
-          body_height,
-          body_weight,
-          body_fat,
-          muscle_mass,
-          visceral_fat,
-          summary,
-          next_task,
-          posture_note,
-          created_at,
-          updated_at
-        `)
+        .select(
+          "id, customer_id, session_date, body_height, body_weight, body_fat, muscle_mass, visceral_fat, summary, next_task, posture_note, created_at, updated_at"
+        )
         .eq("customer_id", String(customerId))
         .order("session_date", { ascending: true })
         .order("created_at", { ascending: true });
@@ -824,7 +822,6 @@ export default function CustomerDetailPage() {
   const bodyFatChartPoints = buildChartPoints(bodyFatValues, 520, 180);
 
   const counselingSummary = summarizeCounseling(counselingSheet);
-
   const mobile = windowWidth < 768;
 
   if (!mounted) return null;
@@ -832,7 +829,11 @@ export default function CustomerDetailPage() {
   if (loading) {
     return (
       <main
-        style={{ ...BG_STYLE, minHeight: "100vh", padding: "24px 16px 80px" }}
+        style={{
+          ...BG_STYLE,
+          minHeight: "100vh",
+          padding: "24px 16px 80px",
+        }}
       >
         <div style={{ maxWidth: 1180, margin: "0 auto" }}>
           <div style={{ ...CARD_STYLE, borderRadius: 24, padding: 24 }}>
@@ -853,7 +854,11 @@ export default function CustomerDetailPage() {
     >
       <div style={{ maxWidth: 1180, margin: "0 auto", display: "grid", gap: 18 }}>
         <section
-          style={{ ...CARD_STYLE, borderRadius: 24, padding: mobile ? 16 : 20 }}
+          style={{
+            ...CARD_STYLE,
+            borderRadius: 24,
+            padding: mobile ? 16 : 20,
+          }}
         >
           <div
             style={{
@@ -951,7 +956,11 @@ export default function CustomerDetailPage() {
         {ticketSuccess ? <div style={alertSuccessStyle}>{ticketSuccess}</div> : null}
 
         <section
-          style={{ ...CARD_STYLE, borderRadius: 24, padding: mobile ? 16 : 20 }}
+          style={{
+            ...CARD_STYLE,
+            borderRadius: 24,
+            padding: mobile ? 16 : 20,
+          }}
         >
           <h2 style={sectionTitleStyle}>基本情報</h2>
 
@@ -974,7 +983,11 @@ export default function CustomerDetailPage() {
         </section>
 
         <section
-          style={{ ...CARD_STYLE, borderRadius: 24, padding: mobile ? 16 : 20 }}
+          style={{
+            ...CARD_STYLE,
+            borderRadius: 24,
+            padding: mobile ? 16 : 20,
+          }}
         >
           <div
             style={{
@@ -988,7 +1001,6 @@ export default function CustomerDetailPage() {
             }}
           >
             <h2 style={sectionTitleStyle}>カウンセリング要約</h2>
-
             <Link
               href={`/customer/${customerId}/counseling`}
               style={{ ...miniButtonLinkStyle, width: mobile ? "100%" : "auto" }}
@@ -1047,7 +1059,11 @@ export default function CustomerDetailPage() {
 
         {showTicketForm ? (
           <section
-            style={{ ...CARD_STYLE, borderRadius: 24, padding: mobile ? 16 : 20 }}
+            style={{
+              ...CARD_STYLE,
+              borderRadius: 24,
+              padding: mobile ? 16 : 20,
+            }}
           >
             <h2 style={sectionTitleStyle}>回数券追加</h2>
 
@@ -1155,7 +1171,11 @@ export default function CustomerDetailPage() {
         ) : null}
 
         <section
-          style={{ ...CARD_STYLE, borderRadius: 24, padding: mobile ? 16 : 20 }}
+          style={{
+            ...CARD_STYLE,
+            borderRadius: 24,
+            padding: mobile ? 16 : 20,
+          }}
         >
           <h2 style={sectionTitleStyle}>KPI</h2>
 
@@ -1189,7 +1209,11 @@ export default function CustomerDetailPage() {
         </section>
 
         <section
-          style={{ ...CARD_STYLE, borderRadius: 24, padding: mobile ? 16 : 20 }}
+          style={{
+            ...CARD_STYLE,
+            borderRadius: 24,
+            padding: mobile ? 16 : 20,
+          }}
         >
           <div
             style={{
@@ -1273,7 +1297,11 @@ export default function CustomerDetailPage() {
         </section>
 
         <section
-          style={{ ...CARD_STYLE, borderRadius: 24, padding: mobile ? 16 : 20 }}
+          style={{
+            ...CARD_STYLE,
+            borderRadius: 24,
+            padding: mobile ? 16 : 20,
+          }}
         >
           <div
             style={{
@@ -1297,7 +1325,16 @@ export default function CustomerDetailPage() {
           ) : (
             <div style={{ display: "grid", gap: 12 }}>
               {ticketUsages.map((usage) => (
-                <article key={String(usage.id)} style={historyItemStyle}>
+                <article
+                  key={String(usage.id)}
+                  onClick={() =>
+                    goToReservationDetail(router, usage.reservation_id)
+                  }
+                  style={{
+                    ...historyItemStyle,
+                    cursor: usage.reservation_id ? "pointer" : "default",
+                  }}
+                >
                   <div
                     style={{
                       display: "flex",
@@ -1311,7 +1348,6 @@ export default function CustomerDetailPage() {
                       <div style={historyDateStyle}>
                         {formatDate(usage.used_date || usage.created_at)}
                       </div>
-
                       <div style={historySubStyle}>
                         回数券名 {usage.ticket_name || "—"}
                       </div>
@@ -1319,7 +1355,8 @@ export default function CustomerDetailPage() {
                         サービス種別 {usage.service_type || "—"}
                       </div>
                       <div style={historySubStyle}>
-                        残数 {usage.before_count ?? "—"} → {usage.after_count ?? "—"}
+                        残数 {usage.before_count ?? "—"} →{" "}
+                        {usage.after_count ?? "—"}
                       </div>
                       <div style={historySubStyle}>
                         予約ID{" "}
@@ -1337,7 +1374,11 @@ export default function CustomerDetailPage() {
         </section>
 
         <section
-          style={{ ...CARD_STYLE, borderRadius: 24, padding: mobile ? 16 : 20 }}
+          style={{
+            ...CARD_STYLE,
+            borderRadius: 24,
+            padding: mobile ? 16 : 20,
+          }}
         >
           <h2 style={sectionTitleStyle}>最新トレーニングデータ</h2>
 
@@ -1434,7 +1475,11 @@ export default function CustomerDetailPage() {
         />
 
         <section
-          style={{ ...CARD_STYLE, borderRadius: 24, padding: mobile ? 16 : 20 }}
+          style={{
+            ...CARD_STYLE,
+            borderRadius: 24,
+            padding: mobile ? 16 : 20,
+          }}
         >
           <div
             style={{
@@ -1484,6 +1529,7 @@ export default function CustomerDetailPage() {
                           {formatMetric(session.muscle_mass, "kg")} / 内臓脂肪{" "}
                           {formatMetric(session.visceral_fat)}
                         </div>
+
                         <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
                           <TextBlock label="総評" value={session.summary || "未登録"} />
                           <TextBlock
