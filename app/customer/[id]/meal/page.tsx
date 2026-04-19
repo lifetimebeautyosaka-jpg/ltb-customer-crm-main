@@ -20,13 +20,30 @@ type Meal = {
   createdAt: string;
 };
 
+function formatDateJP(value?: string) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return `${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
+function formatDateTimeJP(value?: string) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${String(
+    d.getHours()
+  ).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
 export default function CustomerMealPage() {
   const params = useParams();
-  const customerId = String(params?.id ?? "");
+  const customerId = String(params?.id || "");
 
   const [mounted, setMounted] = useState(false);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [meals, setMeals] = useState<Meal[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setMounted(true);
@@ -42,54 +59,43 @@ export default function CustomerMealPage() {
         localStorage.getItem("gymup_customers") ||
         localStorage.getItem("customers");
 
-      if (savedCustomers) {
-        const parsed = JSON.parse(savedCustomers);
-        if (Array.isArray(parsed)) {
-          const found = parsed.find(
-            (item: Customer) => String(item.id) === customerId
-          );
-          setCustomer(found || null);
-        }
-      }
-    } catch {
-      setCustomer(null);
-    }
+      const parsedCustomers: Customer[] = savedCustomers
+        ? JSON.parse(savedCustomers)
+        : [];
 
-    try {
+      const foundCustomer =
+        parsedCustomers.find((c) => String(c.id) === customerId) || null;
+
+      setCustomer(foundCustomer);
+
       const savedMeals = localStorage.getItem(`gymup_meals_${customerId}`);
-      if (savedMeals) {
-        const parsed = JSON.parse(savedMeals);
-        setMeals(Array.isArray(parsed) ? parsed : []);
-      } else {
-        setMeals([]);
-      }
-    } catch {
+      const parsedMeals: Meal[] = savedMeals ? JSON.parse(savedMeals) : [];
+
+      const safeMeals = Array.isArray(parsedMeals) ? parsedMeals : [];
+
+      const sortedMeals = [...safeMeals].sort((a, b) => {
+        const aTime = new Date(a.createdAt || a.date).getTime();
+        const bTime = new Date(b.createdAt || b.date).getTime();
+        return bTime - aTime;
+      });
+
+      setMeals(sortedMeals);
+    } catch (error) {
+      console.error(error);
+      setCustomer(null);
       setMeals([]);
+    } finally {
+      setLoading(false);
     }
   }, [customerId]);
 
-  const sortedMeals = useMemo(() => {
-    return [...meals].sort((a, b) => {
-      const aTime = new Date(a.createdAt || a.date).getTime();
-      const bTime = new Date(b.createdAt || b.date).getTime();
-      return bTime - aTime;
-    });
-  }, [meals]);
-
-  const mealCount = useMemo(() => meals.length, [meals]);
-
-  const feedbackCount = useMemo(() => {
+  const feedbackDoneCount = useMemo(() => {
     return meals.filter((meal) => meal.feedback && meal.feedback.trim()).length;
   }, [meals]);
 
-  const handleDeleteMeal = (mealId: string) => {
-    const ok = window.confirm("この食事投稿を削除しますか？");
-    if (!ok) return;
-
-    const nextMeals = meals.filter((meal) => meal.id !== mealId);
-    setMeals(nextMeals);
-    localStorage.setItem(`gymup_meals_${customerId}`, JSON.stringify(nextMeals));
-  };
+  const feedbackPendingCount = useMemo(() => {
+    return meals.filter((meal) => !meal.feedback || !meal.feedback.trim()).length;
+  }, [meals]);
 
   if (!mounted) return null;
 
@@ -103,8 +109,8 @@ export default function CustomerMealPage() {
         fontFamily: "system-ui, sans-serif",
       }}
     >
-      <div style={{ maxWidth: "1180px", margin: "0 auto" }}>
-        <div
+      <div style={{ maxWidth: "1180px", margin: "0 auto", display: "grid", gap: "20px" }}>
+        <section
           style={{
             background: "rgba(255,255,255,0.50)",
             backdropFilter: "blur(18px)",
@@ -114,7 +120,6 @@ export default function CustomerMealPage() {
             padding: "28px",
             boxShadow:
               "0 20px 60px rgba(15, 23, 42, 0.10), inset 0 1px 0 rgba(255,255,255,0.92)",
-            marginBottom: "24px",
           }}
         >
           <div
@@ -136,7 +141,7 @@ export default function CustomerMealPage() {
                   marginBottom: "10px",
                 }}
               >
-                MEAL MANAGEMENT
+                CUSTOMER MEAL
               </div>
 
               <h1
@@ -148,7 +153,7 @@ export default function CustomerMealPage() {
                   lineHeight: 1.15,
                 }}
               >
-                食事管理
+                {customer ? `${customer.name} 様の食事管理` : "食事管理"}
               </h1>
 
               <p
@@ -159,197 +164,296 @@ export default function CustomerMealPage() {
                   lineHeight: 1.8,
                 }}
               >
-                {customer?.name || "顧客"} の食事投稿一覧を確認できます
+                食事投稿一覧・フィードバック状況を確認できます
               </p>
             </div>
 
-            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-              <Link href={`/customer/${customerId}`} style={subButtonStyle}>
-                ← 顧客詳細へ
+            <div
+              style={{
+                display: "flex",
+                gap: "10px",
+                flexWrap: "wrap",
+              }}
+            >
+              <Link href="/meal" style={subButtonStyle}>
+                ← 食事管理トップ
               </Link>
+
+              <Link href={`/customer/${customerId}`} style={subButtonStyle}>
+                顧客詳細へ
+              </Link>
+
               <Link href={`/customer/${customerId}/meal/new`} style={mainButtonLinkStyle}>
-                ＋ 新規投稿
+                新規投稿
               </Link>
             </div>
           </div>
-        </div>
+        </section>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 320px",
-            gap: "24px",
-            alignItems: "start",
-          }}
-        >
-          <div style={{ display: "grid", gap: "24px" }}>
-            <section style={cardStyle}>
-              <h2 style={sectionTitleStyle}>食事投稿一覧</h2>
+        <section style={metricGridStyle}>
+          <MetricCard title="顧客名" value={customer?.name || "未登録"} />
+          <MetricCard title="投稿数" value={`${meals.length}件`} />
+          <MetricCard title="FB済み" value={`${feedbackDoneCount}件`} />
+          <MetricCard title="未返信" value={`${feedbackPendingCount}件`} />
+        </section>
 
-              {sortedMeals.length === 0 ? (
-                <div style={emptyBoxStyle}>
-                  まだ食事投稿がありません
-                </div>
-              ) : (
-                <div style={{ display: "grid", gap: "14px" }}>
-                  {sortedMeals.map((meal) => (
-                    <div key={meal.id} style={mealCardStyle}>
+        <section style={cardStyle}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: "14px",
+            }}
+          >
+            <InfoMini label="電話番号" value={customer?.phone || "未入力"} />
+            <InfoMini label="プラン" value={customer?.plan || "未設定"} />
+            <InfoMini
+              label="最新投稿日"
+              value={meals[0]?.date ? formatDateJP(meals[0].date) : "—"}
+            />
+            <InfoMini
+              label="最新フィードバック"
+              value={
+                meals.find((m) => m.feedback && m.feedback.trim())?.date
+                  ? formatDateJP(
+                      meals.find((m) => m.feedback && m.feedback.trim())?.date || ""
+                    )
+                  : "—"
+              }
+            />
+          </div>
+        </section>
+
+        <section style={cardStyle}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "12px",
+              flexWrap: "wrap",
+              marginBottom: "18px",
+            }}
+          >
+            <h2 style={sectionTitleStyle}>食事投稿一覧</h2>
+
+            <Link href={`/customer/${customerId}/meal/feedback`} style={subButtonStyle}>
+              フィードバック管理へ
+            </Link>
+          </div>
+
+          {loading ? (
+            <div style={emptyBoxStyle}>読み込み中...</div>
+          ) : meals.length === 0 ? (
+            <div style={emptyBoxStyle}>まだ食事投稿がありません</div>
+          ) : (
+            <div style={{ display: "grid", gap: "14px" }}>
+              {meals.map((meal) => (
+                <div key={meal.id} style={rowCardStyle}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      gap: "16px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: "260px" }}>
                       <div
                         style={{
                           display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "flex-start",
-                          gap: "14px",
+                          gap: "8px",
                           flexWrap: "wrap",
-                          marginBottom: "14px",
+                          marginBottom: "12px",
                         }}
                       >
-                        <div>
+                        <span style={pillStyle("#e0f2fe", "#075985")}>
+                          投稿日: {formatDateJP(meal.date)}
+                        </span>
+                        <span
+                          style={
+                            meal.feedback && meal.feedback.trim()
+                              ? pillStyle("#dcfce7", "#166534")
+                              : pillStyle("#fee2e2", "#991b1b")
+                          }
+                        >
+                          {meal.feedback && meal.feedback.trim() ? "返信済み" : "未返信"}
+                        </span>
+                      </div>
+
+                      <div
+                        style={{
+                          fontSize: "14px",
+                          color: "#374151",
+                          lineHeight: 1.9,
+                          whiteSpace: "pre-wrap",
+                          marginBottom: "12px",
+                          fontWeight: 700,
+                        }}
+                      >
+                        {meal.comment || "コメントなし"}
+                      </div>
+
+                      {meal.feedback && meal.feedback.trim() ? (
+                        <div
+                          style={{
+                            background: "rgba(240,249,255,0.95)",
+                            border: "1px solid rgba(186,230,253,1)",
+                            borderRadius: "14px",
+                            padding: "12px",
+                          }}
+                        >
                           <div
                             style={{
-                              fontSize: "18px",
+                              fontSize: "12px",
+                              color: "#0369a1",
                               fontWeight: 800,
-                              color: "#111827",
                               marginBottom: "6px",
                             }}
                           >
-                            {meal.date || "日付未設定"}
+                            フィードバック
                           </div>
                           <div
                             style={{
-                              fontSize: "13px",
-                              color: "#6b7280",
+                              fontSize: "14px",
+                              color: "#0f172a",
+                              lineHeight: 1.8,
+                              whiteSpace: "pre-wrap",
+                              fontWeight: 700,
                             }}
                           >
-                            投稿日：{meal.createdAt ? new Date(meal.createdAt).toLocaleString() : "-"}
+                            {meal.feedback}
                           </div>
                         </div>
+                      ) : null}
 
-                        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                          <Link
-                            href={`/customer/${customerId}/meal/feedback?mealId=${meal.id}`}
-                            style={subButtonStyle}
-                          >
-                            フィードバック
-                          </Link>
-
-                          <button
-                            onClick={() => handleDeleteMeal(meal.id)}
-                            style={deleteButtonStyle}
-                          >
-                            削除
-                          </button>
-                        </div>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          color: "#6b7280",
+                          marginTop: "12px",
+                        }}
+                      >
+                        登録日時: {formatDateTimeJP(meal.createdAt)}
                       </div>
+                    </div>
 
+                    <div
+                      style={{
+                        minWidth: "180px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "10px",
+                      }}
+                    >
                       {meal.image ? (
-                        <div
+                        <img
+                          src={meal.image}
+                          alt="meal"
                           style={{
-                            marginBottom: "14px",
-                            borderRadius: "18px",
-                            overflow: "hidden",
-                            border: "1px solid rgba(226,232,240,0.95)",
+                            width: "100%",
+                            height: "140px",
+                            objectFit: "cover",
+                            borderRadius: "14px",
+                            border: "1px solid rgba(226,232,240,1)",
                             background: "#fff",
                           }}
-                        >
-                          <img
-                            src={meal.image}
-                            alt="食事画像"
-                            style={{
-                              width: "100%",
-                              maxHeight: "320px",
-                              objectFit: "cover",
-                              display: "block",
-                            }}
-                          />
-                        </div>
+                        />
                       ) : (
                         <div
                           style={{
-                            marginBottom: "14px",
-                            borderRadius: "16px",
-                            padding: "16px",
-                            background: "rgba(255,255,255,0.62)",
-                            border: "1px solid rgba(226,232,240,0.95)",
-                            color: "#6b7280",
-                            fontSize: "14px",
+                            width: "100%",
+                            height: "140px",
+                            borderRadius: "14px",
+                            border: "1px dashed rgba(203,213,225,1)",
+                            background: "rgba(248,250,252,0.9)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "#94a3b8",
+                            fontSize: "13px",
+                            fontWeight: 700,
                           }}
                         >
                           画像なし
                         </div>
                       )}
 
-                      <div style={contentBoxStyle}>
-                        <div style={contentLabelStyle}>コメント</div>
-                        <div style={contentTextStyle}>
-                          {meal.comment?.trim() || "コメントなし"}
-                        </div>
-                      </div>
-
-                      <div style={{ ...contentBoxStyle, marginTop: "12px" }}>
-                        <div style={contentLabelStyle}>トレーナーフィードバック</div>
-                        <div style={contentTextStyle}>
-                          {meal.feedback?.trim() || "まだフィードバックはありません"}
-                        </div>
-                      </div>
+                      <Link
+                        href={`/customer/${customerId}/meal/feedback`}
+                        style={mainButtonLinkStyle}
+                      >
+                        返信する
+                      </Link>
                     </div>
-                  ))}
+                  </div>
                 </div>
-              )}
-            </section>
-          </div>
-
-          <div style={{ display: "grid", gap: "24px" }}>
-            <section style={sideCardStyle}>
-              <h2 style={sectionTitleStyle}>顧客情報</h2>
-
-              <div style={infoBoxStyle}>
-                <div style={infoLabelStyle}>顧客名</div>
-                <div style={infoValueStyle}>{customer?.name || "未設定"}</div>
-              </div>
-
-              <div style={infoBoxStyle}>
-                <div style={infoLabelStyle}>電話番号</div>
-                <div style={infoValueStyle}>{customer?.phone || "未入力"}</div>
-              </div>
-
-              <div style={infoBoxStyle}>
-                <div style={infoLabelStyle}>プラン</div>
-                <div style={infoValueStyle}>{customer?.plan || "未設定"}</div>
-              </div>
-            </section>
-
-            <section style={sideCardStyle}>
-              <h2 style={sectionTitleStyle}>集計</h2>
-
-              <div style={infoBoxStyle}>
-                <div style={infoLabelStyle}>総投稿数</div>
-                <div style={infoValueStyle}>{mealCount}件</div>
-              </div>
-
-              <div style={infoBoxStyle}>
-                <div style={infoLabelStyle}>フィードバック済み</div>
-                <div style={infoValueStyle}>{feedbackCount}件</div>
-              </div>
-
-              <Link
-                href={`/customer/${customerId}/meal/new`}
-                style={{
-                  ...mainButtonLinkStyle,
-                  display: "block",
-                  textAlign: "center",
-                  marginTop: "10px",
-                }}
-              >
-                新規投稿へ
-              </Link>
-            </section>
-          </div>
-        </div>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );
 }
+
+function MetricCard({ title, value }: { title: string; value: string }) {
+  return (
+    <div style={metricCardStyle}>
+      <div style={{ fontSize: "13px", color: "#6b7280", marginBottom: "8px" }}>
+        {title}
+      </div>
+      <div style={{ fontSize: "28px", fontWeight: 800, color: "#111827" }}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function InfoMini({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={infoMiniStyle}>
+      <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "6px" }}>
+        {label}
+      </div>
+      <div style={{ fontSize: "14px", color: "#111827", fontWeight: 700 }}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function pillStyle(bg: string, color: string): React.CSSProperties {
+  return {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "6px 10px",
+    borderRadius: "999px",
+    background: bg,
+    color,
+    fontSize: "12px",
+    fontWeight: 800,
+    whiteSpace: "nowrap",
+  };
+}
+
+const metricGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: "16px",
+};
+
+const metricCardStyle: React.CSSProperties = {
+  background: "rgba(255,255,255,0.55)",
+  backdropFilter: "blur(14px)",
+  WebkitBackdropFilter: "blur(14px)",
+  border: "1px solid rgba(255,255,255,0.65)",
+  borderRadius: "22px",
+  padding: "22px",
+  boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
+};
 
 const cardStyle: React.CSSProperties = {
   background: "rgba(255,255,255,0.50)",
@@ -362,18 +466,7 @@ const cardStyle: React.CSSProperties = {
     "0 16px 44px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.92)",
 };
 
-const sideCardStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.48)",
-  backdropFilter: "blur(18px)",
-  WebkitBackdropFilter: "blur(18px)",
-  border: "1px solid rgba(255,255,255,0.75)",
-  borderRadius: "24px",
-  padding: "22px",
-  boxShadow:
-    "0 16px 44px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.92)",
-};
-
-const mealCardStyle: React.CSSProperties = {
+const rowCardStyle: React.CSSProperties = {
   background: "rgba(255,255,255,0.72)",
   border: "1px solid rgba(226,232,240,0.95)",
   borderRadius: "20px",
@@ -381,52 +474,18 @@ const mealCardStyle: React.CSSProperties = {
   boxShadow: "0 8px 20px rgba(15, 23, 42, 0.05)",
 };
 
+const infoMiniStyle: React.CSSProperties = {
+  background: "rgba(248,250,252,0.88)",
+  border: "1px solid rgba(226,232,240,0.95)",
+  borderRadius: "14px",
+  padding: "12px",
+};
+
 const sectionTitleStyle: React.CSSProperties = {
-  margin: "0 0 18px 0",
+  margin: 0,
   fontSize: "24px",
   fontWeight: 800,
   color: "#111827",
-};
-
-const infoBoxStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(226,232,240,0.95)",
-  borderRadius: "16px",
-  padding: "14px",
-  marginBottom: "12px",
-};
-
-const infoLabelStyle: React.CSSProperties = {
-  fontSize: "12px",
-  color: "#6b7280",
-  marginBottom: "6px",
-};
-
-const infoValueStyle: React.CSSProperties = {
-  fontSize: "15px",
-  color: "#111827",
-  fontWeight: 700,
-};
-
-const contentBoxStyle: React.CSSProperties = {
-  background: "rgba(248,250,252,0.88)",
-  border: "1px solid rgba(226,232,240,0.95)",
-  borderRadius: "16px",
-  padding: "14px",
-};
-
-const contentLabelStyle: React.CSSProperties = {
-  fontSize: "12px",
-  color: "#6b7280",
-  marginBottom: "8px",
-  fontWeight: 700,
-};
-
-const contentTextStyle: React.CSSProperties = {
-  fontSize: "14px",
-  color: "#374151",
-  lineHeight: 1.8,
-  whiteSpace: "pre-wrap",
 };
 
 const emptyBoxStyle: React.CSSProperties = {
@@ -446,6 +505,7 @@ const subButtonStyle: React.CSSProperties = {
   border: "1px solid rgba(203,213,225,0.95)",
   color: "#111827",
   fontWeight: 700,
+  textAlign: "center",
 };
 
 const mainButtonLinkStyle: React.CSSProperties = {
@@ -455,14 +515,5 @@ const mainButtonLinkStyle: React.CSSProperties = {
   background: "#111827",
   color: "#ffffff",
   fontWeight: 700,
-};
-
-const deleteButtonStyle: React.CSSProperties = {
-  border: "none",
-  borderRadius: "12px",
-  padding: "11px 14px",
-  background: "#111827",
-  color: "#ffffff",
-  fontWeight: 700,
-  cursor: "pointer",
+  textAlign: "center",
 };
