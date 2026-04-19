@@ -95,9 +95,7 @@ function monthLabel(month: string) {
 function downloadCsv(filename: string, rows: (string | number)[][]) {
   const csv = rows
     .map((row) =>
-      row
-        .map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`)
-        .join(",")
+      row.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")
     )
     .join("\n");
 
@@ -170,7 +168,6 @@ export default function AttendanceAdminPage() {
   }, [mounted]);
 
   const mobile = windowWidth < 768;
-  const tablet = windowWidth < 1100;
 
   async function fetchAttendance() {
     if (!supabase) {
@@ -218,7 +215,9 @@ export default function AttendanceAdminPage() {
 
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
-      const matchMonth = monthFilter ? String(row.work_date || "").startsWith(monthFilter) : true;
+      const matchMonth = monthFilter
+        ? String(row.work_date || "").startsWith(monthFilter)
+        : true;
       const matchStaff = staffFilter ? row.staff_name === staffFilter : true;
       return matchMonth && matchStaff;
     });
@@ -370,13 +369,13 @@ export default function AttendanceAdminPage() {
         </div>
 
         <section style={heroCardStyle} className="attendance-hero-grid">
-          <div style={heroLeftStyle} className="attendance-hero-left">
+          <div style={heroLeftStyle}>
             <div style={miniLabelStyle}>GYMUP ATTENDANCE</div>
             <h1 style={titleStyle}>管理者勤怠ページ</h1>
             <p style={descStyle}>
-              月別・スタッフ別の勤怠を集計し、
+              全体の勤務状況、スタッフ別の集計、日別の明細を
               <br className="attendance-pc-break" />
-              全体状況とスタッフ別の勤務状況を見やすく確認できます。
+              上から順に確認できる管理画面です。
             </p>
           </div>
 
@@ -416,8 +415,8 @@ export default function AttendanceAdminPage() {
         <section style={panelStyle}>
           <div style={sectionHeaderStyle}>
             <div>
-              <div style={sectionMiniStyle}>FILTER & CALC</div>
-              <h2 style={sectionTitleStyle}>絞り込み・給与計算条件</h2>
+              <div style={sectionMiniStyle}>FILTERS & PAY</div>
+              <h2 style={sectionTitleStyle}>絞り込み・給与条件</h2>
             </div>
           </div>
 
@@ -480,8 +479,10 @@ export default function AttendanceAdminPage() {
             <button type="button" onClick={handleClearFilter} style={secondaryButtonStyle}>
               絞り込みを戻す
             </button>
+
             <div style={filterHelpStyle}>
-              表示中: {monthLabel(monthFilter)} {staffFilter ? ` / ${staffFilter}` : " / 全スタッフ"}
+              表示中: {monthLabel(monthFilter)}
+              {staffFilter ? ` / ${staffFilter}` : " / 全スタッフ"}
             </div>
           </div>
         </section>
@@ -505,7 +506,7 @@ export default function AttendanceAdminPage() {
           <div style={sectionHeaderStyle}>
             <div>
               <div style={sectionMiniStyle}>STAFF SUMMARY</div>
-              <h2 style={sectionTitleStyle}>スタッフ別サマリー</h2>
+              <h2 style={sectionTitleStyle}>スタッフ別集計</h2>
             </div>
           </div>
 
@@ -1230,12 +1231,6 @@ const responsiveStyle = `
     gap: 14px !important;
     padding: 14px !important;
     border-radius: 22px !important;
-  }
-
-  .attendance-hero-left {
-    min-height: auto !important;
-    padding: 22px 18px !important;
-    border-radius: 20px !important;
   }
 
   .attendance-button-row {
