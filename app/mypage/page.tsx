@@ -752,15 +752,24 @@ export default function MyPage() {
             )}
 
             <div className="mypage-actions">
-              <Link href="/reservation" className="mypage-primary-btn">
-                予約を確認する
-              </Link>
+  <Link href="/reservation" className="mypage-primary-btn">
+    予約を確認する
+  </Link>
 
-              <Link href="/reservation" className="mypage-secondary-btn">
-                次回予約を入れる
-              </Link>
-            </div>
-          </section>
+  <Link href="/reservation" className="mypage-secondary-btn">
+    次回予約を入れる
+  </Link>
+
+  👉ここに追加👇
+
+  <Link href="/mypage/meal" className="mypage-secondary-btn">
+    食事管理を見る
+  </Link>
+
+  <Link href="/mypage/meal/new" className="mypage-primary-btn">
+    食事を送る
+  </Link>
+</div>
 
           <section className="mypage-card">
             <div className="mypage-label">SHOP</div>
