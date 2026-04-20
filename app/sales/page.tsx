@@ -152,14 +152,24 @@ type TicketIssuePresetInfo = {
   priceVersion: "新" | "旧";
 };
 
+type ParsedTicketInfo = {
+  count: 4 | 8 | 12 | null;
+  minutes: 40 | 60 | 80 | 120;
+  version: "new" | "old" | null;
+};
+
 type GroupedPresetOptions = {
   trial: PricePreset[];
   single: PricePreset[];
   unit: PricePreset[];
   ticketNew: PricePreset[];
   ticketOld: PricePreset[];
-  consumeNew: PricePreset[];
-  consumeOld: PricePreset[];
+  consumeNew4: PricePreset[];
+  consumeNew8: PricePreset[];
+  consumeNew12: PricePreset[];
+  consumeOld4: PricePreset[];
+  consumeOld8: PricePreset[];
+  consumeOld12: PricePreset[];
   trainingTrial: PricePreset[];
   trainingCourse: PricePreset[];
   trainingBodyOld: PricePreset[];
@@ -193,12 +203,202 @@ const STORE_OPTIONS = [
   "福島P",
   "天満橋",
   "中崎町",
+  "江坂",
   "未設定",
 ];
 
 const PAYMENT_OPTIONS: PaymentMethod[] = ["現金", "カード", "銀行振込", "その他"];
 const ACCOUNTING_OPTIONS: AccountingType[] = ["通常売上", "前受金", "回数券消化"];
 const SERVICE_OPTIONS: ServiceType[] = ["ストレッチ", "トレーニング"];
+
+const STRETCH_NEW_TICKET_SALES: Record<
+  4 | 8 | 12,
+  Record<40 | 60 | 80 | 120, number>
+> = {
+  4: { 40: 22000, 60: 34000, 80: 45000, 120: 68000 },
+  8: { 40: 42000, 60: 64000, 80: 86000, 120: 128000 },
+  12: { 40: 62000, 60: 94000, 80: 126000, 120: 188000 },
+};
+
+const STRETCH_OLD_TICKET_SALES: Record<
+  4 | 8 | 12,
+  Record<40 | 60 | 80 | 120, number>
+> = {
+  4: { 40: 21320, 60: 31920, 80: 42680, 120: 64000 },
+  8: { 40: 40720, 60: 61120, 80: 81440, 120: 122160 },
+  12: { 40: 60000, 60: 90000, 80: 120000, 120: 180000 },
+};
+
+const STRETCH_NEW_CONSUME_UNIT: Record<4 | 8 | 12, Record<40 | 60 | 80 | 120, number>> = {
+  4: { 40: 5500, 60: 8500, 80: 11250, 120: 17000 },
+  8: { 40: 5250, 60: 8000, 80: 10750, 120: 16000 },
+  12: { 40: 5167, 60: 7833, 80: 10500, 120: 15667 },
+};
+
+const STRETCH_OLD_CONSUME_UNIT: Record<4 | 8 | 12, Record<40 | 60 | 80 | 120, number>> = {
+  4: { 40: 5330, 60: 7980, 80: 10670, 120: 16000 },
+  8: { 40: 5090, 60: 7640, 80: 10180, 120: 15270 },
+  12: { 40: 5000, 60: 7500, 80: 10000, 120: 15000 },
+};
+
+const STRETCH_UNIT_GUIDE: Array<{
+  id: string;
+  version: "新" | "旧";
+  minutes: 40 | 60 | 80 | 120;
+  amount: number;
+}> = [
+  { id: "stretch_new_unit_40", version: "新", minutes: 40, amount: 5500 },
+  { id: "stretch_new_unit_60", version: "新", minutes: 60, amount: 8500 },
+  { id: "stretch_new_unit_80", version: "新", minutes: 80, amount: 11250 },
+  { id: "stretch_new_unit_120", version: "新", minutes: 120, amount: 17000 },
+  { id: "stretch_old_unit_40", version: "旧", minutes: 40, amount: 5330 },
+  { id: "stretch_old_unit_60", version: "旧", minutes: 60, amount: 7980 },
+  { id: "stretch_old_unit_80", version: "旧", minutes: 80, amount: 10670 },
+  { id: "stretch_old_unit_120", version: "旧", minutes: 120, amount: 16000 },
+];
+
+const STRETCH_MINUTES = [40, 60, 80, 120] as const;
+const STRETCH_COUNTS = [4, 8, 12] as const;
+
+function buildStretchPresets(): PricePreset[] {
+  const presets: PricePreset[] = [
+    {
+      id: "stretch_trial_60",
+      serviceType: "ストレッチ",
+      label: "新価格 初回体験 60分 4,900円",
+      menuName: "ストレッチ初回体験 60分",
+      amount: 4900,
+      note: "初回体験価格",
+    },
+    {
+      id: "stretch_trial_80",
+      serviceType: "ストレッチ",
+      label: "新価格 初回体験 80分 6,800円",
+      menuName: "ストレッチ初回体験 80分",
+      amount: 6800,
+      note: "初回体験価格",
+    },
+    {
+      id: "stretch_trial_120",
+      serviceType: "ストレッチ",
+      label: "新価格 初回体験 120分 11,000円",
+      menuName: "ストレッチ初回体験 120分",
+      amount: 11000,
+      note: "初回体験価格",
+    },
+    {
+      id: "stretch_trial_holiday_plus",
+      serviceType: "ストレッチ",
+      label: "新価格 初回体験（土日祝加算）+1,000円",
+      menuName: "ストレッチ初回体験 土日祝加算",
+      amount: 1000,
+      note: "土日祝は+1,000円",
+    },
+    {
+      id: "stretch_single_40",
+      serviceType: "ストレッチ",
+      label: "新価格 単発 40分 5,900円",
+      menuName: "ストレッチ単発 40分",
+      amount: 5900,
+    },
+    {
+      id: "stretch_single_60",
+      serviceType: "ストレッチ",
+      label: "新価格 単発 60分 8,900円",
+      menuName: "ストレッチ単発 60分",
+      amount: 8900,
+    },
+    {
+      id: "stretch_single_80",
+      serviceType: "ストレッチ",
+      label: "新価格 単発 80分 11,900円",
+      menuName: "ストレッチ単発 80分",
+      amount: 11900,
+    },
+    {
+      id: "stretch_single_120",
+      serviceType: "ストレッチ",
+      label: "新価格 単発 120分 17,900円",
+      menuName: "ストレッチ単発 120分",
+      amount: 17900,
+    },
+    {
+      id: "stretch_extension_10",
+      serviceType: "ストレッチ",
+      label: "新価格 延長10分 1,500円",
+      menuName: "ストレッチ延長 10分",
+      amount: 1500,
+    },
+    {
+      id: "manual_other_stretch",
+      serviceType: "ストレッチ",
+      label: "その他（手入力）",
+      menuName: "その他",
+      amount: 0,
+      note: "自由入力用",
+    },
+  ];
+
+  STRETCH_UNIT_GUIDE.forEach((item) => {
+    presets.push({
+      id: item.id,
+      serviceType: "ストレッチ",
+      label: `${item.version}価格 回数券単価 ${item.minutes}分 ${item.amount.toLocaleString()}円`,
+      menuName: `ストレッチ${item.version}単価 ${item.minutes}分`,
+      amount: item.amount,
+      note: `${item.version}価格の回数券単価`,
+    });
+  });
+
+  STRETCH_COUNTS.forEach((count) => {
+    STRETCH_MINUTES.forEach((minutes) => {
+      const newSaleAmount = STRETCH_NEW_TICKET_SALES[count][minutes];
+      const oldSaleAmount = STRETCH_OLD_TICKET_SALES[count][minutes];
+      const newConsumeAmount = STRETCH_NEW_CONSUME_UNIT[count][minutes];
+      const oldConsumeAmount = STRETCH_OLD_CONSUME_UNIT[count][minutes];
+
+      presets.push({
+        id: `stretch_new_${count}_${minutes}`,
+        serviceType: "ストレッチ",
+        label: `新価格 ${count}回 ${minutes}分 ${newSaleAmount.toLocaleString()}円（1回 ${newConsumeAmount.toLocaleString()}円）`,
+        menuName: `ストレッチ新 ${count}回 ${minutes}分`,
+        amount: newSaleAmount,
+        accountingType: "前受金",
+      });
+
+      presets.push({
+        id: `stretch_old_${count}_${minutes}`,
+        serviceType: "ストレッチ",
+        label: `旧価格 ${count}回 ${minutes}分 ${oldSaleAmount.toLocaleString()}円（1回 ${oldConsumeAmount.toLocaleString()}円）`,
+        menuName: `ストレッチ旧 ${count}回 ${minutes}分`,
+        amount: oldSaleAmount,
+        accountingType: "前受金",
+      });
+
+      presets.push({
+        id: `stretch_consume_new_${count}_${minutes}`,
+        serviceType: "ストレッチ",
+        label: `消化用（新価格 ${count}回）${minutes}分 ${newConsumeAmount.toLocaleString()}円`,
+        menuName: `ストレッチ消化 新 ${count}回 ${minutes}分`,
+        amount: newConsumeAmount,
+        accountingType: "回数券消化",
+        note: `新価格 ${count}回券の消化単価`,
+      });
+
+      presets.push({
+        id: `stretch_consume_old_${count}_${minutes}`,
+        serviceType: "ストレッチ",
+        label: `消化用（旧価格 ${count}回）${minutes}分 ${oldConsumeAmount.toLocaleString()}円`,
+        menuName: `ストレッチ消化 旧 ${count}回 ${minutes}分`,
+        amount: oldConsumeAmount,
+        accountingType: "回数券消化",
+        note: `旧価格 ${count}回券の消化単価`,
+      });
+    });
+  });
+
+  return presets;
+}
 
 const PRICE_PRESETS: PricePreset[] = [
   {
@@ -371,578 +571,11 @@ const PRICE_PRESETS: PricePreset[] = [
     amount: 6600,
   },
 
-  {
-    id: "stretch_trial_60",
-    serviceType: "ストレッチ",
-    label: "新価格 初回体験 60分 4,900円",
-    menuName: "ストレッチ初回体験 60分",
-    amount: 4900,
-    note: "初回体験価格",
-  },
-  {
-    id: "stretch_trial_80",
-    serviceType: "ストレッチ",
-    label: "新価格 初回体験 80分 6,800円",
-    menuName: "ストレッチ初回体験 80分",
-    amount: 6800,
-    note: "初回体験価格",
-  },
-  {
-    id: "stretch_trial_120",
-    serviceType: "ストレッチ",
-    label: "新価格 初回体験 120分 11,000円",
-    menuName: "ストレッチ初回体験 120分",
-    amount: 11000,
-    note: "初回体験価格",
-  },
-  {
-    id: "stretch_trial_holiday_plus",
-    serviceType: "ストレッチ",
-    label: "新価格 初回体験（土日祝加算）+1,000円",
-    menuName: "ストレッチ初回体験 土日祝加算",
-    amount: 1000,
-    note: "土日祝は+1,000円",
-  },
-
-  {
-    id: "stretch_single_40",
-    serviceType: "ストレッチ",
-    label: "新価格 単発 40分 5,900円",
-    menuName: "ストレッチ単発 40分",
-    amount: 5900,
-  },
-  {
-    id: "stretch_single_60",
-    serviceType: "ストレッチ",
-    label: "新価格 単発 60分 8,900円",
-    menuName: "ストレッチ単発 60分",
-    amount: 8900,
-  },
-  {
-    id: "stretch_single_80",
-    serviceType: "ストレッチ",
-    label: "新価格 単発 80分 11,900円",
-    menuName: "ストレッチ単発 80分",
-    amount: 11900,
-  },
-  {
-    id: "stretch_single_120",
-    serviceType: "ストレッチ",
-    label: "新価格 単発 120分 17,900円",
-    menuName: "ストレッチ単発 120分",
-    amount: 17900,
-  },
-  {
-    id: "stretch_extension_10",
-    serviceType: "ストレッチ",
-    label: "新価格 延長10分 1,500円",
-    menuName: "ストレッチ延長 10分",
-    amount: 1500,
-  },
-
-  {
-    id: "stretch_new_unit_40",
-    serviceType: "ストレッチ",
-    label: "新価格 回数券単価 40分 5,500円",
-    menuName: "ストレッチ新単価 40分",
-    amount: 5500,
-    note: "新価格の回数券単価",
-  },
-  {
-    id: "stretch_new_unit_60",
-    serviceType: "ストレッチ",
-    label: "新価格 回数券単価 60分 8,500円",
-    menuName: "ストレッチ新単価 60分",
-    amount: 8500,
-    note: "新価格の回数券単価",
-  },
-  {
-    id: "stretch_new_unit_80",
-    serviceType: "ストレッチ",
-    label: "新価格 回数券単価 80分 11,250円",
-    menuName: "ストレッチ新単価 80分",
-    amount: 11250,
-    note: "新価格の回数券単価",
-  },
-  {
-    id: "stretch_new_unit_120",
-    serviceType: "ストレッチ",
-    label: "新価格 回数券単価 120分 17,000円",
-    menuName: "ストレッチ新単価 120分",
-    amount: 17000,
-    note: "新価格の回数券単価",
-  },
-
-  {
-    id: "stretch_old_unit_40",
-    serviceType: "ストレッチ",
-    label: "旧価格 回数券単価 40分 5,330円",
-    menuName: "ストレッチ旧単価 40分",
-    amount: 5330,
-    note: "旧価格の回数券単価",
-  },
-  {
-    id: "stretch_old_unit_60",
-    serviceType: "ストレッチ",
-    label: "旧価格 回数券単価 60分 7,980円",
-    menuName: "ストレッチ旧単価 60分",
-    amount: 7980,
-    note: "旧価格の回数券単価",
-  },
-  {
-    id: "stretch_old_unit_80",
-    serviceType: "ストレッチ",
-    label: "旧価格 回数券単価 80分 10,670円",
-    menuName: "ストレッチ旧単価 80分",
-    amount: 10670,
-    note: "旧価格の回数券単価",
-  },
-  {
-    id: "stretch_old_unit_120",
-    serviceType: "ストレッチ",
-    label: "旧価格 回数券単価 120分 16,000円",
-    menuName: "ストレッチ旧単価 120分",
-    amount: 16000,
-    note: "旧価格の回数券単価",
-  },
-
-  {
-    id: "stretch_new_4_40",
-    serviceType: "ストレッチ",
-    label: "新価格 4回 40分 22,000円（1回 5,500円）",
-    menuName: "ストレッチ新 4回 40分",
-    amount: 22000,
-    accountingType: "前受金",
-  },
-  {
-    id: "stretch_new_4_60",
-    serviceType: "ストレッチ",
-    label: "新価格 4回 60分 34,000円（1回 8,500円）",
-    menuName: "ストレッチ新 4回 60分",
-    amount: 34000,
-    accountingType: "前受金",
-  },
-  {
-    id: "stretch_new_4_80",
-    serviceType: "ストレッチ",
-    label: "新価格 4回 80分 45,000円（1回 11,250円）",
-    menuName: "ストレッチ新 4回 80分",
-    amount: 45000,
-    accountingType: "前受金",
-  },
-  {
-    id: "stretch_new_4_120",
-    serviceType: "ストレッチ",
-    label: "新価格 4回 120分 68,000円（1回 17,000円）",
-    menuName: "ストレッチ新 4回 120分",
-    amount: 68000,
-    accountingType: "前受金",
-  },
-
-  {
-    id: "stretch_new_8_40",
-    serviceType: "ストレッチ",
-    label: "新価格 8回 40分 42,000円（1回 5,250円）",
-    menuName: "ストレッチ新 8回 40分",
-    amount: 42000,
-    accountingType: "前受金",
-  },
-  {
-    id: "stretch_new_8_60",
-    serviceType: "ストレッチ",
-    label: "新価格 8回 60分 64,000円（1回 8,000円）",
-    menuName: "ストレッチ新 8回 60分",
-    amount: 64000,
-    accountingType: "前受金",
-  },
-  {
-    id: "stretch_new_8_80",
-    serviceType: "ストレッチ",
-    label: "新価格 8回 80分 86,000円（1回 10,750円）",
-    menuName: "ストレッチ新 8回 80分",
-    amount: 86000,
-    accountingType: "前受金",
-  },
-  {
-    id: "stretch_new_8_120",
-    serviceType: "ストレッチ",
-    label: "新価格 8回 120分 128,000円（1回 16,000円）",
-    menuName: "ストレッチ新 8回 120分",
-    amount: 128000,
-    accountingType: "前受金",
-  },
-
-  {
-    id: "stretch_new_12_40",
-    serviceType: "ストレッチ",
-    label: "新価格 12回 40分 62,000円（1回 約5,167円）",
-    menuName: "ストレッチ新 12回 40分",
-    amount: 62000,
-    accountingType: "前受金",
-  },
-  {
-    id: "stretch_new_12_60",
-    serviceType: "ストレッチ",
-    label: "新価格 12回 60分 94,000円（1回 約7,833円）",
-    menuName: "ストレッチ新 12回 60分",
-    amount: 94000,
-    accountingType: "前受金",
-  },
-  {
-    id: "stretch_new_12_80",
-    serviceType: "ストレッチ",
-    label: "新価格 12回 80分 126,000円（1回 10,500円）",
-    menuName: "ストレッチ新 12回 80分",
-    amount: 126000,
-    accountingType: "前受金",
-  },
-  {
-    id: "stretch_new_12_120",
-    serviceType: "ストレッチ",
-    label: "新価格 12回 120分 188,000円（1回 約15,667円）",
-    menuName: "ストレッチ新 12回 120分",
-    amount: 188000,
-    accountingType: "前受金",
-  },
-
-  {
-    id: "stretch_old_4_40",
-    serviceType: "ストレッチ",
-    label: "旧価格 4回 40分 21,320円（1回 5,330円）",
-    menuName: "ストレッチ旧 4回 40分",
-    amount: 21320,
-    accountingType: "前受金",
-  },
-  {
-    id: "stretch_old_4_60",
-    serviceType: "ストレッチ",
-    label: "旧価格 4回 60分 31,920円（1回 7,980円）",
-    menuName: "ストレッチ旧 4回 60分",
-    amount: 31920,
-    accountingType: "前受金",
-  },
-  {
-    id: "stretch_old_4_80",
-    serviceType: "ストレッチ",
-    label: "旧価格 4回 80分 42,680円（1回 10,670円）",
-    menuName: "ストレッチ旧 4回 80分",
-    amount: 42680,
-    accountingType: "前受金",
-  },
-  {
-    id: "stretch_old_4_120",
-    serviceType: "ストレッチ",
-    label: "旧価格 4回 120分 64,000円（1回 16,000円）",
-    menuName: "ストレッチ旧 4回 120分",
-    amount: 64000,
-    accountingType: "前受金",
-  },
-
-  {
-    id: "stretch_old_8_40",
-    serviceType: "ストレッチ",
-    label: "旧価格 8回 40分 40,720円（1回 5,090円）",
-    menuName: "ストレッチ旧 8回 40分",
-    amount: 40720,
-    accountingType: "前受金",
-  },
-  {
-    id: "stretch_old_8_60",
-    serviceType: "ストレッチ",
-    label: "旧価格 8回 60分 61,120円（1回 7,640円）",
-    menuName: "ストレッチ旧 8回 60分",
-    amount: 61120,
-    accountingType: "前受金",
-  },
-  {
-    id: "stretch_old_8_80",
-    serviceType: "ストレッチ",
-    label: "旧価格 8回 80分 81,440円（1回 10,180円）",
-    menuName: "ストレッチ旧 8回 80分",
-    amount: 81440,
-    accountingType: "前受金",
-  },
-  {
-    id: "stretch_old_8_120",
-    serviceType: "ストレッチ",
-    label: "旧価格 8回 120分 122,160円（1回 15,270円）",
-    menuName: "ストレッチ旧 8回 120分",
-    amount: 122160,
-    accountingType: "前受金",
-  },
-
-  {
-    id: "stretch_old_12_40",
-    serviceType: "ストレッチ",
-    label: "旧価格 12回 40分 60,000円（1回 5,000円）",
-    menuName: "ストレッチ旧 12回 40分",
-    amount: 60000,
-    accountingType: "前受金",
-  },
-  {
-    id: "stretch_old_12_60",
-    serviceType: "ストレッチ",
-    label: "旧価格 12回 60分 90,000円（1回 7,500円）",
-    menuName: "ストレッチ旧 12回 60分",
-    amount: 90000,
-    accountingType: "前受金",
-  },
-  {
-    id: "stretch_old_12_80",
-    serviceType: "ストレッチ",
-    label: "旧価格 12回 80分 120,000円（1回 10,000円）",
-    menuName: "ストレッチ旧 12回 80分",
-    amount: 120000,
-    accountingType: "前受金",
-  },
-  {
-    id: "stretch_old_12_120",
-    serviceType: "ストレッチ",
-    label: "旧価格 12回 120分 180,000円（1回 15,000円）",
-    menuName: "ストレッチ旧 12回 120分",
-    amount: 180000,
-    accountingType: "前受金",
-  },
-
-  // 消化用（新価格 4回）
-  {
-    id: "stretch_consume_new_4_40",
-    serviceType: "ストレッチ",
-    label: "消化用（新価格4回）40分 5,500円",
-    menuName: "ストレッチ消化 新 4回 40分",
-    amount: 5500,
-    accountingType: "回数券消化",
-    note: "新価格4回の消化単価",
-  },
-  {
-    id: "stretch_consume_new_4_60",
-    serviceType: "ストレッチ",
-    label: "消化用（新価格4回）60分 8,500円",
-    menuName: "ストレッチ消化 新 4回 60分",
-    amount: 8500,
-    accountingType: "回数券消化",
-    note: "新価格4回の消化単価",
-  },
-  {
-    id: "stretch_consume_new_4_80",
-    serviceType: "ストレッチ",
-    label: "消化用（新価格4回）80分 11,250円",
-    menuName: "ストレッチ消化 新 4回 80分",
-    amount: 11250,
-    accountingType: "回数券消化",
-    note: "新価格4回の消化単価",
-  },
-  {
-    id: "stretch_consume_new_4_120",
-    serviceType: "ストレッチ",
-    label: "消化用（新価格4回）120分 17,000円",
-    menuName: "ストレッチ消化 新 4回 120分",
-    amount: 17000,
-    accountingType: "回数券消化",
-    note: "新価格4回の消化単価",
-  },
-
-  // 消化用（新価格 8回）
-  {
-    id: "stretch_consume_new_8_40",
-    serviceType: "ストレッチ",
-    label: "消化用（新価格8回）40分 5,250円",
-    menuName: "ストレッチ消化 新 8回 40分",
-    amount: 5250,
-    accountingType: "回数券消化",
-    note: "新価格8回の消化単価",
-  },
-  {
-    id: "stretch_consume_new_8_60",
-    serviceType: "ストレッチ",
-    label: "消化用（新価格8回）60分 8,000円",
-    menuName: "ストレッチ消化 新 8回 60分",
-    amount: 8000,
-    accountingType: "回数券消化",
-    note: "新価格8回の消化単価",
-  },
-  {
-    id: "stretch_consume_new_8_80",
-    serviceType: "ストレッチ",
-    label: "消化用（新価格8回）80分 10,750円",
-    menuName: "ストレッチ消化 新 8回 80分",
-    amount: 10750,
-    accountingType: "回数券消化",
-    note: "新価格8回の消化単価",
-  },
-  {
-    id: "stretch_consume_new_8_120",
-    serviceType: "ストレッチ",
-    label: "消化用（新価格8回）120分 16,000円",
-    menuName: "ストレッチ消化 新 8回 120分",
-    amount: 16000,
-    accountingType: "回数券消化",
-    note: "新価格8回の消化単価",
-  },
-
-  // 消化用（新価格 12回）
-  {
-    id: "stretch_consume_new_12_40",
-    serviceType: "ストレッチ",
-    label: "消化用（新価格12回）40分 約5,167円",
-    menuName: "ストレッチ消化 新 12回 40分",
-    amount: 5167,
-    accountingType: "回数券消化",
-    note: "新価格12回の消化単価",
-  },
-  {
-    id: "stretch_consume_new_12_60",
-    serviceType: "ストレッチ",
-    label: "消化用（新価格12回）60分 約7,833円",
-    menuName: "ストレッチ消化 新 12回 60分",
-    amount: 7833,
-    accountingType: "回数券消化",
-    note: "新価格12回の消化単価",
-  },
-  {
-    id: "stretch_consume_new_12_80",
-    serviceType: "ストレッチ",
-    label: "消化用（新価格12回）80分 10,500円",
-    menuName: "ストレッチ消化 新 12回 80分",
-    amount: 10500,
-    accountingType: "回数券消化",
-    note: "新価格12回の消化単価",
-  },
-  {
-    id: "stretch_consume_new_12_120",
-    serviceType: "ストレッチ",
-    label: "消化用（新価格12回）120分 約15,667円",
-    menuName: "ストレッチ消化 新 12回 120分",
-    amount: 15667,
-    accountingType: "回数券消化",
-    note: "新価格12回の消化単価",
-  },
-
-  // 消化用（旧価格 4回）
-  {
-    id: "stretch_consume_old_4_40",
-    serviceType: "ストレッチ",
-    label: "消化用（旧価格4回）40分 5,330円",
-    menuName: "ストレッチ消化 旧 4回 40分",
-    amount: 5330,
-    accountingType: "回数券消化",
-    note: "旧価格4回の消化単価",
-  },
-  {
-    id: "stretch_consume_old_4_60",
-    serviceType: "ストレッチ",
-    label: "消化用（旧価格4回）60分 7,980円",
-    menuName: "ストレッチ消化 旧 4回 60分",
-    amount: 7980,
-    accountingType: "回数券消化",
-    note: "旧価格4回の消化単価",
-  },
-  {
-    id: "stretch_consume_old_4_80",
-    serviceType: "ストレッチ",
-    label: "消化用（旧価格4回）80分 10,670円",
-    menuName: "ストレッチ消化 旧 4回 80分",
-    amount: 10670,
-    accountingType: "回数券消化",
-    note: "旧価格4回の消化単価",
-  },
-  {
-    id: "stretch_consume_old_4_120",
-    serviceType: "ストレッチ",
-    label: "消化用（旧価格4回）120分 16,000円",
-    menuName: "ストレッチ消化 旧 4回 120分",
-    amount: 16000,
-    accountingType: "回数券消化",
-    note: "旧価格4回の消化単価",
-  },
-
-  // 消化用（旧価格 8回）
-  {
-    id: "stretch_consume_old_8_40",
-    serviceType: "ストレッチ",
-    label: "消化用（旧価格8回）40分 5,090円",
-    menuName: "ストレッチ消化 旧 8回 40分",
-    amount: 5090,
-    accountingType: "回数券消化",
-    note: "旧価格8回の消化単価",
-  },
-  {
-    id: "stretch_consume_old_8_60",
-    serviceType: "ストレッチ",
-    label: "消化用（旧価格8回）60分 7,640円",
-    menuName: "ストレッチ消化 旧 8回 60分",
-    amount: 7640,
-    accountingType: "回数券消化",
-    note: "旧価格8回の消化単価",
-  },
-  {
-    id: "stretch_consume_old_8_80",
-    serviceType: "ストレッチ",
-    label: "消化用（旧価格8回）80分 10,180円",
-    menuName: "ストレッチ消化 旧 8回 80分",
-    amount: 10180,
-    accountingType: "回数券消化",
-    note: "旧価格8回の消化単価",
-  },
-  {
-    id: "stretch_consume_old_8_120",
-    serviceType: "ストレッチ",
-    label: "消化用（旧価格8回）120分 15,270円",
-    menuName: "ストレッチ消化 旧 8回 120分",
-    amount: 15270,
-    accountingType: "回数券消化",
-    note: "旧価格8回の消化単価",
-  },
-
-  // 消化用（旧価格 12回）
-  {
-    id: "stretch_consume_old_12_40",
-    serviceType: "ストレッチ",
-    label: "消化用（旧価格12回）40分 5,000円",
-    menuName: "ストレッチ消化 旧 12回 40分",
-    amount: 5000,
-    accountingType: "回数券消化",
-    note: "旧価格12回の消化単価",
-  },
-  {
-    id: "stretch_consume_old_12_60",
-    serviceType: "ストレッチ",
-    label: "消化用（旧価格12回）60分 7,500円",
-    menuName: "ストレッチ消化 旧 12回 60分",
-    amount: 7500,
-    accountingType: "回数券消化",
-    note: "旧価格12回の消化単価",
-  },
-  {
-    id: "stretch_consume_old_12_80",
-    serviceType: "ストレッチ",
-    label: "消化用（旧価格12回）80分 10,000円",
-    menuName: "ストレッチ消化 旧 12回 80分",
-    amount: 10000,
-    accountingType: "回数券消化",
-    note: "旧価格12回の消化単価",
-  },
-  {
-    id: "stretch_consume_old_12_120",
-    serviceType: "ストレッチ",
-    label: "消化用（旧価格12回）120分 15,000円",
-    menuName: "ストレッチ消化 旧 12回 120分",
-    amount: 15000,
-    accountingType: "回数券消化",
-    note: "旧価格12回の消化単価",
-  },
+  ...buildStretchPresets(),
 
   {
     id: "manual_other_training",
     serviceType: "トレーニング",
-    label: "その他（手入力）",
-    menuName: "その他",
-    amount: 0,
-    note: "自由入力用",
-  },
-  {
-    id: "manual_other_stretch",
-    serviceType: "ストレッチ",
     label: "その他（手入力）",
     menuName: "その他",
     amount: 0,
@@ -996,14 +629,6 @@ function normalizeText(value?: string | null) {
     .toLowerCase();
 }
 
-function normalizeSearchText(value?: string | null) {
-  return String(value || "")
-    .toLowerCase()
-    .replace(/\s+/g, "")
-    .replace(/[　]/g, "")
-    .replace(/[‐-‒–—―ー－]/g, "-");
-}
-
 function detectMinutesFromText(text?: string | null): 40 | 60 | 80 | 120 | null {
   const raw = String(text || "");
   const match = raw.match(/(40|60|80|120)\s*分/);
@@ -1013,7 +638,7 @@ function detectMinutesFromText(text?: string | null): 40 | 60 | 80 | 120 | null 
   return null;
 }
 
-function detectTicketCountFromText(text?: string | null): 4 | 8 | 12 | null {
+function detectCountFromText(text?: string | null): 4 | 8 | 12 | null {
   const raw = String(text || "");
   const match = raw.match(/(4|8|12)\s*回/);
   if (!match) return null;
@@ -1029,6 +654,7 @@ function detectPriceVersionFromText(text?: string | null): "new" | "old" | null 
   if (
     normalized.includes("旧価格") ||
     normalized.includes("ストレッチ旧") ||
+    normalized.includes("消化旧") ||
     normalized.includes("旧")
   ) {
     return "old";
@@ -1037,6 +663,7 @@ function detectPriceVersionFromText(text?: string | null): "new" | "old" | null 
   if (
     normalized.includes("新価格") ||
     normalized.includes("ストレッチ新") ||
+    normalized.includes("消化新") ||
     normalized.includes("新")
   ) {
     return "new";
@@ -1045,32 +672,28 @@ function detectPriceVersionFromText(text?: string | null): "new" | "old" | null 
   return null;
 }
 
-function parseTicketInfo(ticketName?: string | null): {
-  minutes: 40 | 60 | 80 | 120;
-  ticketCount: 4 | 8 | 12 | null;
-  version: "new" | "old" | null;
-} | null {
+function parseTicketInfo(ticketName?: string | null): ParsedTicketInfo | null {
   if (!ticketName) return null;
 
   const minutes = detectMinutesFromText(ticketName);
   const version = detectPriceVersionFromText(ticketName);
-  const ticketCount = detectTicketCountFromText(ticketName);
+  const count = detectCountFromText(ticketName);
 
   if (!minutes) return null;
 
   return {
+    count,
     minutes,
-    ticketCount,
     version,
   };
 }
 
 function buildConsumePresetId(
   version: "new" | "old",
-  ticketCount: 4 | 8 | 12,
+  count: 4 | 8 | 12,
   minutes: 40 | 60 | 80 | 120
 ) {
-  return `stretch_consume_${version}_${ticketCount}_${minutes}`;
+  return `stretch_consume_${version}_${count}_${minutes}`;
 }
 
 function detectRecommendedConsumePresetId(params: {
@@ -1085,11 +708,11 @@ function detectRecommendedConsumePresetId(params: {
   const sourceText = `${params.menu || ""} ${params.note || ""}`;
   const minutes = detectMinutesFromText(sourceText);
   const version = detectPriceVersionFromText(sourceText);
-  const ticketCount = detectTicketCountFromText(sourceText);
+  const count = detectCountFromText(sourceText);
 
-  if (!minutes || !version || !ticketCount) return "";
+  if (!minutes || !version || !count) return "";
 
-  return buildConsumePresetId(version, ticketCount, minutes);
+  return buildConsumePresetId(version, count, minutes);
 }
 
 function resolveConsumePresetFromContext(params: {
@@ -1124,9 +747,7 @@ function buildCategory(
   paymentMethod: PaymentMethod
 ): SaleCategory {
   if (accountingType === "前受金") {
-    return serviceType === "ストレッチ"
-      ? "ストレッチ前受金"
-      : "トレーニング前受金";
+    return serviceType === "ストレッチ" ? "ストレッチ前受金" : "トレーニング前受金";
   }
 
   if (accountingType === "回数券消化") {
@@ -1166,13 +787,6 @@ function normalizePaymentMethod(value?: string | null): PaymentMethod {
   return "現金";
 }
 
-function extractMenuNameFromMemo(memo?: string | null, fallback?: string | null) {
-  const text = String(memo || "");
-  const match = text.match(/メニュー名:\s*(.+)/);
-  if (match?.[1]) return match[1].trim();
-  return fallback || "未設定";
-}
-
 function rowToSale(row: SupabaseSaleRow): Sale {
   const serviceType = normalizeServiceType(row.menu_type);
   const accountingType = normalizeAccountingType(row.sale_type);
@@ -1187,10 +801,7 @@ function rowToSale(row: SupabaseSaleRow): Sale {
         ? null
         : String(row.customer_id),
     customerName: row.customer_name || "未設定",
-    menuName: extractMenuNameFromMemo(
-      row.memo,
-      serviceType === "ストレッチ" ? "ストレッチ" : "トレーニング"
-    ),
+    menuName: row.memo?.match(/メニュー名:\s*(.+)/)?.[1] || (serviceType === "ストレッチ" ? "ストレッチ" : "トレーニング"),
     staff: row.staff_name || "未設定",
     storeName: row.store_name || "未設定",
     serviceType,
@@ -1393,20 +1004,10 @@ function parseTicketIssuePresetInfo(preset?: PricePreset | null): TicketIssuePre
   const match = preset.id.match(/^stretch_(new|old)_(4|8|12)_(40|60|80|120)$/);
   if (!match) return null;
 
-  const ticketCount = Number(match[2]);
-  const minutes = Number(match[3]);
-
-  if (
-    (ticketCount !== 4 && ticketCount !== 8 && ticketCount !== 12) ||
-    (minutes !== 40 && minutes !== 60 && minutes !== 80 && minutes !== 120)
-  ) {
-    return null;
-  }
-
   return {
     priceVersion: match[1] === "new" ? "新" : "旧",
-    ticketCount,
-    minutes,
+    ticketCount: Number(match[2]) as 4 | 8 | 12,
+    minutes: Number(match[3]) as 40 | 60 | 80 | 120,
   };
 }
 
@@ -1663,6 +1264,7 @@ export default function SalesPage() {
 
   const [date, setDate] = useState(todayString());
   const [customerId, setCustomerId] = useState("");
+  const [customerSearch, setCustomerSearch] = useState("");
   const [menuName, setMenuName] = useState("");
   const [staff, setStaff] = useState(STAFF_OPTIONS[0]);
   const [storeName, setStoreName] = useState(STORE_OPTIONS[0]);
@@ -1730,8 +1332,12 @@ export default function SalesPage() {
       unit: [],
       ticketNew: [],
       ticketOld: [],
-      consumeNew: [],
-      consumeOld: [],
+      consumeNew4: [],
+      consumeNew8: [],
+      consumeNew12: [],
+      consumeOld4: [],
+      consumeOld8: [],
+      consumeOld12: [],
       trainingTrial: [],
       trainingCourse: [],
       trainingBodyOld: [],
@@ -1752,15 +1358,23 @@ export default function SalesPage() {
       result.ticketOld = presetOptionsForService.filter(
         (p) => p.accountingType === "前受金" && /^stretch_old_(4|8|12)_/.test(p.id)
       );
-      result.consumeNew = presetOptionsForService.filter(
-        (p) =>
-          p.accountingType === "回数券消化" &&
-          /^stretch_consume_new_(4|8|12)_/.test(p.id)
+      result.consumeNew4 = presetOptionsForService.filter(
+        (p) => p.accountingType === "回数券消化" && /^stretch_consume_new_4_/.test(p.id)
       );
-      result.consumeOld = presetOptionsForService.filter(
-        (p) =>
-          p.accountingType === "回数券消化" &&
-          /^stretch_consume_old_(4|8|12)_/.test(p.id)
+      result.consumeNew8 = presetOptionsForService.filter(
+        (p) => p.accountingType === "回数券消化" && /^stretch_consume_new_8_/.test(p.id)
+      );
+      result.consumeNew12 = presetOptionsForService.filter(
+        (p) => p.accountingType === "回数券消化" && /^stretch_consume_new_12_/.test(p.id)
+      );
+      result.consumeOld4 = presetOptionsForService.filter(
+        (p) => p.accountingType === "回数券消化" && /^stretch_consume_old_4_/.test(p.id)
+      );
+      result.consumeOld8 = presetOptionsForService.filter(
+        (p) => p.accountingType === "回数券消化" && /^stretch_consume_old_8_/.test(p.id)
+      );
+      result.consumeOld12 = presetOptionsForService.filter(
+        (p) => p.accountingType === "回数券消化" && /^stretch_consume_old_12_/.test(p.id)
       );
       result.manual = presetOptionsForService.filter((p) => p.id.startsWith("manual_"));
       return result;
@@ -1847,9 +1461,9 @@ export default function SalesPage() {
     if (!ticket) return;
 
     const parsed = parseTicketInfo(ticket.ticket_name);
-    if (!parsed || !parsed.version || !parsed.ticketCount) return;
+    if (!parsed || !parsed.version || !parsed.count) return;
 
-    const presetId = buildConsumePresetId(parsed.version, parsed.ticketCount, parsed.minutes);
+    const presetId = buildConsumePresetId(parsed.version, parsed.count, parsed.minutes);
     const preset = findPricePresetById(presetId);
     if (!preset) return;
 
@@ -1895,14 +1509,10 @@ export default function SalesPage() {
     const queryEmail = getQueryParam("email");
 
     const queryStore =
-      getQueryParam("storeName") ||
-      getQueryParam("store_name") ||
-      getQueryParam("store");
+      getQueryParam("storeName") || getQueryParam("store_name") || getQueryParam("store");
 
     const queryStaff =
-      getQueryParam("staffName") ||
-      getQueryParam("staff_name") ||
-      getQueryParam("staff");
+      getQueryParam("staffName") || getQueryParam("staff_name") || getQueryParam("staff");
 
     const queryService =
       getQueryParam("serviceType") ||
@@ -1911,9 +1521,7 @@ export default function SalesPage() {
       getQueryParam("menu_type");
 
     const queryMenu =
-      getQueryParam("menu") ||
-      getQueryParam("menu_name") ||
-      getQueryParam("plan_name");
+      getQueryParam("menu") || getQueryParam("menu_name") || getQueryParam("plan_name");
 
     const queryPaymentMethod =
       getQueryParam("paymentMethod") || getQueryParam("payment_method");
@@ -1955,12 +1563,10 @@ export default function SalesPage() {
     setPayments((prev) =>
       prev.map((row, index) => {
         if (index !== 0) return row;
-
         return {
           ...row,
           saleType: normalizedSaleType,
-          paymentMethod:
-            normalizedSaleType === "回数券消化" ? "その他" : normalizedPayment,
+          paymentMethod: normalizedSaleType === "回数券消化" ? "その他" : normalizedPayment,
           amount: queryAmount ? String(queryAmount) : row.amount,
         };
       })
@@ -1974,8 +1580,11 @@ export default function SalesPage() {
 
     if (matched) {
       setCustomerId(String(matched.id));
+      setCustomerSearch(matched.name);
     } else if (queryCustomerId) {
       setCustomerId(String(queryCustomerId));
+    } else if (queryCustomerName) {
+      setCustomerSearch(queryCustomerName);
     }
 
     const lines = [
@@ -2089,6 +1698,7 @@ export default function SalesPage() {
       }
 
       if (row.customer_name) {
+        setCustomerSearch(row.customer_name);
         setNote((prev) => mergeNoteLines(prev, [`予約顧客: ${row.customer_name}`]));
       }
 
@@ -2162,9 +1772,7 @@ export default function SalesPage() {
       return;
     }
 
-    setExistingSalesForReservation(
-      ((data as SupabaseSaleRow[] | null) || []).map(rowToSale)
-    );
+    setExistingSalesForReservation(((data as SupabaseSaleRow[] | null) || []).map(rowToSale));
   };
 
   useEffect(() => {
@@ -2225,14 +1833,23 @@ export default function SalesPage() {
     return customers.find((c) => String(c.id) === customerId);
   }, [customers, customerId]);
 
+  const filteredCustomers = useMemo(() => {
+    const keyword = normalizeText(customerSearch);
+    if (!keyword) return customers;
+
+    return customers.filter((customer) => {
+      const name = normalizeText(customer.name);
+      const phone = normalizeText(customer.phone || "");
+      return name.includes(keyword) || phone.includes(keyword);
+    });
+  }, [customers, customerSearch]);
+
   const totalAmount = useMemo(() => {
-    return payments.reduce((sum, row) => {
-      return sum + Number(row.amount || 0);
-    }, 0);
+    return payments.reduce((sum, row) => sum + Number(row.amount || 0), 0);
   }, [payments]);
 
   const filteredSales = useMemo(() => {
-    const keyword = normalizeSearchText(search);
+    const keyword = search.trim().toLowerCase();
 
     const sorted = [...sales].sort((a, b) => {
       const aTime = new Date(a.createdAt || a.date).getTime();
@@ -2243,21 +1860,17 @@ export default function SalesPage() {
     if (!keyword) return sorted;
 
     return sorted.filter((sale) => {
-      const haystack = normalizeSearchText(
-        [
-          sale.customerName,
-          sale.menuName,
-          sale.staff,
-          sale.category,
-          sale.date,
-          sale.storeName,
-          sale.paymentMethod,
-          String(sale.reservationId || ""),
-          sale.note,
-        ].join(" ")
+      return (
+        sale.customerName.toLowerCase().includes(keyword) ||
+        sale.menuName.toLowerCase().includes(keyword) ||
+        sale.staff.toLowerCase().includes(keyword) ||
+        sale.category.toLowerCase().includes(keyword) ||
+        sale.date.toLowerCase().includes(keyword) ||
+        sale.storeName.toLowerCase().includes(keyword) ||
+        sale.paymentMethod.toLowerCase().includes(keyword) ||
+        String(sale.reservationId || "").includes(keyword) ||
+        sale.note.toLowerCase().includes(keyword)
       );
-
-      return haystack.includes(keyword);
     });
   }, [sales, search]);
 
@@ -2410,6 +2023,7 @@ export default function SalesPage() {
   const resetForm = () => {
     setDate(todayString());
     setCustomerId("");
+    setCustomerSearch("");
     setMenuName("");
     setStaff(STAFF_OPTIONS[0]);
     setStoreName(STORE_OPTIONS[0]);
@@ -3100,11 +2714,7 @@ export default function SalesPage() {
                 入会申請一覧へ
               </Link>
 
-              <button
-                type="button"
-                onClick={exportSalesCsv}
-                style={secondaryButtonStyle}
-              >
+              <button type="button" onClick={exportSalesCsv} style={secondaryButtonStyle}>
                 CSV出力
               </button>
             </div>
@@ -3191,14 +2801,29 @@ export default function SalesPage() {
             </div>
 
             <div>
-              <label style={labelStyle}>顧客</label>
+              <label style={labelStyle}>顧客名検索</label>
+              <input
+                value={customerSearch}
+                onChange={(e) => setCustomerSearch(e.target.value)}
+                placeholder="顧客名 or 電話番号で検索"
+                style={inputStyle}
+              />
+            </div>
+
+            <div style={{ gridColumn: mobile ? "auto" : "1 / -1" }}>
+              <label style={labelStyle}>
+                顧客
+                <span style={{ marginLeft: 6, fontSize: 11, color: "#2563eb" }}>
+                  ※ 入力した名前で絞り込み
+                </span>
+              </label>
               <select
                 value={customerId}
                 onChange={(e) => setCustomerId(e.target.value)}
                 style={inputStyle}
               >
                 <option value="">顧客を選択</option>
-                {customers.map((customer) => (
+                {filteredCustomers.map((customer) => (
                   <option key={String(customer.id)} value={String(customer.id)}>
                     {customer.name}
                     {customer.phone ? ` / ${customer.phone}` : ""}
@@ -3435,9 +3060,9 @@ export default function SalesPage() {
                               </optgroup>
                             )}
 
-                            {groupedPresetOptions.consumeNew.length > 0 && (
-                              <optgroup label="新回数券消化（4回 / 8回 / 12回）">
-                                {groupedPresetOptions.consumeNew.map((preset) => (
+                            {groupedPresetOptions.consumeNew4.length > 0 && (
+                              <optgroup label="新回数券消化（4回）">
+                                {groupedPresetOptions.consumeNew4.map((preset) => (
                                   <option key={preset.id} value={preset.id}>
                                     {preset.label}
                                   </option>
@@ -3445,9 +3070,49 @@ export default function SalesPage() {
                               </optgroup>
                             )}
 
-                            {groupedPresetOptions.consumeOld.length > 0 && (
-                              <optgroup label="旧回数券消化（4回 / 8回 / 12回）">
-                                {groupedPresetOptions.consumeOld.map((preset) => (
+                            {groupedPresetOptions.consumeNew8.length > 0 && (
+                              <optgroup label="新回数券消化（8回）">
+                                {groupedPresetOptions.consumeNew8.map((preset) => (
+                                  <option key={preset.id} value={preset.id}>
+                                    {preset.label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+
+                            {groupedPresetOptions.consumeNew12.length > 0 && (
+                              <optgroup label="新回数券消化（12回）">
+                                {groupedPresetOptions.consumeNew12.map((preset) => (
+                                  <option key={preset.id} value={preset.id}>
+                                    {preset.label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+
+                            {groupedPresetOptions.consumeOld4.length > 0 && (
+                              <optgroup label="旧回数券消化（4回）">
+                                {groupedPresetOptions.consumeOld4.map((preset) => (
+                                  <option key={preset.id} value={preset.id}>
+                                    {preset.label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+
+                            {groupedPresetOptions.consumeOld8.length > 0 && (
+                              <optgroup label="旧回数券消化（8回）">
+                                {groupedPresetOptions.consumeOld8.map((preset) => (
+                                  <option key={preset.id} value={preset.id}>
+                                    {preset.label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+
+                            {groupedPresetOptions.consumeOld12.length > 0 && (
+                              <optgroup label="旧回数券消化（12回）">
+                                {groupedPresetOptions.consumeOld12.map((preset) => (
                                   <option key={preset.id} value={preset.id}>
                                     {preset.label}
                                   </option>
@@ -3628,4 +3293,522 @@ export default function SalesPage() {
                     onClick={handleAddSale}
                     disabled={saving}
                     style={{
-                      ...primaryButtonStyle
+                      ...primaryButtonStyle,
+                      width: "100%",
+                      opacity: saving ? 0.7 : 1,
+                    }}
+                  >
+                    {saving ? "登録中..." : "売上登録"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section style={cardStyle}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: tablet ? "stretch" : "center",
+              flexDirection: tablet ? "column" : "row",
+              gap: "12px",
+              marginBottom: "14px",
+            }}
+          >
+            <h2 style={miniTitleStyle}>検索・売上一覧</h2>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="顧客名 / 担当 / 店舗 / メモ で検索"
+              style={{
+                ...inputStyle,
+                maxWidth: tablet ? "100%" : "360px",
+              }}
+            />
+          </div>
+
+          {loading ? (
+            <div style={{ color: "#6b7280" }}>読込中...</div>
+          ) : tablet ? (
+            <div style={{ display: "grid", gap: "10px" }}>
+              {filteredSales.length === 0 ? (
+                <div style={{ color: "#6b7280" }}>売上データがありません</div>
+              ) : (
+                filteredSales.map((sale) => {
+                  const actionOpened = openedSaleActionIds.includes(sale.id);
+
+                  return (
+                    <div key={sale.id} style={mobileSaleCompactCardStyle}>
+                      <div style={mobileSaleTopRowStyle}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <button
+                            type="button"
+                            onClick={() => goToCustomerDetail(sale)}
+                            style={{
+                              border: "none",
+                              background: "transparent",
+                              padding: 0,
+                              margin: 0,
+                              ...customerLinkStyle,
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              display: "block",
+                              textAlign: "left",
+                              width: "100%",
+                              fontSize: "14px",
+                            }}
+                          >
+                            {sale.customerName}
+                          </button>
+                          <div
+                            style={{
+                              fontSize: "12px",
+                              color: "#64748b",
+                              marginTop: "2px",
+                            }}
+                          >
+                            {formatDateJP(sale.date)} / {sale.staff}
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            fontWeight: 900,
+                            fontSize: "14px",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {formatCurrency(sale.amount)}
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                        <span
+                          style={{ ...pillStyle("#f3f4f6"), ...getServiceBadgeStyle(sale.serviceType) }}
+                        >
+                          {sale.serviceType}
+                        </span>
+                        <span
+                          style={{
+                            ...pillStyle("#f3f4f6"),
+                            ...getAccountingBadgeStyle(sale.accountingType),
+                          }}
+                        >
+                          {sale.accountingType}
+                        </span>
+                        <span style={pillStyle("#f8fafc", "#475569")}>{sale.paymentMethod}</span>
+                      </div>
+
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          color: "#475569",
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        {sale.menuName} / {sale.storeName}
+                        {sale.reservationId ? ` / 予約ID: ${sale.reservationId}` : ""}
+                      </div>
+
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "1fr 1fr",
+                          gap: "8px",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => goToCustomerDetail(sale)}
+                          style={actionToggleBtnStyle}
+                        >
+                          顧客詳細
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleSaleActions(sale.id)}
+                          style={actionToggleBtnStyle}
+                        >
+                          {actionOpened ? "操作を閉じる" : "操作"}
+                        </button>
+                      </div>
+
+                      {actionOpened ? (
+                        <div style={actionDrawerStyle}>
+                          <div
+                            style={{
+                              fontSize: "13px",
+                              color: "#374151",
+                              lineHeight: 1.7,
+                              display: "grid",
+                              gap: "2px",
+                            }}
+                          >
+                            <div>日付: {formatDateJP(sale.date)}</div>
+                            <div>メニュー: {sale.menuName}</div>
+                            <div>サービス: {sale.serviceType}</div>
+                            <div>会計区分: {sale.accountingType}</div>
+                            <div>支払: {sale.paymentMethod}</div>
+                            <div>担当: {sale.staff}</div>
+                            <div>店舗: {sale.storeName}</div>
+                            {sale.reservationId ? <div>予約ID: {sale.reservationId}</div> : null}
+                            {sale.note ? (
+                              <div style={{ whiteSpace: "pre-wrap" }}>メモ: {sale.note}</div>
+                            ) : null}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSale(sale.id)}
+                            style={{ ...dangerButtonStyle, width: "100%" }}
+                          >
+                            削除
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          ) : (
+            <div
+              style={{
+                width: "100%",
+                overflowX: "auto",
+                borderRadius: "18px",
+                border: "1px solid #e5e7eb",
+                background: "#fff",
+              }}
+            >
+              <table
+                style={{
+                  width: "100%",
+                  minWidth: "980px",
+                  borderCollapse: "collapse",
+                  fontSize: "14px",
+                }}
+              >
+                <thead>
+                  <tr>
+                    <th style={tableHeadStyle()}>日付</th>
+                    <th style={tableHeadStyle()}>顧客名</th>
+                    <th style={tableHeadStyle()}>メニュー</th>
+                    <th style={tableHeadStyle()}>サービス</th>
+                    <th style={tableHeadStyle()}>会計区分</th>
+                    <th style={tableHeadStyle()}>支払方法</th>
+                    <th style={tableHeadStyle()}>金額</th>
+                    <th style={tableHeadStyle()}>担当</th>
+                    <th style={tableHeadStyle()}>店舗</th>
+                    <th style={tableHeadStyle()}>予約ID</th>
+                    <th style={tableHeadStyle()}>メモ</th>
+                    <th style={tableHeadStyle()}>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredSales.length === 0 ? (
+                    <tr>
+                      <td style={tableCellStyle()} colSpan={12}>
+                        売上データがありません
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredSales.map((sale) => (
+                      <tr key={sale.id}>
+                        <td style={tableCellStyle()}>{formatDateJP(sale.date)}</td>
+                        <td style={tableCellStyle()}>
+                          <button
+                            type="button"
+                            onClick={() => goToCustomerDetail(sale)}
+                            style={{
+                              border: "none",
+                              background: "transparent",
+                              padding: 0,
+                              margin: 0,
+                              ...customerLinkStyle,
+                              fontSize: "14px",
+                            }}
+                          >
+                            {sale.customerName}
+                          </button>
+                        </td>
+                        <td style={tableCellStyle()}>{sale.menuName}</td>
+                        <td style={tableCellStyle()}>
+                          <span
+                            style={{
+                              ...pillStyle("#f3f4f6"),
+                              ...getServiceBadgeStyle(sale.serviceType),
+                            }}
+                          >
+                            {sale.serviceType}
+                          </span>
+                        </td>
+                        <td style={tableCellStyle()}>
+                          <span
+                            style={{
+                              ...pillStyle("#f3f4f6"),
+                              ...getAccountingBadgeStyle(sale.accountingType),
+                            }}
+                          >
+                            {sale.accountingType}
+                          </span>
+                        </td>
+                        <td style={tableCellStyle()}>{sale.paymentMethod}</td>
+                        <td style={{ ...tableCellStyle(), fontWeight: 800 }}>
+                          {formatCurrency(sale.amount)}
+                        </td>
+                        <td style={tableCellStyle()}>{sale.staff}</td>
+                        <td style={tableCellStyle()}>{sale.storeName}</td>
+                        <td style={tableCellStyle()}>{sale.reservationId ?? "—"}</td>
+                        <td style={{ ...tableCellStyle(), whiteSpace: "pre-wrap", minWidth: "220px" }}>
+                          {sale.note || "—"}
+                        </td>
+                        <td style={tableCellStyle()}>
+                          <div style={{ display: "grid", gap: "8px" }}>
+                            <button
+                              type="button"
+                              onClick={() => goToCustomerDetail(sale)}
+                              style={secondaryButtonStyle}
+                            >
+                              顧客詳細
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSale(sale.id)}
+                              style={dangerButtonStyle}
+                            >
+                              削除
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        <section style={cardStyle}>
+          <h2 style={{ ...miniTitleStyle, marginBottom: "14px" }}>日次集計</h2>
+
+          {tablet ? (
+            <div style={{ display: "grid", gap: "12px" }}>
+              {dailySummaryRows.length === 0 ? (
+                <div style={{ color: "#6b7280" }}>集計データがありません</div>
+              ) : (
+                dailySummaryRows.map((row) => (
+                  <div key={row.date} style={mobileSaleCompactCardStyle}>
+                    <div style={{ fontWeight: 900, fontSize: "14px" }}>{formatDateJP(row.date)}</div>
+                    <div style={{ display: "grid", gap: "6px", fontSize: "13px", lineHeight: 1.6 }}>
+                      <div>ストレッチ現金: {formatCurrency(row.stretchCash)}</div>
+                      <div>ストレッチカード: {formatCurrency(row.stretchCard)}</div>
+                      <div>ストレッチその他: {formatCurrency(row.stretchReceived)}</div>
+                      <div>ストレッチ回数券: {formatCurrency(row.stretchTicket)}</div>
+                      <div>トレ現金: {formatCurrency(row.trainingCash)}</div>
+                      <div>トレカード: {formatCurrency(row.trainingCard)}</div>
+                      <div>トレその他: {formatCurrency(row.trainingReceived)}</div>
+                      <div>トレ回数券: {formatCurrency(row.trainingTicket)}</div>
+                      <div style={{ fontWeight: 800 }}>純売上合計: {formatCurrency(row.netSalesTotal)}</div>
+                      <div>前受現金: {formatCurrency(row.advanceCash)}</div>
+                      <div>前受カード等: {formatCurrency(row.advanceCard)}</div>
+                      <div style={{ fontWeight: 800 }}>前受合計: {formatCurrency(row.advanceTotal)}</div>
+                      <div style={{ fontWeight: 900 }}>総合計: {formatCurrency(row.grandTotal)}</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : (
+            <div
+              style={{
+                width: "100%",
+                overflowX: "auto",
+                borderRadius: "18px",
+                border: "1px solid #e5e7eb",
+                background: "#fff",
+              }}
+            >
+              <table
+                style={{
+                  width: "100%",
+                  minWidth: "1180px",
+                  borderCollapse: "collapse",
+                  fontSize: "14px",
+                }}
+              >
+                <thead>
+                  <tr>
+                    <th style={tableHeadStyle()}>日付</th>
+                    <th style={tableHeadStyle()}>ストレッチ現金</th>
+                    <th style={tableHeadStyle()}>ストレッチカード</th>
+                    <th style={tableHeadStyle()}>ストレッチその他</th>
+                    <th style={tableHeadStyle()}>ストレッチ回数券</th>
+                    <th style={tableHeadStyle()}>トレ現金</th>
+                    <th style={tableHeadStyle()}>トレカード</th>
+                    <th style={tableHeadStyle()}>トレその他</th>
+                    <th style={tableHeadStyle()}>トレ回数券</th>
+                    <th style={tableHeadStyle()}>純売上合計</th>
+                    <th style={tableHeadStyle()}>前受現金</th>
+                    <th style={tableHeadStyle()}>前受カード等</th>
+                    <th style={tableHeadStyle()}>前受合計</th>
+                    <th style={tableHeadStyle()}>総合計</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dailySummaryRows.length === 0 ? (
+                    <tr>
+                      <td style={tableCellStyle()} colSpan={14}>
+                        集計データがありません
+                      </td>
+                    </tr>
+                  ) : (
+                    dailySummaryRows.map((row) => (
+                      <tr key={row.date}>
+                        <td style={tableCellStyle()}>{formatDateJP(row.date)}</td>
+                        <td style={tableCellStyle()}>{formatCurrency(row.stretchCash)}</td>
+                        <td style={tableCellStyle()}>{formatCurrency(row.stretchCard)}</td>
+                        <td style={tableCellStyle()}>{formatCurrency(row.stretchReceived)}</td>
+                        <td style={tableCellStyle()}>{formatCurrency(row.stretchTicket)}</td>
+                        <td style={tableCellStyle()}>{formatCurrency(row.trainingCash)}</td>
+                        <td style={tableCellStyle()}>{formatCurrency(row.trainingCard)}</td>
+                        <td style={tableCellStyle()}>{formatCurrency(row.trainingReceived)}</td>
+                        <td style={tableCellStyle()}>{formatCurrency(row.trainingTicket)}</td>
+                        <td style={{ ...tableCellStyle(), fontWeight: 800 }}>
+                          {formatCurrency(row.netSalesTotal)}
+                        </td>
+                        <td style={tableCellStyle()}>{formatCurrency(row.advanceCash)}</td>
+                        <td style={tableCellStyle()}>{formatCurrency(row.advanceCard)}</td>
+                        <td style={{ ...tableCellStyle(), fontWeight: 800 }}>
+                          {formatCurrency(row.advanceTotal)}
+                        </td>
+                        <td style={{ ...tableCellStyle(), fontWeight: 800 }}>
+                          {formatCurrency(row.grandTotal)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        <section
+          style={{
+            display: "grid",
+            gridTemplateColumns: tablet ? "1fr" : "repeat(3, minmax(0, 1fr))",
+            gap: "14px",
+          }}
+        >
+          <div style={cardStyle}>
+            <h2 style={{ ...miniTitleStyle, marginBottom: "14px" }}>月別売上</h2>
+            <div style={{ display: "grid", gap: "10px" }}>
+              {monthlyTotals.length === 0 ? (
+                <div style={{ color: "#6b7280" }}>データなし</div>
+              ) : (
+                monthlyTotals.map(([month, total]) => (
+                  <div
+                    key={month}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: "12px",
+                      padding: "12px",
+                      borderRadius: "14px",
+                      background: "#fff",
+                      border: "1px solid #e5e7eb",
+                    }}
+                  >
+                    <div style={{ fontWeight: 700 }}>{month}</div>
+                    <div style={{ fontWeight: 800 }}>{formatCurrency(total)}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div style={cardStyle}>
+            <h2 style={{ ...miniTitleStyle, marginBottom: "14px" }}>担当別売上</h2>
+            <div style={{ display: "grid", gap: "10px" }}>
+              {staffTotals.length === 0 ? (
+                <div style={{ color: "#6b7280" }}>データなし</div>
+              ) : (
+                staffTotals.map(([name, total]) => (
+                  <div
+                    key={name}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: "12px",
+                      padding: "12px",
+                      borderRadius: "14px",
+                      background: "#fff",
+                      border: "1px solid #e5e7eb",
+                    }}
+                  >
+                    <div style={{ fontWeight: 700 }}>{name}</div>
+                    <div style={{ fontWeight: 800 }}>{formatCurrency(total)}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div style={cardStyle}>
+            <h2 style={{ ...miniTitleStyle, marginBottom: "14px" }}>支払方法別売上</h2>
+            <div style={{ display: "grid", gap: "10px" }}>
+              {paymentTotals.length === 0 ? (
+                <div style={{ color: "#6b7280" }}>データなし</div>
+              ) : (
+                paymentTotals.map(([method, total]) => (
+                  <div
+                    key={method}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: "12px",
+                      padding: "12px",
+                      borderRadius: "14px",
+                      background: "#fff",
+                      border: "1px solid #e5e7eb",
+                    }}
+                  >
+                    <div style={{ fontWeight: 700 }}>{method}</div>
+                    <div style={{ fontWeight: 800 }}>{formatCurrency(total)}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function tableHeadStyle(): CSSProperties {
+  return {
+    textAlign: "left",
+    padding: "13px 14px",
+    fontWeight: 800,
+    color: "#374151",
+    background: "#f9fafb",
+    borderBottom: "1px solid #e5e7eb",
+    whiteSpace: "nowrap",
+    fontSize: "14px",
+  };
+}
+
+function tableCellStyle(): CSSProperties {
+  return {
+    padding: "13px 14px",
+    borderBottom: "1px solid #f1f5f9",
+    verticalAlign: "top",
+    fontSize: "14px",
+  };
+}
