@@ -6,11 +6,27 @@ import { useState } from "react";
 
 type MealItem = {
   id: string;
+  image?: string;
   image_url?: string;
   comment?: string;
   created_at?: string;
+  date?: string;
   feedback?: string;
 };
+
+function getCustomerIdFromStorage() {
+  if (typeof window === "undefined") return "";
+  return (
+    localStorage.getItem("gymup_mypage_customer_id") ||
+    localStorage.getItem("gymup_current_customer_id") ||
+    localStorage.getItem("gymup_customer_id") ||
+    ""
+  );
+}
+
+function getMealStorageKey(customerId: string) {
+  return `gymup_meals_${customerId}`;
+}
 
 export default function MyPageMealNewPage() {
   const router = useRouter();
@@ -20,6 +36,13 @@ export default function MyPageMealNewPage() {
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = () => {
+    const customerId = getCustomerIdFromStorage();
+
+    if (!customerId) {
+      alert("顧客情報が見つかりません");
+      return;
+    }
+
     if (!image.trim() && !comment.trim()) {
       alert("画像URLかコメントを入力してください");
       return;
@@ -28,20 +51,24 @@ export default function MyPageMealNewPage() {
     const newMeal: MealItem = {
       id: Date.now().toString(),
       image_url: image.trim(),
+      image: image.trim(),
       comment: comment.trim(),
       created_at: new Date().toISOString(),
+      date: new Date().toISOString(),
       feedback: "",
     };
 
     try {
       setSaving(true);
 
-      const existing = localStorage.getItem("mypage_meals");
+      const storageKey = getMealStorageKey(customerId);
+      const existing = localStorage.getItem(storageKey);
       const meals: MealItem[] = existing ? JSON.parse(existing) : [];
 
-      meals.unshift(newMeal);
+      const safeMeals = Array.isArray(meals) ? meals : [];
+      safeMeals.unshift(newMeal);
 
-      localStorage.setItem("mypage_meals", JSON.stringify(meals));
+      localStorage.setItem(storageKey, JSON.stringify(safeMeals));
 
       alert("食事を登録しました");
       router.push("/mypage/meal");
@@ -311,7 +338,7 @@ export default function MyPageMealNewPage() {
             <h1 className="meal-new-page__title">食事を送る</h1>
             <p className="meal-new-page__desc">
               食事内容を送信して、スタッフからのフィードバックを受け取れます。
-              写真URLとコメントのどちらかだけでも登録できます。
+              投稿内容はスタッフ側の食事管理と連動します。
             </p>
 
             <div className="meal-new-page__hero-actions">
