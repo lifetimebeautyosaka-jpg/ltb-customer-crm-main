@@ -5,9 +5,11 @@ import { useEffect, useMemo, useState } from "react";
 
 type MealItem = {
   id: string;
+  image?: string;
   image_url?: string;
   comment?: string;
   created_at?: string;
+  date?: string;
   feedback?: string;
 };
 
@@ -24,15 +26,63 @@ function formatDateTime(value?: string) {
   }).format(d);
 }
 
+function getCustomerIdFromStorage() {
+  if (typeof window === "undefined") return "";
+  return (
+    localStorage.getItem("gymup_mypage_customer_id") ||
+    localStorage.getItem("gymup_current_customer_id") ||
+    localStorage.getItem("gymup_customer_id") ||
+    ""
+  );
+}
+
+function getCustomerNameFromStorage() {
+  if (typeof window === "undefined") return "お客様";
+  return (
+    localStorage.getItem("gymup_mypage_customer_name") ||
+    localStorage.getItem("gymup_current_customer_name") ||
+    localStorage.getItem("gymup_customer_name") ||
+    "お客様"
+  );
+}
+
+function getMealStorageKey(customerId: string) {
+  return `gymup_meals_${customerId}`;
+}
+
 export default function MyPageMealPage() {
+  const [customerId, setCustomerId] = useState("");
+  const [customerName, setCustomerName] = useState("お客様");
   const [meals, setMeals] = useState<MealItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     try {
-      const data = localStorage.getItem("mypage_meals");
+      const currentCustomerId = getCustomerIdFromStorage();
+      const currentCustomerName = getCustomerNameFromStorage();
+
+      setCustomerId(currentCustomerId);
+      setCustomerName(currentCustomerName);
+
+      if (!currentCustomerId) {
+        setMeals([]);
+        setLoading(false);
+        return;
+      }
+
+      const storageKey = getMealStorageKey(currentCustomerId);
+      const data = localStorage.getItem(storageKey);
       const parsed: MealItem[] = data ? JSON.parse(data) : [];
-      setMeals(Array.isArray(parsed) ? parsed : []);
+
+      const safeMeals = Array.isArray(parsed) ? parsed : [];
+
+      const sortedMeals = [...safeMeals].sort((a, b) => {
+        const aTime = new Date(a.created_at || a.date || "").getTime();
+        const bTime = new Date(b.created_at || b.date || "").getTime();
+        return bTime - aTime;
+      });
+
+      setMeals(sortedMeals);
     } catch (error) {
       console.error(error);
       setMeals([]);
@@ -198,6 +248,7 @@ export default function MyPageMealPage() {
           color: #8a8175;
           text-align: center;
           font-size: 15px;
+          line-height: 1.8;
         }
 
         .meal-page__list {
@@ -352,10 +403,10 @@ export default function MyPageMealPage() {
         <div className="meal-page__container">
           <section className="meal-page__hero">
             <div className="meal-page__eyebrow">Meal Management</div>
-            <h1 className="meal-page__title">食事管理</h1>
+            <h1 className="meal-page__title">{customerName}様の食事管理</h1>
             <p className="meal-page__desc">
               投稿した食事内容と、スタッフからのフィードバックを確認できます。
-              毎日の積み重ねを見返しやすいよう、シンプルで見やすい画面にしています。
+              お客様ページとスタッフページは同じデータで連動しています。
             </p>
 
             <div className="meal-page__actions">
@@ -397,6 +448,11 @@ export default function MyPageMealPage() {
 
             {loading ? (
               <div className="meal-page__empty">読み込み中...</div>
+            ) : !customerId ? (
+              <div className="meal-page__empty">
+                顧客情報が見つかりません。<br />
+                先にマイページの顧客紐付けを確認してください。
+              </div>
             ) : meals.length === 0 ? (
               <div className="meal-page__empty">
                 まだ食事投稿がありません。<br />
@@ -406,6 +462,7 @@ export default function MyPageMealPage() {
               <div className="meal-page__list">
                 {meals.map((meal) => {
                   const hasFeedback = !!meal.feedback?.trim();
+                  const imageUrl = meal.image_url || meal.image || "";
 
                   return (
                     <article key={meal.id} className="meal-page__card">
@@ -413,7 +470,7 @@ export default function MyPageMealPage() {
                         <div>
                           <div className="meal-page__meta">
                             <span className="meal-page__pill meal-page__pill--date">
-                              {formatDateTime(meal.created_at)}
+                              {formatDateTime(meal.created_at || meal.date)}
                             </span>
                             <span
                               className={`meal-page__pill ${
@@ -442,14 +499,14 @@ export default function MyPageMealPage() {
                           ) : null}
 
                           <div className="meal-page__created">
-                            登録日時: {formatDateTime(meal.created_at)}
+                            登録日時: {formatDateTime(meal.created_at || meal.date)}
                           </div>
                         </div>
 
                         <div className="meal-page__image-wrap">
-                          {meal.image_url ? (
+                          {imageUrl ? (
                             <img
-                              src={meal.image_url}
+                              src={imageUrl}
                               alt="meal"
                               className="meal-page__image"
                             />
