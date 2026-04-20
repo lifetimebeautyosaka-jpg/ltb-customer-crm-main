@@ -156,8 +156,15 @@ type GroupedPresetOptions = {
   trial: PricePreset[];
   single: PricePreset[];
   unit: PricePreset[];
-  ticket: PricePreset[];
-  training: PricePreset[];
+  ticketNew: PricePreset[];
+  ticketOld: PricePreset[];
+  consumeNew: PricePreset[];
+  consumeOld: PricePreset[];
+  trainingTrial: PricePreset[];
+  trainingCourse: PricePreset[];
+  trainingBodyOld: PricePreset[];
+  trainingBodyNew: PricePreset[];
+  trainingSenior: PricePreset[];
   manual: PricePreset[];
 };
 
@@ -698,6 +705,80 @@ const PRICE_PRESETS: PricePreset[] = [
   },
 
   {
+    id: "stretch_consume_new_40",
+    serviceType: "ストレッチ",
+    label: "消化用（新価格）40分 5,500円",
+    menuName: "ストレッチ消化 新 40分",
+    amount: 5500,
+    accountingType: "回数券消化",
+    note: "新価格の消化単価",
+  },
+  {
+    id: "stretch_consume_new_60",
+    serviceType: "ストレッチ",
+    label: "消化用（新価格）60分 8,500円",
+    menuName: "ストレッチ消化 新 60分",
+    amount: 8500,
+    accountingType: "回数券消化",
+    note: "新価格の消化単価",
+  },
+  {
+    id: "stretch_consume_new_80",
+    serviceType: "ストレッチ",
+    label: "消化用（新価格）80分 11,250円",
+    menuName: "ストレッチ消化 新 80分",
+    amount: 11250,
+    accountingType: "回数券消化",
+    note: "新価格の消化単価",
+  },
+  {
+    id: "stretch_consume_new_120",
+    serviceType: "ストレッチ",
+    label: "消化用（新価格）120分 17,000円",
+    menuName: "ストレッチ消化 新 120分",
+    amount: 17000,
+    accountingType: "回数券消化",
+    note: "新価格の消化単価",
+  },
+
+  {
+    id: "stretch_consume_old_40",
+    serviceType: "ストレッチ",
+    label: "消化用（旧価格）40分 5,330円",
+    menuName: "ストレッチ消化 旧 40分",
+    amount: 5330,
+    accountingType: "回数券消化",
+    note: "旧価格の消化単価",
+  },
+  {
+    id: "stretch_consume_old_60",
+    serviceType: "ストレッチ",
+    label: "消化用（旧価格）60分 7,980円",
+    menuName: "ストレッチ消化 旧 60分",
+    amount: 7980,
+    accountingType: "回数券消化",
+    note: "旧価格の消化単価",
+  },
+  {
+    id: "stretch_consume_old_80",
+    serviceType: "ストレッチ",
+    label: "消化用（旧価格）80分 10,670円",
+    menuName: "ストレッチ消化 旧 80分",
+    amount: 10670,
+    accountingType: "回数券消化",
+    note: "旧価格の消化単価",
+  },
+  {
+    id: "stretch_consume_old_120",
+    serviceType: "ストレッチ",
+    label: "消化用（旧価格）120分 16,000円",
+    menuName: "ストレッチ消化 旧 120分",
+    amount: 16000,
+    accountingType: "回数券消化",
+    note: "旧価格の消化単価",
+  },
+
+  {
     id: "manual_other_training",
     serviceType: "トレーニング",
     label: "その他（手入力）",
@@ -759,6 +840,103 @@ function normalizeText(value?: string | null) {
     .replace(/\s+/g, "")
     .replace(/[‐-‒–—―ー－]/g, "-")
     .toLowerCase();
+}
+
+function detectMinutesFromText(text?: string | null): 40 | 60 | 80 | 120 | null {
+  const raw = String(text || "");
+  const match = raw.match(/(40|60|80|120)\s*分/);
+  if (!match) return null;
+  const value = Number(match[1]);
+  if (value === 40 || value === 60 || value === 80 || value === 120) return value;
+  return null;
+}
+
+function detectPriceVersionFromText(text?: string | null): "new" | "old" | null {
+  const normalized = normalizeText(text);
+  if (!normalized) return null;
+
+  if (
+    normalized.includes("旧価格") ||
+    normalized.includes("ストレッチ旧") ||
+    normalized.includes("旧")
+  ) {
+    return "old";
+  }
+
+  if (
+    normalized.includes("新価格") ||
+    normalized.includes("ストレッチ新") ||
+    normalized.includes("新")
+  ) {
+    return "new";
+  }
+
+  return null;
+}
+
+function parseTicketInfo(ticketName?: string | null): {
+  minutes: 40 | 60 | 80 | 120;
+  version: "new" | "old" | null;
+} | null {
+  if (!ticketName) return null;
+
+  const minutes = detectMinutesFromText(ticketName);
+  const version = detectPriceVersionFromText(ticketName);
+
+  if (!minutes) return null;
+
+  return {
+    minutes,
+    version,
+  };
+}
+
+function buildConsumePresetId(version: "new" | "old", minutes: 40 | 60 | 80 | 120) {
+  return `stretch_consume_${version}_${minutes}`;
+}
+
+function detectRecommendedConsumePresetId(params: {
+  serviceType: ServiceType;
+  accountingType: AccountingType;
+  menu?: string | null;
+  note?: string | null;
+}): string {
+  if (params.serviceType !== "ストレッチ") return "";
+  if (params.accountingType !== "回数券消化") return "";
+
+  const sourceText = `${params.menu || ""} ${params.note || ""}`;
+  const minutes = detectMinutesFromText(sourceText);
+  const version = detectPriceVersionFromText(sourceText);
+
+  if (!minutes || !version) return "";
+
+  return buildConsumePresetId(version, minutes);
+}
+
+function resolveConsumePresetFromContext(params: {
+  serviceType: ServiceType;
+  saleType: AccountingType;
+  presetId?: string;
+  menuName?: string | null;
+  note?: string | null;
+}): PricePreset | null {
+  if (params.serviceType !== "ストレッチ") return null;
+  if (params.saleType !== "回数券消化") return null;
+
+  if (params.presetId) {
+    const preset = findPricePresetById(params.presetId);
+    if (preset) return preset;
+  }
+
+  const inferredPresetId = detectRecommendedConsumePresetId({
+    serviceType: params.serviceType,
+    accountingType: params.saleType,
+    menu: params.menuName,
+    note: params.note,
+  });
+
+  if (!inferredPresetId) return null;
+  return findPricePresetById(inferredPresetId);
 }
 
 function buildCategory(
@@ -1351,8 +1529,15 @@ export default function SalesPage() {
       trial: [],
       single: [],
       unit: [],
-      ticket: [],
-      training: [],
+      ticketNew: [],
+      ticketOld: [],
+      consumeNew: [],
+      consumeOld: [],
+      trainingTrial: [],
+      trainingCourse: [],
+      trainingBodyOld: [],
+      trainingBodyNew: [],
+      trainingSenior: [],
       manual: [],
     };
 
@@ -1362,17 +1547,130 @@ export default function SalesPage() {
         (p) => p.id.startsWith("stretch_single") || p.id.startsWith("stretch_extension")
       );
       result.unit = presetOptionsForService.filter((p) => p.id.includes("_unit_"));
-      result.ticket = presetOptionsForService.filter(
-        (p) => p.accountingType === "前受金" && !p.id.includes("_unit_")
+      result.ticketNew = presetOptionsForService.filter(
+        (p) => p.accountingType === "前受金" && /^stretch_new_(4|8|12)_/.test(p.id)
+      );
+      result.ticketOld = presetOptionsForService.filter(
+        (p) => p.accountingType === "前受金" && /^stretch_old_(4|8|12)_/.test(p.id)
+      );
+      result.consumeNew = presetOptionsForService.filter(
+        (p) => p.accountingType === "回数券消化" && p.id.startsWith("stretch_consume_new_")
+      );
+      result.consumeOld = presetOptionsForService.filter(
+        (p) => p.accountingType === "回数券消化" && p.id.startsWith("stretch_consume_old_")
       );
       result.manual = presetOptionsForService.filter((p) => p.id.startsWith("manual_"));
       return result;
     }
 
-    result.training = presetOptionsForService.filter((p) => !p.id.startsWith("manual_"));
+    result.trainingTrial = presetOptionsForService.filter((p) => p.id.startsWith("trial_"));
+    result.trainingCourse = presetOptionsForService.filter((p) => p.id.startsWith("diet"));
+    result.trainingBodyOld = presetOptionsForService.filter(
+      (p) => p.id.startsWith("body") && p.id.includes("_old")
+    );
+    result.trainingBodyNew = presetOptionsForService.filter(
+      (p) => p.id.startsWith("body") && !p.id.includes("_old")
+    );
+    result.trainingSenior = presetOptionsForService.filter((p) => p.id.startsWith("senior"));
     result.manual = presetOptionsForService.filter((p) => p.id.startsWith("manual_"));
     return result;
   }, [presetOptionsForService, serviceType]);
+
+  const fetchActiveTicket = async (
+    targetCustomerId: string,
+    targetServiceType: ServiceType
+  ): Promise<TicketRow | null> => {
+    const { data, error } = await supabase
+      .from("customer_tickets")
+      .select(
+        "id, customer_id, customer_name, ticket_name, service_type, total_count, remaining_count, purchase_date, expiry_date, status, note, created_at"
+      )
+      .eq("customer_id", Number(targetCustomerId))
+      .eq("service_type", targetServiceType)
+      .gt("remaining_count", 0)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error("ticket fetch error:", error);
+      return null;
+    }
+
+    return (data as TicketRow | null) || null;
+  };
+
+  const applyRecommendedPresetToFirstPayment = (params: {
+    serviceType: ServiceType;
+    accountingType: AccountingType;
+    menu?: string | null;
+    note?: string | null;
+  }) => {
+    const preset = resolveConsumePresetFromContext({
+      serviceType: params.serviceType,
+      saleType: params.accountingType,
+      menuName: params.menu,
+      note: params.note,
+    });
+
+    if (!preset) return;
+
+    setPayments((prev) =>
+      prev.map((row, index) =>
+        index === 0
+          ? {
+              ...row,
+              presetId: preset.id,
+              saleType: "回数券消化",
+              paymentMethod: "その他",
+              amount: row.amount && Number(row.amount) > 0 ? row.amount : String(preset.amount),
+            }
+          : row
+      )
+    );
+
+    if (preset.note) {
+      setNote((prev) => mergeNoteLines(prev, [`自動補完: ${preset.label}`, preset.note]));
+    }
+  };
+
+  const autoSetConsumeFromCustomerTicket = async (params: {
+    customerId: string;
+    serviceType: ServiceType;
+  }) => {
+    if (params.serviceType !== "ストレッチ") return;
+
+    const ticket = await fetchActiveTicket(params.customerId, params.serviceType);
+    if (!ticket) return;
+
+    const parsed = parseTicketInfo(ticket.ticket_name);
+    if (!parsed || !parsed.version) return;
+
+    const presetId = buildConsumePresetId(parsed.version, parsed.minutes);
+    const preset = findPricePresetById(presetId);
+    if (!preset) return;
+
+    setPayments((prev) =>
+      prev.map((row, index) => {
+        if (index !== 0) return row;
+        if (row.saleType !== "回数券消化") return row;
+
+        return {
+          ...row,
+          presetId: preset.id,
+          paymentMethod: "その他",
+          amount: row.amount && Number(row.amount) > 0 ? row.amount : String(preset.amount),
+        };
+      })
+    );
+
+    setNote((prev) =>
+      mergeNoteLines(prev, [
+        `自動判定回数券: ${ticket.ticket_name || ""}`,
+        typeof ticket.remaining_count === "number" ? `残数: ${ticket.remaining_count}` : "",
+      ])
+    );
+  };
 
   const applyQueryParams = (customerList: Customer[]) => {
     const queryFrom = getQueryParam("from");
@@ -1433,10 +1731,13 @@ export default function SalesPage() {
     if (queryStaff) setStaff(queryStaff);
     if (queryMenu) setMenuName(queryMenu);
 
+    let resolvedServiceType: ServiceType = "トレーニング";
     if (queryService === "ストレッチ" || queryService === "トレーニング") {
+      resolvedServiceType = queryService;
       setServiceType(queryService);
     } else if (queryMenu) {
-      setServiceType(detectServiceTypeFromMenu(queryMenu));
+      resolvedServiceType = detectServiceTypeFromMenu(queryMenu);
+      setServiceType(resolvedServiceType);
     }
 
     const normalizedSaleType: AccountingType =
@@ -1455,13 +1756,9 @@ export default function SalesPage() {
         return {
           ...row,
           saleType: normalizedSaleType,
-          paymentMethod: normalizedSaleType === "回数券消化" ? "その他" : normalizedPayment,
-          amount:
-            normalizedSaleType === "回数券消化"
-              ? "0"
-              : queryAmount
-              ? String(queryAmount)
-              : row.amount,
+          paymentMethod:
+            normalizedSaleType === "回数券消化" ? "その他" : normalizedPayment,
+          amount: queryAmount ? String(queryAmount) : row.amount,
         };
       })
     );
@@ -1492,6 +1789,13 @@ export default function SalesPage() {
     ];
 
     setNote((prev) => mergeNoteLines(prev, lines));
+
+    applyRecommendedPresetToFirstPayment({
+      serviceType: resolvedServiceType,
+      accountingType: normalizedSaleType,
+      menu: queryMenu,
+      note: queryMemo,
+    });
   };
 
   const fetchCustomers = async () => {
@@ -1585,9 +1889,11 @@ export default function SalesPage() {
         setNote((prev) => mergeNoteLines(prev, [`予約顧客: ${row.customer_name}`]));
       }
 
+      let resolvedServiceType: ServiceType = "トレーニング";
       if (row.menu) {
         setMenuName(row.menu);
-        setServiceType(detectServiceTypeFromMenu(row.menu));
+        resolvedServiceType = detectServiceTypeFromMenu(row.menu);
+        setServiceType(resolvedServiceType);
       }
 
       if (row.staff_name) setStaff(row.staff_name);
@@ -1605,11 +1911,27 @@ export default function SalesPage() {
         );
       }
 
-      const noteLines = [
-        row.memo ? `予約メモ: ${row.memo}` : "",
-      ];
-
+      const noteLines = [row.memo ? `予約メモ: ${row.memo}` : ""];
       setNote((prev) => mergeNoteLines(prev, noteLines));
+
+      setPayments((prev) =>
+        prev.map((payment, index) =>
+          index === 0
+            ? {
+                ...payment,
+                saleType: "回数券消化",
+                paymentMethod: "その他",
+              }
+            : payment
+        )
+      );
+
+      applyRecommendedPresetToFirstPayment({
+        serviceType: resolvedServiceType,
+        accountingType: "回数券消化",
+        menu: row.menu,
+        note: row.memo,
+      });
     } catch (error) {
       console.error("loadReservationForPrefill error:", error);
     } finally {
@@ -1655,13 +1977,53 @@ export default function SalesPage() {
     void loadExistingSalesForReservation(reservationId);
   }, [mounted, reservationId]);
 
+  useEffect(() => {
+    if (!customerId) return;
+    if (serviceType !== "ストレッチ") return;
+
+    const first = payments[0];
+    if (!first) return;
+    if (first.saleType !== "回数券消化") return;
+
+    void autoSetConsumeFromCustomerTicket({
+      customerId,
+      serviceType,
+    });
+  }, [customerId, serviceType, payments]);
+
+  useEffect(() => {
+    setPayments((prev) =>
+      prev.map((row) => {
+        if (row.saleType !== "回数券消化") return row;
+        if (row.presetId) return row;
+        if (row.amount && Number(row.amount) > 0) return row;
+
+        const preset = resolveConsumePresetFromContext({
+          serviceType,
+          saleType: row.saleType,
+          presetId: row.presetId,
+          menuName,
+          note,
+        });
+
+        if (!preset) return row;
+
+        return {
+          ...row,
+          presetId: preset.id,
+          paymentMethod: "その他",
+          amount: String(preset.amount),
+        };
+      })
+    );
+  }, [menuName, note, serviceType]);
+
   const selectedCustomer = useMemo(() => {
     return customers.find((c) => String(c.id) === customerId);
   }, [customers, customerId]);
 
   const totalAmount = useMemo(() => {
     return payments.reduce((sum, row) => {
-      if (row.saleType === "回数券消化") return sum;
       return sum + Number(row.amount || 0);
     }, 0);
   }, [payments]);
@@ -1756,11 +2118,25 @@ export default function SalesPage() {
             next.paymentMethod = "その他";
           }
           if (value === "回数券消化") {
-            next.amount = "0";
             next.paymentMethod = "その他";
+            const autoPreset = resolveConsumePresetFromContext({
+              serviceType,
+              saleType: "回数券消化",
+              presetId: next.presetId,
+              menuName,
+              note,
+            });
+
+            if (autoPreset) {
+              next.presetId = autoPreset.id;
+              if (!next.amount || Number(next.amount) <= 0) {
+                next.amount = String(autoPreset.amount);
+              }
+            } else if (!next.amount || Number(next.amount) <= 0) {
+              next.amount = "";
+            }
           }
-          if (value === "通常売上" && next.amount === "0") {
-            next.amount = "";
+          if (value === "通常売上" && next.paymentMethod === "その他") {
             next.paymentMethod = "現金";
           }
         }
@@ -1785,15 +2161,18 @@ export default function SalesPage() {
         }
 
         const nextSaleType = preset.accountingType || row.saleType;
-        const isTicket = nextSaleType === "回数券消化";
 
         return {
           ...row,
           presetId,
           saleType: nextSaleType,
           paymentMethod:
-            isTicket ? "その他" : nextSaleType === "前受金" ? "その他" : row.paymentMethod,
-          amount: isTicket ? "0" : preset.amount > 0 ? String(preset.amount) : "",
+            nextSaleType === "回数券消化"
+              ? "その他"
+              : nextSaleType === "前受金"
+              ? "その他"
+              : row.paymentMethod,
+          amount: preset.amount > 0 ? String(preset.amount) : row.amount,
         };
       })
     );
@@ -1874,12 +2253,42 @@ export default function SalesPage() {
       if (!ok) return;
     }
 
-    for (const row of payments) {
-      if (row.saleType !== "回数券消化" && (!row.amount || Number(row.amount) <= 0)) {
-        alert("支払い金額を入力してください");
+    const resolvedPayments = payments.map((row) => {
+      if (row.saleType !== "回数券消化") return row;
+
+      const preset =
+        findPricePresetById(row.presetId) ||
+        resolveConsumePresetFromContext({
+          serviceType,
+          saleType: row.saleType,
+          presetId: row.presetId,
+          menuName,
+          note,
+        });
+
+      const resolvedAmount =
+        row.amount && Number(row.amount) > 0
+          ? row.amount
+          : preset
+          ? String(preset.amount)
+          : row.amount;
+
+      return {
+        ...row,
+        presetId: row.presetId || preset?.id || "",
+        amount: resolvedAmount,
+        paymentMethod: "その他" as PaymentMethod,
+      };
+    });
+
+    for (const row of resolvedPayments) {
+      if (!row.amount || Number(row.amount) <= 0) {
+        alert("支払い金額を入力してください。回数券消化も単価を入れてください。");
         return;
       }
     }
+
+    setPayments(resolvedPayments);
 
     const queryFrom = getQueryParam("from");
     const querySignupId = getQueryParam("signup_id");
@@ -1894,14 +2303,24 @@ export default function SalesPage() {
       const consumedTickets: TicketConsumeResult[] = [];
       let reservationUpdated = false;
 
-      for (const row of payments) {
+      for (const row of resolvedPayments) {
         const isTicketConsume = row.saleType === "回数券消化";
-        const preset = findPricePresetById(row.presetId);
+        const preset =
+          findPricePresetById(row.presetId) ||
+          resolveConsumePresetFromContext({
+            serviceType,
+            saleType: row.saleType,
+            presetId: row.presetId,
+            menuName,
+            note,
+          });
+
         const ticketIssueInfo = parseTicketIssuePresetInfo(preset);
 
         const baseNote = [
           menuName.trim() ? `メニュー名: ${menuName.trim()}` : "",
           preset ? `料金プリセット: ${preset.label}` : "",
+          isTicketConsume ? `消化単価: ${Number(row.amount || 0).toLocaleString()}円` : "",
           ticketIssueInfo
             ? `回数券自動発行対象: ${ticketIssueInfo.priceVersion}価格 ${ticketIssueInfo.ticketCount}回 ${ticketIssueInfo.minutes}分`
             : "",
@@ -1940,7 +2359,7 @@ export default function SalesPage() {
           menu_type: serviceType,
           sale_type: row.saleType,
           payment_method: isTicketConsume ? "その他" : row.paymentMethod,
-          amount: isTicketConsume ? 0 : Number(row.amount),
+          amount: Number(row.amount || 0),
           staff_name: staff.trim() || "未設定",
           store_name: storeName.trim() || "未設定",
           reservation_id: reservationId ? Number(reservationId) : null,
@@ -2078,27 +2497,22 @@ export default function SalesPage() {
 
       await fetchSales();
 
-if (reservationId) {
-  await loadExistingSalesForReservation(reservationId);
-}
+      if (reservationId) {
+        await loadExistingSalesForReservation(reservationId);
+      }
 
-alert(
-  issuedTicketIds.length > 0
-    ? `売上を登録し、回数券を ${issuedTicketIds.length} 件自動発行しました`
-    : isFromSignup
-    ? "売上を登録し、入会申請も売上登録済に更新しました"
-    : "売上を登録しました"
-);
+      alert(
+        issuedTicketIds.length > 0
+          ? `売上を登録し、回数券を ${issuedTicketIds.length} 件自動発行しました`
+          : isFromSignup
+          ? "売上を登録し、入会申請も売上登録済に更新しました"
+          : "売上を登録しました"
+      );
 
-// 👇これ追加（ここが本体）
-if (reservationId) {
-  window.location.href = `/reservation/detail/${reservationId}`;
-  return;
-}
-
-resetForm();
-await fetchCustomers();
-await fetchSales();
+      if (reservationId) {
+        window.location.href = `/reservation/detail/${reservationId}`;
+        return;
+      }
 
       resetForm();
       await fetchCustomers();
@@ -2765,7 +3179,7 @@ await fetchSales();
                         {serviceType === "ストレッチ" ? (
                           <>
                             {groupedPresetOptions.trial.length > 0 && (
-                              <optgroup label="初回体験">
+                              <optgroup label="ストレッチ初回体験">
                                 {groupedPresetOptions.trial.map((preset) => (
                                   <option key={preset.id} value={preset.id}>
                                     {preset.label}
@@ -2775,7 +3189,7 @@ await fetchSales();
                             )}
 
                             {groupedPresetOptions.single.length > 0 && (
-                              <optgroup label="単発・延長">
+                              <optgroup label="ストレッチ単発・延長">
                                 {groupedPresetOptions.single.map((preset) => (
                                   <option key={preset.id} value={preset.id}>
                                     {preset.label}
@@ -2785,7 +3199,7 @@ await fetchSales();
                             )}
 
                             {groupedPresetOptions.unit.length > 0 && (
-                              <optgroup label="回数券単価（新旧）">
+                              <optgroup label="ストレッチ回数券単価（確認用）">
                                 {groupedPresetOptions.unit.map((preset) => (
                                   <option key={preset.id} value={preset.id}>
                                     {preset.label}
@@ -2794,9 +3208,39 @@ await fetchSales();
                               </optgroup>
                             )}
 
-                            {groupedPresetOptions.ticket.length > 0 && (
-                              <optgroup label="回数券販売（前受金）">
-                                {groupedPresetOptions.ticket.map((preset) => (
+                            {groupedPresetOptions.ticketNew.length > 0 && (
+                              <optgroup label="新回数券販売（前受金）">
+                                {groupedPresetOptions.ticketNew.map((preset) => (
+                                  <option key={preset.id} value={preset.id}>
+                                    {preset.label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+
+                            {groupedPresetOptions.ticketOld.length > 0 && (
+                              <optgroup label="旧回数券販売（前受金）">
+                                {groupedPresetOptions.ticketOld.map((preset) => (
+                                  <option key={preset.id} value={preset.id}>
+                                    {preset.label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+
+                            {groupedPresetOptions.consumeNew.length > 0 && (
+                              <optgroup label="新回数券消化">
+                                {groupedPresetOptions.consumeNew.map((preset) => (
+                                  <option key={preset.id} value={preset.id}>
+                                    {preset.label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+
+                            {groupedPresetOptions.consumeOld.length > 0 && (
+                              <optgroup label="旧回数券消化">
+                                {groupedPresetOptions.consumeOld.map((preset) => (
                                   <option key={preset.id} value={preset.id}>
                                     {preset.label}
                                   </option>
@@ -2816,9 +3260,49 @@ await fetchSales();
                           </>
                         ) : (
                           <>
-                            {groupedPresetOptions.training.length > 0 && (
-                              <optgroup label="トレーニング料金">
-                                {groupedPresetOptions.training.map((preset) => (
+                            {groupedPresetOptions.trainingTrial.length > 0 && (
+                              <optgroup label="トレーニング初回体験">
+                                {groupedPresetOptions.trainingTrial.map((preset) => (
+                                  <option key={preset.id} value={preset.id}>
+                                    {preset.label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+
+                            {groupedPresetOptions.trainingCourse.length > 0 && (
+                              <optgroup label="トレーニング回数券・コース">
+                                {groupedPresetOptions.trainingCourse.map((preset) => (
+                                  <option key={preset.id} value={preset.id}>
+                                    {preset.label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+
+                            {groupedPresetOptions.trainingBodyOld.length > 0 && (
+                              <optgroup label="ボディメイク旧価格">
+                                {groupedPresetOptions.trainingBodyOld.map((preset) => (
+                                  <option key={preset.id} value={preset.id}>
+                                    {preset.label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+
+                            {groupedPresetOptions.trainingBodyNew.length > 0 && (
+                              <optgroup label="ボディメイク新価格">
+                                {groupedPresetOptions.trainingBodyNew.map((preset) => (
+                                  <option key={preset.id} value={preset.id}>
+                                    {preset.label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+
+                            {groupedPresetOptions.trainingSenior.length > 0 && (
+                              <optgroup label="シニア">
+                                {groupedPresetOptions.trainingSenior.map((preset) => (
                                   <option key={preset.id} value={preset.id}>
                                     {preset.label}
                                   </option>
@@ -2866,7 +3350,7 @@ await fetchSales();
                         }
                         style={{
                           ...inputStyle,
-                          opacity: row.saleType === "回数券消化" ? 0.6 : 1,
+                          opacity: row.saleType === "回数券消化" ? 0.7 : 1,
                         }}
                         disabled={row.saleType === "回数券消化"}
                       >
@@ -2879,17 +3363,18 @@ await fetchSales();
                     </div>
 
                     <div>
-                      <label style={labelStyle}>金額</label>
+                      <label style={labelStyle}>
+                        金額
+                        <span style={{ marginLeft: 6, fontSize: 11, color: "#2563eb" }}>
+                          ※ 直打ちで上書き可
+                        </span>
+                      </label>
                       <input
                         inputMode="numeric"
                         value={row.amount}
                         onChange={(e) => updatePayment(row.id, "amount", e.target.value)}
                         placeholder="0"
-                        style={{
-                          ...inputStyle,
-                          opacity: row.saleType === "回数券消化" ? 0.6 : 1,
-                        }}
-                        disabled={row.saleType === "回数券消化"}
+                        style={inputStyle}
                       />
                     </div>
                   </div>
