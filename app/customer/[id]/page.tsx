@@ -49,6 +49,19 @@ type SaleRow = {
   sale_date?: string | null;
 };
 
+type ReservationVisitRow = {
+  id: string | number;
+  customer_id?: string | number | null;
+  customer_name?: string | null;
+  date?: string | null;
+  start_time?: string | null;
+  store_name?: string | null;
+  staff_name?: string | null;
+  menu?: string | null;
+  reservation_status?: string | null;
+  created_at?: string | null;
+};
+
 type CustomerTicketRow = {
   id: string | number;
   customer_id?: string | number | null;
@@ -138,6 +151,12 @@ type TicketForm = {
   note: string;
 };
 
+type MonthlyVisitCount = {
+  monthKey: string;
+  label: string;
+  count: number;
+};
+
 const initialTicketForm: TicketForm = {
   ticket_name: "",
   service_type: "ストレッチ",
@@ -186,6 +205,12 @@ function formatDateTime(value?: string | null) {
 function formatMetric(value?: number | null, unit = "") {
   if (value === null || value === undefined) return "—";
   return `${value}${unit}`;
+}
+
+function formatVisitDateTime(date?: string | null, startTime?: string | null) {
+  if (!date) return "—";
+  const base = formatDate(date);
+  return `${base}${startTime ? ` ${startTime}` : ""}`;
 }
 
 function normalizeCustomer(row: CustomerRow): NormalizedCustomer {
@@ -334,10 +359,25 @@ function summarizeCounseling(sheet: CounselingSheetRow | null) {
 
 function goToReservationDetail(
   router: ReturnType<typeof useRouter>,
-  reservationId?: number | null
+  reservationId?: number | string | null
 ) {
   if (!reservationId) return;
   router.push(`/reservation/detail/${reservationId}`);
+}
+
+function monthKeyFromDate(date?: string | null) {
+  if (!date) return "";
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = `${d.getMonth() + 1}`.padStart(2, "0");
+  return `${y}-${m}`;
+}
+
+function monthLabelFromKey(monthKey: string) {
+  if (!monthKey.includes("-")) return monthKey;
+  const [y, m] = monthKey.split("-");
+  return `${y}年${Number(m)}月`;
 }
 
 function InfoItem({
@@ -546,6 +586,7 @@ export default function CustomerDetailPage() {
   const [customer, setCustomer] = useState<NormalizedCustomer | null>(null);
   const [sessions, setSessions] = useState<TrainingSessionRow[]>([]);
   const [sales, setSales] = useState<SaleRow[]>([]);
+  const [reservations, setReservations] = useState<ReservationVisitRow[]>([]);
   const [tickets, setTickets] = useState<CustomerTicketRow[]>([]);
   const [ticketUsages, setTicketUsages] = useState<TicketUsageRow[]>([]);
   const [counselingSheet, setCounselingSheet] =
@@ -639,6 +680,20 @@ export default function CustomerDetailPage() {
         console.warn("sales取得エラー:", salesError.message);
       }
 
+      const { data: reservationData, error: reservationError } = await supabase
+        .from("reservations")
+        .select(
+          "id, customer_id, customer_name, date, start_time, store_name, staff_name, menu, reservation_status, created_at"
+        )
+        .eq("customer_id", customerIdForQuery)
+        .order("date", { ascending: false })
+        .order("start_time", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      if (reservationError) {
+        console.warn("reservations取得エラー:", reservationError.message);
+      }
+
       const { data: ticketData, error: ticketFetchError } = await supabase
         .from("customer_tickets")
         .select(
@@ -683,6 +738,7 @@ export default function CustomerDetailPage() {
       setCustomer(normalizeCustomer(customerData as CustomerRow));
       setSessions((sessionData as TrainingSessionRow[]) || []);
       setSales((salesData as SaleRow[]) || []);
+      setReservations((reservationData as ReservationVisitRow[]) || []);
       setTickets((ticketData as CustomerTicketRow[]) || []);
       setTicketUsages((usageData as TicketUsageRow[]) || []);
       setCounselingSheet((counselingData as CounselingSheetRow) || null);
@@ -791,6 +847,69 @@ export default function CustomerDetailPage() {
   const totalUsedTickets = useMemo(() => {
     return ticketUsages.length;
   }, [ticketUsages]);
+
+  const reservationVisitCount = useMemo(() => {
+    return reservations.filter((item) => !!item.date).length;
+  }, [reservations]);
+
+  const monthlyVisitCounts = useMemo<MonthlyVisitCount[]>(() => {
+    const map = new Map<string, number>();
+
+    reservations.forEach((item) => {
+      const key = monthKeyFromDate(item.date);
+      if (!key) return;
+      map.set(key, (map.get(key) || 0) + 1);
+    });
+
+    return Array.from(map.entries())
+      .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+      .map(([monthKey, count]) => ({
+        monthKey,
+        label: monthLabelFromKey(monthKey),
+        count,
+      }));
+  }, [reservations]);
+
+  const currentMonthKey = useMemo(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = `${now.getMonth() + 1}`.padStart(2, "0");
+    return `${y}-${m}`;
+  }, []);
+
+  const previousMonthKey = useMemo(() => {
+    const now = new Date();
+    const previous = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const y = previous.getFullYear();
+    const m = `${previous.getMonth() + 1}`.padStart(2, "0");
+    return `${y}-${m}`;
+  }, []);
+
+  const currentMonthVisitCount = useMemo(() => {
+    return monthlyVisitCounts.find((item) => item.monthKey === currentMonthKey)?.count || 0;
+  }, [monthlyVisitCounts, currentMonthKey]);
+
+  const previousMonthVisitCount = useMemo(() => {
+    return monthlyVisitCounts.find((item) => item.monthKey === previousMonthKey)?.count || 0;
+  }, [monthlyVisitCounts, previousMonthKey]);
+
+  const visitMonthDiff = useMemo(() => {
+    return currentMonthVisitCount - previousMonthVisitCount;
+  }, [currentMonthVisitCount, previousMonthVisitCount]);
+
+  const recentReservations = useMemo(() => {
+    return reservations
+      .filter((item) => !!item.date)
+      .slice(0, 20);
+  }, [reservations]);
+
+  const firstVisitDate = useMemo(() => {
+    const valid = reservations
+      .filter((item) => !!item.date)
+      .slice()
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    return valid[0]?.date || "";
+  }, [reservations]);
 
   const weightChartSessions = useMemo(() => {
     return sessions.filter(
@@ -1000,6 +1119,167 @@ export default function CustomerDetailPage() {
               marginBottom: 16,
             }}
           >
+            <h2 style={sectionTitleStyle}>来店実績</h2>
+            <div style={{ fontSize: 13, color: "#64748b", fontWeight: 700 }}>
+              reservations ベースで集計
+            </div>
+          </div>
+
+          <div style={metricsGridStyle}>
+            <MetricCard
+              label="今月の来店回数"
+              value={`${currentMonthVisitCount}回`}
+              sub={monthLabelFromKey(currentMonthKey)}
+            />
+            <MetricCard
+              label="先月の来店回数"
+              value={`${previousMonthVisitCount}回`}
+              sub={monthLabelFromKey(previousMonthKey)}
+            />
+            <MetricCard
+              label="前月比"
+              value={`${visitMonthDiff > 0 ? "+" : ""}${visitMonthDiff}回`}
+              sub={
+                visitMonthDiff > 0
+                  ? "今月の方が多い"
+                  : visitMonthDiff < 0
+                  ? "先月の方が多い"
+                  : "同じ回数"
+              }
+              subColor={
+                visitMonthDiff > 0
+                  ? "#16a34a"
+                  : visitMonthDiff < 0
+                  ? "#dc2626"
+                  : "#64748b"
+              }
+            />
+            <MetricCard
+              label="累計来店回数"
+              value={`${reservationVisitCount}回`}
+              sub={firstVisitDate ? `初回: ${formatDate(firstVisitDate)}` : "来店履歴なし"}
+            />
+          </div>
+
+          <div style={{ marginTop: 18 }}>
+            <h3 style={subSectionTitleStyle}>月別来店回数</h3>
+
+            {monthlyVisitCounts.length === 0 ? (
+              <div style={emptyBoxStyle}>まだ来店履歴はありません。</div>
+            ) : (
+              <div style={{ display: "grid", gap: 10 }}>
+                {monthlyVisitCounts.map((item) => (
+                  <div key={item.monthKey} style={monthRowStyle}>
+                    <div style={monthRowLabelStyle}>{item.label}</div>
+                    <div style={monthRowValueStyle}>{item.count}回</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section
+          style={{
+            ...CARD_STYLE,
+            borderRadius: 24,
+            padding: mobile ? 16 : 20,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: mobile ? "stretch" : "center",
+              gap: 12,
+              flexWrap: "wrap",
+              flexDirection: mobile ? "column" : "row",
+              marginBottom: 16,
+            }}
+          >
+            <h2 style={sectionTitleStyle}>来店履歴（時系列）</h2>
+            <div style={{ fontSize: 13, color: "#64748b", fontWeight: 700 }}>
+              新しい順に表示
+            </div>
+          </div>
+
+          {recentReservations.length === 0 ? (
+            <div style={emptyBoxStyle}>来店履歴はまだありません。</div>
+          ) : (
+            <div style={{ display: "grid", gap: 12 }}>
+              {recentReservations.map((reservation) => (
+                <article
+                  key={String(reservation.id)}
+                  onClick={() =>
+                    goToReservationDetail(router, reservation.id)
+                  }
+                  style={{ ...historyItemStyle, cursor: "pointer" }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      flexWrap: "wrap",
+                      alignItems: "flex-start",
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 220 }}>
+                      <div style={historyDateStyle}>
+                        {formatVisitDateTime(
+                          reservation.date,
+                          reservation.start_time
+                        )}
+                      </div>
+                      <div style={historySubStyle}>
+                        メニュー {reservation.menu || "—"}
+                      </div>
+                      <div style={historySubStyle}>
+                        担当 {reservation.staff_name || "—"} / 店舗{" "}
+                        {reservation.store_name || "—"}
+                      </div>
+                      <div style={historySubStyle}>
+                        ステータス {reservation.reservation_status || "—"}
+                      </div>
+                      <div style={historySubStyle}>
+                        予約ID {reservation.id}
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        ...miniButtonLinkStyle,
+                        minWidth: mobile ? "100%" : 120,
+                        cursor: "pointer",
+                      }}
+                    >
+                      予約詳細を見る
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section
+          style={{
+            ...CARD_STYLE,
+            borderRadius: 24,
+            padding: mobile ? 16 : 20,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: mobile ? "stretch" : "center",
+              gap: 12,
+              flexWrap: "wrap",
+              flexDirection: mobile ? "column" : "row",
+              marginBottom: 16,
+            }}
+          >
             <h2 style={sectionTitleStyle}>カウンセリング要約</h2>
             <Link
               href={`/customer/${customerId}/counseling`}
@@ -1181,7 +1461,7 @@ export default function CustomerDetailPage() {
 
           <div style={metricsGridStyle}>
             <MetricCard
-              label="来店回数"
+              label="トレーニング回数"
               value={`${visitCount}回`}
               sub="training_sessions件数"
             />
@@ -1585,6 +1865,13 @@ const sectionTitleStyle: CSSProperties = {
   fontWeight: 800,
 };
 
+const subSectionTitleStyle: CSSProperties = {
+  margin: "0 0 12px 0",
+  fontSize: 16,
+  color: "#0f172a",
+  fontWeight: 800,
+};
+
 const buttonLinkStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
@@ -1830,6 +2117,29 @@ const ticketBadgeStyle: CSSProperties = {
   borderRadius: 999,
   fontSize: 12,
   fontWeight: 800,
+};
+
+const monthRowStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+  padding: "14px 16px",
+  borderRadius: 16,
+  background: "rgba(255,255,255,0.82)",
+  border: "1px solid rgba(226,232,240,0.95)",
+};
+
+const monthRowLabelStyle: CSSProperties = {
+  fontSize: 15,
+  fontWeight: 800,
+  color: "#0f172a",
+};
+
+const monthRowValueStyle: CSSProperties = {
+  fontSize: 18,
+  fontWeight: 900,
+  color: "#2563eb",
 };
 
 const chartWrapStyle: CSSProperties = {
