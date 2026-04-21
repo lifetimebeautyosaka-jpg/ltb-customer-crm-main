@@ -1678,6 +1678,13 @@ export default function SalesPage() {
         .from("customers")
         .select("id, name, phone")
         .order("name", { ascending: true });
+        console.log("customers data:", data);
+console.log("customers error:", error);
+alert(
+  `件数: ${Array.isArray(data) ? data.length : 0} / error: ${
+    error ? error.message : "なし"
+  }`
+);
 
       if (error) {
         alert(`顧客取得エラー: ${error.message}`);
