@@ -1692,7 +1692,7 @@ export default function SalesPage() {
       }));
 
       setCustomers(list);
-      applyQueryParams(list);
+// applyQueryParams(list);
     } catch (error) {
       console.error("fetchCustomers error:", error);
       setCustomers([]);
@@ -1915,17 +1915,17 @@ export default function SalesPage() {
   }, [customers, customerId, customerSearch, note]);
 
   const filteredCustomers = useMemo(() => {
-    const keyword = normalizeText(customerSearch);
-    if (!keyword) return customers;
+  const keyword = normalizeText(customerSearch);
+  if (!keyword) return customers;
 
-    const filtered = customers.filter((customer) => {
-      const name = normalizeText(customer.name);
-      const phone = normalizeText(customer.phone || "");
-      return name.includes(keyword) || phone.includes(keyword);
-    });
+  const filtered = customers.filter((customer) => {
+    const name = normalizeText(customer.name);
+    const phone = normalizeText(customer.phone || "");
+    return name.includes(keyword) || phone.includes(keyword);
+  });
 
-    return filtered.length > 0 ? filtered : customers;
-  }, [customers, customerSearch]);
+  return filtered.length > 0 ? filtered : customers;
+}, [customers, customerSearch]);
 
   const totalAmount = useMemo(() => {
     return payments.reduce((sum, row) => sum + Number(row.amount || 0), 0);
