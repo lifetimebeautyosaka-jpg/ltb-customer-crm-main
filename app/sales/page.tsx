@@ -1315,6 +1315,8 @@ export default function SalesPage() {
   const [existingSalesForReservation, setExistingSalesForReservation] = useState<Sale[]>([]);
   const [openedSaleActionIds, setOpenedSaleActionIds] = useState<string[]>([]);
   const [payments, setPayments] = useState<PaymentRow[]>([createPaymentRow()]);
+  const [isNomination, setIsNomination] = useState(false);
+const [nominationFee, setNominationFee] = useState("1000");
 
   const [loading, setLoading] = useState(true);
   const [customerLoading, setCustomerLoading] = useState(true);
@@ -2156,25 +2158,27 @@ export default function SalesPage() {
   };
 
   const resetForm = () => {
-    setDate(todayString());
-    setCustomerId("");
-    setCustomerSearch("");
-    setMenuName("");
-    setStaff(STAFF_OPTIONS[0]);
-    setStoreName(STORE_OPTIONS[0]);
-    setServiceType("トレーニング");
-    setNote("");
-    setSearch("");
-    setReservationId("");
-    setReservationStatus("");
-    setExistingSalesForReservation([]);
-    setPayments([createPaymentRow()]);
-    setOpenedSaleActionIds([]);
+  setDate(todayString());
+  setCustomerId("");
+  setCustomerSearch("");
+  setMenuName("");
+  setStaff(STAFF_OPTIONS[0]);
+  setStoreName(STORE_OPTIONS[0]);
+  setServiceType("トレーニング");
+  setNote("");
+  setSearch("");
+  setReservationId("");
+  setReservationStatus("");
+  setExistingSalesForReservation([]);
+  setPayments([createPaymentRow()]);
+  setOpenedSaleActionIds([]);
+  setIsNomination(false);
+  setNominationFee("1000");
 
-    if (typeof window !== "undefined") {
-      window.history.replaceState({}, "", "/sales");
-    }
-  };
+  if (typeof window !== "undefined") {
+    window.history.replaceState({}, "", "/sales");
+  }
+};
 
   const toggleSaleActions = (saleId: string) => {
     setOpenedSaleActionIds((prev) =>
@@ -2184,98 +2188,153 @@ export default function SalesPage() {
     );
   };
     const handleAddSale = async () => {
-    if (!date) {
-      alert("日付を入力してください");
-      return;
-    }
+  if (!date) {
+    alert("日付を入力してください");
+    return;
+  }
 
-    const requiresExistingCustomer = payments.some(
-      (row) =>
-        row.saleType === "回数券消化" ||
-        (row.saleType === "前受金" &&
-          serviceType === "ストレッチ" &&
-          !!parseTicketIssuePresetInfo(findPricePresetById(row.presetId)))
+  const requiresExistingCustomer = payments.some(
+    (row) =>
+      row.saleType === "回数券消化" ||
+      (row.saleType === "前受金" &&
+        serviceType === "ストレッチ" &&
+        !!parseTicketIssuePresetInfo(findPricePresetById(row.presetId)))
+  );
+
+  const normalizedSearch = trimmed(customerSearch);
+  let resolvedCustomer = resolveCurrentCustomer();
+
+  if (!resolvedCustomer && normalizedSearch) {
+    const exactByName = customers.find(
+      (c) => normalizeText(c.name) === normalizeText(normalizedSearch)
     );
 
-    const normalizedSearch = trimmed(customerSearch);
-    let resolvedCustomer = resolveCurrentCustomer();
+    const exactByPhone = customers.find((c) => {
+      const inputPhone = normalizedSearch.replace(/[^\d]/g, "");
+      const targetPhone = trimmed(c.phone).replace(/[^\d]/g, "");
+      return !!inputPhone && !!targetPhone && inputPhone === targetPhone;
+    });
 
-    if (!resolvedCustomer && normalizedSearch) {
-      const exactByName = customers.find(
-        (c) => normalizeText(c.name) === normalizeText(normalizedSearch)
-      );
+    if (exactByName || exactByPhone) {
+      resolvedCustomer = exactByName || exactByPhone || null;
+    }
+  }
 
-      const exactByPhone = customers.find((c) => {
-        const inputPhone = normalizedSearch.replace(/[^\d]/g, "");
-        const targetPhone = trimmed(c.phone).replace(/[^\d]/g, "");
-        return !!inputPhone && !!targetPhone && inputPhone === targetPhone;
+  if (!resolvedCustomer && customerId) {
+    const byCurrentId =
+      customers.find((c) => String(c.id) === String(customerId)) || null;
+    if (byCurrentId) {
+      resolvedCustomer = byCurrentId;
+    }
+  }
+
+  if (!resolvedCustomer && customerId) {
+    const { data, error } = await supabase
+      .from("customers")
+      .select("id, name, phone")
+      .eq("id", Number(customerId))
+      .maybeSingle();
+
+    if (!error && data) {
+      resolvedCustomer = {
+        id: data.id,
+        name: data.name,
+        phone: data.phone || null,
+      };
+      setCustomerId(String(data.id));
+      setCustomerSearch(data.name);
+    }
+  }
+
+  if (requiresExistingCustomer) {
+    if (!resolvedCustomer) {
+      alert("回数券消化・回数券発行を伴う前受金は既存顧客の選択が必要です");
+      return;
+    }
+
+    if (String(resolvedCustomer.id) !== customerId) {
+      setCustomerId(String(resolvedCustomer.id));
+    }
+    if (customerSearch !== resolvedCustomer.name) {
+      setCustomerSearch(resolvedCustomer.name);
+    }
+  }
+
+  const finalCustomerName =
+    resolvedCustomer?.name || normalizedSearch || trimmed(customerSearch);
+
+  if (!finalCustomerName) {
+    alert("顧客名を入力してください");
+    return;
+  }
+
+  if (!menuName.trim()) {
+    alert("メニュー名を入力してください");
+    return;
+  }
+
+  if (reservationId && existingSalesForReservation.length > 0) {
+    const ok = window.confirm("この予約にはすでに売上があります。追加登録しますか？");
+    if (!ok) return;
+  }
+
+  const resolvedPayments = payments.map((row) => {
+    if (row.saleType !== "回数券消化") return row;
+
+    const preset =
+      findPricePresetById(row.presetId) ||
+      resolveConsumePresetFromContext({
+        serviceType,
+        saleType: row.saleType,
+        presetId: row.presetId,
+        menuName,
+        note,
       });
 
-      if (exactByName || exactByPhone) {
-        resolvedCustomer = exactByName || exactByPhone || null;
-      }
-    }
+    const resolvedAmount =
+      row.amount && Number(row.amount) > 0
+        ? row.amount
+        : preset
+        ? String(preset.amount)
+        : row.amount;
 
-    if (!resolvedCustomer && customerId) {
-      const byCurrentId =
-        customers.find((c) => String(c.id) === String(customerId)) || null;
-      if (byCurrentId) {
-        resolvedCustomer = byCurrentId;
-      }
-    }
+    return {
+      ...row,
+      presetId: row.presetId || preset?.id || "",
+      amount: resolvedAmount,
+      paymentMethod: "その他" as PaymentMethod,
+    };
+  });
 
-    if (!resolvedCustomer && customerId) {
-      const { data, error } = await supabase
-        .from("customers")
-        .select("id, name, phone")
-        .eq("id", Number(customerId))
-        .maybeSingle();
-
-      if (!error && data) {
-        resolvedCustomer = {
-          id: data.id,
-          name: data.name,
-          phone: data.phone || null,
-        };
-        setCustomerId(String(data.id));
-        setCustomerSearch(data.name);
-      }
-    }
-
-    if (requiresExistingCustomer) {
-      if (!resolvedCustomer) {
-        alert("回数券消化・回数券発行を伴う前受金は既存顧客の選択が必要です");
-        return;
-      }
-
-      if (String(resolvedCustomer.id) !== customerId) {
-        setCustomerId(String(resolvedCustomer.id));
-      }
-      if (customerSearch !== resolvedCustomer.name) {
-        setCustomerSearch(resolvedCustomer.name);
-      }
-    }
-
-    const finalCustomerName =
-      resolvedCustomer?.name || normalizedSearch || trimmed(customerSearch);
-
-    if (!finalCustomerName) {
-      alert("顧客名を入力してください");
+  for (const row of resolvedPayments) {
+    if (!row.amount || Number(row.amount) <= 0) {
+      alert("支払い金額を入力してください。回数券消化も単価を入れてください。");
       return;
     }
+  }
 
-    if (!menuName.trim()) {
-      alert("メニュー名を入力してください");
-      return;
-    }
+  if (isNomination && (!nominationFee || Number(nominationFee) <= 0)) {
+    alert("指名料を設定してください");
+    return;
+  }
 
-    if (reservationId && existingSalesForReservation.length > 0) {
-      const ok = window.confirm("この予約にはすでに売上があります。追加登録しますか？");
-      if (!ok) return;
-    }
+  setPayments(resolvedPayments);
 
-    const resolvedPayments = payments.map((row) => {
-      if (row.saleType !== "回数券消化") return row;
+  const queryFrom = getQueryParam("from");
+  const querySignupId = getQueryParam("signup_id");
+  const isFromSignup = queryFrom === "signup" && !!querySignupId;
+  const previousReservationStatus = reservationStatus;
+
+  try {
+    setSaving(true);
+
+    const insertedSaleIds: Array<number | string> = [];
+    const issuedTicketIds: Array<number | string> = [];
+    const consumedTickets: TicketConsumeResult[] = [];
+    let reservationUpdated = false;
+
+    for (const row of resolvedPayments) {
+      const isTicketConsume = row.saleType === "回数券消化";
 
       const preset =
         findPricePresetById(row.presetId) ||
@@ -2287,124 +2346,130 @@ export default function SalesPage() {
           note,
         });
 
-      const resolvedAmount =
-        row.amount && Number(row.amount) > 0
-          ? row.amount
-          : preset
-          ? String(preset.amount)
-          : row.amount;
+      const ticketIssueInfo = parseTicketIssuePresetInfo(preset);
 
-      return {
-        ...row,
-        presetId: row.presetId || preset?.id || "",
-        amount: resolvedAmount,
-        paymentMethod: "その他" as PaymentMethod,
-      };
-    });
+      const baseNote = [
+        menuName.trim() ? `メニュー名: ${menuName.trim()}` : "",
+        preset ? `料金プリセット: ${preset.label}` : "",
+        isTicketConsume
+          ? `消化単価: ${Number(row.amount || 0).toLocaleString()}円`
+          : "",
+        ticketIssueInfo
+          ? `回数券自動発行対象: ${ticketIssueInfo.priceVersion}価格 ${ticketIssueInfo.ticketCount}回 ${ticketIssueInfo.minutes}分`
+          : "",
+        isNomination ? `指名料: ${Number(nominationFee).toLocaleString()}円` : "",
+        note.trim(),
+      ]
+        .filter(Boolean)
+        .join("\n");
 
-    for (const row of resolvedPayments) {
-      if (!row.amount || Number(row.amount) <= 0) {
-        alert("支払い金額を入力してください。回数券消化も単価を入れてください。");
-        return;
+      let ticketResult: TicketConsumeResult | null = null;
+
+      if (isTicketConsume) {
+        if (!resolvedCustomer) {
+          throw new Error("回数券消化には既存顧客の選択が必要です");
+        }
+
+        ticketResult = await consumeCustomerTicket({
+          customerId: String(resolvedCustomer.id),
+          customerName: resolvedCustomer.name,
+          serviceType,
+          usedDate: date,
+          reservationId,
+        });
+
+        consumedTickets.push(ticketResult);
       }
-    }
 
-    setPayments(resolvedPayments);
+      const mergedNote = [
+        baseNote,
+        isFromSignup ? `signup_id: ${querySignupId}` : "",
+        isTicketConsume && ticketResult
+          ? `回数券消化: ${ticketResult.ticketName} / 残数 ${ticketResult.beforeCount} → ${ticketResult.afterCount}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
 
-    const queryFrom = getQueryParam("from");
-    const querySignupId = getQueryParam("signup_id");
-    const isFromSignup = queryFrom === "signup" && !!querySignupId;
-    const previousReservationStatus = reservationStatus;
+      const salePayload = {
+        customer_id: resolvedCustomer ? Number(resolvedCustomer.id) : null,
+        customer_name: finalCustomerName,
+        sale_date: date,
+        menu_type: serviceType,
+        sale_type: row.saleType,
+        payment_method: isTicketConsume ? "その他" : row.paymentMethod,
+        amount: Number(row.amount || 0),
+        staff_name: staff.trim() || "未設定",
+        store_name: storeName.trim() || "未設定",
+        reservation_id: reservationId ? Number(reservationId) : null,
+        memo: mergedNote || null,
+      };
 
-    try {
-      setSaving(true);
+      const { data: insertedData, error: insertError } = await supabase
+        .from("sales")
+        .insert([salePayload])
+        .select("id");
 
-      const insertedSaleIds: Array<number | string> = [];
-      const issuedTicketIds: Array<number | string> = [];
-      const consumedTickets: TicketConsumeResult[] = [];
-      let reservationUpdated = false;
-
-      for (const row of resolvedPayments) {
-        const isTicketConsume = row.saleType === "回数券消化";
-
-        const preset =
-          findPricePresetById(row.presetId) ||
-          resolveConsumePresetFromContext({
-            serviceType,
-            saleType: row.saleType,
-            presetId: row.presetId,
-            menuName,
-            note,
-          });
-
-        const ticketIssueInfo = parseTicketIssuePresetInfo(preset);
-
-        const displayMenuName =
-          preset?.menuName === "指名料" ? `指名料 / ${menuName.trim()}` : menuName.trim();
-
-        const baseNote = [
-          displayMenuName ? `メニュー名: ${displayMenuName}` : "",
-          preset ? `料金プリセット: ${preset.label}` : "",
-          isTicketConsume
-            ? `消化単価: ${Number(row.amount || 0).toLocaleString()}円`
-            : "",
-          ticketIssueInfo
-            ? `回数券自動発行対象: ${ticketIssueInfo.priceVersion}価格 ${ticketIssueInfo.ticketCount}回 ${ticketIssueInfo.minutes}分`
-            : "",
-          reservationId ? `予約ID連動: ${reservationId}` : "",
-          note.trim(),
-        ]
-          .filter(Boolean)
-          .join("\n");
-
-        let ticketResult: TicketConsumeResult | null = null;
-
-        if (isTicketConsume) {
-          if (!resolvedCustomer) {
-            throw new Error("回数券消化には既存顧客の選択が必要です");
-          }
-
-          ticketResult = await consumeCustomerTicket({
-            customerId: String(resolvedCustomer.id),
-            customerName: resolvedCustomer.name,
-            serviceType,
-            usedDate: date,
+      if (insertError) {
+        if (isTicketConsume && ticketResult) {
+          await rollbackConsumedTicket({
+            ticketId: ticketResult.ticketId,
+            beforeCount: ticketResult.beforeCount,
             reservationId,
           });
+        }
+        throw new Error(`売上登録エラー: ${insertError.message}`);
+      }
 
-          consumedTickets.push(ticketResult);
+      const inserted = Array.isArray(insertedData) ? insertedData[0] : null;
+
+      if (!inserted?.id) {
+        if (isTicketConsume && ticketResult) {
+          await rollbackConsumedTicket({
+            ticketId: ticketResult.ticketId,
+            beforeCount: ticketResult.beforeCount,
+            reservationId,
+          });
+        }
+        throw new Error("売上登録後のID取得に失敗しました");
+      }
+
+      insertedSaleIds.push(inserted.id);
+
+      if (
+        row.saleType === "前受金" &&
+        serviceType === "ストレッチ" &&
+        preset &&
+        ticketIssueInfo
+      ) {
+        if (!resolvedCustomer) {
+          throw new Error("回数券発行を伴う前受金は既存顧客の選択が必要です");
         }
 
-        const mergedNote = [
-          baseNote,
-          isFromSignup ? `signup_id: ${querySignupId}` : "",
-          isTicketConsume && ticketResult
-            ? `回数券消化: ${ticketResult.ticketName} / 残数 ${ticketResult.beforeCount} → ${ticketResult.afterCount}`
-            : "",
-        ]
-          .filter(Boolean)
-          .join("\n");
+        try {
+          const issuedTicketId = await issueCustomerTicket({
+            customerId: String(resolvedCustomer.id),
+            customerName: resolvedCustomer.name,
+            preset,
+            purchaseDate: date,
+            note: mergeNoteLines(note, [
+              `売上ID: ${inserted.id}`,
+              `担当: ${staff}`,
+              `店舗: ${storeName}`,
+            ]),
+          });
 
-        const salePayload = {
-          customer_id: resolvedCustomer ? Number(resolvedCustomer.id) : null,
-          customer_name: finalCustomerName,
-          sale_date: date,
-          menu_type: serviceType,
-          sale_type: row.saleType,
-          payment_method: isTicketConsume ? "その他" : row.paymentMethod,
-          amount: Number(row.amount || 0),
-          staff_name: staff.trim() || "未設定",
-          store_name: storeName.trim() || "未設定",
-          reservation_id: reservationId ? Number(reservationId) : null,
-          memo: mergedNote || null,
-        };
+          issuedTicketIds.push(issuedTicketId);
 
-        const { data: insertedData, error: insertError } = await supabase
-          .from("sales")
-          .insert([salePayload])
-          .select("id");
+          await supabase
+            .from("sales")
+            .update({
+              memo: mergeNoteLines(mergedNote, [`発行回数券ID: ${issuedTicketId}`]),
+            })
+            .eq("id", inserted.id);
+        } catch (issueError) {
+          await supabase.from("sales").delete().eq("id", inserted.id);
 
-        if (insertError) {
           if (isTicketConsume && ticketResult) {
             await rollbackConsumedTicket({
               ticketId: ticketResult.ticketId,
@@ -2412,176 +2477,166 @@ export default function SalesPage() {
               reservationId,
             });
           }
-          throw new Error(`売上登録エラー: ${insertError.message}`);
-        }
 
-        const inserted = Array.isArray(insertedData) ? insertedData[0] : null;
-
-        if (!inserted?.id) {
-          if (isTicketConsume && ticketResult) {
-            await rollbackConsumedTicket({
-              ticketId: ticketResult.ticketId,
-              beforeCount: ticketResult.beforeCount,
-              reservationId,
-            });
-          }
-          throw new Error("売上登録後のID取得に失敗しました");
-        }
-
-        insertedSaleIds.push(inserted.id);
-
-        if (
-          row.saleType === "前受金" &&
-          serviceType === "ストレッチ" &&
-          preset &&
-          ticketIssueInfo
-        ) {
-          if (!resolvedCustomer) {
-            throw new Error("回数券発行を伴う前受金は既存顧客の選択が必要です");
-          }
-
-          try {
-            const issuedTicketId = await issueCustomerTicket({
-              customerId: String(resolvedCustomer.id),
-              customerName: resolvedCustomer.name,
-              preset,
-              purchaseDate: date,
-              note: mergeNoteLines(note, [
-                `売上ID: ${inserted.id}`,
-                `担当: ${staff}`,
-                `店舗: ${storeName}`,
-              ]),
-            });
-
-            issuedTicketIds.push(issuedTicketId);
-
-            await supabase
-              .from("sales")
-              .update({
-                memo: mergeNoteLines(mergedNote, [`発行回数券ID: ${issuedTicketId}`]),
-              })
-              .eq("id", inserted.id);
-          } catch (issueError) {
-            await supabase.from("sales").delete().eq("id", inserted.id);
-
-            if (isTicketConsume && ticketResult) {
-              await rollbackConsumedTicket({
-                ticketId: ticketResult.ticketId,
-                beforeCount: ticketResult.beforeCount,
-                reservationId,
-              });
-            }
-
-            throw issueError;
-          }
+          throw issueError;
         }
       }
-
-      if (reservationId) {
-        const { error: reservationUpdateError } = await supabase
-          .from("reservations")
-          .update({
-            reservation_status: "売上済",
-          })
-          .eq("id", Number(reservationId));
-
-        if (reservationUpdateError) {
-          for (const saleId of insertedSaleIds) {
-            await supabase.from("sales").delete().eq("id", saleId);
-          }
-
-          for (const ticketId of issuedTicketIds) {
-            await supabase.from("customer_tickets").delete().eq("id", ticketId);
-          }
-
-          for (const consumed of consumedTickets) {
-            await rollbackConsumedTicket({
-              ticketId: consumed.ticketId,
-              beforeCount: consumed.beforeCount,
-              reservationId,
-            });
-          }
-
-          throw new Error(`予約ステータス更新エラー: ${reservationUpdateError.message}`);
-        }
-
-        reservationUpdated = true;
-        setReservationStatus("売上済");
-      }
-
-      if (isFromSignup) {
-        const { error: signupUpdateError } = await supabase
-          .from("online_signups")
-          .update({
-            status: "売上登録済",
-          })
-          .eq("id", Number(querySignupId));
-
-        if (signupUpdateError) {
-          for (const saleId of insertedSaleIds) {
-            await supabase.from("sales").delete().eq("id", saleId);
-          }
-
-          for (const ticketId of issuedTicketIds) {
-            await supabase.from("customer_tickets").delete().eq("id", ticketId);
-          }
-
-          for (const consumed of consumedTickets) {
-            await rollbackConsumedTicket({
-              ticketId: consumed.ticketId,
-              beforeCount: consumed.beforeCount,
-              reservationId,
-            });
-          }
-
-          if (reservationId && reservationUpdated) {
-            await supabase
-              .from("reservations")
-              .update({
-                reservation_status: previousReservationStatus || null,
-              })
-              .eq("id", Number(reservationId));
-
-            setReservationStatus(previousReservationStatus);
-          }
-
-          throw new Error(`online_signups 更新エラー: ${signupUpdateError.message}`);
-        }
-      }
-
-      await fetchSales();
-
-      if (reservationId) {
-        await loadExistingSalesForReservation(reservationId);
-      }
-
-      alert(
-        issuedTicketIds.length > 0
-          ? `売上を登録し、回数券を ${issuedTicketIds.length} 件自動発行しました`
-          : isFromSignup
-          ? "売上を登録し、入会申請も売上登録済に更新しました"
-          : "売上を登録しました"
-      );
-
-      if (reservationId) {
-        window.location.href = `/reservation/detail/${reservationId}`;
-        return;
-      }
-
-      resetForm();
-      await fetchCustomers();
-      await fetchSales();
-    } catch (error) {
-      console.error("handleAddSale error:", error);
-      alert(
-        error instanceof Error
-          ? error.message
-          : "売上登録中にエラーが発生しました"
-      );
-    } finally {
-      setSaving(false);
     }
-  };
+
+    if (isNomination) {
+      const nominationPayload = {
+        customer_id: resolvedCustomer ? Number(resolvedCustomer.id) : null,
+        customer_name: finalCustomerName,
+        sale_date: date,
+        menu_type: serviceType,
+        sale_type: "通常売上" as AccountingType,
+        payment_method: "現金" as PaymentMethod,
+        amount: Number(nominationFee),
+        staff_name: staff.trim() || "未設定",
+        store_name: storeName.trim() || "未設定",
+        reservation_id: reservationId ? Number(reservationId) : null,
+        memo: mergeNoteLines(note, [
+          "メニュー名: 指名料",
+          "指名料",
+          `指名料金額: ${Number(nominationFee).toLocaleString()}円`,
+        ]),
+      };
+
+      const { data: nominationData, error: nominationError } = await supabase
+        .from("sales")
+        .insert([nominationPayload])
+        .select("id");
+
+      if (nominationError) {
+        for (const saleId of insertedSaleIds) {
+          await supabase.from("sales").delete().eq("id", saleId);
+        }
+        for (const ticketId of issuedTicketIds) {
+          await supabase.from("customer_tickets").delete().eq("id", ticketId);
+        }
+        for (const consumed of consumedTickets) {
+          await rollbackConsumedTicket({
+            ticketId: consumed.ticketId,
+            beforeCount: consumed.beforeCount,
+            reservationId,
+          });
+        }
+        throw new Error(`指名料登録エラー: ${nominationError.message}`);
+      }
+
+      const nominationInserted = Array.isArray(nominationData) ? nominationData[0] : null;
+      if (nominationInserted?.id) {
+        insertedSaleIds.push(nominationInserted.id);
+      }
+    }
+
+    if (reservationId) {
+      const { error: reservationUpdateError } = await supabase
+        .from("reservations")
+        .update({
+          reservation_status: "売上済",
+        })
+        .eq("id", Number(reservationId));
+
+      if (reservationUpdateError) {
+        for (const saleId of insertedSaleIds) {
+          await supabase.from("sales").delete().eq("id", saleId);
+        }
+
+        for (const ticketId of issuedTicketIds) {
+          await supabase.from("customer_tickets").delete().eq("id", ticketId);
+        }
+
+        for (const consumed of consumedTickets) {
+          await rollbackConsumedTicket({
+            ticketId: consumed.ticketId,
+            beforeCount: consumed.beforeCount,
+            reservationId,
+          });
+        }
+
+        throw new Error(`予約ステータス更新エラー: ${reservationUpdateError.message}`);
+      }
+
+      reservationUpdated = true;
+      setReservationStatus("売上済");
+    }
+
+    if (isFromSignup) {
+      const { error: signupUpdateError } = await supabase
+        .from("online_signups")
+        .update({
+          status: "売上登録済",
+        })
+        .eq("id", Number(querySignupId));
+
+      if (signupUpdateError) {
+        for (const saleId of insertedSaleIds) {
+          await supabase.from("sales").delete().eq("id", saleId);
+        }
+
+        for (const ticketId of issuedTicketIds) {
+          await supabase.from("customer_tickets").delete().eq("id", ticketId);
+        }
+
+        for (const consumed of consumedTickets) {
+          await rollbackConsumedTicket({
+            ticketId: consumed.ticketId,
+            beforeCount: consumed.beforeCount,
+            reservationId,
+          });
+        }
+
+        if (reservationId && reservationUpdated) {
+          await supabase
+            .from("reservations")
+            .update({
+              reservation_status: previousReservationStatus || null,
+            })
+            .eq("id", Number(reservationId));
+
+          setReservationStatus(previousReservationStatus);
+        }
+
+        throw new Error(`online_signups 更新エラー: ${signupUpdateError.message}`);
+      }
+    }
+
+    await fetchSales();
+
+    if (reservationId) {
+      await loadExistingSalesForReservation(reservationId);
+    }
+
+    alert(
+      issuedTicketIds.length > 0
+        ? `売上を登録し、回数券を ${issuedTicketIds.length} 件自動発行しました`
+        : isNomination
+        ? "売上を登録し、指名料も追加しました"
+        : isFromSignup
+        ? "売上を登録し、入会申請も売上登録済に更新しました"
+        : "売上を登録しました"
+    );
+
+    if (reservationId) {
+      window.location.href = `/reservation/detail/${reservationId}`;
+      return;
+    }
+
+    resetForm();
+    await fetchCustomers();
+    await fetchSales();
+  } catch (error) {
+    console.error("handleAddSale error:", error);
+    alert(
+      error instanceof Error
+        ? error.message
+        : "売上登録中にエラーが発生しました"
+    );
+  } finally {
+    setSaving(false);
+  }
+};
 
   const handleDeleteSale = async (saleId: string) => {
     const target = sales.find((sale) => sale.id === saleId);
@@ -3207,6 +3262,35 @@ export default function SalesPage() {
                 ))}
               </select>
             </div>
+            <div>
+  <label style={labelStyle}>指名</label>
+  <select
+    value={isNomination ? "あり" : "なし"}
+    onChange={(e) => setIsNomination(e.target.value === "あり")}
+    style={inputStyle}
+  >
+    <option value="なし">なし</option>
+    <option value="あり">あり</option>
+  </select>
+</div>
+
+<div>
+  <label style={labelStyle}>指名料</label>
+  <select
+    value={nominationFee}
+    onChange={(e) => setNominationFee(e.target.value)}
+    style={{
+      ...inputStyle,
+      opacity: isNomination ? 1 : 0.55,
+    }}
+    disabled={!isNomination}
+  >
+    <option value="1000">1,000円</option>
+    <option value="2000">2,000円</option>
+    <option value="3000">3,000円</option>
+  </select>
+</div>
+
 
             <div>
               <label style={labelStyle}>予約ID</label>
