@@ -1660,17 +1660,11 @@ export default function SalesPage() {
     setNote((prev) => mergeNoteLines(prev, lines));
 
     applyRecommendedPresetToFirstPayment({
-      serviceType: resolvedServiceType,
-      saleType: normalizedSaleType,
-      menu: queryMenu,
-      note: queryMemo,
-    } as {
-      serviceType: ServiceType;
-      accountingType: AccountingType;
-      menu?: string | null;
-      note?: string | null;
-    });
-  };
+  serviceType: resolvedServiceType,
+  accountingType: normalizedSaleType,
+  menu: queryMenu,
+  note: queryMemo,
+});
 
   const fetchCustomers = async () => {
     try {
