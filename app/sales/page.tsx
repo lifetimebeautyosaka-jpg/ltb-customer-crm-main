@@ -423,7 +423,6 @@ const PRICE_PRESETS: PricePreset[] = [
     amount: 6500,
     note: "土日祝は+1,000円",
   },
-
   {
     id: "diet16_m50",
     serviceType: "トレーニング",
@@ -452,7 +451,6 @@ const PRICE_PRESETS: PricePreset[] = [
     menuName: "ダイエット16回 ペア80分",
     amount: 12320,
   },
-
   {
     id: "diet24_m50",
     serviceType: "トレーニング",
@@ -481,7 +479,6 @@ const PRICE_PRESETS: PricePreset[] = [
     menuName: "ダイエット24回 ペア80分",
     amount: 11700,
   },
-
   {
     id: "diet32_m50",
     serviceType: "トレーニング",
@@ -510,7 +507,6 @@ const PRICE_PRESETS: PricePreset[] = [
     menuName: "ダイエット32回 ペア80分",
     amount: 11460,
   },
-
   {
     id: "body2_m_old",
     serviceType: "トレーニング",
@@ -532,7 +528,6 @@ const PRICE_PRESETS: PricePreset[] = [
     menuName: "ボディメイク旧価格 無制限 マンツーマン",
     amount: 7500,
   },
-
   {
     id: "body2_m",
     serviceType: "トレーニング",
@@ -561,7 +556,6 @@ const PRICE_PRESETS: PricePreset[] = [
     menuName: "ボディメイク月4 ペア",
     amount: 23716,
   },
-
   {
     id: "senior30",
     serviceType: "トレーニング",
@@ -576,9 +570,7 @@ const PRICE_PRESETS: PricePreset[] = [
     menuName: "シニアトレーニング 50分",
     amount: 6600,
   },
-
   ...buildStretchPresets(),
-
   {
     id: "manual_other_training",
     serviceType: "トレーニング",
@@ -680,7 +672,6 @@ function detectPriceVersionFromText(text?: string | null): "new" | "old" | null 
 
 function parseTicketInfo(ticketName?: string | null): ParsedTicketInfo | null {
   if (!ticketName) return null;
-
   const minutes = detectMinutesFromText(ticketName);
   const version = detectPriceVersionFromText(ticketName);
   const count = detectCountFromText(ticketName);
@@ -752,7 +743,9 @@ function buildCategory(
   paymentMethod: PaymentMethod
 ): SaleCategory {
   if (accountingType === "前受金") {
-    return serviceType === "ストレッチ" ? "ストレッチ前受金" : "トレーニング前受金";
+    return serviceType === "ストレッチ"
+      ? "ストレッチ前受金"
+      : "トレーニング前受金";
   }
 
   if (accountingType === "回数券消化") {
@@ -786,7 +779,12 @@ function normalizeAccountingType(value?: string | null): AccountingType {
 }
 
 function normalizePaymentMethod(value?: string | null): PaymentMethod {
-  if (value === "現金" || value === "カード" || value === "銀行振込" || value === "その他") {
+  if (
+    value === "現金" ||
+    value === "カード" ||
+    value === "銀行振込" ||
+    value === "その他"
+  ) {
     return value;
   }
   return "現金";
@@ -797,7 +795,6 @@ function rowToSale(row: SupabaseSaleRow): Sale {
   const accountingType = normalizeAccountingType(row.sale_type);
   const paymentMethod = normalizePaymentMethod(row.payment_method);
   const amount = Number(row.amount || 0);
-
   const matchedMenuName = row.memo?.match(/メニュー名:\s*(.+)/)?.[1];
 
   return {
@@ -809,7 +806,8 @@ function rowToSale(row: SupabaseSaleRow): Sale {
         : String(row.customer_id),
     customerName: row.customer_name || "未設定",
     menuName:
-      matchedMenuName || (serviceType === "ストレッチ" ? "ストレッチ" : "トレーニング"),
+      matchedMenuName ||
+      (serviceType === "ストレッチ" ? "ストレッチ" : "トレーニング"),
     staff: row.staff_name || "未設定",
     storeName: row.store_name || "未設定",
     serviceType,
@@ -851,7 +849,6 @@ function detectServiceTypeFromMenu(menu?: string | null): ServiceType {
 function toCsvValue(value: string | number) {
   return `"${String(value ?? "").replace(/"/g, '""')}"`;
 }
-
 function buildDailySummaryRows(sales: Sale[]): DailySummaryRow[] {
   const grouped: Record<string, DailySummaryRow> = {};
 
@@ -963,7 +960,9 @@ function findCustomerByFlexibleMatch(
   if (name) {
     const normalizedName = normalizeText(name);
 
-    const exact = customerList.find((c) => normalizeText(c.name) === normalizedName);
+    const exact = customerList.find(
+      (c) => normalizeText(c.name) === normalizedName
+    );
     if (exact) return exact;
 
     const partial = customerList.find((c) => {
@@ -1027,7 +1026,6 @@ async function issueCustomerTicket(params: {
   note?: string;
 }): Promise<number | string> {
   const info = parseTicketIssuePresetInfo(params.preset);
-
   if (!info) {
     throw new Error("回数券発行対象のプリセットではありません");
   }
@@ -1106,13 +1104,11 @@ async function consumeCustomerTicket(params: {
   const { customerId, customerName, serviceType, usedDate, reservationId } = params;
 
   const target = await fetchFirstActiveTicket(customerId, serviceType);
-
   if (!target) {
     throw new Error(`${serviceType}の利用可能な回数券がありません`);
   }
 
   const beforeCount = Number(target.remaining_count || 0);
-
   if (beforeCount <= 0) {
     throw new Error("回数券の残数がありません");
   }
@@ -1296,7 +1292,6 @@ export default function SalesPage() {
   const [reservationStatus, setReservationStatus] = useState("");
   const [existingSalesForReservation, setExistingSalesForReservation] = useState<Sale[]>([]);
   const [openedSaleActionIds, setOpenedSaleActionIds] = useState<string[]>([]);
-
   const [payments, setPayments] = useState<PaymentRow[]>([createPaymentRow()]);
 
   const [loading, setLoading] = useState(true);
@@ -1317,6 +1312,7 @@ export default function SalesPage() {
 
     const initialReservationId =
       getQueryParam("reservationId") || getQueryParam("reservation_id");
+
     if (initialReservationId) {
       setReservationId(initialReservationId);
     }
@@ -1324,8 +1320,10 @@ export default function SalesPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+
     const updateWidth = () => setWindowWidth(window.innerWidth);
     updateWidth();
+
     window.addEventListener("resize", updateWidth);
     return () => window.removeEventListener("resize", updateWidth);
   }, []);
@@ -1395,48 +1393,72 @@ export default function SalesPage() {
     };
 
     if (serviceType === "ストレッチ") {
-      result.trial = presetOptionsForService.filter((p) => p.id.startsWith("stretch_trial"));
+      result.trial = presetOptionsForService.filter((p) =>
+        p.id.startsWith("stretch_trial")
+      );
+
       result.single = presetOptionsForService.filter(
         (p) => p.id.startsWith("stretch_single") || p.id.startsWith("stretch_extension")
       );
+
       result.unit = presetOptionsForService.filter((p) => p.id.includes("_unit_"));
+
       result.ticketNew = presetOptionsForService.filter(
         (p) => p.accountingType === "前受金" && /^stretch_new_(4|8|12)_/.test(p.id)
       );
+
       result.ticketOld = presetOptionsForService.filter(
         (p) => p.accountingType === "前受金" && /^stretch_old_(4|8|12)_/.test(p.id)
       );
+
       result.consumeNew4 = presetOptionsForService.filter(
         (p) => p.accountingType === "回数券消化" && /^stretch_consume_new_4_/.test(p.id)
       );
+
       result.consumeNew8 = presetOptionsForService.filter(
         (p) => p.accountingType === "回数券消化" && /^stretch_consume_new_8_/.test(p.id)
       );
+
       result.consumeNew12 = presetOptionsForService.filter(
         (p) => p.accountingType === "回数券消化" && /^stretch_consume_new_12_/.test(p.id)
       );
+
       result.consumeOld4 = presetOptionsForService.filter(
         (p) => p.accountingType === "回数券消化" && /^stretch_consume_old_4_/.test(p.id)
       );
+
       result.consumeOld8 = presetOptionsForService.filter(
         (p) => p.accountingType === "回数券消化" && /^stretch_consume_old_8_/.test(p.id)
       );
+
       result.consumeOld12 = presetOptionsForService.filter(
         (p) => p.accountingType === "回数券消化" && /^stretch_consume_old_12_/.test(p.id)
       );
+
       result.manual = presetOptionsForService.filter((p) => p.id.startsWith("manual_"));
       return result;
     }
 
-    result.trainingTrial = presetOptionsForService.filter((p) => p.id.startsWith("trial_"));
-    result.trainingCourse = presetOptionsForService.filter((p) => p.id.startsWith("diet"));
+    result.trainingTrial = presetOptionsForService.filter((p) =>
+      p.id.startsWith("trial_")
+    );
+
+    result.trainingCourse = presetOptionsForService.filter((p) =>
+      p.id.startsWith("diet")
+    );
+
     result.trainingBodyOld = presetOptionsForService.filter(
       (p) => p.id.startsWith("body") && p.id.includes("_old")
     );
+
     result.trainingBodyNew = presetOptionsForService.filter(
       (p) => p.id.startsWith("body") && !p.id.includes("_old")
     );
-    result.trainingSenior = presetOptionsForService.filter((p) => p.id.startsWith("senior"));
+
+    result.trainingSenior = presetOptionsForService.filter((p) =>
+      p.id.startsWith("senior")
+    );
+
     result.manual = presetOptionsForService.filter((p) => p.id.startsWith("manual_"));
     return result;
   }, [presetOptionsForService, serviceType]);
@@ -1476,7 +1498,10 @@ export default function SalesPage() {
               presetId: preset.id,
               saleType: "回数券消化",
               paymentMethod: "その他",
-              amount: row.amount && Number(row.amount) > 0 ? row.amount : String(preset.amount),
+              amount:
+                row.amount && Number(row.amount) > 0
+                  ? row.amount
+                  : String(preset.amount),
             }
           : row
       )
@@ -1512,7 +1537,8 @@ export default function SalesPage() {
           ...row,
           presetId: preset.id,
           paymentMethod: "その他",
-          amount: row.amount && Number(row.amount) > 0 ? row.amount : String(preset.amount),
+          amount:
+            row.amount && Number(row.amount) > 0 ? row.amount : String(preset.amount),
         };
       })
     );
@@ -1528,43 +1554,39 @@ export default function SalesPage() {
   const applyQueryParams = (customerList: Customer[]) => {
     const queryFrom = getQueryParam("from");
     const querySignupId = getQueryParam("signup_id");
-
     const queryDate = getQueryParam("date") || getQueryParam("saleDate");
     const queryCustomerId = getQueryParam("customerId") || getQueryParam("customer_id");
     const queryCustomerName =
       getQueryParam("customerName") ||
       getQueryParam("customer_name") ||
       getQueryParam("customer");
-
     const queryCustomerKana =
       getQueryParam("customer_kana") ||
       getQueryParam("full_name_kana") ||
       getQueryParam("kana");
-
     const queryPhone = getQueryParam("phone");
     const queryEmail = getQueryParam("email");
-
     const queryStore =
-      getQueryParam("storeName") || getQueryParam("store_name") || getQueryParam("store");
-
+      getQueryParam("storeName") ||
+      getQueryParam("store_name") ||
+      getQueryParam("store");
     const queryStaff =
-      getQueryParam("staffName") || getQueryParam("staff_name") || getQueryParam("staff");
-
+      getQueryParam("staffName") ||
+      getQueryParam("staff_name") ||
+      getQueryParam("staff");
     const queryService =
       getQueryParam("serviceType") ||
       getQueryParam("service_type") ||
       getQueryParam("service") ||
       getQueryParam("menu_type");
-
     const queryMenu =
-      getQueryParam("menu") || getQueryParam("menu_name") || getQueryParam("plan_name");
-
+      getQueryParam("menu") ||
+      getQueryParam("menu_name") ||
+      getQueryParam("plan_name");
     const queryPaymentMethod =
       getQueryParam("paymentMethod") || getQueryParam("payment_method");
-
     const queryReservationId =
       getQueryParam("reservationId") || getQueryParam("reservation_id");
-
     const querySaleType = getQueryParam("saleType") || getQueryParam("sale_type");
     const queryAmount = getQueryParam("amount");
     const queryMemo = getQueryParam("memo");
@@ -1576,6 +1598,7 @@ export default function SalesPage() {
     if (queryMenu) setMenuName(queryMenu);
 
     let resolvedServiceType: ServiceType = "トレーニング";
+
     if (queryService === "ストレッチ" || queryService === "トレーニング") {
       resolvedServiceType = queryService;
       setServiceType(queryService);
@@ -1599,7 +1622,8 @@ export default function SalesPage() {
         return {
           ...row,
           saleType: normalizedSaleType,
-          paymentMethod: normalizedSaleType === "回数券消化" ? "その他" : normalizedPayment,
+          paymentMethod:
+            normalizedSaleType === "回数券消化" ? "その他" : normalizedPayment,
           amount: queryAmount ? String(queryAmount) : row.amount,
         };
       })
@@ -1637,9 +1661,14 @@ export default function SalesPage() {
 
     applyRecommendedPresetToFirstPayment({
       serviceType: resolvedServiceType,
-      accountingType: normalizedSaleType,
+      saleType: normalizedSaleType,
       menu: queryMenu,
       note: queryMemo,
+    } as {
+      serviceType: ServiceType;
+      accountingType: AccountingType;
+      menu?: string | null;
+      note?: string | null;
     });
   };
 
@@ -1752,6 +1781,7 @@ export default function SalesPage() {
       }
 
       let resolvedServiceType: ServiceType = "トレーニング";
+
       if (row.menu) {
         setMenuName(row.menu);
         resolvedServiceType = detectServiceTypeFromMenu(row.menu);
@@ -1821,7 +1851,9 @@ export default function SalesPage() {
       return;
     }
 
-    setExistingSalesForReservation(((data as SupabaseSaleRow[] | null) || []).map(rowToSale));
+    setExistingSalesForReservation(
+      ((data as SupabaseSaleRow[] | null) || []).map(rowToSale)
+    );
   };
 
   useEffect(() => {
@@ -1834,6 +1866,7 @@ export default function SalesPage() {
     if (!mounted) return;
     if (!reservationId) return;
     if (customers.length === 0) return;
+
     void loadReservationForPrefill(reservationId);
     void loadExistingSalesForReservation(reservationId);
   }, [mounted, reservationId, customers]);
@@ -1882,7 +1915,8 @@ export default function SalesPage() {
   const selectedCustomer = useMemo(() => {
     return customers.find((c) => String(c.id) === customerId) || resolveCurrentCustomer();
   }, [customers, customerId, customerSearch, note]);
-    const filteredCustomers = useMemo(() => {
+
+  const filteredCustomers = useMemo(() => {
     const keyword = normalizeText(customerSearch);
     if (!keyword) return customers;
 
@@ -1986,8 +2020,10 @@ export default function SalesPage() {
           if (value === "前受金") {
             next.paymentMethod = "その他";
           }
+
           if (value === "回数券消化") {
             next.paymentMethod = "その他";
+
             const autoPreset = resolveConsumePresetFromContext({
               serviceType,
               saleType: "回数券消化",
@@ -2005,6 +2041,7 @@ export default function SalesPage() {
               next.amount = "";
             }
           }
+
           if (value === "通常売上" && next.paymentMethod === "その他") {
             next.paymentMethod = "現金";
           }
@@ -2065,7 +2102,6 @@ export default function SalesPage() {
       alert("支払いは1件以上必要です");
       return;
     }
-
     setPayments((prev) => prev.filter((row) => row.id !== id));
   };
 
@@ -2092,26 +2128,63 @@ export default function SalesPage() {
 
   const toggleSaleActions = (saleId: string) => {
     setOpenedSaleActionIds((prev) =>
-      prev.includes(saleId) ? prev.filter((id) => id !== saleId) : [...prev, saleId]
+      prev.includes(saleId)
+        ? prev.filter((id) => id !== saleId)
+        : [...prev, saleId]
     );
   };
-
   const handleAddSale = async () => {
     if (!date) {
       alert("日付を入力してください");
       return;
     }
 
-    const resolvedCustomer = resolveCurrentCustomer();
+    const firstPayment = payments[0];
+    const requiresExistingCustomer = payments.some(
+      (row) =>
+        row.saleType === "回数券消化" ||
+        (row.saleType === "前受金" &&
+          serviceType === "ストレッチ" &&
+          !!parseTicketIssuePresetInfo(findPricePresetById(row.presetId)))
+    );
 
-    if (!resolvedCustomer) {
-      alert("顧客情報が見つかりません。顧客を選択し直してください");
-      return;
+    const normalizedSearch = trimmed(customerSearch);
+
+    let resolvedCustomer = resolveCurrentCustomer();
+
+    if (normalizedSearch) {
+      const exactByName = customers.find(
+        (c) => normalizeText(c.name) === normalizeText(normalizedSearch)
+      );
+      const exactByPhone = customers.find((c) => {
+        const inputPhone = normalizedSearch.replace(/[^\d]/g, "");
+        const targetPhone = trimmed(c.phone).replace(/[^\d]/g, "");
+        return !!inputPhone && !!targetPhone && inputPhone === targetPhone;
+      });
+
+      if (exactByName || exactByPhone) {
+        resolvedCustomer = exactByName || exactByPhone || resolvedCustomer;
+      }
     }
 
-    if (String(resolvedCustomer.id) !== customerId) {
-      setCustomerId(String(resolvedCustomer.id));
-      setCustomerSearch(resolvedCustomer.name);
+    if (requiresExistingCustomer) {
+      if (!resolvedCustomer) {
+        alert("回数券消化・回数券発行を伴う前受金は既存顧客の選択が必要です");
+        return;
+      }
+
+      if (String(resolvedCustomer.id) !== customerId) {
+        setCustomerId(String(resolvedCustomer.id));
+        setCustomerSearch(resolvedCustomer.name);
+      }
+    }
+
+    const finalCustomerName =
+      resolvedCustomer?.name || normalizedSearch || trimmed(customerSearch);
+
+    if (!finalCustomerName) {
+      alert("顧客名を入力してください");
+      return;
     }
 
     if (!menuName.trim()) {
@@ -2176,6 +2249,7 @@ export default function SalesPage() {
 
       for (const row of resolvedPayments) {
         const isTicketConsume = row.saleType === "回数券消化";
+
         const preset =
           findPricePresetById(row.presetId) ||
           resolveConsumePresetFromContext({
@@ -2191,7 +2265,9 @@ export default function SalesPage() {
         const baseNote = [
           menuName.trim() ? `メニュー名: ${menuName.trim()}` : "",
           preset ? `料金プリセット: ${preset.label}` : "",
-          isTicketConsume ? `消化単価: ${Number(row.amount || 0).toLocaleString()}円` : "",
+          isTicketConsume
+            ? `消化単価: ${Number(row.amount || 0).toLocaleString()}円`
+            : "",
           ticketIssueInfo
             ? `回数券自動発行対象: ${ticketIssueInfo.priceVersion}価格 ${ticketIssueInfo.ticketCount}回 ${ticketIssueInfo.minutes}分`
             : "",
@@ -2203,6 +2279,10 @@ export default function SalesPage() {
         let ticketResult: TicketConsumeResult | null = null;
 
         if (isTicketConsume) {
+          if (!resolvedCustomer) {
+            throw new Error("回数券消化には既存顧客の選択が必要です");
+          }
+
           ticketResult = await consumeCustomerTicket({
             customerId: String(resolvedCustomer.id),
             customerName: resolvedCustomer.name,
@@ -2210,6 +2290,7 @@ export default function SalesPage() {
             usedDate: date,
             reservationId,
           });
+
           consumedTickets.push(ticketResult);
         }
 
@@ -2224,8 +2305,8 @@ export default function SalesPage() {
           .join("\n");
 
         const salePayload = {
-          customer_id: Number(resolvedCustomer.id),
-          customer_name: resolvedCustomer.name,
+          customer_id: resolvedCustomer ? Number(resolvedCustomer.id) : null,
+          customer_name: finalCustomerName,
           sale_date: date,
           menu_type: serviceType,
           sale_type: row.saleType,
@@ -2274,6 +2355,10 @@ export default function SalesPage() {
           preset &&
           ticketIssueInfo
         ) {
+          if (!resolvedCustomer) {
+            throw new Error("回数券発行を伴う前受金は既存顧客の選択が必要です");
+          }
+
           try {
             const issuedTicketId = await issueCustomerTicket({
               customerId: String(resolvedCustomer.id),
@@ -2286,6 +2371,7 @@ export default function SalesPage() {
                 `店舗: ${storeName}`,
               ]),
             });
+
             issuedTicketIds.push(issuedTicketId);
 
             await supabase
@@ -2296,6 +2382,7 @@ export default function SalesPage() {
               .eq("id", inserted.id);
           } catch (issueError) {
             await supabase.from("sales").delete().eq("id", inserted.id);
+
             if (isTicketConsume && ticketResult) {
               await rollbackConsumedTicket({
                 ticketId: ticketResult.ticketId,
@@ -2303,6 +2390,7 @@ export default function SalesPage() {
                 reservationId,
               });
             }
+
             throw issueError;
           }
         }
@@ -2320,9 +2408,11 @@ export default function SalesPage() {
           for (const saleId of insertedSaleIds) {
             await supabase.from("sales").delete().eq("id", saleId);
           }
+
           for (const ticketId of issuedTicketIds) {
             await supabase.from("customer_tickets").delete().eq("id", ticketId);
           }
+
           for (const consumed of consumedTickets) {
             await rollbackConsumedTicket({
               ticketId: consumed.ticketId,
@@ -2350,9 +2440,11 @@ export default function SalesPage() {
           for (const saleId of insertedSaleIds) {
             await supabase.from("sales").delete().eq("id", saleId);
           }
+
           for (const ticketId of issuedTicketIds) {
             await supabase.from("customer_tickets").delete().eq("id", ticketId);
           }
+
           for (const consumed of consumedTickets) {
             await rollbackConsumedTicket({
               ticketId: consumed.ticketId,
@@ -2400,7 +2492,11 @@ export default function SalesPage() {
       await fetchSales();
     } catch (error) {
       console.error("handleAddSale error:", error);
-      alert(error instanceof Error ? error.message : "売上登録中にエラーが発生しました");
+      alert(
+        error instanceof Error
+          ? error.message
+          : "売上登録中にエラーが発生しました"
+      );
     } finally {
       setSaving(false);
     }
@@ -2434,7 +2530,11 @@ export default function SalesPage() {
       alert("売上を削除しました");
     } catch (error) {
       console.error("handleDeleteSale error:", error);
-      alert(error instanceof Error ? error.message : "売上削除中にエラーが発生しました");
+      alert(
+        error instanceof Error
+          ? error.message
+          : "売上削除中にエラーが発生しました"
+      );
     }
   };
 
@@ -2480,7 +2580,10 @@ export default function SalesPage() {
     ];
 
     const bom = "\uFEFF";
-    const blob = new Blob([bom + rows.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob([bom + rows.join("\n")], {
+      type: "text/csv;charset=utf-8;",
+    });
+
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -2491,7 +2594,8 @@ export default function SalesPage() {
 
   const pageStyle: CSSProperties = {
     minHeight: "100vh",
-    background: "linear-gradient(135deg, #f7f7f8 0%, #eceef1 45%, #e7eaef 100%)",
+    background:
+      "linear-gradient(135deg, #f7f7f8 0%, #eceef1 45%, #e7eaef 100%)",
     padding: mobile ? "12px 12px 100px" : tablet ? "16px 16px 110px" : "24px",
     color: "#111827",
   };
@@ -2774,7 +2878,11 @@ export default function SalesPage() {
                 入会申請一覧へ
               </Link>
 
-              <button type="button" onClick={exportSalesCsv} style={secondaryButtonStyle}>
+              <button
+                type="button"
+                onClick={exportSalesCsv}
+                style={secondaryButtonStyle}
+              >
                 CSV出力
               </button>
             </div>
@@ -2787,24 +2895,29 @@ export default function SalesPage() {
               <div style={statLabelStyle}>本日の売上</div>
               <div style={statValueStyle}>{formatCurrency(todayTotal)}</div>
             </div>
+
             <div style={statCardStyle}>
               <div style={statLabelStyle}>累計売上</div>
               <div style={statValueStyle}>{formatCurrency(allTotal)}</div>
             </div>
+
             <div style={statCardStyle}>
               <div style={statLabelStyle}>登録件数</div>
               <div style={statValueStyle}>{sales.length.toLocaleString()}件</div>
             </div>
+
             <div style={statCardStyle}>
               <div style={statLabelStyle}>フォーム合計</div>
               <div style={statValueStyle}>{formatCurrency(totalAmount)}</div>
             </div>
+
             <div style={statCardStyle}>
               <div style={statLabelStyle}>顧客</div>
               <div style={statValueStyle}>
                 {customerLoading ? "読込中" : `${customers.length.toLocaleString()}名`}
               </div>
             </div>
+
             <div style={statCardStyle}>
               <div
                 style={{
@@ -2839,12 +2952,18 @@ export default function SalesPage() {
                 width: tablet ? "100%" : "auto",
               }}
             >
-              {prefillLoading && <span style={pillStyle("#dbeafe", "#1d4ed8")}>予約読込中</span>}
+              {prefillLoading && (
+                <span style={pillStyle("#dbeafe", "#1d4ed8")}>予約読込中</span>
+              )}
+
               {getQueryParam("from") === "signup" && (
                 <span style={pillStyle("#ede9fe", "#6d28d9")}>signup流入</span>
               )}
+
               {reservationId && (
-                <span style={pillStyle("#dcfce7", "#166534")}>予約ID: {reservationId}</span>
+                <span style={pillStyle("#dcfce7", "#166534")}>
+                  予約ID: {reservationId}
+                </span>
               )}
             </div>
           </div>
@@ -2864,7 +2983,51 @@ export default function SalesPage() {
               <label style={labelStyle}>顧客名検索</label>
               <input
                 value={customerSearch}
-                onChange={(e) => setCustomerSearch(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setCustomerSearch(value);
+
+                  const currentSelected = customers.find(
+                    (c) => String(c.id) === customerId
+                  );
+
+                  if (currentSelected) {
+                    const normalizedInput = normalizeText(value);
+                    const normalizedSelectedName = normalizeText(currentSelected.name);
+                    const selectedPhone = trimmed(currentSelected.phone).replace(
+                      /[^\d]/g,
+                      ""
+                    );
+                    const inputPhone = value.replace(/[^\d]/g, "");
+
+                    const stillMatch =
+                      !normalizedInput ||
+                      normalizedSelectedName.includes(normalizedInput) ||
+                      normalizedInput.includes(normalizedSelectedName) ||
+                      (!!inputPhone && !!selectedPhone && inputPhone === selectedPhone);
+
+                    if (!stillMatch) {
+                      setCustomerId("");
+                    }
+                  }
+
+                  const exactByName = customers.find(
+                    (c) => normalizeText(c.name) === normalizeText(value)
+                  );
+
+                  const exactByPhone = customers.find((c) => {
+                    const inputPhone2 = value.replace(/[^\d]/g, "");
+                    const phone = trimmed(c.phone).replace(/[^\d]/g, "");
+                    return !!inputPhone2 && !!phone && inputPhone2 === phone;
+                  });
+
+                  const autoMatched = exactByName || exactByPhone;
+
+                  if (autoMatched) {
+                    setCustomerId(String(autoMatched.id));
+                    setCustomerSearch(autoMatched.name);
+                  }
+                }}
                 placeholder="顧客名 or 電話番号で検索"
                 style={inputStyle}
               />
@@ -2877,9 +3040,18 @@ export default function SalesPage() {
                   ※ 入力した名前で絞り込み
                 </span>
               </label>
+
               <select
                 value={customerId}
-                onChange={(e) => setCustomerId(e.target.value)}
+                onChange={(e) => {
+                  const nextId = e.target.value;
+                  setCustomerId(nextId);
+
+                  const picked = customers.find((c) => String(c.id) === nextId);
+                  if (picked) {
+                    setCustomerSearch(picked.name);
+                  }
+                }}
                 style={inputStyle}
               >
                 <option value="">顧客を選択</option>
@@ -2927,7 +3099,11 @@ export default function SalesPage() {
 
             <div>
               <label style={labelStyle}>担当</label>
-              <select value={staff} onChange={(e) => setStaff(e.target.value)} style={inputStyle}>
+              <select
+                value={staff}
+                onChange={(e) => setStaff(e.target.value)}
+                style={inputStyle}
+              >
                 {STAFF_OPTIONS.map((option) => (
                   <option key={option} value={option}>
                     {option}
@@ -2972,8 +3148,10 @@ export default function SalesPage() {
                 }}
               >
                 {selectedCustomer
-                  ? `${selectedCustomer.name}${selectedCustomer.phone ? ` / ${selectedCustomer.phone}` : ""}`
-                  : "未選択"}
+                  ? `${selectedCustomer.name}${
+                      selectedCustomer.phone ? ` / ${selectedCustomer.phone}` : ""
+                    }`
+                  : trimmed(customerSearch) || "未選択"}
               </div>
             </div>
 
@@ -3055,7 +3233,9 @@ export default function SalesPage() {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: mobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
+                      gridTemplateColumns: mobile
+                        ? "1fr"
+                        : "repeat(2, minmax(0, 1fr))",
                       gap: "12px",
                     }}
                   >
@@ -3261,7 +3441,11 @@ export default function SalesPage() {
                       <select
                         value={row.saleType}
                         onChange={(e) =>
-                          updatePayment(row.id, "saleType", e.target.value as AccountingType)
+                          updatePayment(
+                            row.id,
+                            "saleType",
+                            e.target.value as AccountingType
+                          )
                         }
                         style={inputStyle}
                       >
@@ -3278,7 +3462,11 @@ export default function SalesPage() {
                       <select
                         value={row.paymentMethod}
                         onChange={(e) =>
-                          updatePayment(row.id, "paymentMethod", e.target.value as PaymentMethod)
+                          updatePayment(
+                            row.id,
+                            "paymentMethod",
+                            e.target.value as PaymentMethod
+                          )
                         }
                         style={{
                           ...inputStyle,
@@ -3336,7 +3524,9 @@ export default function SalesPage() {
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: mobile ? "1fr 1fr" : "repeat(2, minmax(0, 1fr))",
+                    gridTemplateColumns: mobile
+                      ? "1fr 1fr"
+                      : "repeat(2, minmax(0, 1fr))",
                     gap: "10px",
                     width: tablet ? "100%" : "auto",
                   }}
@@ -3348,6 +3538,7 @@ export default function SalesPage() {
                   >
                     リセット
                   </button>
+
                   <button
                     type="button"
                     onClick={handleAddSale}
@@ -3378,6 +3569,7 @@ export default function SalesPage() {
             }}
           >
             <h2 style={miniTitleStyle}>検索・売上一覧</h2>
+
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -3423,6 +3615,7 @@ export default function SalesPage() {
                           >
                             {sale.customerName}
                           </button>
+
                           <div
                             style={{
                               fontSize: "12px",
@@ -3447,10 +3640,14 @@ export default function SalesPage() {
 
                       <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                         <span
-                          style={{ ...pillStyle("#f3f4f6"), ...getServiceBadgeStyle(sale.serviceType) }}
+                          style={{
+                            ...pillStyle("#f3f4f6"),
+                            ...getServiceBadgeStyle(sale.serviceType),
+                          }}
                         >
                           {sale.serviceType}
                         </span>
+
                         <span
                           style={{
                             ...pillStyle("#f3f4f6"),
@@ -3459,7 +3656,10 @@ export default function SalesPage() {
                         >
                           {sale.accountingType}
                         </span>
-                        <span style={pillStyle("#f8fafc", "#475569")}>{sale.paymentMethod}</span>
+
+                        <span style={pillStyle("#f8fafc", "#475569")}>
+                          {sale.paymentMethod}
+                        </span>
                       </div>
 
                       <div
@@ -3487,6 +3687,7 @@ export default function SalesPage() {
                         >
                           顧客詳細
                         </button>
+
                         <button
                           type="button"
                           onClick={() => toggleSaleActions(sale.id)}
@@ -3514,7 +3715,9 @@ export default function SalesPage() {
                             <div>支払: {sale.paymentMethod}</div>
                             <div>担当: {sale.staff}</div>
                             <div>店舗: {sale.storeName}</div>
-                            {sale.reservationId ? <div>予約ID: {sale.reservationId}</div> : null}
+                            {sale.reservationId ? (
+                              <div>予約ID: {sale.reservationId}</div>
+                            ) : null}
                             {sale.note ? (
                               <div style={{ whiteSpace: "pre-wrap" }}>メモ: {sale.note}</div>
                             ) : null}
@@ -3568,6 +3771,7 @@ export default function SalesPage() {
                     <th style={tableHeadStyle()}>操作</th>
                   </tr>
                 </thead>
+
                 <tbody>
                   {filteredSales.length === 0 ? (
                     <tr>
@@ -3579,6 +3783,7 @@ export default function SalesPage() {
                     filteredSales.map((sale) => (
                       <tr key={sale.id}>
                         <td style={tableCellStyle()}>{formatDateJP(sale.date)}</td>
+
                         <td style={tableCellStyle()}>
                           <button
                             type="button"
@@ -3595,7 +3800,9 @@ export default function SalesPage() {
                             {sale.customerName}
                           </button>
                         </td>
+
                         <td style={tableCellStyle()}>{sale.menuName}</td>
+
                         <td style={tableCellStyle()}>
                           <span
                             style={{
@@ -3606,6 +3813,7 @@ export default function SalesPage() {
                             {sale.serviceType}
                           </span>
                         </td>
+
                         <td style={tableCellStyle()}>
                           <span
                             style={{
@@ -3616,16 +3824,27 @@ export default function SalesPage() {
                             {sale.accountingType}
                           </span>
                         </td>
+
                         <td style={tableCellStyle()}>{sale.paymentMethod}</td>
+
                         <td style={{ ...tableCellStyle(), fontWeight: 800 }}>
                           {formatCurrency(sale.amount)}
                         </td>
+
                         <td style={tableCellStyle()}>{sale.staff}</td>
                         <td style={tableCellStyle()}>{sale.storeName}</td>
                         <td style={tableCellStyle()}>{sale.reservationId ?? "—"}</td>
-                        <td style={{ ...tableCellStyle(), whiteSpace: "pre-wrap", minWidth: "220px" }}>
+
+                        <td
+                          style={{
+                            ...tableCellStyle(),
+                            whiteSpace: "pre-wrap",
+                            minWidth: "220px",
+                          }}
+                        >
                           {sale.note || "—"}
                         </td>
+
                         <td style={tableCellStyle()}>
                           <div style={{ display: "grid", gap: "8px" }}>
                             <button
@@ -3635,6 +3854,7 @@ export default function SalesPage() {
                             >
                               顧客詳細
                             </button>
+
                             <button
                               type="button"
                               onClick={() => handleDeleteSale(sale.id)}
@@ -3663,8 +3883,18 @@ export default function SalesPage() {
               ) : (
                 dailySummaryRows.map((row) => (
                   <div key={row.date} style={mobileSaleCompactCardStyle}>
-                    <div style={{ fontWeight: 900, fontSize: "14px" }}>{formatDateJP(row.date)}</div>
-                    <div style={{ display: "grid", gap: "6px", fontSize: "13px", lineHeight: 1.6 }}>
+                    <div style={{ fontWeight: 900, fontSize: "14px" }}>
+                      {formatDateJP(row.date)}
+                    </div>
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gap: "6px",
+                        fontSize: "13px",
+                        lineHeight: 1.6,
+                      }}
+                    >
                       <div>ストレッチ現金: {formatCurrency(row.stretchCash)}</div>
                       <div>ストレッチカード: {formatCurrency(row.stretchCard)}</div>
                       <div>ストレッチその他: {formatCurrency(row.stretchReceived)}</div>
@@ -3673,11 +3903,17 @@ export default function SalesPage() {
                       <div>トレカード: {formatCurrency(row.trainingCard)}</div>
                       <div>トレその他: {formatCurrency(row.trainingReceived)}</div>
                       <div>トレ回数券: {formatCurrency(row.trainingTicket)}</div>
-                      <div style={{ fontWeight: 800 }}>純売上合計: {formatCurrency(row.netSalesTotal)}</div>
+                      <div style={{ fontWeight: 800 }}>
+                        純売上合計: {formatCurrency(row.netSalesTotal)}
+                      </div>
                       <div>前受現金: {formatCurrency(row.advanceCash)}</div>
                       <div>前受カード等: {formatCurrency(row.advanceCard)}</div>
-                      <div style={{ fontWeight: 800 }}>前受合計: {formatCurrency(row.advanceTotal)}</div>
-                      <div style={{ fontWeight: 900 }}>総合計: {formatCurrency(row.grandTotal)}</div>
+                      <div style={{ fontWeight: 800 }}>
+                        前受合計: {formatCurrency(row.advanceTotal)}
+                      </div>
+                      <div style={{ fontWeight: 900 }}>
+                        総合計: {formatCurrency(row.grandTotal)}
+                      </div>
                     </div>
                   </div>
                 ))
@@ -3719,6 +3955,7 @@ export default function SalesPage() {
                     <th style={tableHeadStyle()}>総合計</th>
                   </tr>
                 </thead>
+
                 <tbody>
                   {dailySummaryRows.length === 0 ? (
                     <tr>
@@ -3732,12 +3969,20 @@ export default function SalesPage() {
                         <td style={tableCellStyle()}>{formatDateJP(row.date)}</td>
                         <td style={tableCellStyle()}>{formatCurrency(row.stretchCash)}</td>
                         <td style={tableCellStyle()}>{formatCurrency(row.stretchCard)}</td>
-                        <td style={tableCellStyle()}>{formatCurrency(row.stretchReceived)}</td>
-                        <td style={tableCellStyle()}>{formatCurrency(row.stretchTicket)}</td>
+                        <td style={tableCellStyle()}>
+                          {formatCurrency(row.stretchReceived)}
+                        </td>
+                        <td style={tableCellStyle()}>
+                          {formatCurrency(row.stretchTicket)}
+                        </td>
                         <td style={tableCellStyle()}>{formatCurrency(row.trainingCash)}</td>
                         <td style={tableCellStyle()}>{formatCurrency(row.trainingCard)}</td>
-                        <td style={tableCellStyle()}>{formatCurrency(row.trainingReceived)}</td>
-                        <td style={tableCellStyle()}>{formatCurrency(row.trainingTicket)}</td>
+                        <td style={tableCellStyle()}>
+                          {formatCurrency(row.trainingReceived)}
+                        </td>
+                        <td style={tableCellStyle()}>
+                          {formatCurrency(row.trainingTicket)}
+                        </td>
                         <td style={{ ...tableCellStyle(), fontWeight: 800 }}>
                           {formatCurrency(row.netSalesTotal)}
                         </td>
@@ -3820,7 +4065,9 @@ export default function SalesPage() {
           </div>
 
           <div style={cardStyle}>
-            <h2 style={{ ...miniTitleStyle, marginBottom: "14px" }}>支払方法別売上</h2>
+            <h2 style={{ ...miniTitleStyle, marginBottom: "14px" }}>
+              支払方法別売上
+            </h2>
             <div style={{ display: "grid", gap: "10px" }}>
               {paymentTotals.length === 0 ? (
                 <div style={{ color: "#6b7280" }}>データなし</div>
