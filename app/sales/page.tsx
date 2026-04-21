@@ -1665,6 +1665,7 @@ export default function SalesPage() {
   menu: queryMenu,
   note: queryMemo,
 });
+};
 
   const fetchCustomers = async () => {
     try {
