@@ -849,6 +849,7 @@ function detectServiceTypeFromMenu(menu?: string | null): ServiceType {
 function toCsvValue(value: string | number) {
   return `"${String(value ?? "").replace(/"/g, '""')}"`;
 }
+
 function buildDailySummaryRows(sales: Sale[]): DailySummaryRow[] {
   const grouped: Record<string, DailySummaryRow> = {};
 
@@ -959,7 +960,6 @@ function findCustomerByFlexibleMatch(
 
   if (name) {
     const normalizedName = normalizeText(name);
-
     const exact = customerList.find(
       (c) => normalizeText(c.name) === normalizedName
     );
@@ -1003,7 +1003,9 @@ function mergeNoteLines(current: string, lines: Array<string | null | undefined>
   return merged.join("\n");
 }
 
-function parseTicketIssuePresetInfo(preset?: PricePreset | null): TicketIssuePresetInfo | null {
+function parseTicketIssuePresetInfo(
+  preset?: PricePreset | null
+): TicketIssuePresetInfo | null {
   if (!preset) return null;
   if (preset.serviceType !== "ストレッチ") return null;
   if (preset.accountingType !== "前受金") return null;
@@ -1186,7 +1188,9 @@ async function rollbackConsumedTicket(params: {
   }
 }
 
-async function restoreTicketUsageFromDeletedSale(params: { sale: Sale }): Promise<void> {
+async function restoreTicketUsageFromDeletedSale(params: {
+  sale: Sale;
+}): Promise<void> {
   const { sale } = params;
 
   if (sale.accountingType !== "回数券消化") return;
@@ -1269,7 +1273,6 @@ function getServiceBadgeStyle(type: ServiceType): CSSProperties {
   if (type === "ストレッチ") return { background: "#fce7f3", color: "#be185d" };
   return { background: "#ede9fe", color: "#6d28d9" };
 }
-
 export default function SalesPage() {
   const router = useRouter();
 
@@ -1660,12 +1663,12 @@ export default function SalesPage() {
     setNote((prev) => mergeNoteLines(prev, lines));
 
     applyRecommendedPresetToFirstPayment({
-  serviceType: resolvedServiceType,
-  accountingType: normalizedSaleType,
-  menu: queryMenu,
-  note: queryMemo,
-});
-};
+      serviceType: resolvedServiceType,
+      accountingType: normalizedSaleType,
+      menu: queryMenu,
+      note: queryMemo,
+    });
+  };
 
   const fetchCustomers = async () => {
     try {
@@ -1915,11 +1918,13 @@ export default function SalesPage() {
     const keyword = normalizeText(customerSearch);
     if (!keyword) return customers;
 
-    return customers.filter((customer) => {
+    const filtered = customers.filter((customer) => {
       const name = normalizeText(customer.name);
       const phone = normalizeText(customer.phone || "");
       return name.includes(keyword) || phone.includes(keyword);
     });
+
+    return filtered.length > 0 ? filtered : customers;
   }, [customers, customerSearch]);
 
   const totalAmount = useMemo(() => {
@@ -2128,13 +2133,12 @@ export default function SalesPage() {
         : [...prev, saleId]
     );
   };
-  const handleAddSale = async () => {
+    const handleAddSale = async () => {
     if (!date) {
       alert("日付を入力してください");
       return;
     }
 
-    const firstPayment = payments[0];
     const requiresExistingCustomer = payments.some(
       (row) =>
         row.saleType === "回数券消化" ||
@@ -2144,13 +2148,13 @@ export default function SalesPage() {
     );
 
     const normalizedSearch = trimmed(customerSearch);
-
     let resolvedCustomer = resolveCurrentCustomer();
 
-    if (normalizedSearch) {
+    if (!resolvedCustomer && normalizedSearch) {
       const exactByName = customers.find(
         (c) => normalizeText(c.name) === normalizeText(normalizedSearch)
       );
+
       const exactByPhone = customers.find((c) => {
         const inputPhone = normalizedSearch.replace(/[^\d]/g, "");
         const targetPhone = trimmed(c.phone).replace(/[^\d]/g, "");
@@ -2158,7 +2162,33 @@ export default function SalesPage() {
       });
 
       if (exactByName || exactByPhone) {
-        resolvedCustomer = exactByName || exactByPhone || resolvedCustomer;
+        resolvedCustomer = exactByName || exactByPhone || null;
+      }
+    }
+
+    if (!resolvedCustomer && customerId) {
+      const byCurrentId =
+        customers.find((c) => String(c.id) === String(customerId)) || null;
+      if (byCurrentId) {
+        resolvedCustomer = byCurrentId;
+      }
+    }
+
+    if (!resolvedCustomer && customerId) {
+      const { data, error } = await supabase
+        .from("customers")
+        .select("id, name, phone")
+        .eq("id", Number(customerId))
+        .maybeSingle();
+
+      if (!error && data) {
+        resolvedCustomer = {
+          id: data.id,
+          name: data.name,
+          phone: data.phone || null,
+        };
+        setCustomerId(String(data.id));
+        setCustomerSearch(data.name);
       }
     }
 
@@ -2170,6 +2200,8 @@ export default function SalesPage() {
 
       if (String(resolvedCustomer.id) !== customerId) {
         setCustomerId(String(resolvedCustomer.id));
+      }
+      if (customerSearch !== resolvedCustomer.name) {
         setCustomerSearch(resolvedCustomer.name);
       }
     }
