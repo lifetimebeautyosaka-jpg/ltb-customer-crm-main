@@ -170,11 +170,13 @@ type GroupedPresetOptions = {
   consumeOld4: PricePreset[];
   consumeOld8: PricePreset[];
   consumeOld12: PricePreset[];
+  optionFees: PricePreset[];
   trainingTrial: PricePreset[];
   trainingCourse: PricePreset[];
   trainingBodyOld: PricePreset[];
   trainingBodyNew: PricePreset[];
   trainingSenior: PricePreset[];
+  trainingOptionFees: PricePreset[];
   manual: PricePreset[];
 };
 
@@ -334,6 +336,14 @@ function buildStretchPresets(): PricePreset[] {
       label: "新価格 延長10分 1,500円",
       menuName: "ストレッチ延長 10分",
       amount: 1500,
+    },
+    {
+      id: "stretch_nomination_fee",
+      serviceType: "ストレッチ",
+      label: "指名料 1,000円",
+      menuName: "指名料",
+      amount: 1000,
+      note: "指名料",
     },
     {
       id: "manual_other_stretch",
@@ -569,6 +579,14 @@ const PRICE_PRESETS: PricePreset[] = [
     label: "シニア50分 6,600円",
     menuName: "シニアトレーニング 50分",
     amount: 6600,
+  },
+  {
+    id: "training_nomination_fee",
+    serviceType: "トレーニング",
+    label: "指名料 1,000円",
+    menuName: "指名料",
+    amount: 1000,
+    note: "指名料",
   },
   ...buildStretchPresets(),
   {
@@ -960,6 +978,7 @@ function findCustomerByFlexibleMatch(
 
   if (name) {
     const normalizedName = normalizeText(name);
+
     const exact = customerList.find(
       (c) => normalizeText(c.name) === normalizedName
     );
@@ -1387,11 +1406,13 @@ export default function SalesPage() {
       consumeOld4: [],
       consumeOld8: [],
       consumeOld12: [],
+      optionFees: [],
       trainingTrial: [],
       trainingCourse: [],
       trainingBodyOld: [],
       trainingBodyNew: [],
       trainingSenior: [],
+      trainingOptionFees: [],
       manual: [],
     };
 
@@ -1438,6 +1459,10 @@ export default function SalesPage() {
         (p) => p.accountingType === "回数券消化" && /^stretch_consume_old_12_/.test(p.id)
       );
 
+      result.optionFees = presetOptionsForService.filter(
+        (p) => p.id === "stretch_nomination_fee"
+      );
+
       result.manual = presetOptionsForService.filter((p) => p.id.startsWith("manual_"));
       return result;
     }
@@ -1460,6 +1485,10 @@ export default function SalesPage() {
 
     result.trainingSenior = presetOptionsForService.filter((p) =>
       p.id.startsWith("senior")
+    );
+
+    result.trainingOptionFees = presetOptionsForService.filter(
+      (p) => p.id === "training_nomination_fee"
     );
 
     result.manual = presetOptionsForService.filter((p) => p.id.startsWith("manual_"));
@@ -1692,6 +1721,7 @@ export default function SalesPage() {
       }));
 
       setCustomers(list);
+      applyQueryParams(list);
     } catch (error) {
       console.error("fetchCustomers error:", error);
       setCustomers([]);
@@ -1800,27 +1830,41 @@ export default function SalesPage() {
         );
       }
 
-      const noteLines = [row.memo ? `予約メモ: ${row.memo}` : ""];
+      const noteLines = [
+        row.memo ? `予約メモ: ${row.memo}` : "",
+        row.customer_name ? `予約顧客: ${row.customer_name}` : "",
+        row.staff_name ? `予約担当: ${row.staff_name}` : "",
+        row.store_name ? `予約店舗: ${row.store_name}` : "",
+      ];
       setNote((prev) => mergeNoteLines(prev, noteLines));
 
-      setPayments((prev) =>
-        prev.map((payment, index) =>
-          index === 0
-            ? {
-                ...payment,
-                saleType: "回数券消化",
-                paymentMethod: "その他",
-              }
-            : payment
-        )
-      );
+      const shouldAutoConsume =
+        !!row.menu &&
+        (row.menu.includes("回数券") ||
+          row.menu.includes("消化") ||
+          row.memo?.includes("回数券") ||
+          false);
 
-      applyRecommendedPresetToFirstPayment({
-        serviceType: resolvedServiceType,
-        accountingType: "回数券消化",
-        menu: row.menu,
-        note: row.memo,
-      });
+      if (shouldAutoConsume) {
+        setPayments((prev) =>
+          prev.map((payment, index) =>
+            index === 0
+              ? {
+                  ...payment,
+                  saleType: "回数券消化",
+                  paymentMethod: "その他",
+                }
+              : payment
+          )
+        );
+
+        applyRecommendedPresetToFirstPayment({
+          serviceType: resolvedServiceType,
+          accountingType: "回数券消化",
+          menu: row.menu,
+          note: row.memo,
+        });
+      }
     } catch (error) {
       console.error("loadReservationForPrefill error:", error);
     } finally {
@@ -1914,17 +1958,17 @@ export default function SalesPage() {
   }, [customers, customerId, customerSearch, note]);
 
   const filteredCustomers = useMemo(() => {
-  const keyword = normalizeText(customerSearch);
-  if (!keyword) return customers;
+    const keyword = normalizeText(customerSearch);
+    if (!keyword) return customers;
 
-  const filtered = customers.filter((customer) => {
-    const name = normalizeText(customer.name);
-    const phone = normalizeText(customer.phone || "");
-    return name.includes(keyword) || phone.includes(keyword);
-  });
+    const filtered = customers.filter((customer) => {
+      const name = normalizeText(customer.name);
+      const phone = normalizeText(customer.phone || "");
+      return name.includes(keyword) || phone.includes(keyword);
+    });
 
-  return filtered.length > 0 ? filtered : customers;
-}, [customers, customerSearch]);
+    return filtered.length > 0 ? filtered : customers;
+  }, [customers, customerSearch]);
 
   const totalAmount = useMemo(() => {
     return payments.reduce((sum, row) => sum + Number(row.amount || 0), 0);
@@ -2083,8 +2127,15 @@ export default function SalesPage() {
     );
 
     if (preset) {
-      setServiceType(preset.serviceType);
-      setMenuName(preset.menuName);
+      if (preset.id !== "stretch_nomination_fee" && preset.id !== "training_nomination_fee") {
+        setServiceType(preset.serviceType);
+      }
+
+      if (preset.menuName === "指名料") {
+        setNote((prev) => mergeNoteLines(prev, ["指名料追加"]));
+      } else {
+        setMenuName(preset.menuName);
+      }
 
       if (preset.note) {
         setNote((prev) => mergeNoteLines(prev, [preset.note]));
@@ -2288,8 +2339,11 @@ export default function SalesPage() {
 
         const ticketIssueInfo = parseTicketIssuePresetInfo(preset);
 
+        const displayMenuName =
+          preset?.menuName === "指名料" ? `指名料 / ${menuName.trim()}` : menuName.trim();
+
         const baseNote = [
-          menuName.trim() ? `メニュー名: ${menuName.trim()}` : "",
+          displayMenuName ? `メニュー名: ${displayMenuName}` : "",
           preset ? `料金プリセット: ${preset.label}` : "",
           isTicketConsume
             ? `消化単価: ${Number(row.amount || 0).toLocaleString()}円`
@@ -2297,6 +2351,7 @@ export default function SalesPage() {
           ticketIssueInfo
             ? `回数券自動発行対象: ${ticketIssueInfo.priceVersion}価格 ${ticketIssueInfo.ticketCount}回 ${ticketIssueInfo.minutes}分`
             : "",
+          reservationId ? `予約ID連動: ${reservationId}` : "",
           note.trim(),
         ]
           .filter(Boolean)
@@ -3386,6 +3441,16 @@ export default function SalesPage() {
                               </optgroup>
                             )}
 
+                            {groupedPresetOptions.optionFees.length > 0 && (
+                              <optgroup label="指名料・オプション">
+                                {groupedPresetOptions.optionFees.map((preset) => (
+                                  <option key={preset.id} value={preset.id}>
+                                    {preset.label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+
                             {groupedPresetOptions.manual.length > 0 && (
                               <optgroup label="その他">
                                 {groupedPresetOptions.manual.map((preset) => (
@@ -3441,6 +3506,16 @@ export default function SalesPage() {
                             {groupedPresetOptions.trainingSenior.length > 0 && (
                               <optgroup label="シニア">
                                 {groupedPresetOptions.trainingSenior.map((preset) => (
+                                  <option key={preset.id} value={preset.id}>
+                                    {preset.label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+
+                            {groupedPresetOptions.trainingOptionFees.length > 0 && (
+                              <optgroup label="指名料・オプション">
+                                {groupedPresetOptions.trainingOptionFees.map((preset) => (
                                   <option key={preset.id} value={preset.id}>
                                     {preset.label}
                                   </option>
