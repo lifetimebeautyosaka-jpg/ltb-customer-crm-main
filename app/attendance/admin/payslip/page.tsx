@@ -33,7 +33,19 @@ type Reservation = {
   staff: string;
   storeName: string;
   status: string;
+  memo: string;
   createdAt: string;
+};
+
+type ReservationPair = {
+  key: string;
+  customerKey: string;
+  customerName: string;
+  staff: string;
+  storeName: string;
+  fromReservation: Reservation;
+  toReservation: Reservation | null;
+  daysDiff: number | null;
 };
 
 type SupabaseSaleRow = {
@@ -60,6 +72,7 @@ type SupabaseReservationRow = {
   staff_name?: string | null;
   store_name?: string | null;
   reservation_status?: string | null;
+  memo?: string | null;
   created_at?: string | null;
 };
 
@@ -68,8 +81,10 @@ type StaffSummary = {
   reservationCount: number;
   cancelCount: number;
   noShowCount: number;
+  changedCount: number;
   cancelBaseCount: number;
   cancelRate: number;
+  changeRate: number;
   newCount: number;
   repeatCount: number;
   repeatRate: number;
@@ -95,6 +110,7 @@ type DetailRow = {
   nominationFee: number;
   isRepeat: boolean;
   isNew: boolean;
+  isChanged: boolean;
   memo: string;
   reservationId?: number | null;
 };
@@ -195,8 +211,8 @@ function parseNominationFee(note?: string | null) {
 }
 
 function isCancelledStatus(status?: string | null) {
-  const text = String(status || "").toLowerCase();
-  return text.includes("キャンセル") || text.includes("cancel");
+  const text = String(status || "");
+  return text.includes("キャンセル") && !text.includes("変更") && !text.includes("リスケ");
 }
 
 function isNoShowStatus(status?: string | null) {
@@ -204,9 +220,21 @@ function isNoShowStatus(status?: string | null) {
   return text.includes("無断");
 }
 
+function isChangedStatus(status?: string | null) {
+  const text = String(status || "");
+  return text.includes("変更") || text.includes("リスケ");
+}
+
 function isCompletedStatus(status?: string | null) {
   const text = String(status || "");
   return text.includes("売上済") || text.includes("来店") || text.includes("完了");
+}
+
+function diffDays(fromDate: string, toDate: string) {
+  const a = new Date(`${fromDate}T00:00:00`).getTime();
+  const b = new Date(`${toDate}T00:00:00`).getTime();
+  if (Number.isNaN(a) || Number.isNaN(b)) return null;
+  return Math.round((b - a) / (1000 * 60 * 60 * 24));
 }
 
 function rowToSale(row: SupabaseSaleRow): Sale {
@@ -247,6 +275,7 @@ function rowToReservation(row: SupabaseReservationRow): Reservation {
     staff: row.staff_name?.trim() || "未設定",
     storeName: row.store_name?.trim() || "未設定",
     status: row.reservation_status?.trim() || "未設定",
+    memo: row.memo?.trim() || "",
     createdAt: row.created_at || new Date().toISOString(),
   };
 }
@@ -342,7 +371,7 @@ export default function PayslipPage() {
         supabase
           .from("reservations")
           .select(
-            "id, customer_id, customer_name, date, staff_name, store_name, reservation_status, created_at"
+            "id, customer_id, customer_name, date, staff_name, store_name, reservation_status, memo, created_at"
           )
           .order("date", { ascending: false })
           .order("created_at", { ascending: false }),
@@ -448,40 +477,6 @@ export default function PayslipPage() {
 
     return set;
   }, [sales]);
-
-  const customerRepeatMap = useMemo(() => {
-    const map = new Map<string, { isNew: boolean; isRepeat: boolean }>();
-
-    for (const reservation of reservations) {
-      const customerKey = buildCustomerKey({
-        customerId: reservation.customerId,
-        customerName: reservation.customerName,
-      });
-      const firstReservation = firstReservationMap.get(customerKey);
-      const isNew = !!firstReservation && String(firstReservation.id) === String(reservation.id);
-      const isRepeat = advanceSaleCustomerKeySet.has(customerKey);
-      map.set(`${customerKey}|${reservation.id}`, { isNew, isRepeat });
-    }
-
-    for (const sale of sales) {
-      const customerKey = buildCustomerKey({
-        customerId: sale.customerId,
-        customerName: sale.customerName,
-      });
-      const isRepeat = advanceSaleCustomerKeySet.has(customerKey);
-      const firstReservation = firstReservationMap.get(customerKey);
-      const isNew = false;
-      map.set(`sale|${sale.id}`, { isNew, isRepeat });
-      if (firstReservation) {
-        map.set(`${customerKey}|first`, {
-          isNew: true,
-          isRepeat,
-        });
-      }
-    }
-
-    return map;
-  }, [reservations, sales, firstReservationMap, advanceSaleCustomerKeySet]);
 
   const matchesRepeatFilterByCustomer = (params: {
     customerId?: string | null;
@@ -599,6 +594,7 @@ export default function PayslipPage() {
         reservation.staff.toLowerCase().includes(keyword) ||
         reservation.storeName.toLowerCase().includes(keyword) ||
         reservation.status.toLowerCase().includes(keyword) ||
+        reservation.memo.toLowerCase().includes(keyword) ||
         reservation.date.toLowerCase().includes(keyword)
       );
     });
@@ -625,8 +621,10 @@ export default function PayslipPage() {
           reservationCount: 0,
           cancelCount: 0,
           noShowCount: 0,
+          changedCount: 0,
           cancelBaseCount: 0,
           cancelRate: 0,
+          changeRate: 0,
           newCount: 0,
           repeatCount: 0,
           repeatRate: 0,
@@ -647,10 +645,12 @@ export default function PayslipPage() {
 
       const cancelled = isCancelledStatus(reservation.status);
       const noShow = isNoShowStatus(reservation.status);
+      const changed = isChangedStatus(reservation.status);
       const completed = isCompletedStatus(reservation.status);
 
       if (cancelled) target.cancelCount += 1;
       if (noShow) target.noShowCount += 1;
+      if (changed) target.changedCount += 1;
 
       const countAsBase =
         cancelBaseMode === "all_reservations"
@@ -694,6 +694,8 @@ export default function PayslipPage() {
       ...item,
       cancelRate:
         item.cancelBaseCount > 0 ? (item.cancelCount / item.cancelBaseCount) * 100 : 0,
+      changeRate:
+        item.reservationCount > 0 ? (item.changedCount / item.reservationCount) * 100 : 0,
       repeatRate:
         item.newCount > 0 ? (item.repeatCount / item.newCount) * 100 : 0,
     }));
@@ -744,6 +746,7 @@ export default function PayslipPage() {
         nominationFee: parseNominationFee(sale.note),
         isRepeat: advanceSaleCustomerKeySet.has(customerKey),
         isNew,
+        isChanged: false,
         memo: sale.note || "",
         reservationId: sale.reservationId ?? null,
       });
@@ -773,7 +776,8 @@ export default function PayslipPage() {
         nominationFee: 0,
         isRepeat: advanceSaleCustomerKeySet.has(customerKey),
         isNew,
-        memo: "",
+        isChanged: isChangedStatus(reservation.status),
+        memo: reservation.memo || "",
         reservationId: Number(reservation.id),
       });
     }
@@ -784,6 +788,68 @@ export default function PayslipPage() {
       return bTime - aTime;
     });
   }, [filteredSales, filteredReservations, advanceSaleCustomerKeySet, firstReservationMap]);
+
+  const reservationPairs = useMemo(() => {
+    const byCustomer = new Map<string, Reservation[]>();
+
+    for (const reservation of filteredReservations) {
+      const customerKey = buildCustomerKey({
+        customerId: reservation.customerId,
+        customerName: reservation.customerName,
+      });
+
+      if (!byCustomer.has(customerKey)) {
+        byCustomer.set(customerKey, []);
+      }
+      byCustomer.get(customerKey)!.push(reservation);
+    }
+
+    const pairs: ReservationPair[] = [];
+
+    for (const [customerKey, rows] of byCustomer.entries()) {
+      const sorted = [...rows].sort((a, b) => {
+        const aTime = new Date(`${a.date}T12:00:00`).getTime();
+        const bTime = new Date(`${b.date}T12:00:00`).getTime();
+        return aTime - bTime;
+      });
+
+      for (let i = 0; i < sorted.length; i += 1) {
+        const current = sorted[i];
+        if (!isChangedStatus(current.status)) continue;
+
+        let nextReservation: Reservation | null = null;
+
+        for (let j = i + 1; j < sorted.length; j += 1) {
+          const candidate = sorted[j];
+          const dayGap = diffDays(current.date, candidate.date);
+
+          if (dayGap === null) continue;
+          if (dayGap < 0) continue;
+          if (dayGap > 31) break;
+
+          nextReservation = candidate;
+          break;
+        }
+
+        pairs.push({
+          key: `${customerKey}-${current.id}`,
+          customerKey,
+          customerName: current.customerName,
+          staff: current.staff,
+          storeName: current.storeName,
+          fromReservation: current,
+          toReservation: nextReservation,
+          daysDiff: nextReservation ? diffDays(current.date, nextReservation.date) : null,
+        });
+      }
+    }
+
+    return pairs.sort((a, b) => {
+      const aTime = new Date(`${a.fromReservation.date}T12:00:00`).getTime();
+      const bTime = new Date(`${b.fromReservation.date}T12:00:00`).getTime();
+      return bTime - aTime;
+    });
+  }, [filteredReservations]);
 
   const totalSales = useMemo(
     () => filteredSales.reduce((sum, item) => sum + Number(item.amount || 0), 0),
@@ -807,6 +873,11 @@ export default function PayslipPage() {
     [filteredReservations]
   );
 
+  const totalChanges = useMemo(
+    () => filteredReservations.filter((item) => isChangedStatus(item.status)).length,
+    [filteredReservations]
+  );
+
   const totalCancelBase = useMemo(
     () =>
       filteredReservations.filter((item) =>
@@ -818,6 +889,11 @@ export default function PayslipPage() {
   const totalCancelRate = useMemo(
     () => (totalCancelBase > 0 ? (totalCancellations / totalCancelBase) * 100 : 0),
     [totalCancelBase, totalCancellations]
+  );
+
+  const totalChangeRate = useMemo(
+    () => (totalReservations > 0 ? (totalChanges / totalReservations) * 100 : 0),
+    [totalReservations, totalChanges]
   );
 
   const totalNewCount = useMemo(() => {
@@ -878,6 +954,7 @@ export default function PayslipPage() {
         "指名料",
         "新規判定",
         "前受金リピート判定",
+        "変更判定",
         "予約ID",
         "メモ",
       ]
@@ -897,6 +974,7 @@ export default function PayslipPage() {
           row.nominationFee,
           row.isNew ? "新規" : "",
           row.isRepeat ? "あり" : "",
+          row.isChanged ? "変更" : "",
           row.reservationId ?? "",
           row.memo.replace(/\n/g, " / "),
         ]
@@ -920,6 +998,61 @@ export default function PayslipPage() {
     URL.revokeObjectURL(url);
   };
 
+  const exportPairCsv = () => {
+    if (reservationPairs.length === 0) {
+      alert("出力する変更ペアがありません");
+      return;
+    }
+
+    const rows = [
+      [
+        "顧客名",
+        "スタッフ",
+        "店舗",
+        "変更前予約ID",
+        "変更前日付",
+        "変更前ステータス",
+        "変更前メモ",
+        "変更後予約ID",
+        "変更後日付",
+        "変更後ステータス",
+        "変更後メモ",
+        "日数差",
+      ]
+        .map(toCsvValue)
+        .join(","),
+      ...reservationPairs.map((pair) =>
+        [
+          pair.customerName,
+          pair.staff,
+          pair.storeName,
+          pair.fromReservation.id,
+          pair.fromReservation.date,
+          pair.fromReservation.status,
+          pair.fromReservation.memo.replace(/\n/g, " / "),
+          pair.toReservation?.id || "",
+          pair.toReservation?.date || "",
+          pair.toReservation?.status || "",
+          pair.toReservation?.memo.replace(/\n/g, " / ") || "",
+          pair.daysDiff ?? "",
+        ]
+          .map(toCsvValue)
+          .join(",")
+      ),
+    ];
+
+    const bom = "\uFEFF";
+    const blob = new Blob([bom + rows.join("\n")], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `reservation_change_pairs_${todayString()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const fixStaff = (staffName: string) => {
     setSelectedStaff(staffName);
     setStaffLocked(true);
@@ -937,7 +1070,7 @@ export default function PayslipPage() {
   };
 
   const innerStyle: CSSProperties = {
-    maxWidth: "1580px",
+    maxWidth: "1720px",
     margin: "0 auto",
     display: "grid",
     gap: "18px",
@@ -1081,7 +1214,7 @@ export default function PayslipPage() {
 
   const statGridStyle: CSSProperties = {
     display: "grid",
-    gridTemplateColumns: mobile ? "1fr" : tablet ? "repeat(2, 1fr)" : "repeat(6, 1fr)",
+    gridTemplateColumns: mobile ? "1fr" : tablet ? "repeat(2, 1fr)" : "repeat(7, 1fr)",
     gap: "12px",
   };
 
@@ -1135,7 +1268,14 @@ export default function PayslipPage() {
   const tableStyle: CSSProperties = {
     width: "100%",
     borderCollapse: "collapse",
-    minWidth: mobile ? "1320px" : "1600px",
+    minWidth: mobile ? "1440px" : "1780px",
+    background: "rgba(2,6,23,0.58)",
+  };
+
+  const pairTableStyle: CSSProperties = {
+    width: "100%",
+    borderCollapse: "collapse",
+    minWidth: mobile ? "1180px" : "1380px",
     background: "rgba(2,6,23,0.58)",
   };
 
@@ -1182,7 +1322,7 @@ export default function PayslipPage() {
             <div>
               <h1 style={titleStyle}>スタッフ管理・明細ページ 最終版</h1>
               <div style={subStyle}>
-                売上・指名料・キャンセル率・前受金リピート率・新規/再来タブ・月別タブまで入れた完成版です。
+                売上・指名料・キャンセル率・変更率・前受金リピート率に加えて、変更前予約と変更後予約をペアで確認できます。
               </div>
             </div>
 
@@ -1203,9 +1343,7 @@ export default function PayslipPage() {
         <section style={cardStyle}>
           <div style={{ marginBottom: "14px" }}>
             <h2 style={sectionTitleStyle}>月別タブ</h2>
-            <div style={sectionSubStyle}>
-              今月・前月などをワンタップで切り替えできます。
-            </div>
+            <div style={sectionSubStyle}>今月・前月などをワンタップで切り替えできます。</div>
           </div>
 
           <div style={tabWrapStyle}>
@@ -1222,62 +1360,37 @@ export default function PayslipPage() {
 
           <div style={{ marginBottom: "14px" }}>
             <h2 style={sectionTitleStyle}>新規 / 再来 タブ</h2>
-            <div style={sectionSubStyle}>
-              前受金ありを再来判定として、新規だけ・再来だけに切り替えできます。
-            </div>
+            <div style={sectionSubStyle}>前受金ありを再来判定として、新規だけ・再来だけに切り替えできます。</div>
           </div>
 
           <div style={tabWrapStyle}>
-            <button
-              onClick={() => setRepeatFilter("all")}
-              style={getTabStyle(repeatFilter === "all")}
-            >
+            <button onClick={() => setRepeatFilter("all")} style={getTabStyle(repeatFilter === "all")}>
               全員
             </button>
-            <button
-              onClick={() => setRepeatFilter("new")}
-              style={getTabStyle(repeatFilter === "new")}
-            >
+            <button onClick={() => setRepeatFilter("new")} style={getTabStyle(repeatFilter === "new")}>
               新規だけ
             </button>
-            <button
-              onClick={() => setRepeatFilter("repeat")}
-              style={getTabStyle(repeatFilter === "repeat")}
-            >
+            <button onClick={() => setRepeatFilter("repeat")} style={getTabStyle(repeatFilter === "repeat")}>
               再来だけ
             </button>
           </div>
 
           <div style={{ marginBottom: "14px" }}>
             <h2 style={sectionTitleStyle}>売上区分タブ</h2>
-            <div style={sectionSubStyle}>
-              通常売上・前受金・回数券消化だけで絞れます。
-            </div>
+            <div style={sectionSubStyle}>通常売上・前受金・回数券消化だけで絞れます。</div>
           </div>
 
           <div style={tabWrapStyle}>
-            <button
-              onClick={() => setSaleTypeFilter("all")}
-              style={getTabStyle(saleTypeFilter === "all")}
-            >
+            <button onClick={() => setSaleTypeFilter("all")} style={getTabStyle(saleTypeFilter === "all")}>
               全部
             </button>
-            <button
-              onClick={() => setSaleTypeFilter("normal")}
-              style={getTabStyle(saleTypeFilter === "normal")}
-            >
+            <button onClick={() => setSaleTypeFilter("normal")} style={getTabStyle(saleTypeFilter === "normal")}>
               通常売上
             </button>
-            <button
-              onClick={() => setSaleTypeFilter("advance")}
-              style={getTabStyle(saleTypeFilter === "advance")}
-            >
+            <button onClick={() => setSaleTypeFilter("advance")} style={getTabStyle(saleTypeFilter === "advance")}>
               前受金
             </button>
-            <button
-              onClick={() => setSaleTypeFilter("ticket")}
-              style={getTabStyle(saleTypeFilter === "ticket")}
-            >
+            <button onClick={() => setSaleTypeFilter("ticket")} style={getTabStyle(saleTypeFilter === "ticket")}>
               回数券消化
             </button>
           </div>
@@ -1447,6 +1560,14 @@ export default function PayslipPage() {
           </div>
 
           <div style={statCardStyle}>
+            <div style={statLabelStyle}>変更率</div>
+            <div style={statValueStyle}>{formatPercent(totalChangeRate)}</div>
+            <div style={statSubStyle}>
+              {totalChanges.toLocaleString()} / {totalReservations.toLocaleString()}
+            </div>
+          </div>
+
+          <div style={statCardStyle}>
             <div style={statLabelStyle}>無断キャンセル</div>
             <div style={statValueStyle}>{totalNoShows.toLocaleString()}件</div>
             <div style={statSubStyle}>無断を含む予約件数</div>
@@ -1458,6 +1579,98 @@ export default function PayslipPage() {
             <div style={statSubStyle}>
               {totalRepeatCount.toLocaleString()} / {totalNewCount.toLocaleString()}
             </div>
+          </div>
+        </section>
+
+        <section style={cardStyle}>
+          <div style={headerStyle}>
+            <div>
+              <h2 style={sectionTitleStyle}>変更前予約 → 変更後予約 ペア一覧</h2>
+              <div style={sectionSubStyle}>
+                変更扱いの予約から、同じ顧客の次回予約を自動で紐づけて表示します。
+              </div>
+            </div>
+
+            <div style={topActionWrapStyle}>
+              <button onClick={exportPairCsv} style={primaryButtonStyle}>
+                ペアCSV出力
+              </button>
+            </div>
+          </div>
+
+          <div style={tableWrapStyle}>
+            <table style={pairTableStyle}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>顧客名</th>
+                  <th style={thStyle}>スタッフ</th>
+                  <th style={thStyle}>店舗</th>
+                  <th style={thStyle}>変更前予約ID</th>
+                  <th style={thStyle}>変更前日付</th>
+                  <th style={thStyle}>変更前ステータス</th>
+                  <th style={thStyle}>変更前メモ</th>
+                  <th style={thStyle}>変更後予約ID</th>
+                  <th style={thStyle}>変更後日付</th>
+                  <th style={thStyle}>変更後ステータス</th>
+                  <th style={thStyle}>変更後メモ</th>
+                  <th style={thStyle}>日数差</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td style={tdStyle} colSpan={12}>
+                      読み込み中です...
+                    </td>
+                  </tr>
+                ) : reservationPairs.length === 0 ? (
+                  <tr>
+                    <td style={tdStyle} colSpan={12}>
+                      変更ペアがありません
+                    </td>
+                  </tr>
+                ) : (
+                  reservationPairs.map((pair) => (
+                    <tr key={pair.key}>
+                      <td style={tdStyle}>{pair.customerName}</td>
+                      <td style={tdStyle}>{pair.staff}</td>
+                      <td style={tdStyle}>{pair.storeName}</td>
+                      <td style={tdStyle}>{pair.fromReservation.id}</td>
+                      <td style={tdStyle}>{formatDateJP(pair.fromReservation.date)}</td>
+                      <td style={tdStyle}>
+                        <span style={badgeStyle("#fcd34d")}>{pair.fromReservation.status}</span>
+                      </td>
+                      <td style={{ ...tdStyle, whiteSpace: "pre-wrap", minWidth: "220px" }}>
+                        {pair.fromReservation.memo || "—"}
+                      </td>
+                      <td style={tdStyle}>{pair.toReservation?.id || "未作成"}</td>
+                      <td style={tdStyle}>
+                        {pair.toReservation ? formatDateJP(pair.toReservation.date) : "—"}
+                      </td>
+                      <td style={tdStyle}>
+                        {pair.toReservation ? (
+                          isCompletedStatus(pair.toReservation.status) ? (
+                            <span style={badgeStyle("#86efac")}>{pair.toReservation.status}</span>
+                          ) : isCancelledStatus(pair.toReservation.status) ? (
+                            <span style={badgeStyle("#fecaca")}>{pair.toReservation.status}</span>
+                          ) : isChangedStatus(pair.toReservation.status) ? (
+                            <span style={badgeStyle("#fcd34d")}>{pair.toReservation.status}</span>
+                          ) : (
+                            <span style={badgeStyle("#cbd5e1")}>{pair.toReservation.status}</span>
+                          )
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td style={{ ...tdStyle, whiteSpace: "pre-wrap", minWidth: "220px" }}>
+                        {pair.toReservation?.memo || "—"}
+                      </td>
+                      <td style={tdStyle}>{pair.daysDiff ?? "—"}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </section>
 
@@ -1482,8 +1695,10 @@ export default function PayslipPage() {
                   <th style={thStyle}>指名料合計</th>
                   <th style={thStyle}>総予約数</th>
                   <th style={thStyle}>キャンセル数</th>
+                  <th style={thStyle}>変更数</th>
                   <th style={thStyle}>無断キャンセル</th>
                   <th style={thStyle}>キャンセル率</th>
+                  <th style={thStyle}>変更率</th>
                   <th style={thStyle}>新規数</th>
                   <th style={thStyle}>前受金リピート数</th>
                   <th style={thStyle}>リピート率</th>
@@ -1492,13 +1707,13 @@ export default function PayslipPage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td style={tdStyle} colSpan={14}>
+                    <td style={tdStyle} colSpan={16}>
                       読み込み中です...
                     </td>
                   </tr>
                 ) : staffSummaries.length === 0 ? (
                   <tr>
-                    <td style={tdStyle} colSpan={14}>
+                    <td style={tdStyle} colSpan={16}>
                       データがありません
                     </td>
                   </tr>
@@ -1526,8 +1741,10 @@ export default function PayslipPage() {
                       </td>
                       <td style={tdStyle}>{row.reservationCount.toLocaleString()}件</td>
                       <td style={tdStyle}>{row.cancelCount.toLocaleString()}件</td>
+                      <td style={tdStyle}>{row.changedCount.toLocaleString()}件</td>
                       <td style={tdStyle}>{row.noShowCount.toLocaleString()}件</td>
                       <td style={tdStyle}>{formatPercent(row.cancelRate)}</td>
+                      <td style={tdStyle}>{formatPercent(row.changeRate)}</td>
                       <td style={tdStyle}>{row.newCount.toLocaleString()}人</td>
                       <td style={tdStyle}>{row.repeatCount.toLocaleString()}人</td>
                       <td style={tdStyle}>{formatPercent(row.repeatRate)}</td>
@@ -1565,6 +1782,7 @@ export default function PayslipPage() {
                   <th style={thStyle}>指名料</th>
                   <th style={thStyle}>新規判定</th>
                   <th style={thStyle}>前受金リピート判定</th>
+                  <th style={thStyle}>変更判定</th>
                   <th style={thStyle}>予約ID</th>
                   <th style={thStyle}>メモ</th>
                 </tr>
@@ -1572,13 +1790,13 @@ export default function PayslipPage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td style={tdStyle} colSpan={14}>
+                    <td style={tdStyle} colSpan={15}>
                       読み込み中です...
                     </td>
                   </tr>
                 ) : detailRows.length === 0 ? (
                   <tr>
-                    <td style={tdStyle} colSpan={14}>
+                    <td style={tdStyle} colSpan={15}>
                       該当データがありません
                     </td>
                   </tr>
@@ -1598,7 +1816,9 @@ export default function PayslipPage() {
                       <td style={tdStyle}>{row.storeName}</td>
                       <td style={tdStyle}>
                         {row.reservationStatus ? (
-                          isCancelledStatus(row.reservationStatus) || isNoShowStatus(row.reservationStatus) ? (
+                          row.isChanged ? (
+                            <span style={badgeStyle("#fcd34d")}>{row.reservationStatus}</span>
+                          ) : isCancelledStatus(row.reservationStatus) || isNoShowStatus(row.reservationStatus) ? (
                             <span style={badgeStyle("#fecaca")}>{row.reservationStatus}</span>
                           ) : isCompletedStatus(row.reservationStatus) ? (
                             <span style={badgeStyle("#86efac")}>{row.reservationStatus}</span>
@@ -1640,6 +1860,9 @@ export default function PayslipPage() {
                       </td>
                       <td style={tdStyle}>
                         {row.isRepeat ? <span style={badgeStyle("#fde68a")}>あり</span> : "—"}
+                      </td>
+                      <td style={tdStyle}>
+                        {row.isChanged ? <span style={badgeStyle("#fcd34d")}>変更</span> : "—"}
                       </td>
                       <td style={tdStyle}>{row.reservationId ?? "—"}</td>
                       <td style={{ ...tdStyle, whiteSpace: "pre-wrap", minWidth: "260px" }}>
