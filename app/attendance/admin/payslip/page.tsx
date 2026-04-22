@@ -67,6 +67,8 @@ type StaffSummary = {
   staff: string;
   reservationCount: number;
   cancelCount: number;
+  noShowCount: number;
+  cancelBaseCount: number;
   cancelRate: number;
   newCount: number;
   repeatCount: number;
@@ -92,9 +94,21 @@ type DetailRow = {
   amount: number;
   nominationFee: number;
   isRepeat: boolean;
+  isNew: boolean;
   memo: string;
   reservationId?: number | null;
 };
+
+type MonthTab = {
+  key: string;
+  label: string;
+  start: string;
+  end: string;
+};
+
+type RepeatFilter = "all" | "new" | "repeat";
+type CancelBaseMode = "all_reservations" | "exclude_completed";
+type SaleTypeFilter = "all" | "normal" | "advance" | "ticket";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -166,32 +180,33 @@ function buildCustomerKey(params: { customerId?: string | null; customerName?: s
 
 function parseNominationFee(note?: string | null) {
   const text = String(note || "");
-  const patterns = [
-    /指名料(?:加算済み)?\s*[:：]\s*([0-9,]+)\s*円/,
-    /指名料(?:加算済み)?\s*([0-9,]+)\s*円/,
-  ];
 
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match?.[1]) {
-      return Number(match[1].replace(/,/g, "")) || 0;
-    }
+  const chargedMatch = text.match(/指名料加算済み\s*[:：]?\s*([0-9,]+)\s*円/);
+  if (chargedMatch?.[1]) {
+    return Number(chargedMatch[1].replace(/,/g, "")) || 0;
   }
+
+  const plainMatch = text.match(/指名料\s*[:：]?\s*([0-9,]+)\s*円/);
+  if (plainMatch?.[1]) {
+    return Number(plainMatch[1].replace(/,/g, "")) || 0;
+  }
+
   return 0;
 }
 
 function isCancelledStatus(status?: string | null) {
-  const text = String(status || "");
-  return (
-    text.includes("キャンセル") ||
-    text.includes("cancel") ||
-    text.includes("CANCEL")
-  );
+  const text = String(status || "").toLowerCase();
+  return text.includes("キャンセル") || text.includes("cancel");
 }
 
 function isNoShowStatus(status?: string | null) {
   const text = String(status || "");
   return text.includes("無断");
+}
+
+function isCompletedStatus(status?: string | null) {
+  const text = String(status || "");
+  return text.includes("売上済") || text.includes("来店") || text.includes("完了");
 }
 
 function rowToSale(row: SupabaseSaleRow): Sale {
@@ -240,6 +255,27 @@ function toCsvValue(value: string | number | boolean) {
   return `"${String(value ?? "").replace(/"/g, '""')}"`;
 }
 
+function monthRange(offset: number) {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+  const start = new Date(d.getFullYear(), d.getMonth(), 1);
+  const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+
+  const startStr = `${start.getFullYear()}-${`${start.getMonth() + 1}`.padStart(2, "0")}-${`${start.getDate()}`.padStart(2, "0")}`;
+  const endStr = `${end.getFullYear()}-${`${end.getMonth() + 1}`.padStart(2, "0")}-${`${end.getDate()}`.padStart(2, "0")}`;
+
+  return {
+    key: `${start.getFullYear()}-${`${start.getMonth() + 1}`.padStart(2, "0")}`,
+    label: `${start.getMonth() + 1}月`,
+    start: startStr,
+    end: endStr,
+  };
+}
+
+function buildMonthTabs(): MonthTab[] {
+  return [monthRange(0), monthRange(-1), monthRange(-2), monthRange(-3)];
+}
+
 export default function PayslipPage() {
   const [mounted, setMounted] = useState(false);
   const [windowWidth, setWindowWidth] = useState(1400);
@@ -248,11 +284,21 @@ export default function PayslipPage() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [dateFrom, setDateFrom] = useState(firstDayOfMonth());
-  const [dateTo, setDateTo] = useState(todayString());
+  const monthTabs = useMemo(() => buildMonthTabs(), []);
+  const [activeMonthKey, setActiveMonthKey] = useState(monthTabs[0]?.key || "");
+
+  const [dateFrom, setDateFrom] = useState(monthTabs[0]?.start || firstDayOfMonth());
+  const [dateTo, setDateTo] = useState(monthTabs[0]?.end || todayString());
   const [search, setSearch] = useState("");
   const [selectedStaff, setSelectedStaff] = useState("全スタッフ");
   const [selectedStore, setSelectedStore] = useState("全店舗");
+  const [staffLocked, setStaffLocked] = useState(false);
+
+  const [repeatFilter, setRepeatFilter] = useState<RepeatFilter>("all");
+  const [cancelBaseMode, setCancelBaseMode] = useState<CancelBaseMode>("all_reservations");
+  const [saleTypeFilter, setSaleTypeFilter] = useState<SaleTypeFilter>("all");
+  const [nominationOnly, setNominationOnly] = useState(false);
+
   const [sortKey, setSortKey] = useState<
     "salesTotal" | "reservationCount" | "cancelRate" | "repeatRate" | "nominationTotal"
   >("salesTotal");
@@ -360,51 +406,11 @@ export default function PayslipPage() {
     [dateTo]
   );
 
-  const filteredSales = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
-
-    return sales.filter((sale) => {
-      const saleTime = new Date(`${sale.date}T12:00:00`).getTime();
-      if (saleTime < fromTime || saleTime > toTime) return false;
-      if (selectedStaff !== "全スタッフ" && sale.staff !== selectedStaff) return false;
-      if (selectedStore !== "全店舗" && sale.storeName !== selectedStore) return false;
-
-      if (!keyword) return true;
-
-      return (
-        sale.customerName.toLowerCase().includes(keyword) ||
-        sale.staff.toLowerCase().includes(keyword) ||
-        sale.storeName.toLowerCase().includes(keyword) ||
-        sale.serviceType.toLowerCase().includes(keyword) ||
-        sale.accountingType.toLowerCase().includes(keyword) ||
-        sale.paymentMethod.toLowerCase().includes(keyword) ||
-        sale.note.toLowerCase().includes(keyword) ||
-        String(sale.reservationId || "").includes(keyword) ||
-        sale.date.toLowerCase().includes(keyword)
-      );
-    });
-  }, [sales, search, fromTime, toTime, selectedStaff, selectedStore]);
-
-  const filteredReservations = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
-
-    return reservations.filter((reservation) => {
-      const reservationTime = new Date(`${reservation.date}T12:00:00`).getTime();
-      if (reservationTime < fromTime || reservationTime > toTime) return false;
-      if (selectedStaff !== "全スタッフ" && reservation.staff !== selectedStaff) return false;
-      if (selectedStore !== "全店舗" && reservation.storeName !== selectedStore) return false;
-
-      if (!keyword) return true;
-
-      return (
-        reservation.customerName.toLowerCase().includes(keyword) ||
-        reservation.staff.toLowerCase().includes(keyword) ||
-        reservation.storeName.toLowerCase().includes(keyword) ||
-        reservation.status.toLowerCase().includes(keyword) ||
-        reservation.date.toLowerCase().includes(keyword)
-      );
-    });
-  }, [reservations, search, fromTime, toTime, selectedStaff, selectedStore]);
+  const applyMonthTab = (tab: MonthTab) => {
+    setActiveMonthKey(tab.key);
+    setDateFrom(tab.start);
+    setDateTo(tab.end);
+  };
 
   const firstReservationMap = useMemo(() => {
     const map = new Map<string, Reservation>();
@@ -443,6 +449,171 @@ export default function PayslipPage() {
     return set;
   }, [sales]);
 
+  const customerRepeatMap = useMemo(() => {
+    const map = new Map<string, { isNew: boolean; isRepeat: boolean }>();
+
+    for (const reservation of reservations) {
+      const customerKey = buildCustomerKey({
+        customerId: reservation.customerId,
+        customerName: reservation.customerName,
+      });
+      const firstReservation = firstReservationMap.get(customerKey);
+      const isNew = !!firstReservation && String(firstReservation.id) === String(reservation.id);
+      const isRepeat = advanceSaleCustomerKeySet.has(customerKey);
+      map.set(`${customerKey}|${reservation.id}`, { isNew, isRepeat });
+    }
+
+    for (const sale of sales) {
+      const customerKey = buildCustomerKey({
+        customerId: sale.customerId,
+        customerName: sale.customerName,
+      });
+      const isRepeat = advanceSaleCustomerKeySet.has(customerKey);
+      const firstReservation = firstReservationMap.get(customerKey);
+      const isNew = false;
+      map.set(`sale|${sale.id}`, { isNew, isRepeat });
+      if (firstReservation) {
+        map.set(`${customerKey}|first`, {
+          isNew: true,
+          isRepeat,
+        });
+      }
+    }
+
+    return map;
+  }, [reservations, sales, firstReservationMap, advanceSaleCustomerKeySet]);
+
+  const matchesRepeatFilterByCustomer = (params: {
+    customerId?: string | null;
+    customerName?: string | null;
+    reservationId?: string | number | null;
+  }) => {
+    if (repeatFilter === "all") return true;
+
+    const customerKey = buildCustomerKey({
+      customerId: params.customerId,
+      customerName: params.customerName,
+    });
+
+    const firstReservation = firstReservationMap.get(customerKey);
+    const isNew =
+      !!firstReservation &&
+      params.reservationId !== null &&
+      params.reservationId !== undefined &&
+      String(firstReservation.id) === String(params.reservationId);
+
+    const isRepeat = advanceSaleCustomerKeySet.has(customerKey);
+
+    if (repeatFilter === "new") return isNew;
+    if (repeatFilter === "repeat") return isRepeat;
+    return true;
+  };
+
+  const filteredSales = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+
+    return sales.filter((sale) => {
+      const saleTime = new Date(`${sale.date}T12:00:00`).getTime();
+      if (saleTime < fromTime || saleTime > toTime) return false;
+      if (selectedStaff !== "全スタッフ" && sale.staff !== selectedStaff) return false;
+      if (selectedStore !== "全店舗" && sale.storeName !== selectedStore) return false;
+
+      if (saleTypeFilter === "normal" && sale.accountingType !== "通常売上") return false;
+      if (saleTypeFilter === "advance" && sale.accountingType !== "前受金") return false;
+      if (saleTypeFilter === "ticket" && sale.accountingType !== "回数券消化") return false;
+
+      const nominationFee = parseNominationFee(sale.note);
+      if (nominationOnly && nominationFee <= 0) return false;
+
+      if (
+        repeatFilter !== "all" &&
+        !matchesRepeatFilterByCustomer({
+          customerId: sale.customerId,
+          customerName: sale.customerName,
+          reservationId: sale.reservationId ?? null,
+        })
+      ) {
+        if (repeatFilter === "repeat") {
+          const customerKey = buildCustomerKey({
+            customerId: sale.customerId,
+            customerName: sale.customerName,
+          });
+          if (!advanceSaleCustomerKeySet.has(customerKey)) return false;
+        } else {
+          return false;
+        }
+      }
+
+      if (!keyword) return true;
+
+      return (
+        sale.customerName.toLowerCase().includes(keyword) ||
+        sale.staff.toLowerCase().includes(keyword) ||
+        sale.storeName.toLowerCase().includes(keyword) ||
+        sale.serviceType.toLowerCase().includes(keyword) ||
+        sale.accountingType.toLowerCase().includes(keyword) ||
+        sale.paymentMethod.toLowerCase().includes(keyword) ||
+        sale.note.toLowerCase().includes(keyword) ||
+        String(sale.reservationId || "").includes(keyword) ||
+        sale.date.toLowerCase().includes(keyword)
+      );
+    });
+  }, [
+    sales,
+    search,
+    fromTime,
+    toTime,
+    selectedStaff,
+    selectedStore,
+    repeatFilter,
+    saleTypeFilter,
+    nominationOnly,
+    advanceSaleCustomerKeySet,
+    firstReservationMap,
+  ]);
+
+  const filteredReservations = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+
+    return reservations.filter((reservation) => {
+      const reservationTime = new Date(`${reservation.date}T12:00:00`).getTime();
+      if (reservationTime < fromTime || reservationTime > toTime) return false;
+      if (selectedStaff !== "全スタッフ" && reservation.staff !== selectedStaff) return false;
+      if (selectedStore !== "全店舗" && reservation.storeName !== selectedStore) return false;
+
+      if (
+        repeatFilter !== "all" &&
+        !matchesRepeatFilterByCustomer({
+          customerId: reservation.customerId,
+          customerName: reservation.customerName,
+          reservationId: reservation.id,
+        })
+      ) {
+        return false;
+      }
+
+      if (!keyword) return true;
+
+      return (
+        reservation.customerName.toLowerCase().includes(keyword) ||
+        reservation.staff.toLowerCase().includes(keyword) ||
+        reservation.storeName.toLowerCase().includes(keyword) ||
+        reservation.status.toLowerCase().includes(keyword) ||
+        reservation.date.toLowerCase().includes(keyword)
+      );
+    });
+  }, [
+    reservations,
+    search,
+    fromTime,
+    toTime,
+    selectedStaff,
+    selectedStore,
+    repeatFilter,
+    advanceSaleCustomerKeySet,
+    firstReservationMap,
+  ]);
+
   const staffSummaries = useMemo(() => {
     const summaryMap = new Map<string, StaffSummary>();
 
@@ -453,6 +624,8 @@ export default function PayslipPage() {
           staff: key,
           reservationCount: 0,
           cancelCount: 0,
+          noShowCount: 0,
+          cancelBaseCount: 0,
           cancelRate: 0,
           newCount: 0,
           repeatCount: 0,
@@ -472,8 +645,20 @@ export default function PayslipPage() {
       const target = ensureStaff(reservation.staff);
       target.reservationCount += 1;
 
-      if (isCancelledStatus(reservation.status) || isNoShowStatus(reservation.status)) {
-        target.cancelCount += 1;
+      const cancelled = isCancelledStatus(reservation.status);
+      const noShow = isNoShowStatus(reservation.status);
+      const completed = isCompletedStatus(reservation.status);
+
+      if (cancelled) target.cancelCount += 1;
+      if (noShow) target.noShowCount += 1;
+
+      const countAsBase =
+        cancelBaseMode === "all_reservations"
+          ? true
+          : !completed;
+
+      if (countAsBase) {
+        target.cancelBaseCount += 1;
       }
 
       const customerKey = buildCustomerKey({
@@ -483,12 +668,10 @@ export default function PayslipPage() {
 
       const firstReservation = firstReservationMap.get(customerKey);
       const isFirst =
-        !!firstReservation &&
-        String(firstReservation.id) === String(reservation.id);
+        !!firstReservation && String(firstReservation.id) === String(reservation.id);
 
       if (isFirst) {
         target.newCount += 1;
-
         if (advanceSaleCustomerKeySet.has(customerKey)) {
           target.repeatCount += 1;
         }
@@ -510,7 +693,7 @@ export default function PayslipPage() {
     const list = Array.from(summaryMap.values()).map((item) => ({
       ...item,
       cancelRate:
-        item.reservationCount > 0 ? (item.cancelCount / item.reservationCount) * 100 : 0,
+        item.cancelBaseCount > 0 ? (item.cancelCount / item.cancelBaseCount) * 100 : 0,
       repeatRate:
         item.newCount > 0 ? (item.repeatCount / item.newCount) * 100 : 0,
     }));
@@ -528,6 +711,7 @@ export default function PayslipPage() {
     firstReservationMap,
     advanceSaleCustomerKeySet,
     sortKey,
+    cancelBaseMode,
   ]);
 
   const detailRows = useMemo(() => {
@@ -538,6 +722,13 @@ export default function PayslipPage() {
         customerId: sale.customerId,
         customerName: sale.customerName,
       });
+
+      const firstReservation = firstReservationMap.get(customerKey);
+      const isNew =
+        !!firstReservation &&
+        sale.reservationId !== null &&
+        sale.reservationId !== undefined &&
+        String(firstReservation.id) === String(sale.reservationId);
 
       rows.push({
         kind: "sale",
@@ -552,6 +743,7 @@ export default function PayslipPage() {
         amount: sale.amount,
         nominationFee: parseNominationFee(sale.note),
         isRepeat: advanceSaleCustomerKeySet.has(customerKey),
+        isNew,
         memo: sale.note || "",
         reservationId: sale.reservationId ?? null,
       });
@@ -562,6 +754,10 @@ export default function PayslipPage() {
         customerId: reservation.customerId,
         customerName: reservation.customerName,
       });
+
+      const firstReservation = firstReservationMap.get(customerKey);
+      const isNew =
+        !!firstReservation && String(firstReservation.id) === String(reservation.id);
 
       rows.push({
         kind: "reservation",
@@ -576,37 +772,18 @@ export default function PayslipPage() {
         amount: 0,
         nominationFee: 0,
         isRepeat: advanceSaleCustomerKeySet.has(customerKey),
+        isNew,
         memo: "",
         reservationId: Number(reservation.id),
       });
     }
 
-    const keyword = search.trim().toLowerCase();
-
-    const filtered = rows.filter((row) => {
-      if (selectedStaff !== "全スタッフ" && row.staff !== selectedStaff) return false;
-      if (selectedStore !== "全店舗" && row.storeName !== selectedStore) return false;
-
-      if (!keyword) return true;
-
-      return (
-        row.customerName.toLowerCase().includes(keyword) ||
-        row.staff.toLowerCase().includes(keyword) ||
-        row.storeName.toLowerCase().includes(keyword) ||
-        row.reservationStatus.toLowerCase().includes(keyword) ||
-        row.accountingType.toLowerCase().includes(keyword) ||
-        row.paymentMethod.toLowerCase().includes(keyword) ||
-        row.memo.toLowerCase().includes(keyword) ||
-        String(row.reservationId || "").includes(keyword)
-      );
-    });
-
-    return filtered.sort((a, b) => {
+    return rows.sort((a, b) => {
       const aTime = new Date(`${a.date}T12:00:00`).getTime();
       const bTime = new Date(`${b.date}T12:00:00`).getTime();
       return bTime - aTime;
     });
-  }, [filteredSales, filteredReservations, advanceSaleCustomerKeySet, search, selectedStaff, selectedStore]);
+  }, [filteredSales, filteredReservations, advanceSaleCustomerKeySet, firstReservationMap]);
 
   const totalSales = useMemo(
     () => filteredSales.reduce((sum, item) => sum + Number(item.amount || 0), 0),
@@ -621,17 +798,26 @@ export default function PayslipPage() {
   const totalReservations = useMemo(() => filteredReservations.length, [filteredReservations]);
 
   const totalCancellations = useMemo(
-    () =>
-      filteredReservations.filter(
-        (item) => isCancelledStatus(item.status) || isNoShowStatus(item.status)
-      ).length,
+    () => filteredReservations.filter((item) => isCancelledStatus(item.status)).length,
     [filteredReservations]
   );
 
-  const totalCancelRate = useMemo(
+  const totalNoShows = useMemo(
+    () => filteredReservations.filter((item) => isNoShowStatus(item.status)).length,
+    [filteredReservations]
+  );
+
+  const totalCancelBase = useMemo(
     () =>
-      totalReservations > 0 ? (totalCancellations / totalReservations) * 100 : 0,
-    [totalReservations, totalCancellations]
+      filteredReservations.filter((item) =>
+        cancelBaseMode === "all_reservations" ? true : !isCompletedStatus(item.status)
+      ).length,
+    [filteredReservations, cancelBaseMode]
+  );
+
+  const totalCancelRate = useMemo(
+    () => (totalCancelBase > 0 ? (totalCancellations / totalCancelBase) * 100 : 0),
+    [totalCancelBase, totalCancellations]
   );
 
   const totalNewCount = useMemo(() => {
@@ -658,8 +844,7 @@ export default function PayslipPage() {
       });
       const firstReservation = firstReservationMap.get(customerKey);
       const isFirst =
-        !!firstReservation &&
-        String(firstReservation.id) === String(reservation.id);
+        !!firstReservation && String(firstReservation.id) === String(reservation.id);
 
       if (isFirst && advanceSaleCustomerKeySet.has(customerKey)) {
         count += 1;
@@ -691,6 +876,7 @@ export default function PayslipPage() {
         "支払方法",
         "金額",
         "指名料",
+        "新規判定",
         "前受金リピート判定",
         "予約ID",
         "メモ",
@@ -709,6 +895,7 @@ export default function PayslipPage() {
           row.paymentMethod,
           row.amount,
           row.nominationFee,
+          row.isNew ? "新規" : "",
           row.isRepeat ? "あり" : "",
           row.reservationId ?? "",
           row.memo.replace(/\n/g, " / "),
@@ -725,9 +912,22 @@ export default function PayslipPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `staff_report_${todayString()}.csv`;
+    a.download =
+      selectedStaff !== "全スタッフ"
+        ? `staff_report_${selectedStaff}_${todayString()}.csv`
+        : `staff_report_${todayString()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const fixStaff = (staffName: string) => {
+    setSelectedStaff(staffName);
+    setStaffLocked(true);
+  };
+
+  const releaseStaffLock = () => {
+    setSelectedStaff("全スタッフ");
+    setStaffLocked(false);
   };
 
   const pageStyle: CSSProperties = {
@@ -737,7 +937,7 @@ export default function PayslipPage() {
   };
 
   const innerStyle: CSSProperties = {
-    maxWidth: "1540px",
+    maxWidth: "1580px",
     margin: "0 auto",
     display: "grid",
     gap: "18px",
@@ -807,6 +1007,17 @@ export default function PayslipPage() {
     cursor: "pointer",
   };
 
+  const softButtonStyle: CSSProperties = {
+    border: "1px solid rgba(148,163,184,0.22)",
+    borderRadius: "12px",
+    height: "42px",
+    padding: "0 16px",
+    fontWeight: 800,
+    color: "#e5e7eb",
+    background: "rgba(15,23,42,0.7)",
+    cursor: "pointer",
+  };
+
   const inputGridStyle: CSSProperties = {
     display: "grid",
     gridTemplateColumns: mobile ? "1fr" : tablet ? "repeat(2, 1fr)" : "repeat(4, 1fr)",
@@ -834,9 +1045,43 @@ export default function PayslipPage() {
     boxSizing: "border-box",
   };
 
+  const tabWrapStyle: CSSProperties = {
+    display: "flex",
+    gap: "10px",
+    flexWrap: "wrap",
+    marginBottom: "14px",
+  };
+
+  const getTabStyle = (active: boolean): CSSProperties => ({
+    border: active ? "none" : "1px solid rgba(148,163,184,0.22)",
+    borderRadius: "999px",
+    minHeight: "40px",
+    padding: "0 16px",
+    fontWeight: 900,
+    color: active ? "#111827" : "#e5e7eb",
+    background: active
+      ? "linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)"
+      : "rgba(15,23,42,0.7)",
+    cursor: "pointer",
+  });
+
+  const pillStyle: CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "8px",
+    minHeight: "34px",
+    padding: "6px 12px",
+    borderRadius: "999px",
+    background: "rgba(245,158,11,0.15)",
+    color: "#fde68a",
+    fontWeight: 900,
+    fontSize: "12px",
+    border: "1px solid rgba(245,158,11,0.22)",
+  };
+
   const statGridStyle: CSSProperties = {
     display: "grid",
-    gridTemplateColumns: mobile ? "1fr" : tablet ? "repeat(2, 1fr)" : "repeat(5, 1fr)",
+    gridTemplateColumns: mobile ? "1fr" : tablet ? "repeat(2, 1fr)" : "repeat(6, 1fr)",
     gap: "12px",
   };
 
@@ -890,7 +1135,7 @@ export default function PayslipPage() {
   const tableStyle: CSSProperties = {
     width: "100%",
     borderCollapse: "collapse",
-    minWidth: mobile ? "1220px" : "1460px",
+    minWidth: mobile ? "1320px" : "1600px",
     background: "rgba(2,6,23,0.58)",
   };
 
@@ -913,7 +1158,7 @@ export default function PayslipPage() {
     verticalAlign: "top",
   };
 
-  const badgeStyle = (label: string, bg: string, color = "#111827"): CSSProperties => ({
+  const badgeStyle = (bg: string, color = "#111827"): CSSProperties => ({
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
@@ -935,9 +1180,9 @@ export default function PayslipPage() {
         <section style={cardStyle}>
           <div style={headerStyle}>
             <div>
-              <h1 style={titleStyle}>スタッフ管理・明細ページ</h1>
+              <h1 style={titleStyle}>スタッフ管理・明細ページ 最終版</h1>
               <div style={subStyle}>
-                売上・指名料・キャンセル率・前受金リピート率をまとめて見れる完成版です。
+                売上・指名料・キャンセル率・前受金リピート率・新規/再来タブ・月別タブまで入れた完成版です。
               </div>
             </div>
 
@@ -957,10 +1202,84 @@ export default function PayslipPage() {
 
         <section style={cardStyle}>
           <div style={{ marginBottom: "14px" }}>
-            <h2 style={sectionTitleStyle}>絞り込み</h2>
+            <h2 style={sectionTitleStyle}>月別タブ</h2>
             <div style={sectionSubStyle}>
-              期間・スタッフ・店舗で絞って、集計も明細も一緒に確認できます。
+              今月・前月などをワンタップで切り替えできます。
             </div>
+          </div>
+
+          <div style={tabWrapStyle}>
+            {monthTabs.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => applyMonthTab(tab)}
+                style={getTabStyle(activeMonthKey === tab.key)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ marginBottom: "14px" }}>
+            <h2 style={sectionTitleStyle}>新規 / 再来 タブ</h2>
+            <div style={sectionSubStyle}>
+              前受金ありを再来判定として、新規だけ・再来だけに切り替えできます。
+            </div>
+          </div>
+
+          <div style={tabWrapStyle}>
+            <button
+              onClick={() => setRepeatFilter("all")}
+              style={getTabStyle(repeatFilter === "all")}
+            >
+              全員
+            </button>
+            <button
+              onClick={() => setRepeatFilter("new")}
+              style={getTabStyle(repeatFilter === "new")}
+            >
+              新規だけ
+            </button>
+            <button
+              onClick={() => setRepeatFilter("repeat")}
+              style={getTabStyle(repeatFilter === "repeat")}
+            >
+              再来だけ
+            </button>
+          </div>
+
+          <div style={{ marginBottom: "14px" }}>
+            <h2 style={sectionTitleStyle}>売上区分タブ</h2>
+            <div style={sectionSubStyle}>
+              通常売上・前受金・回数券消化だけで絞れます。
+            </div>
+          </div>
+
+          <div style={tabWrapStyle}>
+            <button
+              onClick={() => setSaleTypeFilter("all")}
+              style={getTabStyle(saleTypeFilter === "all")}
+            >
+              全部
+            </button>
+            <button
+              onClick={() => setSaleTypeFilter("normal")}
+              style={getTabStyle(saleTypeFilter === "normal")}
+            >
+              通常売上
+            </button>
+            <button
+              onClick={() => setSaleTypeFilter("advance")}
+              style={getTabStyle(saleTypeFilter === "advance")}
+            >
+              前受金
+            </button>
+            <button
+              onClick={() => setSaleTypeFilter("ticket")}
+              style={getTabStyle(saleTypeFilter === "ticket")}
+            >
+              回数券消化
+            </button>
           </div>
 
           <div style={inputGridStyle}>
@@ -969,7 +1288,10 @@ export default function PayslipPage() {
               <input
                 type="date"
                 value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
+                onChange={(e) => {
+                  setActiveMonthKey("");
+                  setDateFrom(e.target.value);
+                }}
                 style={inputStyle}
               />
             </div>
@@ -979,7 +1301,10 @@ export default function PayslipPage() {
               <input
                 type="date"
                 value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
+                onChange={(e) => {
+                  setActiveMonthKey("");
+                  setDateTo(e.target.value);
+                }}
                 style={inputStyle}
               />
             </div>
@@ -988,7 +1313,11 @@ export default function PayslipPage() {
               <label style={labelStyle}>スタッフ</label>
               <select
                 value={selectedStaff}
-                onChange={(e) => setSelectedStaff(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSelectedStaff(value);
+                  setStaffLocked(value !== "全スタッフ");
+                }}
                 style={inputStyle}
               >
                 {staffOptions.map((name) => (
@@ -1026,6 +1355,18 @@ export default function PayslipPage() {
             </div>
 
             <div>
+              <label style={labelStyle}>キャンセル率の分母</label>
+              <select
+                value={cancelBaseMode}
+                onChange={(e) => setCancelBaseMode(e.target.value as CancelBaseMode)}
+                style={inputStyle}
+              >
+                <option value="all_reservations">全予約を分母</option>
+                <option value="exclude_completed">売上済を分母から除外</option>
+              </select>
+            </div>
+
+            <div>
               <label style={labelStyle}>並び順</label>
               <select
                 value={sortKey}
@@ -1056,6 +1397,26 @@ export default function PayslipPage() {
               </button>
             </div>
           </div>
+
+          <div style={{ marginTop: "12px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
+            <label style={{ ...pillStyle, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={nominationOnly}
+                onChange={(e) => setNominationOnly(e.target.checked)}
+              />
+              指名ありだけ表示
+            </label>
+
+            {staffLocked && selectedStaff !== "全スタッフ" ? (
+              <>
+                <span style={pillStyle}>固定表示: {selectedStaff}</span>
+                <button onClick={releaseStaffLock} style={softButtonStyle}>
+                  固定を解除
+                </button>
+              </>
+            ) : null}
+          </div>
         </section>
 
         <section style={statGridStyle}>
@@ -1068,7 +1429,7 @@ export default function PayslipPage() {
           <div style={statCardStyle}>
             <div style={statLabelStyle}>指名料合計</div>
             <div style={statValueStyle}>{formatCurrency(totalNomination)}</div>
-            <div style={statSubStyle}>memoから自動集計</div>
+            <div style={statSubStyle}>指名あり売上の合計</div>
           </div>
 
           <div style={statCardStyle}>
@@ -1081,8 +1442,14 @@ export default function PayslipPage() {
             <div style={statLabelStyle}>キャンセル率</div>
             <div style={statValueStyle}>{formatPercent(totalCancelRate)}</div>
             <div style={statSubStyle}>
-              {totalCancellations.toLocaleString()} / {totalReservations.toLocaleString()}
+              {totalCancellations.toLocaleString()} / {totalCancelBase.toLocaleString()}
             </div>
+          </div>
+
+          <div style={statCardStyle}>
+            <div style={statLabelStyle}>無断キャンセル</div>
+            <div style={statValueStyle}>{totalNoShows.toLocaleString()}件</div>
+            <div style={statSubStyle}>無断を含む予約件数</div>
           </div>
 
           <div style={statCardStyle}>
@@ -1098,7 +1465,7 @@ export default function PayslipPage() {
           <div>
             <h2 style={sectionTitleStyle}>スタッフ別まとめ</h2>
             <div style={sectionSubStyle}>
-              売上、指名、キャンセル率、前受金リピート率をスタッフごとに一気に見れます。
+              行を押すと、そのスタッフだけに固定表示されます。
             </div>
           </div>
 
@@ -1115,6 +1482,7 @@ export default function PayslipPage() {
                   <th style={thStyle}>指名料合計</th>
                   <th style={thStyle}>総予約数</th>
                   <th style={thStyle}>キャンセル数</th>
+                  <th style={thStyle}>無断キャンセル</th>
                   <th style={thStyle}>キャンセル率</th>
                   <th style={thStyle}>新規数</th>
                   <th style={thStyle}>前受金リピート数</th>
@@ -1124,13 +1492,13 @@ export default function PayslipPage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td style={tdStyle} colSpan={13}>
+                    <td style={tdStyle} colSpan={14}>
                       読み込み中です...
                     </td>
                   </tr>
                 ) : staffSummaries.length === 0 ? (
                   <tr>
-                    <td style={tdStyle} colSpan={13}>
+                    <td style={tdStyle} colSpan={14}>
                       データがありません
                     </td>
                   </tr>
@@ -1138,16 +1506,16 @@ export default function PayslipPage() {
                   staffSummaries.map((row) => (
                     <tr
                       key={row.staff}
-                      onClick={() => setSelectedStaff(row.staff)}
+                      onClick={() => fixStaff(row.staff)}
                       style={{
                         cursor: "pointer",
                         background:
                           selectedStaff !== "全スタッフ" && selectedStaff === row.staff
-                            ? "rgba(245,158,11,0.08)"
+                            ? "rgba(245,158,11,0.10)"
                             : "transparent",
                       }}
                     >
-                      <td style={tdStyle}>{row.staff}</td>
+                      <td style={{ ...tdStyle, fontWeight: 900 }}>{row.staff}</td>
                       <td style={tdStyle}>{row.count.toLocaleString()}件</td>
                       <td style={{ ...tdStyle, fontWeight: 900 }}>{formatCurrency(row.salesTotal)}</td>
                       <td style={tdStyle}>{formatCurrency(row.normalTotal)}</td>
@@ -1158,6 +1526,7 @@ export default function PayslipPage() {
                       </td>
                       <td style={tdStyle}>{row.reservationCount.toLocaleString()}件</td>
                       <td style={tdStyle}>{row.cancelCount.toLocaleString()}件</td>
+                      <td style={tdStyle}>{row.noShowCount.toLocaleString()}件</td>
                       <td style={tdStyle}>{formatPercent(row.cancelRate)}</td>
                       <td style={tdStyle}>{row.newCount.toLocaleString()}人</td>
                       <td style={tdStyle}>{row.repeatCount.toLocaleString()}人</td>
@@ -1176,7 +1545,7 @@ export default function PayslipPage() {
               明細一覧 {selectedStaff !== "全スタッフ" ? `- ${selectedStaff}` : ""}
             </h2>
             <div style={sectionSubStyle}>
-              予約も売上も同じ一覧で見れます。Excelに貼る元データとして使えます。
+              予約も売上も同じ一覧で見れます。Excelに貼る元データとしてそのまま使えます。
             </div>
           </div>
 
@@ -1194,6 +1563,7 @@ export default function PayslipPage() {
                   <th style={thStyle}>支払方法</th>
                   <th style={thStyle}>金額</th>
                   <th style={thStyle}>指名料</th>
+                  <th style={thStyle}>新規判定</th>
                   <th style={thStyle}>前受金リピート判定</th>
                   <th style={thStyle}>予約ID</th>
                   <th style={thStyle}>メモ</th>
@@ -1202,13 +1572,13 @@ export default function PayslipPage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td style={tdStyle} colSpan={13}>
+                    <td style={tdStyle} colSpan={14}>
                       読み込み中です...
                     </td>
                   </tr>
                 ) : detailRows.length === 0 ? (
                   <tr>
-                    <td style={tdStyle} colSpan={13}>
+                    <td style={tdStyle} colSpan={14}>
                       該当データがありません
                     </td>
                   </tr>
@@ -1217,9 +1587,9 @@ export default function PayslipPage() {
                     <tr key={`${row.kind}-${row.id}`}>
                       <td style={tdStyle}>
                         {row.kind === "sale" ? (
-                          <span style={badgeStyle("売上", "#86efac")}>売上</span>
+                          <span style={badgeStyle("#86efac")}>売上</span>
                         ) : (
-                          <span style={badgeStyle("予約", "#93c5fd")}>予約</span>
+                          <span style={badgeStyle("#93c5fd")}>予約</span>
                         )}
                       </td>
                       <td style={tdStyle}>{formatDateJP(row.date)}</td>
@@ -1229,13 +1599,11 @@ export default function PayslipPage() {
                       <td style={tdStyle}>
                         {row.reservationStatus ? (
                           isCancelledStatus(row.reservationStatus) || isNoShowStatus(row.reservationStatus) ? (
-                            <span style={badgeStyle(row.reservationStatus, "#fecaca")}>
-                              {row.reservationStatus}
-                            </span>
+                            <span style={badgeStyle("#fecaca")}>{row.reservationStatus}</span>
+                          ) : isCompletedStatus(row.reservationStatus) ? (
+                            <span style={badgeStyle("#86efac")}>{row.reservationStatus}</span>
                           ) : (
-                            <span style={badgeStyle(row.reservationStatus, "#cbd5e1")}>
-                              {row.reservationStatus}
-                            </span>
+                            <span style={badgeStyle("#cbd5e1")}>{row.reservationStatus}</span>
                           )
                         ) : (
                           "—"
@@ -1244,11 +1612,11 @@ export default function PayslipPage() {
                       <td style={tdStyle}>
                         {row.accountingType ? (
                           row.accountingType === "前受金" ? (
-                            <span style={badgeStyle("前受金", "#fcd34d")}>前受金</span>
+                            <span style={badgeStyle("#fcd34d")}>前受金</span>
                           ) : row.accountingType === "回数券消化" ? (
-                            <span style={badgeStyle("回数券消化", "#a5b4fc")}>回数券消化</span>
+                            <span style={badgeStyle("#a5b4fc")}>回数券消化</span>
                           ) : (
-                            <span style={badgeStyle("通常売上", "#86efac")}>通常売上</span>
+                            <span style={badgeStyle("#86efac")}>通常売上</span>
                           )
                         ) : (
                           "—"
@@ -1258,15 +1626,20 @@ export default function PayslipPage() {
                       <td style={{ ...tdStyle, fontWeight: 900 }}>
                         {row.kind === "sale" ? formatCurrency(row.amount) : "—"}
                       </td>
-                      <td style={{ ...tdStyle, color: row.nominationFee > 0 ? "#fbbf24" : "#f8fafc", fontWeight: 900 }}>
+                      <td
+                        style={{
+                          ...tdStyle,
+                          color: row.nominationFee > 0 ? "#fbbf24" : "#f8fafc",
+                          fontWeight: 900,
+                        }}
+                      >
                         {row.nominationFee > 0 ? formatCurrency(row.nominationFee) : "—"}
                       </td>
                       <td style={tdStyle}>
-                        {row.isRepeat ? (
-                          <span style={badgeStyle("あり", "#fde68a")}>あり</span>
-                        ) : (
-                          "—"
-                        )}
+                        {row.isNew ? <span style={badgeStyle("#bfdbfe")}>新規</span> : "—"}
+                      </td>
+                      <td style={tdStyle}>
+                        {row.isRepeat ? <span style={badgeStyle("#fde68a")}>あり</span> : "—"}
                       </td>
                       <td style={tdStyle}>{row.reservationId ?? "—"}</td>
                       <td style={{ ...tdStyle, whiteSpace: "pre-wrap", minWidth: "260px" }}>
