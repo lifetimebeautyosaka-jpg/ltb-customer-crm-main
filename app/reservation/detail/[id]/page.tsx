@@ -84,97 +84,6 @@ type CustomerTicketRow = {
   created_at?: string | null;
 };
 
-type EditForm = {
-  date: string;
-  start_time: string;
-  end_time: string;
-  store_name: string;
-  staff_name: string;
-  menu: string;
-  payment_method: string;
-  memo: string;
-  visit_type: string;
-  reservation_status: string;
-};
-
-const STAFF_OPTIONS = [
-  "山口",
-  "中西",
-  "池田",
-  "羽田",
-  "石川",
-  "菱谷",
-  "林",
-  "井上",
-  "その他",
-  "未設定",
-];
-
-const STORE_OPTIONS = [
-  "江戸堀",
-  "箕面",
-  "福島",
-  "福島P",
-  "天満橋",
-  "中崎町",
-  "江坂",
-  "未設定",
-];
-
-const PAYMENT_OPTIONS = ["現金", "カード", "銀行振込", "その他", "未設定"];
-const VISIT_TYPE_OPTIONS = ["新規", "再来"];
-const RESERVATION_STATUS_OPTIONS = [
-  "予約",
-  "予約済",
-  "来店",
-  "売上済",
-  "キャンセル",
-  "変更",
-  "変更済",
-  "無断キャンセル",
-];
-
-const MENU_OPTIONS = [
-  "ストレッチ",
-  "トレーニング",
-  "ストレッチ回数券",
-  "トレーニング回数券",
-  "ペアトレ",
-  "ヘッドスパ",
-  "アロマ",
-  "その他",
-  "40分4回_旧",
-  "40分8回_旧",
-  "40分12回_旧",
-  "60分4回_旧",
-  "60分8回_旧",
-  "60分12回_旧",
-  "80分4回_旧",
-  "80分8回_旧",
-  "80分12回_旧",
-  "120分4回_旧",
-  "120分8回_旧",
-  "120分12回_旧",
-  "40分4回_新",
-  "40分8回_新",
-  "40分12回_新",
-  "60分4回_新",
-  "60分8回_新",
-  "60分12回_新",
-  "80分4回_新",
-  "80分8回_新",
-  "80分12回_新",
-  "120分4回_新",
-  "120分8回_新",
-  "120分12回_新",
-  "ダイエット16回",
-  "ゴールド24回",
-  "プラチナ32回",
-  "月2回",
-  "月4回",
-  "月8回",
-];
-
 function trimmed(value: unknown): string {
   if (value === null || value === undefined) return "";
   return String(value).trim();
@@ -361,21 +270,6 @@ function extractErrorMessage(error: unknown): string {
   return "不明なエラーです。";
 }
 
-function createEditForm(item: ReservationRow): EditForm {
-  return {
-    date: trimmed(item.date),
-    start_time: trimmed(item.start_time),
-    end_time: trimmed(item.end_time),
-    store_name: trimmed(item.store_name) || "未設定",
-    staff_name: trimmed(item.staff_name) || "未設定",
-    menu: trimmed(item.menu),
-    payment_method: trimmed(item.payment_method) || "未設定",
-    memo: trimmed(item.memo),
-    visit_type: getVisitTypeLabel(item) === "—" ? "再来" : getVisitTypeLabel(item),
-    reservation_status: trimmed(item.reservation_status) || "予約",
-  };
-}
-
 export default function ReservationDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -385,8 +279,6 @@ export default function ReservationDetailPage() {
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -395,18 +287,6 @@ export default function ReservationDetailPage() {
   const [counselings, setCounselings] = useState<CounselingRow[]>([]);
   const [ticketUsages, setTicketUsages] = useState<TicketUsageRow[]>([]);
   const [customerTickets, setCustomerTickets] = useState<CustomerTicketRow[]>([]);
-  const [editForm, setEditForm] = useState<EditForm>({
-    date: "",
-    start_time: "",
-    end_time: "",
-    store_name: "未設定",
-    staff_name: "未設定",
-    menu: "",
-    payment_method: "未設定",
-    memo: "",
-    visit_type: "再来",
-    reservation_status: "予約",
-  });
 
   useEffect(() => {
     setMounted(true);
@@ -463,7 +343,6 @@ export default function ReservationDetailPage() {
 
       const reservationRow = reservationData as ReservationRow;
       setReservation(reservationRow);
-      setEditForm(createEditForm(reservationRow));
 
       const customerId = toNumberOrNull(reservationRow.customer_id);
       const serviceType = detectServiceTypeFromMenu(reservationRow.menu);
@@ -523,92 +402,6 @@ export default function ReservationDetailPage() {
       setError(extractErrorMessage(e));
     } finally {
       setLoading(false);
-    }
-  }
-
-  function handleStartEdit() {
-    if (!reservation) return;
-    setEditForm(createEditForm(reservation));
-    setIsEditing(true);
-    setError("");
-    setSuccess("");
-  }
-
-  function handleCancelEdit() {
-    if (!reservation) return;
-    setEditForm(createEditForm(reservation));
-    setIsEditing(false);
-    setError("");
-  }
-
-  async function handleSaveEdit() {
-    if (!supabase || !reservation) return;
-
-    const reservationIdNum = toNumberOrNull(reservation.id);
-    if (reservationIdNum === null) {
-      setError("予約IDが不正です。");
-      return;
-    }
-
-    if (!trimmed(editForm.date)) {
-      setError("日付を入力してください。");
-      return;
-    }
-
-    if (!trimmed(editForm.start_time)) {
-      setError("開始時間を入力してください。");
-      return;
-    }
-
-    if (!trimmed(editForm.staff_name)) {
-      setError("担当を入力してください。");
-      return;
-    }
-
-    if (!trimmed(editForm.store_name)) {
-      setError("店舗を入力してください。");
-      return;
-    }
-
-    if (!trimmed(editForm.menu)) {
-      setError("メニューを選択してください。");
-      return;
-    }
-
-    try {
-      setSaving(true);
-      setError("");
-      setSuccess("");
-
-      const payload = {
-        date: trimmed(editForm.date) || null,
-        start_time: trimmed(editForm.start_time) || null,
-        end_time: trimmed(editForm.end_time) || null,
-        store_name: trimmed(editForm.store_name) || null,
-        staff_name: trimmed(editForm.staff_name) || null,
-        menu: trimmed(editForm.menu) || null,
-        payment_method: trimmed(editForm.payment_method) || null,
-        memo: trimmed(editForm.memo) || null,
-        visit_type: trimmed(editForm.visit_type) || null,
-        reservation_status: trimmed(editForm.reservation_status) || null,
-        is_first_visit: trimmed(editForm.visit_type) === "新規",
-      };
-
-      const { error: updateError } = await supabase
-        .from("reservations")
-        .update(payload)
-        .eq("id", reservationIdNum);
-
-      if (updateError) throw updateError;
-
-      await loadDetail();
-      setIsEditing(false);
-      setSuccess("予約を更新しました。");
-    } catch (e) {
-      console.error(e);
-      setError(`予約更新エラー: ${extractErrorMessage(e)}`);
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -748,6 +541,53 @@ export default function ReservationDetailPage() {
     return customerTickets.find((ticket) => Number(ticket.remaining_count || 0) > 0);
   }, [customerTickets]);
 
+  const ticketNumbering = useMemo(() => {
+    if (!reservation) return null;
+
+    const customerId = trimmed(reservation.customer_id);
+    if (!customerId) return null;
+
+    const serviceTypeKey = detectServiceTypeFromMenu(reservation.menu);
+
+    const filtered = customerTickets
+      .filter((ticket) => {
+        const ticketCustomerId = trimmed(ticket.customer_id);
+        const ticketServiceType = trimmed(ticket.service_type);
+        return (
+          ticketCustomerId === customerId &&
+          (!ticketServiceType || ticketServiceType === serviceTypeKey)
+        );
+      })
+      .sort((a, b) => {
+        const aRemaining = Number(a.remaining_count || 0);
+        const bRemaining = Number(b.remaining_count || 0);
+        if (bRemaining !== aRemaining) return bRemaining - aRemaining;
+
+        const aCreated = new Date(trimmed(a.created_at) || 0).getTime();
+        const bCreated = new Date(trimmed(b.created_at) || 0).getTime();
+        return bCreated - aCreated;
+      });
+
+    if (filtered.length === 0) return null;
+
+    const ticket = filtered[0];
+    const total = Number(ticket.total_count || 0);
+    const remaining = Number(ticket.remaining_count || 0);
+    const used = total - remaining;
+
+    if (total <= 0) return null;
+
+    return {
+      label: `${total}-${used}`,
+      isFinished: used >= total,
+      isWarning: used === total - 1,
+      total,
+      remaining,
+      used,
+      ticketName: trimmed(ticket.ticket_name) || "回数券",
+    };
+  }, [reservation, customerTickets]);
+
   const pendingFlags = useMemo(() => {
     return {
       salesPending: !isSold,
@@ -755,12 +595,6 @@ export default function ReservationDetailPage() {
       ticketPending: isTicketReservation && !isTicketUsed,
     };
   }, [isSold, isCounseled, isTicketReservation, isTicketUsed, reservation]);
-
-  const menuOptionsForSelect = useMemo(() => {
-    const current = trimmed(editForm.menu);
-    if (!current) return MENU_OPTIONS;
-    return MENU_OPTIONS.includes(current) ? MENU_OPTIONS : [current, ...MENU_OPTIONS];
-  }, [editForm.menu]);
 
   if (!mounted) return null;
 
@@ -792,52 +626,20 @@ export default function ReservationDetailPage() {
                 戻る
               </button>
 
-              {!isEditing && reservation ? (
-                <button type="button" onClick={handleStartEdit} style={styles.editBtn}>
-                  画面で編集
-                </button>
-              ) : null}
-
-              {isEditing ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleSaveEdit}
-                    disabled={saving}
-                    style={{
-                      ...styles.saveBtn,
-                      opacity: saving ? 0.7 : 1,
-                      cursor: saving ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    {saving ? "保存中..." : "保存"}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleCancelEdit}
-                    disabled={saving}
-                    style={styles.cancelEditBtn}
-                  >
-                    編集取消
-                  </button>
-                </>
-              ) : null}
-
               {reservation ? (
                 <Link href={`/reservation/edit/${reservation.id}`} style={styles.editLink}>
-                  編集ページ
+                  編集
                 </Link>
               ) : null}
 
               <button
                 type="button"
                 onClick={handleDeleteReservation}
-                disabled={deleting || !reservation || saving}
+                disabled={deleting || !reservation}
                 style={{
                   ...styles.deleteBtn,
-                  opacity: deleting || saving ? 0.7 : 1,
-                  cursor: deleting || saving ? "not-allowed" : "pointer",
+                  opacity: deleting ? 0.7 : 1,
+                  cursor: deleting ? "not-allowed" : "pointer",
                 }}
               >
                 {deleting ? "削除中..." : "削除"}
@@ -971,33 +773,18 @@ export default function ReservationDetailPage() {
                   </button>
                 )}
 
-                {!isEditing ? (
-                  <button type="button" onClick={handleStartEdit} style={styles.actionEdit}>
-                    予約編集
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleSaveEdit}
-                    disabled={saving}
-                    style={{
-                      ...styles.actionSave,
-                      opacity: saving ? 0.7 : 1,
-                      cursor: saving ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    {saving ? "保存中..." : "変更を保存"}
-                  </button>
-                )}
+                <Link href={`/reservation/edit/${reservation.id}`} style={styles.actionEdit}>
+                  予約編集
+                </Link>
 
                 <button
                   type="button"
                   onClick={handleDeleteReservation}
-                  disabled={deleting || saving}
+                  disabled={deleting}
                   style={{
                     ...styles.actionDelete,
-                    opacity: deleting || saving ? 0.7 : 1,
-                    cursor: deleting || saving ? "not-allowed" : "pointer",
+                    opacity: deleting ? 0.7 : 1,
+                    cursor: deleting ? "not-allowed" : "pointer",
                   }}
                 >
                   {deleting ? "削除中..." : "予約削除"}
@@ -1008,7 +795,6 @@ export default function ReservationDetailPage() {
             <section style={styles.card}>
               <div style={styles.sectionHeader}>
                 <h2 style={styles.sectionTitle}>予約情報</h2>
-                {isEditing ? <div style={styles.editModeChip}>編集中</div> : null}
               </div>
 
               <div style={styles.infoGrid}>
@@ -1019,232 +805,122 @@ export default function ReservationDetailPage() {
 
                 <div style={styles.infoItem}>
                   <span style={styles.infoLabel}>日付</span>
-                  {isEditing ? (
-                    <input
-                      type="date"
-                      value={editForm.date}
-                      onChange={(e) =>
-                        setEditForm((prev) => ({ ...prev, date: e.target.value }))
-                      }
-                      style={styles.input}
-                    />
-                  ) : (
-                    <span style={styles.infoValue}>{formatDateJP(reservation.date)}</span>
-                  )}
+                  <span style={styles.infoValue}>{formatDateJP(reservation.date)}</span>
                 </div>
 
                 <div style={styles.infoItem}>
-                  <span style={styles.infoLabel}>開始時間</span>
-                  {isEditing ? (
-                    <input
-                      type="time"
-                      value={editForm.start_time}
-                      onChange={(e) =>
-                        setEditForm((prev) => ({ ...prev, start_time: e.target.value }))
-                      }
-                      style={styles.input}
-                    />
-                  ) : (
-                    <span style={styles.infoValue}>
-                      {trimmed(reservation.start_time) || "--:--"}
-                    </span>
-                  )}
-                </div>
-
-                <div style={styles.infoItem}>
-                  <span style={styles.infoLabel}>終了時間</span>
-                  {isEditing ? (
-                    <input
-                      type="time"
-                      value={editForm.end_time}
-                      onChange={(e) =>
-                        setEditForm((prev) => ({ ...prev, end_time: e.target.value }))
-                      }
-                      style={styles.input}
-                    />
-                  ) : (
-                    <span style={styles.infoValue}>
-                      {trimmed(reservation.end_time) || "--:--"}
-                    </span>
-                  )}
-                </div>
-
-                <div style={styles.infoItem}>
-                  <span style={styles.infoLabel}>顧客</span>
+                  <span style={styles.infoLabel}>時間</span>
                   <span style={styles.infoValue}>
-                    {trimmed(reservation.customer_name) || "未設定"}
+                    {trimmed(reservation.start_time) || "--:--"}
+                    {trimmed(reservation.end_time) ? ` 〜 ${trimmed(reservation.end_time)}` : ""}
                   </span>
                 </div>
 
                 <div style={styles.infoItem}>
+                  <span style={styles.infoLabel}>顧客</span>
+                  <div style={styles.customerValueWrap}>
+                    <span style={styles.infoValue}>
+                      {trimmed(reservation.customer_name) || "未設定"}
+                    </span>
+
+                    {ticketNumbering ? (
+                      <span
+                        style={{
+                          ...styles.ticketNumberBadge,
+                          background: ticketNumbering.isFinished
+                            ? "#fee2e2"
+                            : ticketNumbering.isWarning
+                            ? "#fef3c7"
+                            : "#fff7ed",
+                          color: ticketNumbering.isFinished
+                            ? "#dc2626"
+                            : ticketNumbering.isWarning
+                            ? "#b45309"
+                            : "#c2410c",
+                          borderColor: ticketNumbering.isFinished
+                            ? "#ef4444"
+                            : ticketNumbering.isWarning
+                            ? "#f59e0b"
+                            : "#fb923c",
+                        }}
+                      >
+                        {ticketNumbering.label}
+                      </span>
+                    ) : null}
+
+                    {ticketNumbering?.isFinished ? (
+                      <span style={styles.renewAlertBadge}>更新</span>
+                    ) : null}
+                  </div>
+
+                  {ticketNumbering?.isFinished ? (
+                    <div style={styles.renewMessageInline}>
+                      回数券が満了です。支払い更新の案内が必要です。
+                    </div>
+                  ) : ticketNumbering?.isWarning ? (
+                    <div style={styles.warningMessageInline}>
+                      次回で満了予定です。更新案内の準備をおすすめします。
+                    </div>
+                  ) : null}
+                </div>
+
+                <div style={styles.infoItem}>
                   <span style={styles.infoLabel}>来店区分</span>
-                  {isEditing ? (
-                    <select
-                      value={editForm.visit_type}
-                      onChange={(e) =>
-                        setEditForm((prev) => ({ ...prev, visit_type: e.target.value }))
-                      }
-                      style={styles.select}
-                    >
-                      {VISIT_TYPE_OPTIONS.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span style={styles.infoValue}>{getVisitTypeLabel(reservation)}</span>
-                  )}
+                  <span style={styles.infoValue}>{getVisitTypeLabel(reservation)}</span>
                 </div>
 
                 <div style={styles.infoItem}>
                   <span style={styles.infoLabel}>メニュー</span>
-                  {isEditing ? (
-                    <select
-                      value={editForm.menu}
-                      onChange={(e) =>
-                        setEditForm((prev) => ({ ...prev, menu: e.target.value }))
-                      }
-                      style={styles.select}
-                    >
-                      <option value="">選択してください</option>
-                      {menuOptionsForSelect.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span style={styles.infoValue}>
-                      {trimmed(reservation.menu) || "未設定"}
-                    </span>
-                  )}
+                  <span style={styles.infoValue}>
+                    {trimmed(reservation.menu) || "未設定"}
+                  </span>
                 </div>
 
                 <div style={styles.infoItem}>
                   <span style={styles.infoLabel}>店舗</span>
-                  {isEditing ? (
-                    <select
-                      value={editForm.store_name}
-                      onChange={(e) =>
-                        setEditForm((prev) => ({ ...prev, store_name: e.target.value }))
-                      }
-                      style={styles.select}
-                    >
-                      {STORE_OPTIONS.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span
-                      style={{
-                        ...styles.infoValueBadge,
-                        background: getStoreColor(reservation.store_name),
-                      }}
-                    >
-                      {trimmed(reservation.store_name) || "未設定"}
-                    </span>
-                  )}
+                  <span
+                    style={{
+                      ...styles.infoValueBadge,
+                      background: getStoreColor(reservation.store_name),
+                    }}
+                  >
+                    {trimmed(reservation.store_name) || "未設定"}
+                  </span>
                 </div>
 
                 <div style={styles.infoItem}>
                   <span style={styles.infoLabel}>担当</span>
-                  {isEditing ? (
-                    <select
-                      value={editForm.staff_name}
-                      onChange={(e) =>
-                        setEditForm((prev) => ({ ...prev, staff_name: e.target.value }))
-                      }
-                      style={styles.select}
-                    >
-                      {STAFF_OPTIONS.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span
-                      style={{
-                        ...styles.infoValueBadge,
-                        background: getStaffColor(reservation.staff_name),
-                      }}
-                    >
-                      {trimmed(reservation.staff_name) || "未設定"}
-                    </span>
-                  )}
+                  <span
+                    style={{
+                      ...styles.infoValueBadge,
+                      background: getStaffColor(reservation.staff_name),
+                    }}
+                  >
+                    {trimmed(reservation.staff_name) || "未設定"}
+                  </span>
                 </div>
 
                 <div style={styles.infoItem}>
                   <span style={styles.infoLabel}>支払方法</span>
-                  {isEditing ? (
-                    <select
-                      value={editForm.payment_method}
-                      onChange={(e) =>
-                        setEditForm((prev) => ({
-                          ...prev,
-                          payment_method: e.target.value,
-                        }))
-                      }
-                      style={styles.select}
-                    >
-                      {PAYMENT_OPTIONS.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span style={styles.infoValue}>
-                      {trimmed(reservation.payment_method) || "未設定"}
-                    </span>
-                  )}
+                  <span style={styles.infoValue}>
+                    {trimmed(reservation.payment_method) || "未設定"}
+                  </span>
                 </div>
 
                 <div style={styles.infoItem}>
                   <span style={styles.infoLabel}>予約ステータス</span>
-                  {isEditing ? (
-                    <select
-                      value={editForm.reservation_status}
-                      onChange={(e) =>
-                        setEditForm((prev) => ({
-                          ...prev,
-                          reservation_status: e.target.value,
-                        }))
-                      }
-                      style={styles.select}
-                    >
-                      {RESERVATION_STATUS_OPTIONS.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span style={styles.infoValue}>
-                      {trimmed(reservation.reservation_status) || "未設定"}
-                    </span>
-                  )}
+                  <span style={styles.infoValue}>
+                    {trimmed(reservation.reservation_status) || "未設定"}
+                  </span>
                 </div>
               </div>
 
-              <div style={styles.memoBox}>
-                <div style={styles.memoTitle}>メモ</div>
-                {isEditing ? (
-                  <textarea
-                    value={editForm.memo}
-                    onChange={(e) =>
-                      setEditForm((prev) => ({ ...prev, memo: e.target.value }))
-                    }
-                    style={styles.textarea}
-                    rows={5}
-                  />
-                ) : (
-                  <div style={styles.memoText}>{trimmed(reservation.memo) || "—"}</div>
-                )}
-              </div>
+              {trimmed(reservation.memo) ? (
+                <div style={styles.memoBox}>
+                  <div style={styles.memoTitle}>メモ</div>
+                  <div style={styles.memoText}>{trimmed(reservation.memo)}</div>
+                </div>
+              ) : null}
             </section>
 
             <section
@@ -1555,35 +1231,6 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 800,
     cursor: "pointer",
   },
-  editBtn: {
-    border: "none",
-    background: "linear-gradient(135deg, #0f766e, #0d9488)",
-    color: "#fff",
-    borderRadius: 14,
-    padding: "10px 14px",
-    fontSize: 13,
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  saveBtn: {
-    border: "none",
-    background: "linear-gradient(135deg, #16a34a, #15803d)",
-    color: "#fff",
-    borderRadius: 14,
-    padding: "10px 14px",
-    fontSize: 13,
-    fontWeight: 800,
-  },
-  cancelEditBtn: {
-    border: "1px solid #e2e8f0",
-    background: "#fff",
-    color: "#334155",
-    borderRadius: 14,
-    padding: "10px 14px",
-    fontSize: 13,
-    fontWeight: 800,
-    cursor: "pointer",
-  },
   editLink: {
     display: "inline-flex",
     alignItems: "center",
@@ -1739,17 +1386,6 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 900,
     color: "#0f172a",
   },
-  editModeChip: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "#dcfce7",
-    color: "#166534",
-    borderRadius: 999,
-    padding: "7px 12px",
-    fontSize: 12,
-    fontWeight: 900,
-  },
   actionGrid: {
     display: "flex",
     gap: 10,
@@ -1786,18 +1422,12 @@ const styles: Record<string, CSSProperties> = {
     cursor: "not-allowed",
   },
   actionEdit: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    textDecoration: "none",
     border: "none",
     background: "linear-gradient(135deg, #0f766e, #0d9488)",
-    color: "#fff",
-    borderRadius: 14,
-    padding: "11px 16px",
-    fontWeight: 900,
-    fontSize: 13,
-    cursor: "pointer",
-  },
-  actionSave: {
-    border: "none",
-    background: "linear-gradient(135deg, #16a34a, #15803d)",
     color: "#fff",
     borderRadius: 14,
     padding: "11px 16px",
@@ -1852,6 +1482,55 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 800,
     lineHeight: 1.6,
   },
+  customerValueWrap: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  ticketNumberBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 999,
+    padding: "4px 10px",
+    fontSize: 12,
+    fontWeight: 900,
+    border: "2px solid",
+    lineHeight: 1,
+  },
+  renewAlertBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "#dc2626",
+    color: "#fff",
+    borderRadius: 999,
+    padding: "4px 8px",
+    fontSize: 11,
+    fontWeight: 900,
+    lineHeight: 1,
+  },
+  renewMessageInline: {
+    marginTop: 6,
+    background: "#fee2e2",
+    color: "#991b1b",
+    borderRadius: 10,
+    padding: "8px 10px",
+    fontSize: 12,
+    fontWeight: 800,
+    lineHeight: 1.6,
+  },
+  warningMessageInline: {
+    marginTop: 6,
+    background: "#fef3c7",
+    color: "#92400e",
+    borderRadius: 10,
+    padding: "8px 10px",
+    fontSize: 12,
+    fontWeight: 800,
+    lineHeight: 1.6,
+  },
   infoValueBadge: {
     display: "inline-flex",
     alignItems: "center",
@@ -1862,44 +1541,6 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 12,
     fontWeight: 900,
     width: "fit-content",
-  },
-  input: {
-    width: "100%",
-    height: 40,
-    borderRadius: 10,
-    border: "1px solid #cbd5e1",
-    background: "#fff",
-    padding: "0 10px",
-    fontSize: 14,
-    color: "#0f172a",
-    outline: "none",
-    boxSizing: "border-box",
-  },
-  select: {
-    width: "100%",
-    height: 40,
-    borderRadius: 10,
-    border: "1px solid #cbd5e1",
-    background: "#fff",
-    padding: "0 10px",
-    fontSize: 14,
-    color: "#0f172a",
-    outline: "none",
-    boxSizing: "border-box",
-  },
-  textarea: {
-    width: "100%",
-    minHeight: 120,
-    borderRadius: 12,
-    border: "1px solid #cbd5e1",
-    background: "#fff",
-    padding: 12,
-    fontSize: 14,
-    color: "#0f172a",
-    outline: "none",
-    boxSizing: "border-box",
-    resize: "vertical",
-    lineHeight: 1.7,
   },
   memoBox: {
     marginTop: 14,
