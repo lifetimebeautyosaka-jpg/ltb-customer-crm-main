@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createClient } from "@supabase/supabase-js";
+import * as XLSX from "xlsx";
+
 
 type Customer = {
   id: string | number;
@@ -2673,7 +2675,90 @@ const [nominationFee, setNominationFee] = useState("1000");
       );
     }
   };
+const exportStaffCsv = () => {
+  if (filteredSales.length === 0) {
+    alert("出力する売上データがありません");
+    return;
+  }
 
+  const rows = [
+    [
+      "スタッフ",
+      "日付",
+      "顧客名",
+      "メニュー",
+      "サービス",
+      "会計区分",
+      "支払方法",
+      "金額",
+      "店舗",
+      "予約ID",
+      "メモ",
+    ].map(toCsvValue).join(","),
+    ...filteredSales.map((sale) =>
+      [
+        sale.staff || "未設定",
+        sale.date,
+        sale.customerName,
+        sale.menuName,
+        sale.serviceType,
+        sale.accountingType,
+        sale.paymentMethod,
+        sale.amount,
+        sale.storeName,
+        sale.reservationId ?? "",
+        sale.note.replace(/\n/g, " / "),
+      ].map(toCsvValue).join(",")
+    ),
+  ];
+
+  const blob = new Blob(["\uFEFF" + rows.join("\n")], {
+    type: "text/csv;charset=utf-8;",
+  });
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `staff_sales_${todayString()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+const exportStaffExcel = () => {
+  if (filteredSales.length === 0) {
+    alert("出力する売上データがありません");
+    return;
+  }
+
+  const grouped: Record<string, any[]> = {};
+
+  filteredSales.forEach((sale) => {
+    const key = sale.staff || "未設定";
+    if (!grouped[key]) grouped[key] = [];
+
+    grouped[key].push({
+      日付: sale.date,
+      顧客名: sale.customerName,
+      メニュー: sale.menuName,
+      サービス: sale.serviceType,
+      会計区分: sale.accountingType,
+      支払方法: sale.paymentMethod,
+      金額: sale.amount,
+      店舗: sale.storeName,
+      予約ID: sale.reservationId ?? "",
+      メモ: sale.note,
+    });
+  });
+
+  const wb = XLSX.utils.book_new();
+
+  Object.entries(grouped).forEach(([staff, list]) => {
+    const ws = XLSX.utils.json_to_sheet(list);
+    XLSX.utils.book_append_sheet(wb, ws, staff);
+  });
+
+  XLSX.writeFile(wb, `staff_sales_${todayString()}.xlsx`);
+};
   const exportSalesCsv = () => {
     if (filteredSales.length === 0) {
       alert("出力する売上データがありません");
@@ -3020,6 +3105,21 @@ const [nominationFee, setNominationFee] = useState("1000");
                 style={secondaryButtonStyle}
               >
                 CSV出力
+                <button
+  type="button"
+  onClick={exportStaffCsv}
+  style={secondaryButtonStyle}
+>
+  スタッフCSV
+</button>
+
+<button
+  type="button"
+  onClick={exportStaffExcel}
+  style={secondaryButtonStyle}
+>
+  スタッフExcel
+</button>
               </button>
             </div>
           </div>
