@@ -1171,11 +1171,30 @@ export default function ReservationPage() {
     if (totalCount <= 0) return null;
 
     const reservationId = toIdNumber(item.id);
-    const alreadyUsed = usedCount > 0;
 
-    const currentNumber = Math.min(usedCount + 1, totalCount);
+
+const alreadyUsed =
+  reservationId !== null &&
+  ticketUsedReservationIdSet.has(reservationId);
+
+    const currentNumber = alreadyUsed
+  ? Math.min(usedCount, totalCount)
+  : Math.min(usedCount + 1, totalCount);
     const isDanger = currentNumber >= totalCount;
     const isWarning = !isDanger && currentNumber === totalCount - 1;
+    console.log({
+  usedCount,
+  totalCount,
+  alreadyUsed,
+  reservationId
+});
+
+return {
+  label: `${totalCount}-${currentNumber}`,
+  tone: isDanger ? "danger" : isWarning ? "warning" : "normal",
+  showUpdate: isDanger,
+  showPaymentAlert: isDanger,
+};
 
     return {
       label: `${totalCount}-${currentNumber}`,
