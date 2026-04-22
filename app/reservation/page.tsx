@@ -1171,8 +1171,7 @@ export default function ReservationPage() {
     if (totalCount <= 0) return null;
 
     const reservationId = toIdNumber(item.id);
-    const alreadyUsed =
-      reservationId !== null && ticketUsedReservationIdSet.has(reservationId);
+    const alreadyUsed = usedCount > 0;
 
     const currentNumber = alreadyUsed
   ? Math.min(Math.max(usedCount, 1), totalCount)
