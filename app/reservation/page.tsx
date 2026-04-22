@@ -1188,8 +1188,7 @@ export default function ReservationPage() {
       showPaymentAlert: isDanger,
     };
   }
-
-  function openDay(dateStr: string) {
+    function openDay(dateStr: string) {
     setSelectedDate(dateStr);
     setDaySheetOpen(true);
   }
@@ -1273,9 +1272,9 @@ export default function ReservationPage() {
       .limit(1)
       .maybeSingle();
 
-    if (nameMatchError) {
-      console.warn(nameMatchError);
-    }
+      if (nameMatchError) {
+        console.warn(nameMatchError);
+      }
 
     if (nameMatch) {
       return String((nameMatch as CustomerRow).id);
@@ -2025,8 +2024,7 @@ export default function ReservationPage() {
               placeholder={searchMode === "customer" ? "名前・かな・電話で検索" : "スタッフ名で検索"}
               style={styles.searchInput}
             />
-
-            {searchMode === "customer" && filteredCustomerSearchResults.length > 0 ? (
+                        {searchMode === "customer" && filteredCustomerSearchResults.length > 0 ? (
               <div style={styles.searchResultList}>
                 {filteredCustomerSearchResults.map((c) => (
                   <button
@@ -2327,6 +2325,30 @@ export default function ReservationPage() {
                     const actionOpened = openedActionReservationIds.includes(String(item.id));
                     const ticketNumbering = getTicketNumberingForReservation(item);
 
+                    const ticketLabelStyle: CSSProperties = {
+                      fontSize: 11,
+                      fontWeight: 800,
+                      lineHeight: 1,
+                      padding: "4px 7px",
+                      borderRadius: 999,
+                      whiteSpace: "nowrap",
+                      border: "1px solid #cbd5e1",
+                      background: "#f8fafc",
+                      color: "#475569",
+                    };
+
+                    if (ticketNumbering?.tone === "warning") {
+                      ticketLabelStyle.background = "#fef3c7";
+                      ticketLabelStyle.color = "#92400e";
+                      ticketLabelStyle.border = "1px solid #f59e0b";
+                    }
+
+                    if (ticketNumbering?.tone === "danger") {
+                      ticketLabelStyle.background = "#fee2e2";
+                      ticketLabelStyle.color = "#b91c1c";
+                      ticketLabelStyle.border = "1px solid #ef4444";
+                    }
+
                     return (
                       <div
                         key={String(item.id)}
@@ -2355,24 +2377,11 @@ export default function ReservationPage() {
                                   </span>
 
                                   {ticketNumbering ? (
-  <span
-    style={{
-      fontSize: 12,
-      color:
-        ticketNumbering.tone === "danger"
-          ? "#dc2626"
-          : ticketNumbering.tone === "warning"
-          ? "#b45309"
-          : "#475569",
-      fontWeight: 700,
-    }}
-  >
-    {ticketNumbering.label}
-    {ticketNumbering.showUpdate ? " 更新" : ""}
-  </span>
-) : null}
-
-                                  
+                                    <span style={ticketLabelStyle}>
+                                      {ticketNumbering.label}
+                                      {ticketNumbering.showUpdate ? " 更新" : ""}
+                                    </span>
+                                  ) : null}
                                 </div>
                               </div>
 
