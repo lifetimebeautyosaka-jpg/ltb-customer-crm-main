@@ -2353,28 +2353,12 @@ export default function ReservationPage() {
                                   <span style={styles.timelineTitleCompact}>
                                     {trimmed(item.customer_name) || "顧客名未設定"}
                                   </span>
+                                  
+                                  <span style={{ fontSize: 12, color: "#dc2626" }}>
+  12-11
+</span>
 
-                                  {ticketNumbering ? (
-                                    <>
-                                      <span
-                                        style={{
-                                          ...styles.ticketNumberBadgeCompact,
-                                          ...(ticketNumbering.tone === "warning"
-                                            ? styles.ticketNumberBadgeWarningCompact
-                                            : {}),
-                                          ...(ticketNumbering.tone === "danger"
-                                            ? styles.ticketNumberBadgeDangerCompact
-                                            : {}),
-                                        }}
-                                      >
-                                        {ticketNumbering.label}
-                                      </span>
-
-                                      {ticketNumbering.showUpdate ? (
-                                        <span style={styles.ticketUpdateBadgeCompact}>更新</span>
-                                      ) : null}
-                                    </>
-                                  ) : null}
+                                  
                                 </div>
                               </div>
 
