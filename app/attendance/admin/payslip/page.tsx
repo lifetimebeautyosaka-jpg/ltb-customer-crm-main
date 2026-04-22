@@ -1066,22 +1066,22 @@ export default function PayslipPage() {
   const pageStyle: CSSProperties = {
     minHeight: "100vh",
     background: "linear-gradient(180deg, #050816 0%, #0b1120 45%, #111827 100%)",
-    padding: mobile ? "16px 12px 48px" : "24px 18px 60px",
+    padding: mobile ? "12px 10px 40px" : "24px 18px 60px",
   };
 
   const innerStyle: CSSProperties = {
     maxWidth: "1720px",
     margin: "0 auto",
     display: "grid",
-    gap: "18px",
+    gap: "16px",
   };
 
   const cardStyle: CSSProperties = {
     background: "rgba(15,23,42,0.86)",
     border: "1px solid rgba(148,163,184,0.18)",
-    borderRadius: "22px",
+    borderRadius: mobile ? "18px" : "22px",
     boxShadow: "0 18px 50px rgba(0,0,0,0.28)",
-    padding: mobile ? "16px" : "20px",
+    padding: mobile ? "14px" : "20px",
     backdropFilter: "blur(10px)",
   };
 
@@ -1096,16 +1096,16 @@ export default function PayslipPage() {
   const titleStyle: CSSProperties = {
     margin: 0,
     color: "#f8fafc",
-    fontSize: mobile ? "28px" : "36px",
+    fontSize: mobile ? "24px" : "36px",
     fontWeight: 900,
     letterSpacing: "0.02em",
-    lineHeight: 1.1,
+    lineHeight: 1.15,
   };
 
   const subStyle: CSSProperties = {
     marginTop: "8px",
     color: "#94a3b8",
-    fontSize: "14px",
+    fontSize: mobile ? "13px" : "14px",
     lineHeight: 1.7,
   };
 
@@ -1113,6 +1113,7 @@ export default function PayslipPage() {
     display: "flex",
     flexWrap: "wrap",
     gap: "10px",
+    width: mobile ? "100%" : "auto",
   };
 
   const ghostLinkStyle: CSSProperties = {
@@ -1127,6 +1128,7 @@ export default function PayslipPage() {
     border: "1px solid rgba(148,163,184,0.25)",
     color: "#e5e7eb",
     background: "rgba(15,23,42,0.7)",
+    width: mobile ? "100%" : "auto",
   };
 
   const primaryButtonStyle: CSSProperties = {
@@ -1138,17 +1140,19 @@ export default function PayslipPage() {
     color: "#111827",
     background: "linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)",
     cursor: "pointer",
+    width: mobile ? "100%" : "auto",
   };
 
   const softButtonStyle: CSSProperties = {
     border: "1px solid rgba(148,163,184,0.22)",
     borderRadius: "12px",
-    height: "42px",
-    padding: "0 16px",
+    minHeight: "42px",
+    padding: "10px 16px",
     fontWeight: 800,
     color: "#e5e7eb",
     background: "rgba(15,23,42,0.7)",
     cursor: "pointer",
+    width: mobile ? "100%" : "auto",
   };
 
   const inputGridStyle: CSSProperties = {
@@ -1189,13 +1193,14 @@ export default function PayslipPage() {
     border: active ? "none" : "1px solid rgba(148,163,184,0.22)",
     borderRadius: "999px",
     minHeight: "40px",
-    padding: "0 16px",
+    padding: "8px 16px",
     fontWeight: 900,
     color: active ? "#111827" : "#e5e7eb",
     background: active
       ? "linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)"
       : "rgba(15,23,42,0.7)",
     cursor: "pointer",
+    width: mobile ? "calc(50% - 5px)" : "auto",
   });
 
   const pillStyle: CSSProperties = {
@@ -1214,27 +1219,27 @@ export default function PayslipPage() {
 
   const statGridStyle: CSSProperties = {
     display: "grid",
-    gridTemplateColumns: mobile ? "1fr" : tablet ? "repeat(2, 1fr)" : "repeat(7, 1fr)",
+    gridTemplateColumns: mobile ? "repeat(2, 1fr)" : tablet ? "repeat(3, 1fr)" : "repeat(7, 1fr)",
     gap: "12px",
   };
 
   const statCardStyle: CSSProperties = {
     borderRadius: "18px",
-    padding: "18px",
+    padding: mobile ? "14px" : "18px",
     background: "linear-gradient(180deg, rgba(15,23,42,0.92) 0%, rgba(30,41,59,0.82) 100%)",
     border: "1px solid rgba(148,163,184,0.18)",
   };
 
   const statLabelStyle: CSSProperties = {
     color: "#94a3b8",
-    fontSize: "13px",
+    fontSize: "12px",
     fontWeight: 700,
     marginBottom: "10px",
   };
 
   const statValueStyle: CSSProperties = {
     color: "#f8fafc",
-    fontSize: mobile ? "24px" : "28px",
+    fontSize: mobile ? "20px" : "28px",
     fontWeight: 900,
     lineHeight: 1.1,
   };
@@ -1242,20 +1247,22 @@ export default function PayslipPage() {
   const statSubStyle: CSSProperties = {
     marginTop: "8px",
     color: "#cbd5e1",
-    fontSize: "13px",
+    fontSize: "12px",
+    lineHeight: 1.5,
   };
 
   const sectionTitleStyle: CSSProperties = {
     margin: 0,
     color: "#f8fafc",
-    fontSize: mobile ? "20px" : "24px",
+    fontSize: mobile ? "18px" : "24px",
     fontWeight: 900,
   };
 
   const sectionSubStyle: CSSProperties = {
     marginTop: "6px",
     color: "#94a3b8",
-    fontSize: "13px",
+    fontSize: mobile ? "12px" : "13px",
+    lineHeight: 1.6,
   };
 
   const tableWrapStyle: CSSProperties = {
@@ -1268,14 +1275,14 @@ export default function PayslipPage() {
   const tableStyle: CSSProperties = {
     width: "100%",
     borderCollapse: "collapse",
-    minWidth: mobile ? "1440px" : "1780px",
+    minWidth: "1780px",
     background: "rgba(2,6,23,0.58)",
   };
 
   const pairTableStyle: CSSProperties = {
     width: "100%",
     borderCollapse: "collapse",
-    minWidth: mobile ? "1180px" : "1380px",
+    minWidth: "1380px",
     background: "rgba(2,6,23,0.58)",
   };
 
@@ -1311,6 +1318,54 @@ export default function PayslipPage() {
     color,
     background: bg,
   });
+
+  const mobileCardStyle: CSSProperties = {
+    display: "grid",
+    gap: "10px",
+    background: "rgba(2,6,23,0.55)",
+    border: "1px solid rgba(148,163,184,0.14)",
+    borderRadius: "16px",
+    padding: "14px",
+  };
+
+  const mobileCardHeaderStyle: CSSProperties = {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "10px",
+    alignItems: "flex-start",
+  };
+
+  const mobileCardTitleStyle: CSSProperties = {
+    color: "#f8fafc",
+    fontWeight: 900,
+    fontSize: "15px",
+    lineHeight: 1.4,
+  };
+
+  const mobileMetaGridStyle: CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: "8px 10px",
+  };
+
+  const mobileMetaItemStyle: CSSProperties = {
+    display: "grid",
+    gap: "3px",
+  };
+
+  const mobileMetaLabelStyle: CSSProperties = {
+    color: "#94a3b8",
+    fontSize: "11px",
+    fontWeight: 700,
+  };
+
+  const mobileMetaValueStyle: CSSProperties = {
+    color: "#f8fafc",
+    fontSize: "13px",
+    fontWeight: 800,
+    wordBreak: "break-word",
+    lineHeight: 1.45,
+  };
 
   if (!mounted) return null;
 
@@ -1505,7 +1560,7 @@ export default function PayslipPage() {
 
             <div>
               <label style={labelStyle}>CSV出力</label>
-              <button onClick={exportCsv} style={{ ...primaryButtonStyle, width: "100%" }}>
+              <button onClick={exportCsv} style={primaryButtonStyle}>
                 明細CSV出力
               </button>
             </div>
@@ -1598,162 +1653,282 @@ export default function PayslipPage() {
             </div>
           </div>
 
-          <div style={tableWrapStyle}>
-            <table style={pairTableStyle}>
-              <thead>
-                <tr>
-                  <th style={thStyle}>顧客名</th>
-                  <th style={thStyle}>スタッフ</th>
-                  <th style={thStyle}>店舗</th>
-                  <th style={thStyle}>変更前予約ID</th>
-                  <th style={thStyle}>変更前日付</th>
-                  <th style={thStyle}>変更前ステータス</th>
-                  <th style={thStyle}>変更前メモ</th>
-                  <th style={thStyle}>変更後予約ID</th>
-                  <th style={thStyle}>変更後日付</th>
-                  <th style={thStyle}>変更後ステータス</th>
-                  <th style={thStyle}>変更後メモ</th>
-                  <th style={thStyle}>日数差</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td style={tdStyle} colSpan={12}>
-                      読み込み中です...
-                    </td>
-                  </tr>
-                ) : reservationPairs.length === 0 ? (
-                  <tr>
-                    <td style={tdStyle} colSpan={12}>
-                      変更ペアがありません
-                    </td>
-                  </tr>
-                ) : (
-                  reservationPairs.map((pair) => (
-                    <tr key={pair.key}>
-                      <td style={tdStyle}>{pair.customerName}</td>
-                      <td style={tdStyle}>{pair.staff}</td>
-                      <td style={tdStyle}>{pair.storeName}</td>
-                      <td style={tdStyle}>{pair.fromReservation.id}</td>
-                      <td style={tdStyle}>{formatDateJP(pair.fromReservation.date)}</td>
-                      <td style={tdStyle}>
-                        <span style={badgeStyle("#fcd34d")}>{pair.fromReservation.status}</span>
-                      </td>
-                      <td style={{ ...tdStyle, whiteSpace: "pre-wrap", minWidth: "220px" }}>
-                        {pair.fromReservation.memo || "—"}
-                      </td>
-                      <td style={tdStyle}>{pair.toReservation?.id || "未作成"}</td>
-                      <td style={tdStyle}>
-                        {pair.toReservation ? formatDateJP(pair.toReservation.date) : "—"}
-                      </td>
-                      <td style={tdStyle}>
-                        {pair.toReservation ? (
-                          isCompletedStatus(pair.toReservation.status) ? (
-                            <span style={badgeStyle("#86efac")}>{pair.toReservation.status}</span>
-                          ) : isCancelledStatus(pair.toReservation.status) ? (
-                            <span style={badgeStyle("#fecaca")}>{pair.toReservation.status}</span>
-                          ) : isChangedStatus(pair.toReservation.status) ? (
-                            <span style={badgeStyle("#fcd34d")}>{pair.toReservation.status}</span>
+          {mobile ? (
+            <div style={{ display: "grid", gap: "12px", marginTop: "14px" }}>
+              {loading ? (
+                <div style={mobileCardStyle}>読み込み中です...</div>
+              ) : reservationPairs.length === 0 ? (
+                <div style={mobileCardStyle}>変更ペアがありません</div>
+              ) : (
+                reservationPairs.map((pair) => (
+                  <div key={pair.key} style={mobileCardStyle}>
+                    <div style={mobileCardHeaderStyle}>
+                      <div style={mobileCardTitleStyle}>{pair.customerName}</div>
+                      <span style={badgeStyle("#fcd34d")}>変更ペア</span>
+                    </div>
+                    <div style={mobileMetaGridStyle}>
+                      <div style={mobileMetaItemStyle}>
+                        <div style={mobileMetaLabelStyle}>スタッフ</div>
+                        <div style={mobileMetaValueStyle}>{pair.staff}</div>
+                      </div>
+                      <div style={mobileMetaItemStyle}>
+                        <div style={mobileMetaLabelStyle}>店舗</div>
+                        <div style={mobileMetaValueStyle}>{pair.storeName}</div>
+                      </div>
+                      <div style={mobileMetaItemStyle}>
+                        <div style={mobileMetaLabelStyle}>変更前</div>
+                        <div style={mobileMetaValueStyle}>
+                          ID {pair.fromReservation.id}<br />
+                          {formatDateJP(pair.fromReservation.date)}<br />
+                          {pair.fromReservation.status}
+                        </div>
+                      </div>
+                      <div style={mobileMetaItemStyle}>
+                        <div style={mobileMetaLabelStyle}>変更後</div>
+                        <div style={mobileMetaValueStyle}>
+                          {pair.toReservation ? (
+                            <>
+                              ID {pair.toReservation.id}
+                              <br />
+                              {formatDateJP(pair.toReservation.date)}
+                              <br />
+                              {pair.toReservation.status}
+                            </>
                           ) : (
-                            <span style={badgeStyle("#cbd5e1")}>{pair.toReservation.status}</span>
-                          )
-                        ) : (
-                          "—"
-                        )}
+                            "未作成"
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={mobileMetaItemStyle}>
+                      <div style={mobileMetaLabelStyle}>変更前メモ</div>
+                      <div style={mobileMetaValueStyle}>{pair.fromReservation.memo || "—"}</div>
+                    </div>
+                    <div style={mobileMetaItemStyle}>
+                      <div style={mobileMetaLabelStyle}>変更後メモ</div>
+                      <div style={mobileMetaValueStyle}>{pair.toReservation?.memo || "—"}</div>
+                    </div>
+                    <div style={mobileMetaItemStyle}>
+                      <div style={mobileMetaLabelStyle}>日数差</div>
+                      <div style={mobileMetaValueStyle}>{pair.daysDiff ?? "—"}</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : (
+            <div style={tableWrapStyle}>
+              <table style={pairTableStyle}>
+                <thead>
+                  <tr>
+                    <th style={thStyle}>顧客名</th>
+                    <th style={thStyle}>スタッフ</th>
+                    <th style={thStyle}>店舗</th>
+                    <th style={thStyle}>変更前予約ID</th>
+                    <th style={thStyle}>変更前日付</th>
+                    <th style={thStyle}>変更前ステータス</th>
+                    <th style={thStyle}>変更前メモ</th>
+                    <th style={thStyle}>変更後予約ID</th>
+                    <th style={thStyle}>変更後日付</th>
+                    <th style={thStyle}>変更後ステータス</th>
+                    <th style={thStyle}>変更後メモ</th>
+                    <th style={thStyle}>日数差</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td style={tdStyle} colSpan={12}>
+                        読み込み中です...
                       </td>
-                      <td style={{ ...tdStyle, whiteSpace: "pre-wrap", minWidth: "220px" }}>
-                        {pair.toReservation?.memo || "—"}
-                      </td>
-                      <td style={tdStyle}>{pair.daysDiff ?? "—"}</td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ) : reservationPairs.length === 0 ? (
+                    <tr>
+                      <td style={tdStyle} colSpan={12}>
+                        変更ペアがありません
+                      </td>
+                    </tr>
+                  ) : (
+                    reservationPairs.map((pair) => (
+                      <tr key={pair.key}>
+                        <td style={tdStyle}>{pair.customerName}</td>
+                        <td style={tdStyle}>{pair.staff}</td>
+                        <td style={tdStyle}>{pair.storeName}</td>
+                        <td style={tdStyle}>{pair.fromReservation.id}</td>
+                        <td style={tdStyle}>{formatDateJP(pair.fromReservation.date)}</td>
+                        <td style={tdStyle}>
+                          <span style={badgeStyle("#fcd34d")}>{pair.fromReservation.status}</span>
+                        </td>
+                        <td style={{ ...tdStyle, whiteSpace: "pre-wrap", minWidth: "220px" }}>
+                          {pair.fromReservation.memo || "—"}
+                        </td>
+                        <td style={tdStyle}>{pair.toReservation?.id || "未作成"}</td>
+                        <td style={tdStyle}>
+                          {pair.toReservation ? formatDateJP(pair.toReservation.date) : "—"}
+                        </td>
+                        <td style={tdStyle}>
+                          {pair.toReservation ? (
+                            isCompletedStatus(pair.toReservation.status) ? (
+                              <span style={badgeStyle("#86efac")}>{pair.toReservation.status}</span>
+                            ) : isCancelledStatus(pair.toReservation.status) ? (
+                              <span style={badgeStyle("#fecaca")}>{pair.toReservation.status}</span>
+                            ) : isChangedStatus(pair.toReservation.status) ? (
+                              <span style={badgeStyle("#fcd34d")}>{pair.toReservation.status}</span>
+                            ) : (
+                              <span style={badgeStyle("#cbd5e1")}>{pair.toReservation.status}</span>
+                            )
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td style={{ ...tdStyle, whiteSpace: "pre-wrap", minWidth: "220px" }}>
+                          {pair.toReservation?.memo || "—"}
+                        </td>
+                        <td style={tdStyle}>{pair.daysDiff ?? "—"}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
 
         <section style={cardStyle}>
           <div>
             <h2 style={sectionTitleStyle}>スタッフ別まとめ</h2>
-            <div style={sectionSubStyle}>
-              行を押すと、そのスタッフだけに固定表示されます。
-            </div>
+            <div style={sectionSubStyle}>行を押すと、そのスタッフだけに固定表示されます。</div>
           </div>
 
-          <div style={tableWrapStyle}>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <th style={thStyle}>スタッフ</th>
-                  <th style={thStyle}>売上件数</th>
-                  <th style={thStyle}>売上合計</th>
-                  <th style={thStyle}>通常売上</th>
-                  <th style={thStyle}>前受金</th>
-                  <th style={thStyle}>回数券消化</th>
-                  <th style={thStyle}>指名料合計</th>
-                  <th style={thStyle}>総予約数</th>
-                  <th style={thStyle}>キャンセル数</th>
-                  <th style={thStyle}>変更数</th>
-                  <th style={thStyle}>無断キャンセル</th>
-                  <th style={thStyle}>キャンセル率</th>
-                  <th style={thStyle}>変更率</th>
-                  <th style={thStyle}>新規数</th>
-                  <th style={thStyle}>前受金リピート数</th>
-                  <th style={thStyle}>リピート率</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
+          {mobile ? (
+            <div style={{ display: "grid", gap: "12px", marginTop: "14px" }}>
+              {loading ? (
+                <div style={mobileCardStyle}>読み込み中です...</div>
+              ) : staffSummaries.length === 0 ? (
+                <div style={mobileCardStyle}>データがありません</div>
+              ) : (
+                staffSummaries.map((row) => (
+                  <button
+                    key={row.staff}
+                    onClick={() => fixStaff(row.staff)}
+                    style={{
+                      ...mobileCardStyle,
+                      textAlign: "left",
+                      cursor: "pointer",
+                      background:
+                        selectedStaff !== "全スタッフ" && selectedStaff === row.staff
+                          ? "rgba(245,158,11,0.12)"
+                          : "rgba(2,6,23,0.55)",
+                    }}
+                  >
+                    <div style={mobileCardHeaderStyle}>
+                      <div style={mobileCardTitleStyle}>{row.staff}</div>
+                      <span style={badgeStyle("#fde68a")}>固定表示</span>
+                    </div>
+                    <div style={mobileMetaGridStyle}>
+                      <div style={mobileMetaItemStyle}>
+                        <div style={mobileMetaLabelStyle}>売上合計</div>
+                        <div style={mobileMetaValueStyle}>{formatCurrency(row.salesTotal)}</div>
+                      </div>
+                      <div style={mobileMetaItemStyle}>
+                        <div style={mobileMetaLabelStyle}>指名料合計</div>
+                        <div style={mobileMetaValueStyle}>{formatCurrency(row.nominationTotal)}</div>
+                      </div>
+                      <div style={mobileMetaItemStyle}>
+                        <div style={mobileMetaLabelStyle}>総予約数</div>
+                        <div style={mobileMetaValueStyle}>{row.reservationCount}件</div>
+                      </div>
+                      <div style={mobileMetaItemStyle}>
+                        <div style={mobileMetaLabelStyle}>キャンセル率</div>
+                        <div style={mobileMetaValueStyle}>{formatPercent(row.cancelRate)}</div>
+                      </div>
+                      <div style={mobileMetaItemStyle}>
+                        <div style={mobileMetaLabelStyle}>変更率</div>
+                        <div style={mobileMetaValueStyle}>{formatPercent(row.changeRate)}</div>
+                      </div>
+                      <div style={mobileMetaItemStyle}>
+                        <div style={mobileMetaLabelStyle}>リピート率</div>
+                        <div style={mobileMetaValueStyle}>{formatPercent(row.repeatRate)}</div>
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          ) : (
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
                   <tr>
-                    <td style={tdStyle} colSpan={16}>
-                      読み込み中です...
-                    </td>
+                    <th style={thStyle}>スタッフ</th>
+                    <th style={thStyle}>売上件数</th>
+                    <th style={thStyle}>売上合計</th>
+                    <th style={thStyle}>通常売上</th>
+                    <th style={thStyle}>前受金</th>
+                    <th style={thStyle}>回数券消化</th>
+                    <th style={thStyle}>指名料合計</th>
+                    <th style={thStyle}>総予約数</th>
+                    <th style={thStyle}>キャンセル数</th>
+                    <th style={thStyle}>変更数</th>
+                    <th style={thStyle}>無断キャンセル</th>
+                    <th style={thStyle}>キャンセル率</th>
+                    <th style={thStyle}>変更率</th>
+                    <th style={thStyle}>新規数</th>
+                    <th style={thStyle}>前受金リピート数</th>
+                    <th style={thStyle}>リピート率</th>
                   </tr>
-                ) : staffSummaries.length === 0 ? (
-                  <tr>
-                    <td style={tdStyle} colSpan={16}>
-                      データがありません
-                    </td>
-                  </tr>
-                ) : (
-                  staffSummaries.map((row) => (
-                    <tr
-                      key={row.staff}
-                      onClick={() => fixStaff(row.staff)}
-                      style={{
-                        cursor: "pointer",
-                        background:
-                          selectedStaff !== "全スタッフ" && selectedStaff === row.staff
-                            ? "rgba(245,158,11,0.10)"
-                            : "transparent",
-                      }}
-                    >
-                      <td style={{ ...tdStyle, fontWeight: 900 }}>{row.staff}</td>
-                      <td style={tdStyle}>{row.count.toLocaleString()}件</td>
-                      <td style={{ ...tdStyle, fontWeight: 900 }}>{formatCurrency(row.salesTotal)}</td>
-                      <td style={tdStyle}>{formatCurrency(row.normalTotal)}</td>
-                      <td style={tdStyle}>{formatCurrency(row.advanceTotal)}</td>
-                      <td style={tdStyle}>{formatCurrency(row.ticketTotal)}</td>
-                      <td style={{ ...tdStyle, color: "#fbbf24", fontWeight: 900 }}>
-                        {formatCurrency(row.nominationTotal)}
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td style={tdStyle} colSpan={16}>
+                        読み込み中です...
                       </td>
-                      <td style={tdStyle}>{row.reservationCount.toLocaleString()}件</td>
-                      <td style={tdStyle}>{row.cancelCount.toLocaleString()}件</td>
-                      <td style={tdStyle}>{row.changedCount.toLocaleString()}件</td>
-                      <td style={tdStyle}>{row.noShowCount.toLocaleString()}件</td>
-                      <td style={tdStyle}>{formatPercent(row.cancelRate)}</td>
-                      <td style={tdStyle}>{formatPercent(row.changeRate)}</td>
-                      <td style={tdStyle}>{row.newCount.toLocaleString()}人</td>
-                      <td style={tdStyle}>{row.repeatCount.toLocaleString()}人</td>
-                      <td style={tdStyle}>{formatPercent(row.repeatRate)}</td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ) : staffSummaries.length === 0 ? (
+                    <tr>
+                      <td style={tdStyle} colSpan={16}>
+                        データがありません
+                      </td>
+                    </tr>
+                  ) : (
+                    staffSummaries.map((row) => (
+                      <tr
+                        key={row.staff}
+                        onClick={() => fixStaff(row.staff)}
+                        style={{
+                          cursor: "pointer",
+                          background:
+                            selectedStaff !== "全スタッフ" && selectedStaff === row.staff
+                              ? "rgba(245,158,11,0.10)"
+                              : "transparent",
+                        }}
+                      >
+                        <td style={{ ...tdStyle, fontWeight: 900 }}>{row.staff}</td>
+                        <td style={tdStyle}>{row.count.toLocaleString()}件</td>
+                        <td style={{ ...tdStyle, fontWeight: 900 }}>{formatCurrency(row.salesTotal)}</td>
+                        <td style={tdStyle}>{formatCurrency(row.normalTotal)}</td>
+                        <td style={tdStyle}>{formatCurrency(row.advanceTotal)}</td>
+                        <td style={tdStyle}>{formatCurrency(row.ticketTotal)}</td>
+                        <td style={{ ...tdStyle, color: "#fbbf24", fontWeight: 900 }}>
+                          {formatCurrency(row.nominationTotal)}
+                        </td>
+                        <td style={tdStyle}>{row.reservationCount.toLocaleString()}件</td>
+                        <td style={tdStyle}>{row.cancelCount.toLocaleString()}件</td>
+                        <td style={tdStyle}>{row.changedCount.toLocaleString()}件</td>
+                        <td style={tdStyle}>{row.noShowCount.toLocaleString()}件</td>
+                        <td style={tdStyle}>{formatPercent(row.cancelRate)}</td>
+                        <td style={tdStyle}>{formatPercent(row.changeRate)}</td>
+                        <td style={tdStyle}>{row.newCount.toLocaleString()}人</td>
+                        <td style={tdStyle}>{row.repeatCount.toLocaleString()}人</td>
+                        <td style={tdStyle}>{formatPercent(row.repeatRate)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
 
         <section style={cardStyle}>
@@ -1761,119 +1936,192 @@ export default function PayslipPage() {
             <h2 style={sectionTitleStyle}>
               明細一覧 {selectedStaff !== "全スタッフ" ? `- ${selectedStaff}` : ""}
             </h2>
-            <div style={sectionSubStyle}>
-              予約も売上も同じ一覧で見れます。Excelに貼る元データとしてそのまま使えます。
-            </div>
+            <div style={sectionSubStyle}>予約も売上も同じ一覧で見れます。Excelに貼る元データとしてそのまま使えます。</div>
           </div>
 
-          <div style={tableWrapStyle}>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <th style={thStyle}>種別</th>
-                  <th style={thStyle}>日付</th>
-                  <th style={thStyle}>スタッフ</th>
-                  <th style={thStyle}>顧客名</th>
-                  <th style={thStyle}>店舗</th>
-                  <th style={thStyle}>予約ステータス</th>
-                  <th style={thStyle}>会計区分</th>
-                  <th style={thStyle}>支払方法</th>
-                  <th style={thStyle}>金額</th>
-                  <th style={thStyle}>指名料</th>
-                  <th style={thStyle}>新規判定</th>
-                  <th style={thStyle}>前受金リピート判定</th>
-                  <th style={thStyle}>変更判定</th>
-                  <th style={thStyle}>予約ID</th>
-                  <th style={thStyle}>メモ</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
+          {mobile ? (
+            <div style={{ display: "grid", gap: "12px", marginTop: "14px" }}>
+              {loading ? (
+                <div style={mobileCardStyle}>読み込み中です...</div>
+              ) : detailRows.length === 0 ? (
+                <div style={mobileCardStyle}>該当データがありません</div>
+              ) : (
+                detailRows.map((row) => (
+                  <div key={`${row.kind}-${row.id}`} style={mobileCardStyle}>
+                    <div style={mobileCardHeaderStyle}>
+                      <div style={mobileCardTitleStyle}>
+                        {row.customerName} / {row.staff}
+                      </div>
+                      {row.kind === "sale" ? (
+                        <span style={badgeStyle("#86efac")}>売上</span>
+                      ) : (
+                        <span style={badgeStyle("#93c5fd")}>予約</span>
+                      )}
+                    </div>
+
+                    <div style={mobileMetaGridStyle}>
+                      <div style={mobileMetaItemStyle}>
+                        <div style={mobileMetaLabelStyle}>日付</div>
+                        <div style={mobileMetaValueStyle}>{formatDateJP(row.date)}</div>
+                      </div>
+                      <div style={mobileMetaItemStyle}>
+                        <div style={mobileMetaLabelStyle}>店舗</div>
+                        <div style={mobileMetaValueStyle}>{row.storeName}</div>
+                      </div>
+                      <div style={mobileMetaItemStyle}>
+                        <div style={mobileMetaLabelStyle}>予約ステータス</div>
+                        <div style={mobileMetaValueStyle}>{row.reservationStatus || "—"}</div>
+                      </div>
+                      <div style={mobileMetaItemStyle}>
+                        <div style={mobileMetaLabelStyle}>会計区分</div>
+                        <div style={mobileMetaValueStyle}>{row.accountingType || "—"}</div>
+                      </div>
+                      <div style={mobileMetaItemStyle}>
+                        <div style={mobileMetaLabelStyle}>支払方法</div>
+                        <div style={mobileMetaValueStyle}>{row.paymentMethod || "—"}</div>
+                      </div>
+                      <div style={mobileMetaItemStyle}>
+                        <div style={mobileMetaLabelStyle}>金額</div>
+                        <div style={mobileMetaValueStyle}>
+                          {row.kind === "sale" ? formatCurrency(row.amount) : "—"}
+                        </div>
+                      </div>
+                      <div style={mobileMetaItemStyle}>
+                        <div style={mobileMetaLabelStyle}>指名料</div>
+                        <div style={mobileMetaValueStyle}>
+                          {row.nominationFee > 0 ? formatCurrency(row.nominationFee) : "—"}
+                        </div>
+                      </div>
+                      <div style={mobileMetaItemStyle}>
+                        <div style={mobileMetaLabelStyle}>予約ID</div>
+                        <div style={mobileMetaValueStyle}>{row.reservationId ?? "—"}</div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                      {row.isNew ? <span style={badgeStyle("#bfdbfe")}>新規</span> : null}
+                      {row.isRepeat ? <span style={badgeStyle("#fde68a")}>前受金リピート</span> : null}
+                      {row.isChanged ? <span style={badgeStyle("#fcd34d")}>変更</span> : null}
+                    </div>
+
+                    <div style={mobileMetaItemStyle}>
+                      <div style={mobileMetaLabelStyle}>メモ</div>
+                      <div style={mobileMetaValueStyle}>{row.memo || "—"}</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : (
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
                   <tr>
-                    <td style={tdStyle} colSpan={15}>
-                      読み込み中です...
-                    </td>
+                    <th style={thStyle}>種別</th>
+                    <th style={thStyle}>日付</th>
+                    <th style={thStyle}>スタッフ</th>
+                    <th style={thStyle}>顧客名</th>
+                    <th style={thStyle}>店舗</th>
+                    <th style={thStyle}>予約ステータス</th>
+                    <th style={thStyle}>会計区分</th>
+                    <th style={thStyle}>支払方法</th>
+                    <th style={thStyle}>金額</th>
+                    <th style={thStyle}>指名料</th>
+                    <th style={thStyle}>新規判定</th>
+                    <th style={thStyle}>前受金リピート判定</th>
+                    <th style={thStyle}>変更判定</th>
+                    <th style={thStyle}>予約ID</th>
+                    <th style={thStyle}>メモ</th>
                   </tr>
-                ) : detailRows.length === 0 ? (
-                  <tr>
-                    <td style={tdStyle} colSpan={15}>
-                      該当データがありません
-                    </td>
-                  </tr>
-                ) : (
-                  detailRows.map((row) => (
-                    <tr key={`${row.kind}-${row.id}`}>
-                      <td style={tdStyle}>
-                        {row.kind === "sale" ? (
-                          <span style={badgeStyle("#86efac")}>売上</span>
-                        ) : (
-                          <span style={badgeStyle("#93c5fd")}>予約</span>
-                        )}
-                      </td>
-                      <td style={tdStyle}>{formatDateJP(row.date)}</td>
-                      <td style={tdStyle}>{row.staff}</td>
-                      <td style={tdStyle}>{row.customerName}</td>
-                      <td style={tdStyle}>{row.storeName}</td>
-                      <td style={tdStyle}>
-                        {row.reservationStatus ? (
-                          row.isChanged ? (
-                            <span style={badgeStyle("#fcd34d")}>{row.reservationStatus}</span>
-                          ) : isCancelledStatus(row.reservationStatus) || isNoShowStatus(row.reservationStatus) ? (
-                            <span style={badgeStyle("#fecaca")}>{row.reservationStatus}</span>
-                          ) : isCompletedStatus(row.reservationStatus) ? (
-                            <span style={badgeStyle("#86efac")}>{row.reservationStatus}</span>
-                          ) : (
-                            <span style={badgeStyle("#cbd5e1")}>{row.reservationStatus}</span>
-                          )
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td style={tdStyle}>
-                        {row.accountingType ? (
-                          row.accountingType === "前受金" ? (
-                            <span style={badgeStyle("#fcd34d")}>前受金</span>
-                          ) : row.accountingType === "回数券消化" ? (
-                            <span style={badgeStyle("#a5b4fc")}>回数券消化</span>
-                          ) : (
-                            <span style={badgeStyle("#86efac")}>通常売上</span>
-                          )
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td style={tdStyle}>{row.paymentMethod || "—"}</td>
-                      <td style={{ ...tdStyle, fontWeight: 900 }}>
-                        {row.kind === "sale" ? formatCurrency(row.amount) : "—"}
-                      </td>
-                      <td
-                        style={{
-                          ...tdStyle,
-                          color: row.nominationFee > 0 ? "#fbbf24" : "#f8fafc",
-                          fontWeight: 900,
-                        }}
-                      >
-                        {row.nominationFee > 0 ? formatCurrency(row.nominationFee) : "—"}
-                      </td>
-                      <td style={tdStyle}>
-                        {row.isNew ? <span style={badgeStyle("#bfdbfe")}>新規</span> : "—"}
-                      </td>
-                      <td style={tdStyle}>
-                        {row.isRepeat ? <span style={badgeStyle("#fde68a")}>あり</span> : "—"}
-                      </td>
-                      <td style={tdStyle}>
-                        {row.isChanged ? <span style={badgeStyle("#fcd34d")}>変更</span> : "—"}
-                      </td>
-                      <td style={tdStyle}>{row.reservationId ?? "—"}</td>
-                      <td style={{ ...tdStyle, whiteSpace: "pre-wrap", minWidth: "260px" }}>
-                        {row.memo || "—"}
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td style={tdStyle} colSpan={15}>
+                        読み込み中です...
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ) : detailRows.length === 0 ? (
+                    <tr>
+                      <td style={tdStyle} colSpan={15}>
+                        該当データがありません
+                      </td>
+                    </tr>
+                  ) : (
+                    detailRows.map((row) => (
+                      <tr key={`${row.kind}-${row.id}`}>
+                        <td style={tdStyle}>
+                          {row.kind === "sale" ? (
+                            <span style={badgeStyle("#86efac")}>売上</span>
+                          ) : (
+                            <span style={badgeStyle("#93c5fd")}>予約</span>
+                          )}
+                        </td>
+                        <td style={tdStyle}>{formatDateJP(row.date)}</td>
+                        <td style={tdStyle}>{row.staff}</td>
+                        <td style={tdStyle}>{row.customerName}</td>
+                        <td style={tdStyle}>{row.storeName}</td>
+                        <td style={tdStyle}>
+                          {row.reservationStatus ? (
+                            row.isChanged ? (
+                              <span style={badgeStyle("#fcd34d")}>{row.reservationStatus}</span>
+                            ) : isCancelledStatus(row.reservationStatus) || isNoShowStatus(row.reservationStatus) ? (
+                              <span style={badgeStyle("#fecaca")}>{row.reservationStatus}</span>
+                            ) : isCompletedStatus(row.reservationStatus) ? (
+                              <span style={badgeStyle("#86efac")}>{row.reservationStatus}</span>
+                            ) : (
+                              <span style={badgeStyle("#cbd5e1")}>{row.reservationStatus}</span>
+                            )
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td style={tdStyle}>
+                          {row.accountingType ? (
+                            row.accountingType === "前受金" ? (
+                              <span style={badgeStyle("#fcd34d")}>前受金</span>
+                            ) : row.accountingType === "回数券消化" ? (
+                              <span style={badgeStyle("#a5b4fc")}>回数券消化</span>
+                            ) : (
+                              <span style={badgeStyle("#86efac")}>通常売上</span>
+                            )
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td style={tdStyle}>{row.paymentMethod || "—"}</td>
+                        <td style={{ ...tdStyle, fontWeight: 900 }}>
+                          {row.kind === "sale" ? formatCurrency(row.amount) : "—"}
+                        </td>
+                        <td
+                          style={{
+                            ...tdStyle,
+                            color: row.nominationFee > 0 ? "#fbbf24" : "#f8fafc",
+                            fontWeight: 900,
+                          }}
+                        >
+                          {row.nominationFee > 0 ? formatCurrency(row.nominationFee) : "—"}
+                        </td>
+                        <td style={tdStyle}>
+                          {row.isNew ? <span style={badgeStyle("#bfdbfe")}>新規</span> : "—"}
+                        </td>
+                        <td style={tdStyle}>
+                          {row.isRepeat ? <span style={badgeStyle("#fde68a")}>あり</span> : "—"}
+                        </td>
+                        <td style={tdStyle}>
+                          {row.isChanged ? <span style={badgeStyle("#fcd34d")}>変更</span> : "—"}
+                        </td>
+                        <td style={tdStyle}>{row.reservationId ?? "—"}</td>
+                        <td style={{ ...tdStyle, whiteSpace: "pre-wrap", minWidth: "260px" }}>
+                          {row.memo || "—"}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       </div>
     </div>
