@@ -1,1310 +1,959 @@
 "use client";
 
 import Link from "next/link";
-import { CSSProperties, ReactNode, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-type SaleRow = {
-  id: number;
-  date?: string | null;
-  created_at?: string | null;
-  staff_name?: string | null;
-  customer_name?: string | null;
-  customerName?: string | null;
-  menu_name?: string | null;
-  menuName?: string | null;
-  service_type?: string | null;
-  serviceType?: string | null;
-  accounting_type?: string | null;
-  accountingType?: string | null;
-  payment_method?: string | null;
-  paymentMethod?: string | null;
-  amount?: number | string | null;
-  store_name?: string | null;
-  storeName?: string | null;
-  reservation_id?: number | string | null;
-  memo?: string | null;
-};
+type ServiceType = "ストレッチ" | "トレーニング";
+type AccountingType = "通常売上" | "前受金" | "回数券消化";
+type PaymentMethod = "現金" | "カード" | "銀行振込" | "その他";
 
-type NormalizedSale = {
-  id: number;
-  saleDate: string;
-  staffName: string;
+type Sale = {
+  id: string;
+  date: string;
+  customerId?: string | null;
   customerName: string;
   menuName: string;
-  serviceType: string;
-  accountingType: string;
-  paymentMethod: string;
-  amount: number;
+  staff: string;
   storeName: string;
-  reservationId: string;
-  memo: string;
+  serviceType: ServiceType;
+  accountingType: AccountingType;
+  paymentMethod: PaymentMethod;
+  amount: number;
+  note: string;
+  createdAt: string;
+  reservationId?: number | null;
+};
+
+type SupabaseSaleRow = {
+  id: number | string;
+  customer_id?: number | string | null;
+  customer_name: string | null;
+  sale_date: string | null;
+  menu_type: string | null;
+  sale_type: string | null;
+  payment_method: string | null;
+  amount: number | null;
+  staff_name: string | null;
+  store_name: string | null;
+  reservation_id: number | null;
+  memo: string | null;
+  created_at: string | null;
 };
 
 type StaffSummary = {
-  staffName: string;
+  staff: string;
   count: number;
-  total: number;
-  payroll: number;
+  salesTotal: number;
+  normalTotal: number;
+  advanceTotal: number;
+  ticketTotal: number;
+  cashTotal: number;
+  cardTotal: number;
+  bankTotal: number;
+  otherTotal: number;
+  salary: number;
 };
 
-function getCurrentMonth() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+function todayString() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = `${d.getMonth() + 1}`.padStart(2, "0");
+  const day = `${d.getDate()}`.padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
-function monthLabel(month: string) {
-  if (!month) return "—";
-  const [y, m] = month.split("-");
-  return `${y}年${Number(m)}月`;
-}
-
-function formatDateJP(value?: string | null) {
-  if (!value) return "—";
-
-  const direct = new Date(value);
-  if (!Number.isNaN(direct.getTime())) {
-    return new Intl.DateTimeFormat("ja-JP").format(direct);
-  }
-
-  const normalized = value.replace(/\./g, "-").replace(/\//g, "-");
-  const retried = new Date(normalized);
-  if (!Number.isNaN(retried.getTime())) {
-    return new Intl.DateTimeFormat("ja-JP").format(retried);
-  }
-
-  return value;
+function firstDayOfMonth() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = `${d.getMonth() + 1}`.padStart(2, "0");
+  return `${y}-${m}-01`;
 }
 
 function formatCurrency(value: number) {
-  return `¥${Math.round(value || 0).toLocaleString()}`;
+  return `¥${Number(value || 0).toLocaleString()}`;
 }
 
-function parseNumber(value: unknown) {
-  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
-  if (typeof value === "string") {
-    const cleaned = value.replace(/,/g, "").trim();
-    const num = Number(cleaned);
-    return Number.isFinite(num) ? num : 0;
+function formatDateJP(value: string) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return `${d.getFullYear()}/${`${d.getMonth() + 1}`.padStart(2, "0")}/${`${d.getDate()}`.padStart(2, "0")}`;
+}
+
+function normalizeServiceType(value?: string | null): ServiceType {
+  if (value === "ストレッチ") return "ストレッチ";
+  return "トレーニング";
+}
+
+function normalizeAccountingType(value?: string | null): AccountingType {
+  if (value === "前受金") return "前受金";
+  if (value === "回数券消化") return "回数券消化";
+  return "通常売上";
+}
+
+function normalizePaymentMethod(value?: string | null): PaymentMethod {
+  if (value === "現金" || value === "カード" || value === "銀行振込" || value === "その他") {
+    return value;
   }
-  return 0;
+  return "現金";
 }
 
-function getRowDate(row: SaleRow) {
-  const raw = row.date || row.created_at || "";
-  if (!raw) return "";
+function rowToSale(row: SupabaseSaleRow): Sale {
+  const serviceType = normalizeServiceType(row.menu_type);
+  const accountingType = normalizeAccountingType(row.sale_type);
+  const paymentMethod = normalizePaymentMethod(row.payment_method);
 
-  if (typeof raw === "string") {
-    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-    if (raw.length >= 10) return raw.slice(0, 10);
-  }
-
-  const d = new Date(String(raw));
-  if (Number.isNaN(d.getTime())) return String(raw);
-
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function normalizeSale(row: SaleRow): NormalizedSale {
   return {
-    id: Number(row.id),
-    saleDate: getRowDate(row),
-    staffName: String(row.staff_name || "").trim() || "未設定",
-    customerName:
-      String(row.customer_name || row.customerName || "").trim() || "—",
-    menuName: String(row.menu_name || row.menuName || "").trim() || "—",
-    serviceType:
-      String(row.service_type || row.serviceType || "").trim() || "—",
-    accountingType:
-      String(row.accounting_type || row.accountingType || "").trim() || "—",
-    paymentMethod:
-      String(row.payment_method || row.paymentMethod || "").trim() || "—",
-    amount: parseNumber(row.amount),
-    storeName: String(row.store_name || row.storeName || "").trim() || "—",
-    reservationId:
-      row.reservation_id === null || row.reservation_id === undefined
-        ? "—"
-        : String(row.reservation_id),
-    memo: String(row.memo || "").trim() || "",
+    id: String(row.id),
+    date: row.sale_date || todayString(),
+    customerId:
+      row.customer_id === null || row.customer_id === undefined
+        ? null
+        : String(row.customer_id),
+    customerName: row.customer_name || "未設定",
+    menuName: serviceType === "ストレッチ" ? "ストレッチ" : "トレーニング",
+    staff: row.staff_name?.trim() || "未設定",
+    storeName: row.store_name?.trim() || "未設定",
+    serviceType,
+    accountingType,
+    paymentMethod,
+    amount: Number(row.amount || 0),
+    note: row.memo || "",
+    createdAt: row.created_at || new Date().toISOString(),
+    reservationId: row.reservation_id ?? null,
   };
 }
 
-function toCsvValue(value: unknown) {
-  const text = String(value ?? "");
-  return `"${text.replace(/"/g, '""')}"`;
+function toCsvValue(value: string | number) {
+  return `"${String(value ?? "").replace(/"/g, '""')}"`;
 }
 
-function buildCsv(rows: NormalizedSale[]) {
-  const header = [
-    "スタッフ",
-    "日付",
-    "顧客名",
-    "メニュー",
-    "サービス",
-    "会計区分",
-    "支払方法",
-    "金額",
-    "店舗",
-    "予約ID",
-    "メモ",
-  ];
-
-  const lines = [
-    header.map(toCsvValue).join(","),
-    ...rows.map((row) =>
-      [
-        row.staffName,
-        row.saleDate,
-        row.customerName,
-        row.menuName,
-        row.serviceType,
-        row.accountingType,
-        row.paymentMethod,
-        row.amount,
-        row.storeName,
-        row.reservationId,
-        row.memo,
-      ]
-        .map(toCsvValue)
-        .join(",")
-    ),
-  ];
-
-  return "\ufeff" + lines.join("\n");
-}
-
-function downloadCsv(filename: string, content: string) {
-  if (typeof window === "undefined") return;
-  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  window.URL.revokeObjectURL(url);
-}
-
-export default function AttendancePayslipPage() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-
-  const supabase = useMemo(() => {
-    if (!supabaseUrl || !supabaseAnonKey) return null;
-    return createClient(supabaseUrl, supabaseAnonKey);
-  }, [supabaseUrl, supabaseAnonKey]);
-
+export default function PayslipPage() {
   const [mounted, setMounted] = useState(false);
   const [windowWidth, setWindowWidth] = useState(1400);
 
+  const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
-  const [salesRows, setSalesRows] = useState<NormalizedSale[]>([]);
-  const [monthFilter, setMonthFilter] = useState(getCurrentMonth());
-  const [staffFilter, setStaffFilter] = useState("");
-  const [ratePercent, setRatePercent] = useState("50");
-  const [nominationFee, setNominationFee] = useState("0");
-  const [transportation, setTransportation] = useState("0");
-  const [adjustment, setAdjustment] = useState("0");
-  const [deduction, setDeduction] = useState("0");
-  const [keyword, setKeyword] = useState("");
+  const [dateFrom, setDateFrom] = useState(firstDayOfMonth());
+  const [dateTo, setDateTo] = useState(todayString());
+  const [search, setSearch] = useState("");
+  const [selectedStaff, setSelectedStaff] = useState("全スタッフ");
+  const [selectedStore, setSelectedStore] = useState("全店舗");
+  const [salaryRate, setSalaryRate] = useState("50");
+  const [includeAdvance, setIncludeAdvance] = useState(true);
+  const [includeTicket, setIncludeTicket] = useState(true);
+  const [sortKey, setSortKey] = useState<"salesTotal" | "count" | "salary">("salesTotal");
 
   useEffect(() => {
     setMounted(true);
+
+    const isLoggedIn =
+      localStorage.getItem("gymup_logged_in") || localStorage.getItem("isLoggedIn");
+
+    if (isLoggedIn !== "true") {
+      window.location.href = "/login";
+      return;
+    }
   }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const onResize = () => setWindowWidth(window.innerWidth);
-    onResize();
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    const updateWidth = () => setWindowWidth(window.innerWidth);
+    updateWidth();
+    window.addEventListener("resize", updateWidth);
+    return () => window.removeEventListener("resize", updateWidth);
   }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
-
-    const loggedIn =
-      localStorage.getItem("gymup_logged_in") ||
-      localStorage.getItem("isLoggedIn");
-
-    if (loggedIn !== "true") {
-      window.location.href = "/login";
-      return;
-    }
-
-    void fetchSales();
-  }, [mounted]);
 
   const mobile = windowWidth < 768;
   const tablet = windowWidth < 1100;
 
-  async function fetchSales() {
-    if (!supabase) {
-      setLoading(false);
-      setError("Supabaseの環境変数が未設定です。");
-      return;
-    }
-
+  const fetchSales = async () => {
     try {
       setLoading(true);
-      setError("");
 
       const { data, error } = await supabase
         .from("sales")
-        .select("*")
-        .order("date", { ascending: false })
+        .select(
+          "id, customer_id, customer_name, sale_date, menu_type, sale_type, payment_method, amount, staff_name, store_name, reservation_id, memo, created_at"
+        )
+        .order("sale_date", { ascending: false })
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        alert(`売上取得エラー: ${error.message}`);
+        setSales([]);
+        return;
+      }
 
-      const normalized = ((data as SaleRow[]) || [])
-        .map(normalizeSale)
-        .sort((a, b) => String(b.saleDate).localeCompare(String(a.saleDate)));
-
-      setSalesRows(normalized);
-    } catch (e: any) {
-      console.error(e);
-      setError(e?.message || "売上データの取得に失敗しました。");
+      const mapped = ((data as SupabaseSaleRow[] | null) || []).map(rowToSale);
+      setSales(mapped);
+    } catch (error) {
+      console.error("fetchSales error:", error);
+      setSales([]);
     } finally {
       setLoading(false);
     }
-  }
+  };
 
-  const staffNames = useMemo(() => {
-    return Array.from(
-      new Set(salesRows.map((row) => row.staffName).filter(Boolean))
-    ).sort((a, b) => a.localeCompare(b, "ja"));
-  }, [salesRows]);
+  useEffect(() => {
+    if (!mounted) return;
+    void fetchSales();
+  }, [mounted]);
 
-  const storeNames = useMemo(() => {
-    return Array.from(
-      new Set(salesRows.map((row) => row.storeName).filter((v) => v && v !== "—"))
-    ).sort((a, b) => a.localeCompare(b, "ja"));
-  }, [salesRows]);
+  const staffOptions = useMemo(() => {
+    const names = Array.from(new Set(sales.map((sale) => sale.staff || "未設定"))).sort((a, b) =>
+      a.localeCompare(b, "ja")
+    );
+    return ["全スタッフ", ...names];
+  }, [sales]);
 
-  const [storeFilter, setStoreFilter] = useState("");
+  const storeOptions = useMemo(() => {
+    const names = Array.from(new Set(sales.map((sale) => sale.storeName || "未設定"))).sort((a, b) =>
+      a.localeCompare(b, "ja")
+    );
+    return ["全店舗", ...names];
+  }, [sales]);
 
   const filteredSales = useMemo(() => {
-    const keywordLower = keyword.trim().toLowerCase();
+    const keyword = search.trim().toLowerCase();
+    const fromTime = dateFrom ? new Date(`${dateFrom}T00:00:00`).getTime() : -Infinity;
+    const toTime = dateTo ? new Date(`${dateTo}T23:59:59`).getTime() : Infinity;
 
-    return salesRows
-      .filter((row) => {
-        const matchMonth = monthFilter
-          ? String(row.saleDate || "").startsWith(monthFilter)
-          : true;
+    return sales.filter((sale) => {
+      const saleTime = new Date(`${sale.date}T12:00:00`).getTime();
 
-        const matchStaff = staffFilter ? row.staffName === staffFilter : true;
-        const matchStore = storeFilter ? row.storeName === storeFilter : true;
+      if (saleTime < fromTime || saleTime > toTime) return false;
+      if (selectedStaff !== "全スタッフ" && sale.staff !== selectedStaff) return false;
+      if (selectedStore !== "全店舗" && sale.storeName !== selectedStore) return false;
 
-        const matchKeyword = keywordLower
-          ? [
-              row.customerName,
-              row.menuName,
-              row.serviceType,
-              row.accountingType,
-              row.paymentMethod,
-              row.storeName,
-              row.memo,
-              row.staffName,
-            ]
-              .join(" ")
-              .toLowerCase()
-              .includes(keywordLower)
-          : true;
+      if (!includeAdvance && sale.accountingType === "前受金") return false;
+      if (!includeTicket && sale.accountingType === "回数券消化") return false;
 
-        return matchMonth && matchStaff && matchStore && matchKeyword;
-      })
-      .sort((a, b) => String(b.saleDate).localeCompare(String(a.saleDate)));
-  }, [salesRows, monthFilter, staffFilter, storeFilter, keyword]);
+      if (!keyword) return true;
 
-  const commissionRate = Number(ratePercent || 0) / 100;
-  const nominationFeeNum = Number(nominationFee || 0);
-  const transportationNum = Number(transportation || 0);
-  const adjustmentNum = Number(adjustment || 0);
-  const deductionNum = Number(deduction || 0);
-
-  const groupedSummaries = useMemo<StaffSummary[]>(() => {
-    const map = new Map<string, { count: number; total: number }>();
-
-    filteredSales.forEach((sale) => {
-      const prev = map.get(sale.staffName) || { count: 0, total: 0 };
-      prev.count += 1;
-      prev.total += sale.amount;
-      map.set(sale.staffName, prev);
+      return (
+        sale.customerName.toLowerCase().includes(keyword) ||
+        sale.staff.toLowerCase().includes(keyword) ||
+        sale.storeName.toLowerCase().includes(keyword) ||
+        sale.serviceType.toLowerCase().includes(keyword) ||
+        sale.accountingType.toLowerCase().includes(keyword) ||
+        sale.paymentMethod.toLowerCase().includes(keyword) ||
+        sale.note.toLowerCase().includes(keyword) ||
+        String(sale.reservationId || "").includes(keyword) ||
+        sale.date.toLowerCase().includes(keyword)
+      );
     });
-
-    return Array.from(map.entries())
-      .map(([staffName, value]) => ({
-        staffName,
-        count: value.count,
-        total: value.total,
-        payroll: value.total * commissionRate + value.count * nominationFeeNum,
-      }))
-      .sort((a, b) => b.total - a.total);
-  }, [filteredSales, commissionRate, nominationFeeNum]);
-
-  const selectedStaffSales = useMemo(() => {
-    return staffFilter
-      ? filteredSales.filter((row) => row.staffName === staffFilter)
-      : filteredSales;
-  }, [filteredSales, staffFilter]);
-
-  const totals = useMemo(() => {
-    const count = selectedStaffSales.length;
-    const totalAmount = selectedStaffSales.reduce((sum, row) => sum + row.amount, 0);
-    const payrollBase = totalAmount * commissionRate;
-    const nominationTotal = count * nominationFeeNum;
-    const totalPayment =
-      payrollBase +
-      nominationTotal +
-      transportationNum +
-      adjustmentNum -
-      deductionNum;
-
-    return {
-      count,
-      totalAmount,
-      payrollBase,
-      nominationTotal,
-      totalPayment,
-    };
   }, [
-    selectedStaffSales,
-    commissionRate,
-    nominationFeeNum,
-    transportationNum,
-    adjustmentNum,
-    deductionNum,
+    sales,
+    search,
+    dateFrom,
+    dateTo,
+    selectedStaff,
+    selectedStore,
+    includeAdvance,
+    includeTicket,
   ]);
 
-  function handleExportCurrentCsv() {
-    if (selectedStaffSales.length === 0) {
-      alert("出力する売上データがありません");
+  const salaryRateNumber = useMemo(() => {
+    const n = Number(salaryRate);
+    if (Number.isNaN(n) || n < 0) return 0;
+    return n;
+  }, [salaryRate]);
+
+  const staffSummaries = useMemo(() => {
+    const map = new Map<string, StaffSummary>();
+
+    filteredSales.forEach((sale) => {
+      const key = sale.staff || "未設定";
+
+      if (!map.has(key)) {
+        map.set(key, {
+          staff: key,
+          count: 0,
+          salesTotal: 0,
+          normalTotal: 0,
+          advanceTotal: 0,
+          ticketTotal: 0,
+          cashTotal: 0,
+          cardTotal: 0,
+          bankTotal: 0,
+          otherTotal: 0,
+          salary: 0,
+        });
+      }
+
+      const target = map.get(key)!;
+      target.count += 1;
+      target.salesTotal += Number(sale.amount || 0);
+
+      if (sale.accountingType === "通常売上") target.normalTotal += Number(sale.amount || 0);
+      if (sale.accountingType === "前受金") target.advanceTotal += Number(sale.amount || 0);
+      if (sale.accountingType === "回数券消化") target.ticketTotal += Number(sale.amount || 0);
+
+      if (sale.paymentMethod === "現金") target.cashTotal += Number(sale.amount || 0);
+      if (sale.paymentMethod === "カード") target.cardTotal += Number(sale.amount || 0);
+      if (sale.paymentMethod === "銀行振込") target.bankTotal += Number(sale.amount || 0);
+      if (sale.paymentMethod === "その他") target.otherTotal += Number(sale.amount || 0);
+    });
+
+    const list = Array.from(map.values()).map((item) => ({
+      ...item,
+      salary: Math.round(item.salesTotal * (salaryRateNumber / 100)),
+    }));
+
+    return list.sort((a, b) => {
+      if (sortKey === "count") return b.count - a.count;
+      if (sortKey === "salary") return b.salary - a.salary;
+      return b.salesTotal - a.salesTotal;
+    });
+  }, [filteredSales, salaryRateNumber, sortKey]);
+
+  const grandTotal = useMemo(() => {
+    return filteredSales.reduce((sum, sale) => sum + Number(sale.amount || 0), 0);
+  }, [filteredSales]);
+
+  const grandCount = useMemo(() => {
+    return filteredSales.length;
+  }, [filteredSales]);
+
+  const grandSalary = useMemo(() => {
+    return Math.round(grandTotal * (salaryRateNumber / 100));
+  }, [grandTotal, salaryRateNumber]);
+
+  const selectedStaffRows = useMemo(() => {
+    if (selectedStaff === "全スタッフ") return filteredSales;
+    return filteredSales.filter((sale) => sale.staff === selectedStaff);
+  }, [filteredSales, selectedStaff]);
+
+  const exportSelectedCsv = () => {
+    if (selectedStaffRows.length === 0) {
+      alert("出力する明細がありません");
       return;
     }
 
-    const fileName = staffFilter
-      ? `staff-sales-${staffFilter}-${monthFilter || "all"}.csv`
-      : `staff-sales-all-${monthFilter || "all"}.csv`;
+    const rows = [
+      [
+        "スタッフ",
+        "日付",
+        "顧客名",
+        "サービス",
+        "会計区分",
+        "支払方法",
+        "金額",
+        "店舗",
+        "予約ID",
+        "メモ",
+      ]
+        .map(toCsvValue)
+        .join(","),
+      ...selectedStaffRows.map((sale) =>
+        [
+          sale.staff,
+          sale.date,
+          sale.customerName,
+          sale.serviceType,
+          sale.accountingType,
+          sale.paymentMethod,
+          sale.amount,
+          sale.storeName,
+          sale.reservationId ?? "",
+          sale.note.replace(/\n/g, " / "),
+        ]
+          .map(toCsvValue)
+          .join(",")
+      ),
+    ];
 
-    downloadCsv(fileName, buildCsv(selectedStaffSales));
+    const bom = "\uFEFF";
+    const blob = new Blob([bom + rows.join("\n")], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download =
+      selectedStaff === "全スタッフ"
+        ? `payslip_all_${todayString()}.csv`
+        : `payslip_${selectedStaff}_${todayString()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const pageStyle: CSSProperties = {
+    minHeight: "100vh",
+    background:
+      "linear-gradient(180deg, #050816 0%, #0b1120 45%, #111827 100%)",
+    padding: mobile ? "16px 12px 48px" : "24px 18px 60px",
+  };
+
+  const innerStyle: CSSProperties = {
+    maxWidth: "1480px",
+    margin: "0 auto",
+    display: "grid",
+    gap: "18px",
+  };
+
+  const cardStyle: CSSProperties = {
+    background: "rgba(15,23,42,0.86)",
+    border: "1px solid rgba(148,163,184,0.18)",
+    borderRadius: "22px",
+    boxShadow: "0 18px 50px rgba(0,0,0,0.28)",
+    padding: mobile ? "16px" : "20px",
+    backdropFilter: "blur(10px)",
+  };
+
+  const headerStyle: CSSProperties = {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: tablet ? "flex-start" : "center",
+    flexDirection: tablet ? "column" : "row",
+    gap: "14px",
+  };
+
+  const titleStyle: CSSProperties = {
+    margin: 0,
+    color: "#f8fafc",
+    fontSize: mobile ? "28px" : "36px",
+    fontWeight: 900,
+    letterSpacing: "0.02em",
+    lineHeight: 1.1,
+  };
+
+  const subStyle: CSSProperties = {
+    marginTop: "8px",
+    color: "#94a3b8",
+    fontSize: "14px",
+    lineHeight: 1.7,
+  };
+
+  const topActionWrapStyle: CSSProperties = {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "10px",
+  };
+
+  const ghostLinkStyle: CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    textDecoration: "none",
+    height: "42px",
+    padding: "0 14px",
+    borderRadius: "12px",
+    fontWeight: 800,
+    border: "1px solid rgba(148,163,184,0.25)",
+    color: "#e5e7eb",
+    background: "rgba(15,23,42,0.7)",
+  };
+
+  const primaryButtonStyle: CSSProperties = {
+    border: "none",
+    borderRadius: "12px",
+    height: "42px",
+    padding: "0 16px",
+    fontWeight: 900,
+    color: "#111827",
+    background: "linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)",
+    cursor: "pointer",
+  };
+
+  const inputGridStyle: CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: mobile ? "1fr" : tablet ? "repeat(2, 1fr)" : "repeat(4, 1fr)",
+    gap: "12px",
+  };
+
+  const labelStyle: CSSProperties = {
+    display: "block",
+    color: "#cbd5e1",
+    fontWeight: 800,
+    fontSize: "13px",
+    marginBottom: "8px",
+  };
+
+  const inputStyle: CSSProperties = {
+    width: "100%",
+    height: "46px",
+    borderRadius: "12px",
+    border: "1px solid rgba(148,163,184,0.22)",
+    background: "rgba(2,6,23,0.7)",
+    color: "#f8fafc",
+    padding: "0 14px",
+    fontSize: "14px",
+    outline: "none",
+    boxSizing: "border-box",
+  };
+
+  const checkboxWrapStyle: CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: "14px",
+    flexWrap: "wrap",
+    marginTop: "4px",
+  };
+
+  const checkLabelStyle: CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "8px",
+    color: "#e5e7eb",
+    fontWeight: 700,
+    fontSize: "14px",
+  };
+
+  const statGridStyle: CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: mobile ? "1fr" : tablet ? "repeat(2, 1fr)" : "repeat(4, 1fr)",
+    gap: "12px",
+  };
+
+  const statCardStyle: CSSProperties = {
+    borderRadius: "18px",
+    padding: "18px",
+    background: "linear-gradient(180deg, rgba(15,23,42,0.92) 0%, rgba(30,41,59,0.82) 100%)",
+    border: "1px solid rgba(148,163,184,0.18)",
+  };
+
+  const statLabelStyle: CSSProperties = {
+    color: "#94a3b8",
+    fontSize: "13px",
+    fontWeight: 700,
+    marginBottom: "10px",
+  };
+
+  const statValueStyle: CSSProperties = {
+    color: "#f8fafc",
+    fontSize: mobile ? "26px" : "30px",
+    fontWeight: 900,
+    lineHeight: 1.1,
+  };
+
+  const statSubStyle: CSSProperties = {
+    marginTop: "8px",
+    color: "#cbd5e1",
+    fontSize: "13px",
+  };
+
+  const sectionTitleStyle: CSSProperties = {
+    margin: 0,
+    color: "#f8fafc",
+    fontSize: mobile ? "20px" : "24px",
+    fontWeight: 900,
+  };
+
+  const sectionSubStyle: CSSProperties = {
+    marginTop: "6px",
+    color: "#94a3b8",
+    fontSize: "13px",
+  };
+
+  const tableWrapStyle: CSSProperties = {
+    overflowX: "auto",
+    borderRadius: "18px",
+    border: "1px solid rgba(148,163,184,0.16)",
+    marginTop: "14px",
+  };
+
+  const tableStyle: CSSProperties = {
+    width: "100%",
+    borderCollapse: "collapse",
+    minWidth: mobile ? "980px" : "1180px",
+    background: "rgba(2,6,23,0.58)",
+  };
+
+  const thStyle: CSSProperties = {
+    textAlign: "left",
+    padding: "14px 14px",
+    fontSize: "12px",
+    color: "#cbd5e1",
+    fontWeight: 900,
+    background: "rgba(30,41,59,0.85)",
+    borderBottom: "1px solid rgba(148,163,184,0.15)",
+    whiteSpace: "nowrap",
+  };
+
+  const tdStyle: CSSProperties = {
+    padding: "14px 14px",
+    color: "#f8fafc",
+    fontSize: "13px",
+    borderBottom: "1px solid rgba(148,163,184,0.10)",
+    verticalAlign: "top",
+  };
+
+  const badgeStyle = (type: AccountingType): CSSProperties => ({
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: "76px",
+    height: "28px",
+    borderRadius: "999px",
+    padding: "0 10px",
+    fontSize: "12px",
+    fontWeight: 900,
+    color:
+      type === "通常売上"
+        ? "#022c22"
+        : type === "前受金"
+        ? "#78350f"
+        : "#1e1b4b",
+    background:
+      type === "通常売上"
+        ? "#86efac"
+        : type === "前受金"
+        ? "#fcd34d"
+        : "#a5b4fc",
+  });
+
+  const pillStyle: CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "8px",
+    minHeight: "32px",
+    padding: "6px 12px",
+    borderRadius: "999px",
+    background: "rgba(148,163,184,0.12)",
+    color: "#e5e7eb",
+    fontWeight: 800,
+    fontSize: "12px",
+  };
+
+  if (!mounted) {
+    return null;
   }
-
-  function handleExportStaffCsv(staffName: string) {
-    const target = filteredSales.filter((row) => row.staffName === staffName);
-
-    if (target.length === 0) {
-      alert("出力する売上データがありません");
-      return;
-    }
-
-    downloadCsv(
-      `staff-sales-${staffName}-${monthFilter || "all"}.csv`,
-      buildCsv(target)
-    );
-  }
-
-  if (!mounted) return null;
 
   return (
     <div style={pageStyle}>
-      <div style={bgGlowA} />
-      <div style={bgGlowB} />
-
-      <div style={containerStyle}>
-        <div style={topRowStyle}>
-          <Link href="/attendance/admin" style={backLinkStyle}>
-            ← 管理者勤怠へ戻る
-          </Link>
-          <div style={eyebrowStyle}>PAYSLIP / STAFF SALES</div>
-        </div>
-
-        <div style={heroCardStyle}>
-          <div style={heroLeftStyle}>
-            <div style={miniLabelStyle}>GYMUP PAYROLL</div>
-            <h1 style={titleStyle}>スタッフ別売上明細</h1>
-            <p style={descStyle}>
-              salesテーブルから月別・スタッフ別の売上を集計し、
-              件数・売上合計・給与計算まで画面で確認できます。
-            </p>
-          </div>
-
-          <div style={heroRightStyle}>
-            <button style={primaryButtonStyle} onClick={handleExportCurrentCsv}>
-              現在表示をCSV出力
-            </button>
-          </div>
-        </div>
-
-        {!supabase && (
-          <div style={errorBoxStyle}>
-            NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY が未設定です。
-          </div>
-        )}
-
-        {error && <div style={errorBoxStyle}>{error}</div>}
-
-        <div
-          style={{
-            ...filterGridStyle,
-            gridTemplateColumns: mobile
-              ? "1fr"
-              : tablet
-              ? "repeat(2, minmax(0, 1fr))"
-              : "repeat(4, minmax(0, 1fr))",
-          }}
-        >
-          <FilterCard label="対象月">
-            <input
-              type="month"
-              value={monthFilter}
-              onChange={(e) => setMonthFilter(e.target.value)}
-              style={inputStyle}
-            />
-          </FilterCard>
-
-          <FilterCard label="スタッフ">
-            <select
-              value={staffFilter}
-              onChange={(e) => setStaffFilter(e.target.value)}
-              style={inputStyle}
-            >
-              <option value="">全スタッフ</option>
-              {staffNames.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </FilterCard>
-
-          <FilterCard label="店舗">
-            <select
-              value={storeFilter}
-              onChange={(e) => setStoreFilter(e.target.value)}
-              style={inputStyle}
-            >
-              <option value="">全店舗</option>
-              {storeNames.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </FilterCard>
-
-          <FilterCard label="検索">
-            <input
-              type="text"
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              placeholder="顧客名・メニュー・メモなど"
-              style={inputStyle}
-            />
-          </FilterCard>
-        </div>
-
-        <div
-          style={{
-            ...filterGridStyle,
-            gridTemplateColumns: mobile
-              ? "1fr"
-              : tablet
-              ? "repeat(2, minmax(0, 1fr))"
-              : "repeat(5, minmax(0, 1fr))",
-          }}
-        >
-          <FilterCard label="給与率（%）">
-            <input
-              type="number"
-              value={ratePercent}
-              onChange={(e) => setRatePercent(e.target.value)}
-              style={inputStyle}
-            />
-          </FilterCard>
-
-          <FilterCard label="指名料 / 1件">
-            <input
-              type="number"
-              value={nominationFee}
-              onChange={(e) => setNominationFee(e.target.value)}
-              style={inputStyle}
-            />
-          </FilterCard>
-
-          <FilterCard label="交通費">
-            <input
-              type="number"
-              value={transportation}
-              onChange={(e) => setTransportation(e.target.value)}
-              style={inputStyle}
-            />
-          </FilterCard>
-
-          <FilterCard label="手当">
-            <input
-              type="number"
-              value={adjustment}
-              onChange={(e) => setAdjustment(e.target.value)}
-              style={inputStyle}
-            />
-          </FilterCard>
-
-          <FilterCard label="控除">
-            <input
-              type="number"
-              value={deduction}
-              onChange={(e) => setDeduction(e.target.value)}
-              style={inputStyle}
-            />
-          </FilterCard>
-        </div>
-
-        <div
-          style={{
-            ...summaryGridLargeStyle,
-            gridTemplateColumns: mobile
-              ? "1fr"
-              : tablet
-              ? "repeat(2, minmax(0, 1fr))"
-              : "repeat(5, minmax(0, 1fr))",
-          }}
-        >
-          <MetricCard label="対象月" value={monthLabel(monthFilter)} />
-          <MetricCard label="対象スタッフ" value={staffFilter || "全スタッフ"} />
-          <MetricCard label="件数" value={`${totals.count}件`} />
-          <MetricCard label="売上合計" value={formatCurrency(totals.totalAmount)} />
-          <MetricCard label="給与合計" value={formatCurrency(totals.totalPayment)} />
-        </div>
-
-        <div
-          style={{
-            ...summaryGridLargeStyle,
-            gridTemplateColumns: mobile
-              ? "1fr"
-              : tablet
-              ? "repeat(2, minmax(0, 1fr))"
-              : "repeat(4, minmax(0, 1fr))",
-          }}
-        >
-          <MetricCard label="歩合給与" value={formatCurrency(totals.payrollBase)} />
-          <MetricCard label="指名料合計" value={formatCurrency(totals.nominationTotal)} />
-          <MetricCard label="交通費+手当" value={formatCurrency(transportationNum + adjustmentNum)} />
-          <MetricCard label="控除" value={`- ${formatCurrency(deductionNum)}`} />
-        </div>
-
-        <div style={panelStyle}>
-          <div style={panelHeaderStyle}>
+      <div style={innerStyle}>
+        <section style={cardStyle}>
+          <div style={headerStyle}>
             <div>
-              <div style={panelMiniStyle}>STAFF SUMMARY</div>
-              <h2 style={panelTitleStyle}>スタッフ別集計</h2>
+              <h1 style={titleStyle}>スタッフ給与ページ</h1>
+              <div style={subStyle}>
+                スタッフ別売上・件数・給与計算を画面でそのまま確認できるページです。
+              </div>
+            </div>
+
+            <div style={topActionWrapStyle}>
+              <Link href="/dashboard" style={ghostLinkStyle}>
+                ← ダッシュボード
+              </Link>
+              <Link href="/sales" style={ghostLinkStyle}>
+                売上管理へ
+              </Link>
+              <button onClick={() => void fetchSales()} style={primaryButtonStyle}>
+                最新に更新
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section style={cardStyle}>
+          <div style={{ marginBottom: "14px" }}>
+            <h2 style={sectionTitleStyle}>絞り込み・給与設定</h2>
+            <div style={sectionSubStyle}>
+              期間・スタッフ・店舗で絞り込みできます。給与率はそのまま自動反映されます。
             </div>
           </div>
 
-          {loading ? (
-            <div style={loadingStyle}>読み込み中...</div>
-          ) : groupedSummaries.length === 0 ? (
-            <div style={emptyBoxStyle}>該当する売上データがありません。</div>
-          ) : mobile ? (
-            <div style={{ display: "grid", gap: 12 }}>
-              {groupedSummaries.map((item) => (
-                <div key={item.staffName} style={recordCardStyle}>
-                  <div style={recordDateStyle}>{item.staffName}</div>
-                  <div style={recordInfoGridStyle}>
-                    <MiniInfo label="件数" value={`${item.count}件`} />
-                    <MiniInfo label="売上合計" value={formatCurrency(item.total)} />
-                    <MiniInfo label="給与概算" value={formatCurrency(item.payroll)} />
-                  </div>
-                  <div style={cardActionRowStyle}>
-                    <button
-                      style={secondaryButtonStyle}
-                      onClick={() => setStaffFilter(item.staffName)}
-                    >
-                      このスタッフを見る
-                    </button>
-                    <button
-                      style={ghostButtonStyle}
-                      onClick={() => handleExportStaffCsv(item.staffName)}
-                    >
-                      CSV
-                    </button>
-                  </div>
-                </div>
-              ))}
+          <div style={inputGridStyle}>
+            <div>
+              <label style={labelStyle}>開始日</label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                style={inputStyle}
+              />
             </div>
-          ) : (
-            <div style={tableWrapStyle}>
-              <table style={tableStyle}>
-                <thead>
+
+            <div>
+              <label style={labelStyle}>終了日</label>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>スタッフ</label>
+              <select
+                value={selectedStaff}
+                onChange={(e) => setSelectedStaff(e.target.value)}
+                style={inputStyle}
+              >
+                {staffOptions.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>店舗</label>
+              <select
+                value={selectedStore}
+                onChange={(e) => setSelectedStore(e.target.value)}
+                style={inputStyle}
+              >
+                {storeOptions.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>検索</label>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="顧客名・スタッフ・メモなど"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>給与率（%）</label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={salaryRate}
+                onChange={(e) => setSalaryRate(e.target.value)}
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>並び順</label>
+              <select
+                value={sortKey}
+                onChange={(e) =>
+                  setSortKey(e.target.value as "salesTotal" | "count" | "salary")
+                }
+                style={inputStyle}
+              >
+                <option value="salesTotal">売上順</option>
+                <option value="count">件数順</option>
+                <option value="salary">給与額順</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>書き出し</label>
+              <button onClick={exportSelectedCsv} style={{ ...primaryButtonStyle, width: "100%" }}>
+                CSV出力
+              </button>
+            </div>
+          </div>
+
+          <div style={checkboxWrapStyle}>
+            <label style={checkLabelStyle}>
+              <input
+                type="checkbox"
+                checked={includeAdvance}
+                onChange={(e) => setIncludeAdvance(e.target.checked)}
+              />
+              前受金を含む
+            </label>
+
+            <label style={checkLabelStyle}>
+              <input
+                type="checkbox"
+                checked={includeTicket}
+                onChange={(e) => setIncludeTicket(e.target.checked)}
+              />
+              回数券消化を含む
+            </label>
+
+            <span style={pillStyle}>
+              期間: {formatDateJP(dateFrom)} 〜 {formatDateJP(dateTo)}
+            </span>
+
+            <span style={pillStyle}>
+              給与率: {salaryRateNumber}%
+            </span>
+          </div>
+        </section>
+
+        <section style={statGridStyle}>
+          <div style={statCardStyle}>
+            <div style={statLabelStyle}>対象売上合計</div>
+            <div style={statValueStyle}>{formatCurrency(grandTotal)}</div>
+            <div style={statSubStyle}>絞り込み後の全スタッフ合計</div>
+          </div>
+
+          <div style={statCardStyle}>
+            <div style={statLabelStyle}>対象件数</div>
+            <div style={statValueStyle}>{grandCount.toLocaleString()}件</div>
+            <div style={statSubStyle}>売上明細の件数</div>
+          </div>
+
+          <div style={statCardStyle}>
+            <div style={statLabelStyle}>給与合計</div>
+            <div style={statValueStyle}>{formatCurrency(grandSalary)}</div>
+            <div style={statSubStyle}>{salaryRateNumber}%計算</div>
+          </div>
+
+          <div style={statCardStyle}>
+            <div style={statLabelStyle}>スタッフ数</div>
+            <div style={statValueStyle}>{staffSummaries.length.toLocaleString()}人</div>
+            <div style={statSubStyle}>絞り込み後に表示中</div>
+          </div>
+        </section>
+
+        <section style={cardStyle}>
+          <div>
+            <h2 style={sectionTitleStyle}>スタッフ別集計</h2>
+            <div style={sectionSubStyle}>
+              ここが本命です。スタッフごとの売上・件数・給与を一覧で見れます。
+            </div>
+          </div>
+
+          <div style={tableWrapStyle}>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>スタッフ</th>
+                  <th style={thStyle}>件数</th>
+                  <th style={thStyle}>売上合計</th>
+                  <th style={thStyle}>通常売上</th>
+                  <th style={thStyle}>前受金</th>
+                  <th style={thStyle}>回数券消化</th>
+                  <th style={thStyle}>現金</th>
+                  <th style={thStyle}>カード</th>
+                  <th style={thStyle}>銀行振込</th>
+                  <th style={thStyle}>その他</th>
+                  <th style={thStyle}>給与</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
                   <tr>
-                    <th style={thStyle}>スタッフ</th>
-                    <th style={thStyle}>件数</th>
-                    <th style={thStyle}>売上合計</th>
-                    <th style={thStyle}>給与概算</th>
-                    <th style={thStyle}>操作</th>
+                    <td style={tdStyle} colSpan={11}>
+                      読み込み中です...
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {groupedSummaries.map((item) => (
-                    <tr key={item.staffName}>
-                      <td style={tdStyleStrong}>{item.staffName}</td>
-                      <td style={tdStyle}>{item.count}件</td>
-                      <td style={tdStyle}>{formatCurrency(item.total)}</td>
-                      <td style={tdStyleStrongBlue}>{formatCurrency(item.payroll)}</td>
-                      <td style={tdStyle}>
-                        <div style={actionInlineStyle}>
-                          <button
-                            style={smallButtonStyle}
-                            onClick={() => setStaffFilter(item.staffName)}
-                          >
-                            表示
-                          </button>
-                          <button
-                            style={smallGhostButtonStyle}
-                            onClick={() => handleExportStaffCsv(item.staffName)}
-                          >
-                            CSV
-                          </button>
-                        </div>
+                ) : staffSummaries.length === 0 ? (
+                  <tr>
+                    <td style={tdStyle} colSpan={11}>
+                      データがありません
+                    </td>
+                  </tr>
+                ) : (
+                  staffSummaries.map((row) => (
+                    <tr
+                      key={row.staff}
+                      style={{
+                        background:
+                          selectedStaff !== "全スタッフ" && selectedStaff === row.staff
+                            ? "rgba(245,158,11,0.08)"
+                            : "transparent",
+                        cursor: "pointer",
+                      }}
+                      onClick={() => setSelectedStaff(row.staff)}
+                    >
+                      <td style={tdStyle}>{row.staff}</td>
+                      <td style={tdStyle}>{row.count.toLocaleString()}件</td>
+                      <td style={{ ...tdStyle, fontWeight: 900 }}>{formatCurrency(row.salesTotal)}</td>
+                      <td style={tdStyle}>{formatCurrency(row.normalTotal)}</td>
+                      <td style={tdStyle}>{formatCurrency(row.advanceTotal)}</td>
+                      <td style={tdStyle}>{formatCurrency(row.ticketTotal)}</td>
+                      <td style={tdStyle}>{formatCurrency(row.cashTotal)}</td>
+                      <td style={tdStyle}>{formatCurrency(row.cardTotal)}</td>
+                      <td style={tdStyle}>{formatCurrency(row.bankTotal)}</td>
+                      <td style={tdStyle}>{formatCurrency(row.otherTotal)}</td>
+                      <td style={{ ...tdStyle, color: "#fbbf24", fontWeight: 900 }}>
+                        {formatCurrency(row.salary)}
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
 
-        <div style={panelStyle}>
-          <div style={panelHeaderStyle}>
-            <div>
-              <div style={panelMiniStyle}>PAYROLL SUMMARY</div>
-              <h2 style={panelTitleStyle}>給与計算サマリー</h2>
+        <section style={cardStyle}>
+          <div>
+            <h2 style={sectionTitleStyle}>
+              明細一覧 {selectedStaff !== "全スタッフ" ? `- ${selectedStaff}` : ""}
+            </h2>
+            <div style={sectionSubStyle}>
+              スタッフを上の集計表で押すと、そのスタッフの明細だけに絞れます。
             </div>
           </div>
 
-          <div style={detailBoxStyle}>
-            <DetailRow label="対象スタッフ" value={staffFilter || "全スタッフ"} />
-            <DetailRow label="対象月" value={monthLabel(monthFilter)} />
-            <DetailRow label="売上件数" value={`${totals.count}件`} />
-            <DetailRow label="売上合計" value={formatCurrency(totals.totalAmount)} />
-            <DetailRow label="給与率" value={`${Number(ratePercent || 0)}%`} />
-            <DetailRow label="歩合給与" value={formatCurrency(totals.payrollBase)} />
-            <DetailRow
-              label={`指名料（${formatCurrency(nominationFeeNum)} × ${totals.count}件）`}
-              value={formatCurrency(totals.nominationTotal)}
-            />
-            <DetailRow label="交通費" value={formatCurrency(transportationNum)} />
-            <DetailRow label="手当" value={formatCurrency(adjustmentNum)} />
-            <DetailRow label="控除" value={`- ${formatCurrency(deductionNum)}`} />
-            <DetailRowStrong label="支給額合計" value={formatCurrency(totals.totalPayment)} />
-          </div>
-        </div>
-
-        <div style={panelStyle}>
-          <div style={panelHeaderStyle}>
-            <div>
-              <div style={panelMiniStyle}>SALES DETAILS</div>
-              <h2 style={panelTitleStyle}>売上明細一覧</h2>
-            </div>
-          </div>
-
-          {loading ? (
-            <div style={loadingStyle}>読み込み中...</div>
-          ) : selectedStaffSales.length === 0 ? (
-            <div style={emptyBoxStyle}>該当する売上データがありません。</div>
-          ) : mobile ? (
-            <div style={{ display: "grid", gap: 12 }}>
-              {selectedStaffSales.map((row) => (
-                <div key={row.id} style={recordCardStyle}>
-                  <div style={recordDateStyle}>
-                    {formatDateJP(row.saleDate)} / {row.staffName}
-                  </div>
-
-                  <div style={recordInfoGridStyle}>
-                    <MiniInfo label="顧客名" value={row.customerName} />
-                    <MiniInfo label="メニュー" value={row.menuName} />
-                    <MiniInfo label="サービス" value={row.serviceType} />
-                    <MiniInfo label="会計区分" value={row.accountingType} />
-                    <MiniInfo label="支払方法" value={row.paymentMethod} />
-                    <MiniInfo label="店舗" value={row.storeName} />
-                    <MiniInfo label="金額" value={formatCurrency(row.amount)} />
-                    <MiniInfo label="予約ID" value={row.reservationId} />
-                  </div>
-
-                  {row.memo ? <div style={memoBoxStyle}>メモ：{row.memo}</div> : null}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={tableWrapStyle}>
-              <table style={salesTableStyle}>
-                <thead>
+          <div style={tableWrapStyle}>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>日付</th>
+                  <th style={thStyle}>スタッフ</th>
+                  <th style={thStyle}>顧客名</th>
+                  <th style={thStyle}>サービス</th>
+                  <th style={thStyle}>会計区分</th>
+                  <th style={thStyle}>支払方法</th>
+                  <th style={thStyle}>金額</th>
+                  <th style={thStyle}>店舗</th>
+                  <th style={thStyle}>予約ID</th>
+                  <th style={thStyle}>メモ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
                   <tr>
-                    <th style={thStyle}>スタッフ</th>
-                    <th style={thStyle}>日付</th>
-                    <th style={thStyle}>顧客名</th>
-                    <th style={thStyle}>メニュー</th>
-                    <th style={thStyle}>サービス</th>
-                    <th style={thStyle}>会計区分</th>
-                    <th style={thStyle}>支払方法</th>
-                    <th style={thStyle}>金額</th>
-                    <th style={thStyle}>店舗</th>
-                    <th style={thStyle}>予約ID</th>
-                    <th style={thStyle}>メモ</th>
+                    <td style={tdStyle} colSpan={10}>
+                      読み込み中です...
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {selectedStaffSales.map((row) => (
-                    <tr key={row.id}>
-                      <td style={tdStyleStrong}>{row.staffName}</td>
-                      <td style={tdStyle}>{formatDateJP(row.saleDate)}</td>
-                      <td style={tdStyle}>{row.customerName}</td>
-                      <td style={tdStyle}>{row.menuName}</td>
-                      <td style={tdStyle}>{row.serviceType}</td>
-                      <td style={tdStyle}>{row.accountingType}</td>
-                      <td style={tdStyle}>{row.paymentMethod}</td>
-                      <td style={tdStyleStrongBlue}>{formatCurrency(row.amount)}</td>
-                      <td style={tdStyle}>{row.storeName}</td>
-                      <td style={tdStyle}>{row.reservationId}</td>
-                      <td style={tdNoteStyle}>{row.memo || "—"}</td>
+                ) : selectedStaffRows.length === 0 ? (
+                  <tr>
+                    <td style={tdStyle} colSpan={10}>
+                      該当する明細がありません
+                    </td>
+                  </tr>
+                ) : (
+                  selectedStaffRows.map((sale) => (
+                    <tr key={sale.id}>
+                      <td style={tdStyle}>{formatDateJP(sale.date)}</td>
+                      <td style={tdStyle}>{sale.staff}</td>
+                      <td style={tdStyle}>{sale.customerName}</td>
+                      <td style={tdStyle}>{sale.serviceType}</td>
+                      <td style={tdStyle}>
+                        <span style={badgeStyle(sale.accountingType)}>
+                          {sale.accountingType}
+                        </span>
+                      </td>
+                      <td style={tdStyle}>{sale.paymentMethod}</td>
+                      <td style={{ ...tdStyle, fontWeight: 900 }}>
+                        {formatCurrency(sale.amount)}
+                      </td>
+                      <td style={tdStyle}>{sale.storeName}</td>
+                      <td style={tdStyle}>{sale.reservationId ?? "—"}</td>
+                      <td style={{ ...tdStyle, whiteSpace: "pre-wrap", minWidth: "260px" }}>
+                        {sale.note || "—"}
+                      </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </div>
   );
 }
-
-function FilterCard({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <div style={filterCardStyle}>
-      <div style={labelStyle}>{label}</div>
-      {children}
-    </div>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div style={metricCardStyle}>
-      <div style={metricLabelStyle}>{label}</div>
-      <div style={metricValueStyle}>{value}</div>
-    </div>
-  );
-}
-
-function MiniInfo({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div style={miniInfoCardStyle}>
-      <div style={miniInfoLabelStyle}>{label}</div>
-      <div style={miniInfoValueStyle}>{value}</div>
-    </div>
-  );
-}
-
-function DetailRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div style={detailRowStyle}>
-      <span style={detailLabelStyle}>{label}</span>
-      <span style={detailValueStyle}>{value}</span>
-    </div>
-  );
-}
-
-function DetailRowStrong({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div style={{ ...detailRowStyle, borderBottom: "none" }}>
-      <span style={{ ...detailLabelStyle, fontWeight: 800, color: "#f8fafc" }}>
-        {label}
-      </span>
-      <span style={{ ...detailValueStyle, fontWeight: 900, color: "#f59e0b" }}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
-const pageStyle: CSSProperties = {
-  minHeight: "100vh",
-  background:
-    "radial-gradient(circle at top left, rgba(245,158,11,0.12) 0%, rgba(245,158,11,0) 30%), linear-gradient(135deg, #050816 0%, #0b1120 34%, #111827 68%, #060b16 100%)",
-  position: "relative",
-  overflow: "hidden",
-};
-
-const bgGlowA: CSSProperties = {
-  position: "absolute",
-  top: -140,
-  left: -120,
-  width: 420,
-  height: 420,
-  borderRadius: "50%",
-  background:
-    "radial-gradient(circle, rgba(245,158,11,0.18) 0%, rgba(245,158,11,0) 72%)",
-  pointerEvents: "none",
-};
-
-const bgGlowB: CSSProperties = {
-  position: "absolute",
-  right: -120,
-  top: 80,
-  width: 360,
-  height: 360,
-  borderRadius: "50%",
-  background:
-    "radial-gradient(circle, rgba(59,130,246,0.16) 0%, rgba(59,130,246,0) 72%)",
-  pointerEvents: "none",
-};
-
-const containerStyle: CSSProperties = {
-  position: "relative",
-  zIndex: 1,
-  maxWidth: 1480,
-  margin: "0 auto",
-  padding: "28px 18px 60px",
-  display: "grid",
-  gap: 18,
-};
-
-const topRowStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: 12,
-  flexWrap: "wrap",
-};
-
-const backLinkStyle: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  color: "rgba(226,232,240,0.82)",
-  textDecoration: "none",
-  fontSize: 14,
-  fontWeight: 700,
-};
-
-const eyebrowStyle: CSSProperties = {
-  fontSize: 11,
-  letterSpacing: "0.24em",
-  color: "rgba(148,163,184,0.7)",
-};
-
-const heroCardStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: 20,
-  flexWrap: "wrap",
-  background: "rgba(15,23,42,0.72)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: 28,
-  padding: "24px 22px",
-  boxShadow: "0 24px 60px rgba(0,0,0,0.32)",
-  backdropFilter: "blur(14px)",
-};
-
-const heroLeftStyle: CSSProperties = {
-  flex: 1,
-  minWidth: 260,
-};
-
-const heroRightStyle: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 10,
-  flexWrap: "wrap",
-};
-
-const miniLabelStyle: CSSProperties = {
-  fontSize: 11,
-  letterSpacing: "0.24em",
-  color: "rgba(148,163,184,0.8)",
-  marginBottom: 8,
-};
-
-const titleStyle: CSSProperties = {
-  margin: 0,
-  fontSize: "clamp(28px, 4vw, 42px)",
-  lineHeight: 1.1,
-  color: "#f8fafc",
-  fontWeight: 800,
-};
-
-const descStyle: CSSProperties = {
-  margin: "12px 0 0",
-  fontSize: 14,
-  lineHeight: 1.8,
-  color: "rgba(226,232,240,0.76)",
-};
-
-const errorBoxStyle: CSSProperties = {
-  padding: "14px 16px",
-  borderRadius: 18,
-  background: "rgba(127,29,29,0.35)",
-  border: "1px solid rgba(248,113,113,0.34)",
-  color: "#fecaca",
-  fontSize: 14,
-};
-
-const filterGridStyle: CSSProperties = {
-  display: "grid",
-  gap: 14,
-};
-
-const filterCardStyle: CSSProperties = {
-  background: "rgba(15,23,42,0.72)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: 22,
-  padding: 16,
-  boxShadow: "0 16px 36px rgba(0,0,0,0.22)",
-  backdropFilter: "blur(10px)",
-};
-
-const labelStyle: CSSProperties = {
-  fontSize: 13,
-  color: "rgba(226,232,240,0.8)",
-  marginBottom: 8,
-};
-
-const inputStyle: CSSProperties = {
-  width: "100%",
-  height: 48,
-  borderRadius: 14,
-  border: "1px solid rgba(148,163,184,0.22)",
-  background: "rgba(2,6,23,0.72)",
-  color: "#f8fafc",
-  padding: "0 14px",
-  outline: "none",
-  fontSize: 14,
-  boxSizing: "border-box",
-};
-
-const summaryGridLargeStyle: CSSProperties = {
-  display: "grid",
-  gap: 14,
-};
-
-const metricCardStyle: CSSProperties = {
-  borderRadius: 20,
-  background: "linear-gradient(180deg, rgba(17,24,39,0.95) 0%, rgba(15,23,42,0.9) 100%)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  padding: 16,
-  boxShadow: "0 18px 44px rgba(0,0,0,0.26)",
-};
-
-const metricLabelStyle: CSSProperties = {
-  fontSize: 12,
-  color: "rgba(148,163,184,0.86)",
-  marginBottom: 8,
-};
-
-const metricValueStyle: CSSProperties = {
-  fontSize: 24,
-  fontWeight: 800,
-  color: "#f8fafc",
-  lineHeight: 1.2,
-};
-
-const panelStyle: CSSProperties = {
-  background: "rgba(15,23,42,0.72)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: 26,
-  padding: 20,
-  boxShadow: "0 16px 40px rgba(0,0,0,0.24)",
-  backdropFilter: "blur(10px)",
-};
-
-const panelHeaderStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: 12,
-  flexWrap: "wrap",
-  marginBottom: 16,
-};
-
-const panelMiniStyle: CSSProperties = {
-  fontSize: 11,
-  letterSpacing: "0.22em",
-  color: "rgba(148,163,184,0.72)",
-  marginBottom: 6,
-};
-
-const panelTitleStyle: CSSProperties = {
-  margin: 0,
-  fontSize: 22,
-  color: "#f8fafc",
-  fontWeight: 700,
-};
-
-const detailBoxStyle: CSSProperties = {
-  borderRadius: 20,
-  background: "rgba(2,6,23,0.42)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  padding: 16,
-};
-
-const detailRowStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: 12,
-  padding: "10px 0",
-  borderBottom: "1px solid rgba(148,163,184,0.16)",
-};
-
-const detailLabelStyle: CSSProperties = {
-  fontSize: 14,
-  color: "rgba(226,232,240,0.72)",
-};
-
-const detailValueStyle: CSSProperties = {
-  fontSize: 14,
-  fontWeight: 700,
-  color: "#f8fafc",
-};
-
-const emptyBoxStyle: CSSProperties = {
-  minHeight: 120,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  textAlign: "center",
-  borderRadius: 20,
-  background: "rgba(2,6,23,0.42)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  color: "rgba(226,232,240,0.6)",
-  fontSize: 14,
-  padding: 20,
-};
-
-const miniInfoCardStyle: CSSProperties = {
-  borderRadius: 16,
-  background: "rgba(2,6,23,0.5)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  padding: 12,
-};
-
-const miniInfoLabelStyle: CSSProperties = {
-  fontSize: 11,
-  color: "rgba(148,163,184,0.82)",
-  marginBottom: 6,
-};
-
-const miniInfoValueStyle: CSSProperties = {
-  fontSize: 14,
-  fontWeight: 700,
-  color: "#f8fafc",
-  lineHeight: 1.5,
-};
-
-const tableWrapStyle: CSSProperties = {
-  width: "100%",
-  overflowX: "auto",
-  borderRadius: 20,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(2,6,23,0.4)",
-};
-
-const tableStyle: CSSProperties = {
-  width: "100%",
-  minWidth: 760,
-  borderCollapse: "collapse",
-};
-
-const salesTableStyle: CSSProperties = {
-  width: "100%",
-  minWidth: 1300,
-  borderCollapse: "collapse",
-};
-
-const thStyle: CSSProperties = {
-  padding: "12px 10px",
-  textAlign: "left",
-  fontSize: 12,
-  fontWeight: 800,
-  color: "rgba(203,213,225,0.82)",
-  borderBottom: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(15,23,42,0.92)",
-  whiteSpace: "nowrap",
-};
-
-const tdStyle: CSSProperties = {
-  padding: "12px 10px",
-  fontSize: 13,
-  color: "#e5e7eb",
-  borderBottom: "1px solid rgba(148,163,184,0.12)",
-  verticalAlign: "top",
-  whiteSpace: "nowrap",
-};
-
-const tdStyleStrong: CSSProperties = {
-  ...tdStyle,
-  fontWeight: 800,
-  color: "#f8fafc",
-};
-
-const tdStyleStrongBlue: CSSProperties = {
-  ...tdStyle,
-  fontWeight: 800,
-  color: "#f59e0b",
-};
-
-const tdNoteStyle: CSSProperties = {
-  ...tdStyle,
-  whiteSpace: "normal",
-  minWidth: 220,
-};
-
-const recordCardStyle: CSSProperties = {
-  borderRadius: 20,
-  background: "rgba(2,6,23,0.42)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  padding: 16,
-};
-
-const recordDateStyle: CSSProperties = {
-  fontSize: 14,
-  color: "rgba(226,232,240,0.78)",
-  marginBottom: 10,
-  fontWeight: 700,
-};
-
-const recordInfoGridStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "1fr 1fr",
-  gap: 10,
-};
-
-const loadingStyle: CSSProperties = {
-  textAlign: "center",
-  color: "rgba(226,232,240,0.72)",
-  fontSize: 14,
-  padding: "16px 0",
-};
-
-const primaryButtonStyle: CSSProperties = {
-  height: 46,
-  padding: "0 18px",
-  borderRadius: 14,
-  border: "1px solid rgba(245,158,11,0.4)",
-  background: "linear-gradient(135deg, #f59e0b 0%, #f97316 100%)",
-  color: "#fff",
-  fontWeight: 800,
-  fontSize: 14,
-  cursor: "pointer",
-};
-
-const secondaryButtonStyle: CSSProperties = {
-  height: 40,
-  padding: "0 14px",
-  borderRadius: 12,
-  border: "1px solid rgba(245,158,11,0.32)",
-  background: "rgba(245,158,11,0.14)",
-  color: "#fbbf24",
-  fontWeight: 700,
-  fontSize: 13,
-  cursor: "pointer",
-};
-
-const ghostButtonStyle: CSSProperties = {
-  height: 40,
-  padding: "0 14px",
-  borderRadius: 12,
-  border: "1px solid rgba(148,163,184,0.22)",
-  background: "rgba(255,255,255,0.04)",
-  color: "#e5e7eb",
-  fontWeight: 700,
-  fontSize: 13,
-  cursor: "pointer",
-};
-
-const smallButtonStyle: CSSProperties = {
-  height: 34,
-  padding: "0 12px",
-  borderRadius: 10,
-  border: "1px solid rgba(245,158,11,0.28)",
-  background: "rgba(245,158,11,0.12)",
-  color: "#fbbf24",
-  fontWeight: 700,
-  fontSize: 12,
-  cursor: "pointer",
-};
-
-const smallGhostButtonStyle: CSSProperties = {
-  height: 34,
-  padding: "0 12px",
-  borderRadius: 10,
-  border: "1px solid rgba(148,163,184,0.2)",
-  background: "rgba(255,255,255,0.04)",
-  color: "#e5e7eb",
-  fontWeight: 700,
-  fontSize: 12,
-  cursor: "pointer",
-};
-
-const actionInlineStyle: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 8,
-  flexWrap: "wrap",
-};
-
-const cardActionRowStyle: CSSProperties = {
-  display: "flex",
-  gap: 10,
-  flexWrap: "wrap",
-  marginTop: 12,
-};
-
-const memoBoxStyle: CSSProperties = {
-  marginTop: 12,
-  padding: "10px 12px",
-  borderRadius: 12,
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.06)",
-  color: "#e5e7eb",
-  fontSize: 13,
-  lineHeight: 1.6,
-};
