@@ -1173,10 +1173,7 @@ export default function ReservationPage() {
     const reservationId = toIdNumber(item.id);
     const alreadyUsed = usedCount > 0;
 
-    const currentNumber = alreadyUsed
-  ? Math.min(Math.max(usedCount, 1), totalCount)
-  : Math.min(Math.max(usedCount + 1, 1), totalCount);
-
+    const currentNumber = Math.min(usedCount + 1, totalCount);
     const isDanger = currentNumber >= totalCount;
     const isWarning = !isDanger && currentNumber === totalCount - 1;
 
