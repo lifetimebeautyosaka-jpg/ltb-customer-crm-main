@@ -1175,8 +1175,8 @@ export default function ReservationPage() {
       reservationId !== null && ticketUsedReservationIdSet.has(reservationId);
 
     const currentNumber = alreadyUsed
-      ? Math.min(Math.max(usedCount, 1), totalCount)
-      : Math.min(usedCount + 1, totalCount);
+  ? Math.min(Math.max(usedCount, 1), totalCount)
+  : Math.min(Math.max(usedCount + 1, 1), totalCount);
 
     const isDanger = currentNumber >= totalCount;
     const isWarning = !isDanger && currentNumber === totalCount - 1;
