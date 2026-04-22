@@ -87,6 +87,25 @@ type StaffHistoryItem = {
   menu?: string | null;
 };
 
+type TicketContractRow = {
+  id: string | number;
+  customer_id?: string | number | null;
+  ticket_name?: string | null;
+  remaining_count?: number | null;
+  used_count?: number | null;
+  prepaid_balance?: number | null;
+  status?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+type TicketNumberingInfo = {
+  label: string;
+  tone: "normal" | "warning" | "danger";
+  showUpdate: boolean;
+  showPaymentAlert: boolean;
+};
+
 type FilterMode =
   | "all"
   | "pending"
@@ -514,6 +533,7 @@ export default function ReservationPage() {
   const [reservations, setReservations] = useState<ReservationRow[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [attendanceItems, setAttendanceItems] = useState<StaffAttendanceItem[]>([]);
+  const [ticketContracts, setTicketContracts] = useState<TicketContractRow[]>([]);
 
   const [customerSearch, setCustomerSearch] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
@@ -767,6 +787,14 @@ export default function ReservationPage() {
     [ticketUsedReservationIds]
   );
 
+  const customerPlanTypeById = useMemo(() => {
+    const map = new Map<string, string>();
+    customers.forEach((customer) => {
+      map.set(String(customer.id), trimmed(customer.planType));
+    });
+    return map;
+  }, [customers]);
+
   const baseVisibleReservations = useMemo(() => {
     const list =
       selectedStoreFilter === "すべて"
@@ -781,6 +809,12 @@ export default function ReservationPage() {
     void loadReservationFlagsForVisible();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted, authChecked, baseVisibleReservations]);
+
+  useEffect(() => {
+    if (!mounted || !authChecked) return;
+    void loadTicketContractsForVisibleCustomers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, authChecked, baseVisibleReservations, customers]);
 
   const visibleReservations = useMemo(() => {
     let list = [...baseVisibleReservations];
@@ -959,6 +993,35 @@ export default function ReservationPage() {
     ticketUsedReservationIdSet,
   ]);
 
+  const ticketContractsByCustomerId = useMemo(() => {
+    const map = new Map<string, TicketContractRow[]>();
+
+    for (const contract of ticketContracts) {
+      const customerId = trimmed(contract.customer_id);
+      if (!customerId) continue;
+      if (!map.has(customerId)) map.set(customerId, []);
+      map.get(customerId)!.push(contract);
+    }
+
+    for (const [, list] of map) {
+      list.sort((a, b) => {
+        const aActive = trimmed(a.status) === "active" ? 1 : 0;
+        const bActive = trimmed(b.status) === "active" ? 1 : 0;
+        if (aActive !== bActive) return bActive - aActive;
+
+        const aUpdated = trimmed(a.updated_at || a.created_at);
+        const bUpdated = trimmed(b.updated_at || b.created_at);
+        if (aUpdated !== bUpdated) return aUpdated < bUpdated ? 1 : -1;
+
+        const aId = toIdNumber(a.id) || 0;
+        const bId = toIdNumber(b.id) || 0;
+        return bId - aId;
+      });
+    }
+
+    return map;
+  }, [ticketContracts]);
+
   async function loadReservationFlagsForVisible() {
     if (!supabase) return;
 
@@ -1015,6 +1078,115 @@ export default function ReservationPage() {
       console.error(e);
       setError(`状態取得エラー: ${extractErrorMessage(e)}`);
     }
+  }
+
+  async function loadTicketContractsForVisibleCustomers() {
+    if (!supabase) return;
+
+    const customerIds = Array.from(
+      new Set(
+        baseVisibleReservations
+          .map((item) => toIdNumber(item.customer_id))
+          .filter((id): id is number => id !== null)
+      )
+    );
+
+    if (customerIds.length === 0) {
+      setTicketContracts([]);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("ticket_contracts")
+        .select(
+          "id, customer_id, ticket_name, remaining_count, used_count, prepaid_balance, status, created_at, updated_at"
+        )
+        .in("customer_id", customerIds)
+        .order("updated_at", { ascending: false })
+        .order("id", { ascending: false });
+
+      if (error) {
+        if ((error as { code?: string }).code === "PGRST205") {
+          setTicketContracts([]);
+          return;
+        }
+        throw error;
+      }
+
+      setTicketContracts((data as TicketContractRow[]) || []);
+    } catch (e) {
+      console.error(e);
+      setTicketContracts([]);
+    }
+  }
+
+  function getTicketContractForReservation(item: ReservationRow): TicketContractRow | null {
+    const customerId = trimmed(item.customer_id);
+    if (!customerId) return null;
+
+    const list = ticketContractsByCustomerId.get(customerId) || [];
+    if (list.length === 0) return null;
+
+    const customerPlanType = customerPlanTypeById.get(customerId) || "";
+    const resolvedTicketName = resolveTicketName({
+      reservationMenu: item.menu,
+      customerPlanType,
+    });
+
+    if (resolvedTicketName) {
+      const exactActive = list.find(
+        (contract) =>
+          trimmed(contract.ticket_name) === resolvedTicketName &&
+          (trimmed(contract.status) === "active" || !trimmed(contract.status))
+      );
+      if (exactActive) return exactActive;
+
+      const exactAny = list.find(
+        (contract) => trimmed(contract.ticket_name) === resolvedTicketName
+      );
+      if (exactAny) return exactAny;
+    }
+
+    const activeContract = list.find(
+      (contract) => trimmed(contract.status) === "active" || !trimmed(contract.status)
+    );
+    if (activeContract) return activeContract;
+
+    return list[0] || null;
+  }
+
+  function getTicketNumberingForReservation(
+    item: ReservationRow
+  ): TicketNumberingInfo | null {
+    if (!isTicketMenu(item.menu)) return null;
+
+    const contract = getTicketContractForReservation(item);
+    if (!contract) return null;
+
+    const usedCount = Math.max(Number(contract.used_count ?? 0), 0);
+    const remainingCount = Math.max(Number(contract.remaining_count ?? 0), 0);
+    const totalCount = usedCount + remainingCount;
+
+    if (totalCount <= 0) return null;
+
+    const reservationId = toIdNumber(item.id);
+    const alreadyUsed =
+      reservationId !== null && ticketUsedReservationIdSet.has(reservationId);
+
+    const currentNumber = alreadyUsed
+      ? Math.min(Math.max(usedCount, 1), totalCount)
+      : Math.min(usedCount + 1, totalCount);
+
+    const isDanger = currentNumber >= totalCount;
+    const isWarning = !isDanger && currentNumber === totalCount - 1;
+
+    return {
+      label: `${totalCount}-${currentNumber}`,
+      tone: isDanger ? "danger" : isWarning ? "warning" : "normal",
+      showUpdate: isDanger,
+      showPaymentAlert: isDanger,
+    };
   }
 
   function openDay(dateStr: string) {
@@ -1185,7 +1357,12 @@ export default function ReservationPage() {
       setFormOpen(false);
       setSelectedDate(formDate);
       setDaySheetOpen(true);
-      await Promise.all([loadCustomers(), loadReservations(), loadReservationFlagsForVisible()]);
+      await Promise.all([
+        loadCustomers(),
+        loadReservations(),
+        loadReservationFlagsForVisible(),
+        loadTicketContractsForVisibleCustomers(),
+      ]);
     } catch (e) {
       console.error(e);
       setError(`予約保存エラー: ${extractErrorMessage(e)}`);
@@ -1431,6 +1608,7 @@ export default function ReservationPage() {
         loadReservations(),
         loadReservationFlagsForVisible(),
         loadAttendance(),
+        loadTicketContractsForVisibleCustomers(),
       ]);
 
       router.push(
@@ -1478,8 +1656,8 @@ export default function ReservationPage() {
         supabase.from("counselings").select("id").eq("reservation_id", reservationId),
         supabase
           .from("ticket_usages")
-.select("id, ticket_id, before_count")
-.eq("reservation_id", Number(reservationId)),
+          .select("id, contract_id, unit_price")
+          .eq("reservation_id", reservationId),
       ]);
 
       if (salesError) throw salesError;
@@ -1598,6 +1776,7 @@ export default function ReservationPage() {
         loadReservations(),
         loadReservationFlagsForVisible(),
         loadAttendance(),
+        loadTicketContractsForVisibleCustomers(),
       ]);
     } catch (e) {
       console.error(e);
@@ -2104,9 +2283,7 @@ export default function ReservationPage() {
                               <div style={styles.timelineTitle}>
                                 {trimmed(item.staff_name) || "スタッフ未設定"}勤務
                               </div>
-                              <div style={styles.timelineMetaText}>
-                                スタッフ出勤
-                              </div>
+                              <div style={styles.timelineMetaText}>スタッフ出勤</div>
                               {trimmed(item.memo) ? (
                                 <div style={styles.attendanceMemoBox}>
                                   不可時間メモ: {trimmed(item.memo)}
@@ -2148,6 +2325,7 @@ export default function ReservationPage() {
                       ticketUsedReservationIdSet.has(reservationIdNum);
                     const memoOpened = openedMemoReservationIds.includes(String(item.id));
                     const actionOpened = openedActionReservationIds.includes(String(item.id));
+                    const ticketNumbering = getTicketNumberingForReservation(item);
 
                     return (
                       <div
@@ -2170,9 +2348,34 @@ export default function ReservationPage() {
                                   {trimmed(item.start_time) || "--:--"}
                                   {trimmed(item.end_time) ? `〜${trimmed(item.end_time)}` : ""}
                                 </span>
-                                <span style={styles.timelineTitleCompact}>
-                                  {trimmed(item.customer_name) || "顧客名未設定"}
-                                </span>
+
+                                <div style={styles.timelineNameGroupCompact}>
+                                  <span style={styles.timelineTitleCompact}>
+                                    {trimmed(item.customer_name) || "顧客名未設定"}
+                                  </span>
+
+                                  {ticketNumbering ? (
+                                    <>
+                                      <span
+                                        style={{
+                                          ...styles.ticketNumberBadgeCompact,
+                                          ...(ticketNumbering.tone === "warning"
+                                            ? styles.ticketNumberBadgeWarningCompact
+                                            : {}),
+                                          ...(ticketNumbering.tone === "danger"
+                                            ? styles.ticketNumberBadgeDangerCompact
+                                            : {}),
+                                        }}
+                                      >
+                                        {ticketNumbering.label}
+                                      </span>
+
+                                      {ticketNumbering.showUpdate ? (
+                                        <span style={styles.ticketUpdateBadgeCompact}>更新</span>
+                                      ) : null}
+                                    </>
+                                  ) : null}
+                                </div>
                               </div>
 
                               <div style={styles.timelineMetaTextCompact}>
@@ -2222,6 +2425,12 @@ export default function ReservationPage() {
                                   </>
                                 ) : null}
                               </div>
+
+                              {ticketNumbering?.showPaymentAlert ? (
+                                <div style={styles.paymentAlertBoxCompact}>
+                                  支払い更新アラート
+                                </div>
+                              ) : null}
 
                               <div style={styles.tapHintCompact}>
                                 {isSold
@@ -2303,9 +2512,7 @@ export default function ReservationPage() {
                                 </div>
 
                                 {trimmed(item.memo) && memoOpened ? (
-                                  <div style={styles.memoBoxCompact}>
-                                    {trimmed(item.memo)}
-                                  </div>
+                                  <div style={styles.memoBoxCompact}>{trimmed(item.memo)}</div>
                                 ) : null}
                               </div>
                             ) : null}
@@ -3147,7 +3354,6 @@ const styles: Record<string, CSSProperties> = {
     display: "grid",
     gap: 8,
   },
-
   timelineCard: {
     background: "#fff",
     borderRadius: 16,
@@ -3217,7 +3423,6 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 900,
     flexShrink: 0,
   },
-
   timelineCardCompact: {
     background: "#fff",
     borderRadius: 12,
@@ -3253,6 +3458,14 @@ const styles: Record<string, CSSProperties> = {
     gap: 8,
     minWidth: 0,
   },
+  timelineNameGroupCompact: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    minWidth: 0,
+    flexWrap: "wrap",
+    flex: 1,
+  },
   timelineTimeInline: {
     fontSize: 11,
     fontWeight: 900,
@@ -3269,6 +3482,43 @@ const styles: Record<string, CSSProperties> = {
     overflow: "hidden",
     textOverflow: "ellipsis",
     minWidth: 0,
+    maxWidth: "100%",
+  },
+  ticketNumberBadgeCompact: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 999,
+    padding: "2px 7px",
+    fontSize: 10,
+    fontWeight: 900,
+    background: "#e2e8f0",
+    color: "#334155",
+    whiteSpace: "nowrap",
+    flexShrink: 0,
+  },
+  ticketNumberBadgeWarningCompact: {
+    background: "#fef3c7",
+    color: "#92400e",
+    border: "1px solid #f59e0b",
+  },
+  ticketNumberBadgeDangerCompact: {
+    background: "#fee2e2",
+    color: "#b91c1c",
+    border: "1px solid #ef4444",
+  },
+  ticketUpdateBadgeCompact: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 999,
+    padding: "2px 7px",
+    fontSize: 10,
+    fontWeight: 900,
+    background: "#dc2626",
+    color: "#fff",
+    whiteSpace: "nowrap",
+    flexShrink: 0,
   },
   timelineMetaTextCompact: {
     fontSize: 10,
@@ -3340,8 +3590,19 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 9,
     fontWeight: 800,
   },
+  paymentAlertBoxCompact: {
+    marginTop: 6,
+    background: "#fff1f2",
+    border: "1px solid #fecdd3",
+    color: "#be123c",
+    borderRadius: 10,
+    padding: "7px 9px",
+    fontSize: 10,
+    fontWeight: 900,
+    lineHeight: 1.3,
+  },
   tapHintCompact: {
-    marginTop: 3,
+    marginTop: 5,
     fontSize: 9,
     fontWeight: 900,
     color: "#2563eb",
@@ -3450,7 +3711,6 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 900,
     flexShrink: 0,
   },
-
   memoBox: {
     background: "#f8fafc",
     borderRadius: 12,
@@ -3461,7 +3721,6 @@ const styles: Record<string, CSSProperties> = {
     marginTop: 10,
     whiteSpace: "pre-wrap",
   },
-
   modalOverlay: {
     position: "fixed",
     inset: 0,
