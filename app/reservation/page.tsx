@@ -2487,6 +2487,7 @@ export default function ReservationPage() {
       </main>
     );
   }
+  const styles: Record<string, CSSProperties> = {
     activeFilterLabel: {
     fontSize: 13,
     color: "#0f172a",
