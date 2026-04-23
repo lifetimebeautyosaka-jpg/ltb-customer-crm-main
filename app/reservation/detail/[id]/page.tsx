@@ -84,6 +84,16 @@ type CustomerTicketRow = {
   created_at?: string | null;
 };
 
+type TicketNumberingInfo = {
+  label: string;
+  isFinished: boolean;
+  isWarning: boolean;
+  total: number;
+  remaining: number;
+  usedDisplay: number;
+  ticketName: string;
+};
+
 function trimmed(value: unknown): string {
   if (value === null || value === undefined) return "";
   return String(value).trim();
@@ -541,7 +551,7 @@ export default function ReservationDetailPage() {
     return customerTickets.find((ticket) => Number(ticket.remaining_count || 0) > 0);
   }, [customerTickets]);
 
-  const ticketNumbering = useMemo(() => {
+  const ticketNumbering = useMemo<TicketNumberingInfo | null>(() => {
     if (!reservation) return null;
 
     const customerId = trimmed(reservation.customer_id);
@@ -573,20 +583,27 @@ export default function ReservationDetailPage() {
     const ticket = filtered[0];
     const total = Number(ticket.total_count || 0);
     const remaining = Number(ticket.remaining_count || 0);
-    const used = total - remaining;
 
     if (total <= 0) return null;
 
+    const isUsedThisReservation = ticketUsages.some(
+      (u) => String(u.reservation_id) === String(reservation.id)
+    );
+
+    const usedDisplay = isUsedThisReservation
+      ? total - remaining
+      : total - remaining + 1;
+
     return {
-      label: `${total}-${used}`,
-      isFinished: used >= total,
-      isWarning: used === total - 1,
+      label: `${total}-${Math.min(Math.max(usedDisplay, 1), total)}`,
+      isFinished: usedDisplay >= total,
+      isWarning: usedDisplay === total - 1,
       total,
       remaining,
-      used,
+      usedDisplay,
       ticketName: trimmed(ticket.ticket_name) || "回数券",
     };
-  }, [reservation, customerTickets]);
+  }, [reservation, customerTickets, ticketUsages]);
 
   const pendingFlags = useMemo(() => {
     return {
@@ -618,11 +635,7 @@ export default function ReservationDetailPage() {
                 予約一覧へ
               </button>
 
-              <button
-                type="button"
-                onClick={() => router.back()}
-                style={styles.subBtn}
-              >
+              <button type="button" onClick={() => router.back()} style={styles.subBtn}>
                 戻る
               </button>
 
@@ -871,9 +884,7 @@ export default function ReservationDetailPage() {
 
                 <div style={styles.infoItem}>
                   <span style={styles.infoLabel}>メニュー</span>
-                  <span style={styles.infoValue}>
-                    {trimmed(reservation.menu) || "未設定"}
-                  </span>
+                  <span style={styles.infoValue}>{trimmed(reservation.menu) || "未設定"}</span>
                 </div>
 
                 <div style={styles.infoItem}>
