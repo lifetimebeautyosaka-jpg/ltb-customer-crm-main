@@ -84,6 +84,18 @@ type CustomerTicketRow = {
   created_at?: string | null;
 };
 
+type TicketContractRow = {
+  id: number | string;
+  customer_id?: number | string | null;
+  ticket_name?: string | null;
+  remaining_count?: number | null;
+  used_count?: number | null;
+  prepaid_balance?: number | null;
+  status?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
 type TicketNumberingInfo = {
   label: string;
   isFinished: boolean;
@@ -297,6 +309,7 @@ export default function ReservationDetailPage() {
   const [counselings, setCounselings] = useState<CounselingRow[]>([]);
   const [ticketUsages, setTicketUsages] = useState<TicketUsageRow[]>([]);
   const [customerTickets, setCustomerTickets] = useState<CustomerTicketRow[]>([]);
+  const [ticketContracts, setTicketContracts] = useState<TicketContractRow[]>([]);
 
   useEffect(() => {
     setMounted(true);
@@ -306,10 +319,12 @@ export default function ReservationDetailPage() {
     if (!mounted) return;
 
     const loggedIn =
-      localStorage.getItem("gymup_logged_in") || localStorage.getItem("isLoggedIn");
+      localStorage.getItem("gymup_logged_in") ||
+      localStorage.getItem("gymup_staff_logged_in") ||
+      localStorage.getItem("isLoggedIn");
 
     if (loggedIn !== "true") {
-      router.push("/login");
+      router.push("/login/staff");
       return;
     }
 
@@ -363,6 +378,7 @@ export default function ReservationDetailPage() {
         { data: counselingData, error: counselingError },
         { data: ticketUsageData, error: ticketUsageError },
         customerTicketsResult,
+        ticketContractsResult,
       ] = await Promise.all([
         supabase
           .from("sales")
@@ -396,22 +412,80 @@ export default function ReservationDetailPage() {
               .eq("service_type", serviceType)
               .order("created_at", { ascending: false })
           : Promise.resolve({ data: [], error: null }),
+
+        customerId
+          ? supabase
+              .from("ticket_contracts")
+              .select(
+                "id, customer_id, ticket_name, remaining_count, used_count, prepaid_balance, status, created_at, updated_at"
+              )
+              .eq("customer_id", customerId)
+              .order("updated_at", { ascending: false })
+              .order("id", { ascending: false })
+          : Promise.resolve({ data: [], error: null }),
       ]);
 
       if (salesError) throw salesError;
       if (counselingError) throw counselingError;
       if (ticketUsageError) throw ticketUsageError;
       if (customerTicketsResult.error) throw customerTicketsResult.error;
+      if (ticketContractsResult.error) throw ticketContractsResult.error;
 
       setSales((salesData as SaleRow[]) || []);
       setCounselings((counselingData as CounselingRow[]) || []);
       setTicketUsages((ticketUsageData as TicketUsageRow[]) || []);
       setCustomerTickets((customerTicketsResult.data as CustomerTicketRow[]) || []);
+      setTicketContracts((ticketContractsResult.data as TicketContractRow[]) || []);
     } catch (e) {
       console.error(e);
       setError(extractErrorMessage(e));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function restoreTicketContractsFromUsages(usages: TicketUsageRow[]) {
+    if (!supabase || usages.length === 0) return;
+
+    for (const usage of usages) {
+      const ticketId = toNumberOrNull(usage.ticket_id);
+      if (!ticketId) continue;
+
+      const { data: contractRow, error: contractFetchError } = await supabase
+        .from("ticket_contracts")
+        .select("id, used_count, remaining_count, prepaid_balance")
+        .eq("id", ticketId)
+        .maybeSingle();
+
+      if (contractFetchError) throw contractFetchError;
+      if (!contractRow) continue;
+
+      const currentUsed = Number(
+        (contractRow as { used_count?: number | null }).used_count || 0
+      );
+      const currentRemaining = Number(
+        (contractRow as { remaining_count?: number | null }).remaining_count || 0
+      );
+      const currentBalance = Number(
+        (contractRow as { prepaid_balance?: number | null }).prepaid_balance || 0
+      );
+      const restorePrice = Number(usage.unit_price || 0);
+      const beforeCount = toNumberOrNull(usage.before_count);
+
+      const nextRemaining = beforeCount !== null ? beforeCount : currentRemaining + 1;
+      const nextUsed = Math.max(currentUsed - 1, 0);
+
+      const { error: contractUpdateError } = await supabase
+        .from("ticket_contracts")
+        .update({
+          used_count: nextUsed,
+          remaining_count: nextRemaining,
+          prepaid_balance: currentBalance + restorePrice,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", ticketId);
+
+      if (contractUpdateError) throw contractUpdateError;
     }
   }
 
@@ -481,9 +555,15 @@ export default function ReservationDetailPage() {
 
       if (ticketUsages.length > 0) {
         try {
+          await restoreTicketContractsFromUsages(ticketUsages);
+        } catch (e) {
+          throw new Error(`ticket_contracts の復元で失敗: ${extractErrorMessage(e)}`);
+        }
+
+        try {
           await restoreCustomerTicketsFromUsages(ticketUsages);
         } catch (e) {
-          throw new Error(`回数券残数の復元で失敗: ${extractErrorMessage(e)}`);
+          console.warn("customer_tickets restore skipped:", e);
         }
       }
 
@@ -548,11 +628,59 @@ export default function ReservationDetailPage() {
   const serviceType = useMemo(() => detectServiceTypeFromMenu(reservation?.menu), [reservation]);
 
   const activeTicket = useMemo(() => {
-    return customerTickets.find((ticket) => Number(ticket.remaining_count || 0) > 0);
-  }, [customerTickets]);
+    const contract = ticketContracts.find((ticket) => Number(ticket.remaining_count || 0) > 0);
+    if (contract) {
+      return {
+        ticket_name: contract.ticket_name,
+        remaining_count: contract.remaining_count,
+      };
+    }
+
+    const legacy = customerTickets.find((ticket) => Number(ticket.remaining_count || 0) > 0);
+    if (legacy) {
+      return {
+        ticket_name: legacy.ticket_name,
+        remaining_count: legacy.remaining_count,
+      };
+    }
+
+    return null;
+  }, [ticketContracts, customerTickets]);
 
   const ticketNumbering = useMemo<TicketNumberingInfo | null>(() => {
     if (!reservation) return null;
+    if (!isTicketReservation) return null;
+
+    const contract = ticketContracts.find((item) => {
+      const remaining = Number(item.remaining_count || 0);
+      const used = Number(item.used_count || 0);
+      return remaining + used > 0;
+    });
+
+    if (contract) {
+      const usedCount = Math.max(Number(contract.used_count || 0), 0);
+      const remaining = Math.max(Number(contract.remaining_count || 0), 0);
+      const total = usedCount + remaining;
+      if (total <= 0) return null;
+
+      const isUsedThisReservation = ticketUsages.some(
+        (u) => String(u.reservation_id) === String(reservation.id)
+      );
+
+      const usedDisplay = isUsedThisReservation
+        ? Math.min(usedCount, total)
+        : Math.min(usedCount + 1, total);
+
+      return {
+        label: `${total}-${Math.max(usedDisplay, 1)}`,
+        isFinished: usedDisplay >= total,
+        isWarning: usedDisplay === total - 1,
+        total,
+        remaining,
+        usedDisplay,
+        ticketName: trimmed(contract.ticket_name) || "回数券",
+      };
+    }
 
     const customerId = trimmed(reservation.customer_id);
     if (!customerId) return null;
@@ -603,7 +731,7 @@ export default function ReservationDetailPage() {
       usedDisplay,
       ticketName: trimmed(ticket.ticket_name) || "回数券",
     };
-  }, [reservation, customerTickets, ticketUsages]);
+  }, [reservation, isTicketReservation, ticketContracts, customerTickets, ticketUsages]);
 
   const pendingFlags = useMemo(() => {
     return {
@@ -1080,6 +1208,55 @@ export default function ReservationDetailPage() {
                       </span>
                     </div>
                   </div>
+
+                  {ticketContracts.length > 0 ? (
+                    <>
+                      <div style={styles.subSectionTitle}>契約回数券一覧</div>
+                      <div style={styles.listGrid}>
+                        {ticketContracts.map((ticket) => {
+                          const remaining = Number(ticket.remaining_count || 0);
+                          const used = Number(ticket.used_count || 0);
+                          const total = remaining + used;
+                          return (
+                            <div key={String(ticket.id)} style={styles.listCard}>
+                              <div style={styles.listTop}>
+                                <div>
+                                  <div style={styles.listMain}>
+                                    {trimmed(ticket.ticket_name) || "回数券"}
+                                  </div>
+                                  <div style={styles.listSub}>
+                                    総数 {total}回 / 使用 {used}回
+                                  </div>
+                                </div>
+
+                                <div
+                                  style={
+                                    remaining > 0
+                                      ? styles.ticketRemain
+                                      : styles.ticketEmpty
+                                  }
+                                >
+                                  残{remaining}回
+                                </div>
+                              </div>
+
+                              <div style={styles.metaWrap}>
+                                <span style={styles.metaChip}>
+                                  状態: {trimmed(ticket.status) || "未設定"}
+                                </span>
+                                <span style={styles.metaChip}>
+                                  前受金残: {formatCurrency(ticket.prepaid_balance)}
+                                </span>
+                                <span style={styles.metaChip}>
+                                  更新日: {formatDateTimeJP(ticket.updated_at || ticket.created_at)}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  ) : null}
 
                   <div style={styles.subSectionTitle}>顧客の回数券一覧</div>
 
