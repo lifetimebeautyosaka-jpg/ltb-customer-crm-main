@@ -2154,18 +2154,39 @@ export default function ReservationPage() {
                     <div style={styles.dayCount}>{items.length}件</div>
 
                     <div style={styles.dayMiniList}>
-                      {items.slice(0, 3).map((item) => (
-                        <div
-                          key={String(item.id)}
-                          style={{
-                            ...styles.dayMiniCard,
-                            borderLeft: `3px solid ${getStaffColor(item.staff_name)}`,
-                          }}
-                        >
-                          <div style={styles.dayMiniTime}>{trimmed(item.start_time)}</div>
-                          <div style={styles.dayMiniName}>{trimmed(item.customer_name)}</div>
-                        </div>
-                      ))}
+                      {items.slice(0, 3).map((item) => {
+                        const numbering = getTicketNumberingForReservation(item);
+
+                        return (
+                          <div
+                            key={String(item.id)}
+                            style={{
+                              ...styles.dayMiniCard,
+                              borderLeft: `3px solid ${getStaffColor(item.staff_name)}`,
+                            }}
+                          >
+                            <div style={styles.dayMiniTime}>{trimmed(item.start_time)}</div>
+                            <div style={styles.dayMiniNameRow}>
+                              <div style={styles.dayMiniName}>{trimmed(item.customer_name)}</div>
+                              {numbering ? (
+                                <span
+                                  style={{
+                                    ...styles.dayMiniTicketBadge,
+                                    ...(numbering.tone === "warning"
+                                      ? styles.dayMiniTicketBadgeWarning
+                                      : {}),
+                                    ...(numbering.tone === "danger"
+                                      ? styles.dayMiniTicketBadgeDanger
+                                      : {}),
+                                  }}
+                                >
+                                  {numbering.label}
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })}
                       {items.length > 3 ? <div style={styles.dayMore}>+{items.length - 3}</div> : null}
                     </div>
                   </button>
@@ -3072,6 +3093,11 @@ const styles: Record<string, CSSProperties> = {
     lineHeight: 1.2,
     marginBottom: 2,
   },
+  dayMiniNameRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 4,
+  },
   dayMiniName: {
     fontSize: 10,
     color: "#0f172a",
@@ -3079,6 +3105,35 @@ const styles: Record<string, CSSProperties> = {
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
+    flex: 1,
+    minWidth: 0,
+  },
+  dayMiniTicketBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 24,
+    height: 16,
+    padding: "0 4px",
+    borderRadius: 999,
+    background: "#eff6ff",
+    color: "#1d4ed8",
+    border: "1px solid #bfdbfe",
+    fontSize: 8,
+    fontWeight: 900,
+    lineHeight: 1,
+    flexShrink: 0,
+    whiteSpace: "nowrap",
+  },
+  dayMiniTicketBadgeWarning: {
+    background: "#fff7ed",
+    color: "#c2410c",
+    border: "1px solid #fdba74",
+  },
+  dayMiniTicketBadgeDanger: {
+    background: "#fee2e2",
+    color: "#b91c1c",
+    border: "1px solid #ef4444",
   },
   dayMore: {
     fontSize: 10,
