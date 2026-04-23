@@ -2352,24 +2352,23 @@ export default function ReservationPage() {
                               style={styles.timelineMainActionCompact}
                             >
                               <div style={styles.timelineTopLineCompact}>
-                                <span style={styles.timelineTimeInline}>
-                                  {trimmed(item.start_time) || "--:--"}
-                                  {trimmed(item.end_time) ? `〜${trimmed(item.end_time)}` : ""}
-                                </span>
+  <span style={styles.timelineTimeInline}>
+    {trimmed(item.start_time) || "--:--"}
+    {trimmed(item.end_time) ? `〜${trimmed(item.end_time)}` : ""}
+  </span>
 
-                                <div style={styles.timelineNameGroupCompact}>
-                                  <span style={styles.timelineTitleCompact}>
-                                    {trimmed(item.customer_name) || "顧客名未設定"}
-                                  </span>
+<div style={styles.timelineNameRowCompact}>
+  <span style={styles.timelineTitleCompact}>
+    {trimmed(item.customer_name) || "顧客名未設定"}
+  </span>
 
-                                  {ticketNumbering ? (
-                                    <span style={ticketLabelStyle}>
-                                      {ticketNumbering.label}
-                                    </span>
-                                  ) : null}
-                                </div>
-                              </div>
-
+  {ticketNumbering ? (
+    <span style={ticketLabelStyle}>
+      {ticketNumbering.label}
+    </span>
+  ) : null}
+</div>
+</div>
                               <div style={styles.timelineMetaTextCompact}>
                                 {trimmed(item.menu) || "—"} / {trimmed(item.staff_name) || "—"}
                                 {trimmed(item.store_name)
@@ -3457,6 +3456,13 @@ const styles: Record<string, CSSProperties> = {
     flexWrap: "wrap",
     flex: 1,
   },
+  timelineNameRowCompact: {
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+  flex: 1,
+  minWidth: 0,
+},
   timelineTimeInline: {
     fontSize: 11,
     fontWeight: 900,
