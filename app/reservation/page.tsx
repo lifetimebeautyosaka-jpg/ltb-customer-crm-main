@@ -113,6 +113,31 @@ type TicketContractRow = {
   updated_at?: string | null;
 };
 
+type CustomerTicketRow = {
+  id: string | number;
+  customer_id?: string | number | null;
+  ticket_name?: string | null;
+  plan_name?: string | null;
+  contract_name?: string | null;
+  total_count?: number | null;
+  remaining_count?: number | null;
+  used_count?: number | null;
+  status?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+type ReservationSaleLite = {
+  id: string | number;
+  reservation_id?: string | number | null;
+  amount?: number | null;
+  payment_method?: string | null;
+  sale_type?: string | null;
+  menu_type?: string | null;
+  memo?: string | null;
+  created_at?: string | null;
+};
+
 type TicketNumberingInfo = {
   label: string;
   tone: "normal" | "warning" | "danger";
@@ -394,6 +419,25 @@ function extractErrorMessage(error: unknown): string {
   return "不明なエラーです。";
 }
 
+function formatTicketDisplayLabel(ticketName?: string | null) {
+  const text = trimmed(ticketName);
+  return text || "回数券";
+}
+
+function buildTicketSearchText(item: ReservationRow, badges: TicketNumberingInfo[]) {
+  return [
+    trimmed(item.customer_name),
+    trimmed(item.memo),
+    trimmed(item.menu),
+    trimmed(item.store_name),
+    trimmed(item.staff_name),
+    ...badges.map((badge) => `${badge.label} ${badge.tone}`),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
 function getVisitTypeLabel(item: ReservationRow) {
   const visitType = trimmed(item.visit_type);
   if (visitType) return visitType;
@@ -553,6 +597,8 @@ export default function ReservationPage() {
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [attendanceItems, setAttendanceItems] = useState<StaffAttendanceItem[]>([]);
   const [ticketContracts, setTicketContracts] = useState<TicketContractRow[]>([]);
+  const [customerTickets, setCustomerTickets] = useState<CustomerTicketRow[]>([]);
+  const [reservationSales, setReservationSales] = useState<ReservationSaleLite[]>([]);
 
   const [customerSearch, setCustomerSearch] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
@@ -580,6 +626,7 @@ export default function ReservationPage() {
   const [openedMemoReservationIds, setOpenedMemoReservationIds] = useState<string[]>([]);
   const [openedActionReservationIds, setOpenedActionReservationIds] = useState<string[]>([]);
 
+  const [reservationSearch, setReservationSearch] = useState("");
   const [globalSearch, setGlobalSearch] = useState("");
   const [searchMode, setSearchMode] = useState<SearchMode>("customer");
   const [selectedHistoryCustomer, setSelectedHistoryCustomer] =
@@ -635,7 +682,8 @@ export default function ReservationPage() {
     void loadReservations();
     void loadAttendance();
   }, [currentMonth, mounted, authChecked]);
-    useEffect(() => {
+
+  useEffect(() => {
     if (!mounted || !authChecked) return;
     void loadReservationFlagsForVisible();
   }, [mounted, authChecked, reservations, selectedStoreFilter]);
@@ -643,6 +691,7 @@ export default function ReservationPage() {
   useEffect(() => {
     if (!mounted || !authChecked) return;
     void loadTicketContractsForVisibleCustomers();
+    void loadCustomerTicketsForVisibleCustomers();
   }, [mounted, authChecked, reservations, selectedStoreFilter, customers]);
 
   async function loadAll() {
@@ -851,6 +900,50 @@ export default function ReservationPage() {
       });
     }
 
+    const keyword = trimmed(reservationSearch).toLowerCase();
+    if (keyword) {
+      list = list.filter((item) => {
+        const ticketText = getTicketBadgesForReservation(item)
+          .map((badge) => badge.label)
+          .join(" ");
+        const saleText = [
+          getReservationSaleSummary(item),
+          ...getReservationSalesForReservation(item).map((sale) =>
+            [
+              trimmed(sale.sale_type),
+              trimmed(sale.menu_type),
+              trimmed(sale.payment_method),
+              trimmed(sale.memo),
+              Number(sale.amount ?? 0) > 0 ? String(Number(sale.amount ?? 0)) : "",
+            ]
+              .filter(Boolean)
+              .join(" ")
+          ),
+        ]
+          .filter(Boolean)
+          .join(" ");
+
+        const haystack = [
+          trimmed(item.customer_name),
+          trimmed(item.memo),
+          trimmed(item.menu),
+          trimmed(item.store_name),
+          trimmed(item.staff_name),
+          trimmed(item.payment_method),
+          ticketText,
+          saleText,
+          trimmed(item.date),
+          trimmed(item.start_time),
+          trimmed(item.end_time),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        return haystack.includes(keyword);
+      });
+    }
+
     return list.sort((a, b) => {
       const aPriority = getPendingPriority({
         item: a,
@@ -883,6 +976,10 @@ export default function ReservationPage() {
     salesReservationIdSet,
     counseledReservationIdSet,
     ticketUsedReservationIdSet,
+    reservationSearch,
+    reservationSales,
+    ticketContracts,
+    customerTickets,
   ]);
 
   const calendarDays = useMemo(() => buildCalendarDays(currentMonth), [currentMonth]);
@@ -1048,6 +1145,7 @@ export default function ReservationPage() {
       setSalesReservationIds([]);
       setCounseledReservationIds([]);
       setTicketUsedReservationIds([]);
+      setReservationSales([]);
       return;
     }
 
@@ -1057,7 +1155,10 @@ export default function ReservationPage() {
         { data: counselingData, error: counselingError },
         { data: ticketUsageData, error: ticketUsageError },
       ] = await Promise.all([
-        supabase.from("sales").select("reservation_id").in("reservation_id", reservationIds),
+        supabase
+          .from("sales")
+          .select("id, reservation_id, amount, payment_method, sale_type, menu_type, memo, created_at")
+          .in("reservation_id", reservationIds),
         supabase.from("counselings").select("reservation_id").in("reservation_id", reservationIds),
         supabase
           .from("ticket_usages")
@@ -1068,6 +1169,8 @@ export default function ReservationPage() {
       if (salesError) throw salesError;
       if (counselingError) throw counselingError;
       if (ticketUsageError) throw ticketUsageError;
+
+      setReservationSales((salesData as ReservationSaleLite[]) || []);
 
       setSalesReservationIds(
         ((salesData as SimpleReservationIdRow[]) || [])
@@ -1133,6 +1236,164 @@ export default function ReservationPage() {
     }
   }
 
+  async function loadCustomerTicketsForVisibleCustomers() {
+    if (!supabase) return;
+
+    const customerIds = Array.from(
+      new Set(
+        baseVisibleReservations
+          .map((item) => toIdNumber(item.customer_id))
+          .filter((id): id is number => id !== null)
+      )
+    );
+
+    if (customerIds.length === 0) {
+      setCustomerTickets([]);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("customer_tickets")
+        .select(
+          "id, customer_id, ticket_name, plan_name, contract_name, total_count, remaining_count, used_count, status, created_at, updated_at"
+        )
+        .in("customer_id", customerIds)
+        .order("updated_at", { ascending: false })
+        .order("id", { ascending: false });
+
+      if (error) {
+        if (
+          (error as { code?: string }).code === "PGRST205" ||
+          (error as { code?: string }).code === "42P01"
+        ) {
+          setCustomerTickets([]);
+          return;
+        }
+        throw error;
+      }
+
+      setCustomerTickets((data as CustomerTicketRow[]) || []);
+    } catch (e) {
+      console.error(e);
+      setCustomerTickets([]);
+    }
+  }
+
+  const customerTicketsByCustomerId = useMemo(() => {
+    const map = new Map<string, CustomerTicketRow[]>();
+
+    for (const ticket of customerTickets) {
+      const customerId = trimmed(ticket.customer_id);
+      if (!customerId) continue;
+      if (!map.has(customerId)) map.set(customerId, []);
+      map.get(customerId)!.push(ticket);
+    }
+
+    for (const [, list] of map) {
+      list.sort((a, b) => {
+        const aUpdated = trimmed(a.updated_at || a.created_at);
+        const bUpdated = trimmed(b.updated_at || b.created_at);
+        if (aUpdated !== bUpdated) return aUpdated < bUpdated ? 1 : -1;
+
+        const aId = toIdNumber(a.id) || 0;
+        const bId = toIdNumber(b.id) || 0;
+        return bId - aId;
+      });
+    }
+
+    return map;
+  }, [customerTickets]);
+
+  const reservationSalesByReservationId = useMemo(() => {
+    const map = new Map<string, ReservationSaleLite[]>();
+
+    for (const sale of reservationSales) {
+      const reservationId = trimmed(sale.reservation_id);
+      if (!reservationId) continue;
+      if (!map.has(reservationId)) map.set(reservationId, []);
+      map.get(reservationId)!.push(sale);
+    }
+
+    return map;
+  }, [reservationSales]);
+
+  function getTicketBadgesForReservation(item: ReservationRow): TicketNumberingInfo[] {
+    const customerId = trimmed(item.customer_id);
+    if (!customerId) return [];
+
+    const badges: TicketNumberingInfo[] = [];
+    const seen = new Set<string>();
+
+    const pushBadge = (labelBase: string, totalCountRaw: unknown, remainingCountRaw: unknown) => {
+      const totalCount = Math.max(Number(totalCountRaw ?? 0), 0);
+      const remainingCount = Math.max(Number(remainingCountRaw ?? 0), 0);
+
+      if (totalCount <= 0) return;
+
+      const label = `${totalCount}-${remainingCount}`;
+      const key = `${labelBase}__${label}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+
+      const tone: TicketNumberingInfo["tone"] =
+        remainingCount <= 0 ? "danger" : remainingCount <= 1 ? "warning" : "normal";
+
+      badges.push({
+        label,
+        tone,
+        showUpdate: remainingCount <= 0,
+        showPaymentAlert: remainingCount <= 0,
+      });
+    };
+
+    const contractRows = ticketContractsByCustomerId.get(customerId) || [];
+    contractRows.forEach((contract) => {
+      const usedCount = Math.max(Number(contract.used_count ?? 0), 0);
+      const remainingCount = Math.max(Number(contract.remaining_count ?? 0), 0);
+      const totalCount = usedCount + remainingCount;
+      pushBadge(formatTicketDisplayLabel(contract.ticket_name), totalCount, remainingCount);
+    });
+
+    const customerTicketRows = customerTicketsByCustomerId.get(customerId) || [];
+    customerTicketRows.forEach((ticket) => {
+      const totalCount =
+        Number(ticket.total_count ?? 0) > 0
+          ? Number(ticket.total_count ?? 0)
+          : Math.max(Number(ticket.used_count ?? 0), 0) + Math.max(Number(ticket.remaining_count ?? 0), 0);
+
+      const labelBase =
+       trimmed(ticket.ticket_name) ||
+        trimmed(ticket.plan_name) ||
+        trimmed(ticket.contract_name) ||
+        "回数券";
+
+      pushBadge(labelBase, totalCount, ticket.remaining_count);
+    });
+
+    return badges;
+  }
+
+  function getReservationSalesForReservation(item: ReservationRow) {
+    return reservationSalesByReservationId.get(String(item.id)) || [];
+  }
+
+  function getReservationSaleSummary(item: ReservationRow) {
+    const sales = getReservationSalesForReservation(item);
+    if (sales.length === 0) return "";
+
+    const total = sales.reduce((sum, sale) => sum + Number(sale.amount ?? 0), 0);
+    const mainSale = sales[0];
+
+    return [
+      `売上¥${total.toLocaleString()}`,
+      trimmed(mainSale.sale_type),
+      trimmed(mainSale.payment_method),
+    ]
+      .filter(Boolean)
+      .join(" / ");
+  }
+
   function getTicketContractForReservation(item: ReservationRow): TicketContractRow | null {
     const customerId = trimmed(item.customer_id);
     if (!customerId) return null;
@@ -1169,31 +1430,8 @@ export default function ReservationPage() {
   }
 
   function getTicketNumberingForReservation(item: ReservationRow): TicketNumberingInfo | null {
-    const contract = getTicketContractForReservation(item);
-    if (!contract) return null;
-
-    const usedCount = Math.max(Number(contract.used_count ?? 0), 0);
-    const remainingCount = Math.max(Number(contract.remaining_count ?? 0), 0);
-    const totalCount = usedCount + remainingCount;
-
-    if (totalCount <= 0) return null;
-
-    const reservationId = toIdNumber(item.id);
-    const alreadyUsed = reservationId !== null && ticketUsedReservationIdSet.has(reservationId);
-
-    const currentNumber = alreadyUsed
-      ? Math.min(usedCount, totalCount)
-      : Math.min(usedCount + 1, totalCount);
-
-    const isDanger = currentNumber >= totalCount;
-    const isWarning = !isDanger && currentNumber === totalCount - 1;
-
-    return {
-      label: `${totalCount}-${currentNumber}`,
-      tone: isDanger ? "danger" : isWarning ? "warning" : "normal",
-      showUpdate: isDanger,
-      showPaymentAlert: isDanger,
-    };
+    const badges = getTicketBadgesForReservation(item);
+    return badges[0] || null;
   }
 
   function openDay(dateStr: string) {
@@ -1370,6 +1608,7 @@ export default function ReservationPage() {
         loadReservations(),
         loadReservationFlagsForVisible(),
         loadTicketContractsForVisibleCustomers(),
+        loadCustomerTicketsForVisibleCustomers(),
       ]);
     } catch (e) {
       console.error(e);
@@ -1640,6 +1879,7 @@ export default function ReservationPage() {
         loadReservationFlagsForVisible(),
         loadAttendance(),
         loadTicketContractsForVisibleCustomers(),
+        loadCustomerTicketsForVisibleCustomers(),
       ]);
 
       router.push(
@@ -1812,6 +2052,7 @@ export default function ReservationPage() {
         loadReservationFlagsForVisible(),
         loadAttendance(),
         loadTicketContractsForVisibleCustomers(),
+        loadCustomerTicketsForVisibleCustomers(),
       ]);
     } catch (e) {
       console.error(e);
@@ -2074,6 +2315,15 @@ export default function ReservationPage() {
             ) : null}
           </div>
 
+          <div style={styles.reservationSearchRow}>
+            <input
+              value={reservationSearch}
+              onChange={(e) => setReservationSearch(e.target.value)}
+              placeholder="予約検索（顧客名 / メモ / 回数券 / 売上 / 店舗 / 担当）"
+              style={styles.searchInput}
+            />
+          </div>
+
           <div style={styles.filterRow}>
             {STORE_OPTIONS.map((store) => (
               <button
@@ -2182,7 +2432,8 @@ export default function ReservationPage() {
 
                     <div style={styles.dayMiniList}>
                       {items.slice(0, 3).map((item) => {
-                        const numbering = getTicketNumberingForReservation(item);
+                        const ticketBadges = getTicketBadgesForReservation(item);
+                        const saleSummary = getReservationSaleSummary(item);
 
                         return (
                           <div
@@ -2196,22 +2447,36 @@ export default function ReservationPage() {
 
                             <div style={styles.dayMiniNameRow}>
                               <div style={styles.dayMiniName}>{trimmed(item.customer_name)}</div>
-                              {numbering ? (
-                                <span
-                                  style={{
-                                    ...styles.dayMiniTicketBadge,
-                                    ...(numbering.tone === "warning" ? styles.dayMiniTicketBadgeWarning : {}),
-                                    ...(numbering.tone === "danger" ? styles.dayMiniTicketBadgeDanger : {}),
-                                  }}
-                                >
-                                  {numbering.label}
-                                </span>
-                              ) : null}
+
+                              <div style={styles.dayMiniTicketWrap}>
+                                {ticketBadges.length > 0 ? (
+                                  ticketBadges.map((badge, index) => (
+                                    <span
+                                      key={`${String(item.id)}-ticket-${index}`}
+                                      style={{
+                                        ...styles.dayMiniTicketBadge,
+                                        ...(badge.tone === "warning" ? styles.dayMiniTicketBadgeWarning : {}),
+                                        ...(badge.tone === "danger" ? styles.dayMiniTicketBadgeDanger : {}),
+                                      }}
+                                    >
+                                      {badge.label}
+                                    </span>
+                                  ))
+                                ) : (
+                                  <span style={styles.dayMiniTicketPlaceholder}>--</span>
+                                )}
+                              </div>
                             </div>
 
-                            {trimmed(item.memo) ? (
-                              <div style={styles.dayMiniMemo}>{trimmed(item.memo)}</div>
-                            ) : null}
+                            <div style={styles.dayMiniMemo}>
+                              {trimmed(item.memo) || "メモなし"}
+                            </div>
+
+                            {saleSummary ? (
+                              <div style={styles.dayMiniSale}>{saleSummary}</div>
+                            ) : (
+                              <div style={styles.dayMiniSaleMuted}>売上未</div>
+                            )}
                           </div>
                         );
                       })}
@@ -2281,7 +2546,8 @@ export default function ReservationPage() {
                     }
 
                     const item = timelineItem.reservation;
-                    const ticketNumbering = getTicketNumberingForReservation(item);
+                    const ticketBadges = getTicketBadgesForReservation(item);
+                    const ticketNumbering = ticketBadges[0] || null;
                     const memoOpened = openedMemoReservationIds.includes(String(item.id));
                     const actionOpened = openedActionReservationIds.includes(String(item.id));
 
@@ -2293,16 +2559,11 @@ export default function ReservationPage() {
                       ticketUsedReservationIdSet,
                     });
 
-                    const ticketLabelStyle: CSSProperties = {
-                      ...styles.ticketInline,
-                      ...(ticketNumbering?.tone === "warning" ? styles.ticketInlineWarning : {}),
-                      ...(ticketNumbering?.tone === "danger" ? styles.ticketInlineDanger : {}),
-                    };
-
-                    const isTicket = !!ticketNumbering;
+                    const isTicket = ticketBadges.length > 0;
                     const isSold =
                       trimmed(item.reservation_status) === "売上済" ||
                       (reservationId !== null && salesReservationIdSet.has(reservationId));
+                    const saleSummary = getReservationSaleSummary(item);
 
                     return (
                       <div
@@ -2325,7 +2586,25 @@ export default function ReservationPage() {
                                   <span style={styles.timelineTitleCompact}>
                                     {item.customer_name || "顧客名未設定"}
                                   </span>
-                                  {ticketNumbering ? <span style={ticketLabelStyle}>{ticketNumbering.label}</span> : null}
+
+                                  <div style={styles.ticketInlineWrap}>
+                                    {ticketBadges.length > 0 ? (
+                                      ticketBadges.map((badge, index) => (
+                                        <span
+                                          key={`${String(item.id)}-inline-ticket-${index}`}
+                                          style={{
+                                            ...styles.ticketInline,
+                                            ...(badge.tone === "warning" ? styles.ticketInlineWarning : {}),
+                                            ...(badge.tone === "danger" ? styles.ticketInlineDanger : {}),
+                                          }}
+                                        >
+                                          {badge.label}
+                                        </span>
+                                      ))
+                                    ) : (
+                                      <span style={styles.ticketInlinePlaceholder}>--</span>
+                                    )}
+                                  </div>
                                 </div>
 
                                 <span style={styles.timelineTimeInline}>
@@ -2333,9 +2612,15 @@ export default function ReservationPage() {
                                 </span>
                               </div>
 
-                              {trimmed(item.memo) ? (
-                                <div style={styles.memoInline}>{trimmed(item.memo)}</div>
-                              ) : null}
+                              <div style={styles.memoInline}>
+                                {trimmed(item.memo) || "メモなし"}
+                              </div>
+
+                              {saleSummary ? (
+                                <div style={styles.saleInline}>{saleSummary}</div>
+                              ) : (
+                                <div style={styles.saleInlineMuted}>売上未</div>
+                              )}
 
                               <div style={styles.timelineMetaTextCompact}>
                                 {item.menu || "メニュー未設定"} / {item.store_name || "店舗未設定"} /{" "}
@@ -2443,153 +2728,184 @@ export default function ReservationPage() {
         ) : null}
 
         {formOpen ? (
-          <div style={styles.modalOverlay} onClick={() => setFormOpen(false)}>
-            <div style={styles.modalSmall} onClick={(e) => e.stopPropagation()}>
-              <div style={styles.modalHeader}>
-                <h3 style={styles.modalTitle}>新規予約追加</h3>
-                <button type="button" style={styles.modalCloseBtn} onClick={() => setFormOpen(false)}>
-                  ×
+  <div style={styles.modalOverlay} onClick={() => setFormOpen(false)}>
+    <div style={styles.modalSmall} onClick={(e) => e.stopPropagation()}>
+      <div style={styles.modalHeader}>
+        <h3 style={styles.modalTitle}>新規予約追加</h3>
+        <button type="button" style={styles.modalCloseBtn} onClick={() => setFormOpen(false)}>
+          ×
+        </button>
+      </div>
+
+      <div style={styles.formGrid}>
+        <div style={styles.formBlockFull}>
+          <label style={styles.label}>顧客検索</label>
+          <input
+            value={customerSearch}
+            onChange={(e) => setCustomerSearch(e.target.value)}
+            placeholder="名前・かな・電話で検索"
+            style={styles.input}
+          />
+          {filteredCustomers.length > 0 ? (
+            <div style={styles.customerSuggestList}>
+              {filteredCustomers.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => handleSelectCustomer(c.id)}
+                  style={styles.customerSuggestItem}
+                >
+                  <div style={styles.customerSuggestTitle}>{c.name || "名称なし"}</div>
+                  <div style={styles.customerSuggestSub}>
+                    {c.kana || "かな未設定"} / {c.phone || "電話未設定"}
+                  </div>
                 </button>
-              </div>
-
-              <div style={styles.formGrid}>
-                <div style={styles.formBlockFull}>
-                  <label style={styles.label}>顧客検索</label>
-                  <input
-                    value={customerSearch}
-                    onChange={(e) => setCustomerSearch(e.target.value)}
-                    placeholder="名前・かな・電話で検索"
-                    style={styles.input}
-                  />
-                  {filteredCustomers.length > 0 ? (
-                    <div style={styles.customerSuggestList}>
-                      {filteredCustomers.map((c) => (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() => handleSelectCustomer(c.id)}
-                          style={styles.customerSuggestItem}
-                        >
-                          <div style={styles.customerSuggestTitle}>{c.name || "名称なし"}</div>
-                          <div style={styles.customerSuggestSub}>
-                            {c.kana || "かな未設定"} / {c.phone || "電話未設定"}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div style={styles.formBlockFull}>
-                  <label style={styles.label}>顧客名</label>
-                  <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="山田 太郎" style={styles.input} />
-                </div>
-
-                <div>
-                  <label style={styles.label}>かな</label>
-                  <input value={customerKana} onChange={(e) => setCustomerKana(e.target.value)} placeholder="やまだ たろう" style={styles.input} />
-                </div>
-
-                <div>
-                  <label style={styles.label}>電話番号</label>
-                  <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="09012345678" style={styles.input} />
-                </div>
-
-                <div>
-                  <label style={styles.label}>日付</label>
-                  <input type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} style={styles.input} />
-                </div>
-
-                <div>
-                  <label style={styles.label}>来店区分</label>
-                  <select value={visitType} onChange={(e) => setVisitType(e.target.value)} style={styles.input}>
-                    {VISIT_TYPE_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={styles.label}>開始時間</label>
-                  <input type="time" value={startTime} onChange={(e) => handleChangeStartTime(e.target.value)} style={styles.input} />
-                </div>
-
-                <div>
-                  <label style={styles.label}>終了時間</label>
-                  <input
-                    type="time"
-                    value={endTime}
-                    onChange={(e) => {
-                      setEndTime(e.target.value);
-                      setEndTimeTouched(true);
-                    }}
-                    style={styles.input}
-                  />
-                </div>
-
-                <div>
-                  <label style={styles.label}>店舗</label>
-                  <select value={storeName} onChange={(e) => setStoreName(e.target.value)} style={styles.input}>
-                    {STORE_OPTIONS_FOR_FORM.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={styles.label}>担当</label>
-                  <select value={staffName} onChange={(e) => setStaffName(e.target.value)} style={styles.input}>
-                    {STAFF_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={styles.label}>メニュー</label>
-                  <select value={menu} onChange={(e) => setMenu(e.target.value)} style={styles.input}>
-                    {MENU_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={styles.label}>支払方法</label>
-                  <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} style={styles.input}>
-                    {PAYMENT_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div style={styles.formBlockFull}>
-                  <label style={styles.label}>メモ</label>
-                  <textarea value={memo} onChange={(e) => setMemo(e.target.value)} rows={4} style={styles.textarea} placeholder="備考があれば入力" />
-                </div>
-              </div>
-
-              <div style={styles.modalFooter}>
-                <button type="button" onClick={() => setFormOpen(false)} style={styles.cancelBtn}>
-                  キャンセル
-                </button>
-                <button type="button" onClick={() => void handleSaveReservation()} style={styles.saveBtn} disabled={saving}>
-                  {saving ? "保存中..." : "保存する"}
-                </button>
-              </div>
+              ))}
             </div>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
+
+        <div style={styles.formBlockFull}>
+          <label style={styles.label}>顧客名</label>
+          <input
+            value={customerName}
+            onChange={(e) => setCustomerName(e.target.value)}
+            placeholder="山田 太郎"
+            style={styles.input}
+          />
+        </div>
+
+        <div>
+          <label style={styles.label}>かな</label>
+          <input
+            value={customerKana}
+            onChange={(e) => setCustomerKana(e.target.value)}
+            placeholder="やまだ たろう"
+            style={styles.input}
+          />
+        </div>
+
+        <div>
+          <label style={styles.label}>電話番号</label>
+          <input
+            value={customerPhone}
+            onChange={(e) => setCustomerPhone(e.target.value)}
+            placeholder="09012345678"
+            style={styles.input}
+          />
+        </div>
+
+        <div>
+          <label style={styles.label}>日付</label>
+          <input
+            type="date"
+            value={formDate}
+            onChange={(e) => setFormDate(e.target.value)}
+            style={styles.input}
+          />
+        </div>
+
+        <div>
+          <label style={styles.label}>来店区分</label>
+          <select value={visitType} onChange={(e) => setVisitType(e.target.value)} style={styles.input}>
+            {VISIT_TYPE_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label style={styles.label}>開始時間</label>
+          <input
+            type="time"
+            value={startTime}
+            onChange={(e) => handleChangeStartTime(e.target.value)}
+            style={styles.input}
+          />
+        </div>
+
+        <div>
+          <label style={styles.label}>終了時間</label>
+          <input
+            type="time"
+            value={endTime}
+            onChange={(e) => {
+              setEndTime(e.target.value);
+              setEndTimeTouched(true);
+            }}
+            style={styles.input}
+          />
+        </div>
+
+        <div>
+          <label style={styles.label}>店舗</label>
+          <select value={storeName} onChange={(e) => setStoreName(e.target.value)} style={styles.input}>
+            {STORE_OPTIONS_FOR_FORM.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label style={styles.label}>担当</label>
+          <select value={staffName} onChange={(e) => setStaffName(e.target.value)} style={styles.input}>
+            {STAFF_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label style={styles.label}>メニュー</label>
+          <select value={menu} onChange={(e) => setMenu(e.target.value)} style={styles.input}>
+            {MENU_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label style={styles.label}>支払方法</label>
+          <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} style={styles.input}>
+            {PAYMENT_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div style={styles.formBlockFull}>
+          <label style={styles.label}>メモ</label>
+          <textarea
+            value={memo}
+            onChange={(e) => setMemo(e.target.value)}
+            rows={4}
+            style={styles.textarea}
+            placeholder="備考があれば入力"
+          />
+        </div>
+      </div>
+
+      <div style={styles.modalFooter}>
+        <button type="button" onClick={() => setFormOpen(false)} style={styles.cancelBtn}>
+          キャンセル
+        </button>
+        <button type="button" onClick={() => void handleSaveReservation()} style={styles.saveBtn} disabled={saving}>
+          {saving ? "保存中..." : "保存する"}
+        </button>
+      </div>
+    </div>
+  </div>
+) : null}
 
         {counselingPickerOpen ? (
           <div style={styles.modalOverlay}>
@@ -2899,6 +3215,9 @@ const styles: Record<string, CSSProperties> = {
     outline: "none",
     boxSizing: "border-box",
   },
+  reservationSearchRow: {
+    marginBottom: 10,
+  },
   searchResultList: {
     display: "grid",
     gap: 8,
@@ -3027,12 +3346,12 @@ const styles: Record<string, CSSProperties> = {
   calendarGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(7, 1fr)",
-    gridAutoRows: "170px",
+    gridAutoRows: "188px",
   },
   dayCell: {
-    height: "170px",
-    minHeight: "170px",
-    maxHeight: "170px",
+    height: "188px",
+    minHeight: "188px",
+    maxHeight: "188px",
     border: "none",
     borderRight: "1px solid #f1f5f9",
     borderBottom: "1px solid #f1f5f9",
@@ -3105,6 +3424,10 @@ const styles: Record<string, CSSProperties> = {
     background: "#f8fafc",
     overflow: "hidden",
     minHeight: 0,
+    display: "flex",
+    flexDirection: "column",
+    gap: 2,
+    alignItems: "stretch",
   },
   dayMiniTime: {
     fontSize: 9,
