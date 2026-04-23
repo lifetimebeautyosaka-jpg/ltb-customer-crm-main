@@ -87,6 +87,20 @@ type StaffHistoryItem = {
   menu?: string | null;
 };
 
+type CustomerSaleHistoryItem = {
+  id: string | number;
+  sale_date?: string | null;
+  customer_name?: string | null;
+  menu_type?: string | null;
+  sale_type?: string | null;
+  payment_method?: string | null;
+  amount?: number | null;
+  staff_name?: string | null;
+  store_name?: string | null;
+  memo?: string | null;
+  created_at?: string | null;
+};
+
 type TicketContractRow = {
   id: string | number;
   customer_id?: string | number | null;
@@ -263,6 +277,10 @@ function formatJapaneseDate(dateStr: string) {
   if (Number.isNaN(date.getTime())) return dateStr;
   const week = ["日", "月", "火", "水", "木", "金", "土"];
   return `${date.getMonth() + 1}月${date.getDate()}日 ${week[date.getDay()]}曜日`;
+}
+
+function formatMoney(value?: number | null) {
+  return `${Number(value || 0).toLocaleString()}円`;
 }
 
 function getMondayStart(date: Date) {
@@ -482,12 +500,13 @@ function getPendingFlags(params: {
   const soldByReservation = trimmed(item.reservation_status) === "売上済";
   const isSold = soldByReservation || salesReservationIdSet.has(reservationId);
   const isCounseled = counseledReservationIdSet.has(reservationId);
-  const ticketMenu = isTicketMenu(item.menu);
+
+  const hasAnyTicket = !!trimmed(item.customer_id);
   const isTicketUsed = ticketUsedReservationIdSet.has(reservationId);
 
   const salesPending = !isSold;
   const counselingPending = isNewVisit(item) && !isCounseled;
-  const ticketPending = ticketMenu && !isTicketUsed;
+  const ticketPending = hasAnyTicket && !isTicketUsed;
 
   return {
     salesPending,
@@ -568,6 +587,7 @@ export default function ReservationPage() {
   const [selectedHistoryStaff, setSelectedHistoryStaff] = useState("");
   const [customerHistory, setCustomerHistory] = useState<ReservationHistoryItem[]>([]);
   const [staffHistory, setStaffHistory] = useState<StaffHistoryItem[]>([]);
+  const [customerSalesHistory, setCustomerSalesHistory] = useState<CustomerSaleHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
 
@@ -615,8 +635,7 @@ export default function ReservationPage() {
     void loadReservations();
     void loadAttendance();
   }, [currentMonth, mounted, authChecked]);
-
-  useEffect(() => {
+    useEffect(() => {
     if (!mounted || !authChecked) return;
     void loadReservationFlagsForVisible();
   }, [mounted, authChecked, reservations, selectedStoreFilter]);
@@ -1135,7 +1154,9 @@ export default function ReservationPage() {
       );
       if (exactActive) return exactActive;
 
-      const exactAny = list.find((contract) => trimmed(contract.ticket_name) === resolvedTicketName);
+      const exactAny = list.find(
+        (contract) => trimmed(contract.ticket_name) === resolvedTicketName
+      );
       if (exactAny) return exactAny;
     }
 
@@ -1148,8 +1169,6 @@ export default function ReservationPage() {
   }
 
   function getTicketNumberingForReservation(item: ReservationRow): TicketNumberingInfo | null {
-    if (!isTicketMenu(item.menu)) return null;
-
     const contract = getTicketContractForReservation(item);
     if (!contract) return null;
 
@@ -1370,19 +1389,34 @@ export default function ReservationPage() {
       setSelectedHistoryStaff("");
       setHistoryOpen(true);
 
-      const { data, error } = await supabase
-        .from("reservations")
-        .select(
-          "id, customer_id, customer_name, date, start_time, end_time, store_name, staff_name, menu, memo"
-        )
-        .eq("customer_id", Number(customer.id))
-        .order("date", { ascending: false })
-        .order("start_time", { ascending: false })
-        .limit(50);
+      const [{ data: reservationData, error: reservationError }, { data: salesData, error: salesError }] =
+        await Promise.all([
+          supabase
+            .from("reservations")
+            .select(
+              "id, customer_id, customer_name, date, start_time, end_time, store_name, staff_name, menu, memo"
+            )
+            .eq("customer_id", Number(customer.id))
+            .order("date", { ascending: false })
+            .order("start_time", { ascending: false })
+            .limit(50),
 
-      if (error) throw error;
+          supabase
+            .from("sales")
+            .select(
+              "id, sale_date, customer_name, menu_type, sale_type, payment_method, amount, staff_name, store_name, memo, created_at"
+            )
+            .eq("customer_id", Number(customer.id))
+            .order("sale_date", { ascending: false })
+            .order("created_at", { ascending: false })
+            .limit(50),
+        ]);
 
-      setCustomerHistory((data as ReservationHistoryItem[]) || []);
+      if (reservationError) throw reservationError;
+      if (salesError) throw salesError;
+
+      setCustomerHistory((reservationData as ReservationHistoryItem[]) || []);
+      setCustomerSalesHistory((salesData as CustomerSaleHistoryItem[]) || []);
       setStaffHistory([]);
     } catch (e) {
       console.error(e);
@@ -1414,6 +1448,7 @@ export default function ReservationPage() {
 
       setStaffHistory((data as StaffHistoryItem[]) || []);
       setCustomerHistory([]);
+      setCustomerSalesHistory([]);
     } catch (e) {
       console.error(e);
       setError(`スタッフ履歴取得エラー: ${extractErrorMessage(e)}`);
@@ -1453,7 +1488,8 @@ export default function ReservationPage() {
       }
 
       const alreadySold =
-        trimmed(item.reservation_status) === "売上済" || salesReservationIdSet.has(reservationId);
+        trimmed(item.reservation_status) === "売上済" ||
+        salesReservationIdSet.has(reservationId);
 
       if (alreadySold) {
         setError("この予約はすでに売上計上済みです。");
@@ -1478,15 +1514,23 @@ export default function ReservationPage() {
       });
 
       if (!ticketName) {
-        setError(
-          "回数券名を特定できません。予約メニューか顧客プラン名を、単価表にある名前へ合わせてください。"
-        );
-        return;
-      }
+        const fallbackContract = getTicketContractForReservation(item);
+        if (!fallbackContract || !trimmed(fallbackContract.ticket_name)) {
+          setError("有効な回数券契約が見つかりません。");
+          return;
+        }
 
-      const unitPrice = TICKET_UNIT_PRICES[ticketName];
+        const fallbackName = trimmed(fallbackContract.ticket_name);
+        const fallbackUnitPrice = TICKET_UNIT_PRICES[fallbackName];
+        if (!fallbackUnitPrice) {
+          setError(`単価設定がありません: ${fallbackName}`);
+          return;
+        }
+      }
+            const resolvedName = ticketName || trimmed(getTicketContractForReservation(item)?.ticket_name);
+      const unitPrice = TICKET_UNIT_PRICES[resolvedName];
       if (!unitPrice) {
-        setError(`単価設定がありません: ${ticketName}`);
+        setError(`単価設定がありません: ${resolvedName}`);
         return;
       }
 
@@ -1494,7 +1538,7 @@ export default function ReservationPage() {
         .from("ticket_contracts")
         .select("*")
         .eq("customer_id", customerId)
-        .eq("ticket_name", ticketName)
+        .eq("ticket_name", resolvedName)
         .eq("status", "active")
         .order("id", { ascending: false })
         .limit(1)
@@ -1502,7 +1546,7 @@ export default function ReservationPage() {
 
       if (contractError) throw contractError;
       if (!contractRow) {
-        setError(`有効な回数券契約がありません: ${ticketName}`);
+        setError(`有効な回数券契約がありません: ${resolvedName}`);
         return;
       }
 
@@ -1523,7 +1567,7 @@ export default function ReservationPage() {
       }
 
       const ok = window.confirm(
-        `${trimmed(item.customer_name) || "この顧客"} の ${ticketName} を1回消化して、${unitPrice.toLocaleString()}円の売上を立てます。よろしいですか？`
+        `${trimmed(item.customer_name) || "この顧客"} の ${resolvedName} を1回消化して、${unitPrice.toLocaleString()}円の売上を立てます。よろしいですか？`
       );
       if (!ok) return;
 
@@ -1531,14 +1575,14 @@ export default function ReservationPage() {
       const nextUsed = usedCount + 1;
       const nextBalance = Math.max(prepaidBalance - unitPrice, 0);
 
-      const serviceType = detectServiceTypeFromTicketName(ticketName);
+      const serviceType = detectServiceTypeFromTicketName(resolvedName);
 
       const { error: usageInsertError } = await supabase.from("ticket_usages").insert({
         ticket_id: currentContract.id,
         customer_id: customerId,
         reservation_id: reservationId,
         used_date: trimmed(item.date),
-        ticket_name: ticketName,
+        ticket_name: resolvedName,
         unit_price: unitPrice,
         before_count: remainingCount,
         staff_name: trimmed(item.staff_name) || null,
@@ -1573,7 +1617,7 @@ export default function ReservationPage() {
         payment_method: "前受金消化",
         staff_name: trimmed(item.staff_name) || null,
         store_name: trimmed(item.store_name) || null,
-        memo: `${ticketName} 消化`,
+        memo: `${resolvedName} 消化`,
       });
 
       if (salesInsertError) throw salesInsertError;
@@ -1602,7 +1646,7 @@ export default function ReservationPage() {
         `/sales?reservationId=${reservationId}&customerId=${customerId}&customerName=${encodeURIComponent(
           customerNameValue || ""
         )}&date=${encodeURIComponent(trimmed(item.date))}&menu=${encodeURIComponent(
-          ticketName
+          resolvedName
         )}&staffName=${encodeURIComponent(trimmed(item.staff_name))}&storeName=${encodeURIComponent(
           trimmed(item.store_name)
         )}&serviceType=${encodeURIComponent(serviceType)}&saleType=${encodeURIComponent(
@@ -1728,7 +1772,10 @@ export default function ReservationPage() {
           .filter((id): id is number => id !== null);
 
         if (saleIds.length > 0) {
-          const { error: deleteSalesError } = await supabase.from("sales").delete().in("id", saleIds);
+          const { error: deleteSalesError } = await supabase
+            .from("sales")
+            .delete()
+            .in("id", saleIds);
 
           if (deleteSalesError) throw deleteSalesError;
         }
@@ -1826,7 +1873,6 @@ export default function ReservationPage() {
   }
 
   async function handleReservationTap(item: ReservationRow) {
-    const isTicket = isTicketMenu(item.menu);
     const reservationId = toIdNumber(item.id);
     const isSold =
       trimmed(item.reservation_status) === "売上済" ||
@@ -1837,7 +1883,8 @@ export default function ReservationPage() {
       return;
     }
 
-    if (isTicket) {
+    const ticketNumbering = getTicketNumberingForReservation(item);
+    if (ticketNumbering) {
       await handleTicketConsumeAndCreateSale(item);
       return;
     }
@@ -1901,9 +1948,7 @@ export default function ReservationPage() {
             <button
               type="button"
               onClick={() => setFilterMode("pending")}
-              style={getSummaryCardStyle("pending", {
-                background: "#fee2e2",
-              })}
+              style={getSummaryCardStyle("pending", { background: "#fee2e2" })}
             >
               <span style={{ ...styles.summaryLabel, color: "#991b1b" }}>未処理</span>
               <span style={{ ...styles.summaryCountDanger }}>{pendingSummary.totalPending}件</span>
@@ -1912,9 +1957,7 @@ export default function ReservationPage() {
             <button
               type="button"
               onClick={() => setFilterMode("sales_pending")}
-              style={getSummaryCardStyle("sales_pending", {
-                background: "#fef3c7",
-              })}
+              style={getSummaryCardStyle("sales_pending", { background: "#fef3c7" })}
             >
               <span style={{ ...styles.summaryLabel, color: "#92400e" }}>売上未</span>
               <span style={{ ...styles.summaryCountDanger, color: "#b45309" }}>
@@ -1925,9 +1968,7 @@ export default function ReservationPage() {
             <button
               type="button"
               onClick={() => setFilterMode("counseling_pending")}
-              style={getSummaryCardStyle("counseling_pending", {
-                background: "#dbeafe",
-              })}
+              style={getSummaryCardStyle("counseling_pending", { background: "#dbeafe" })}
             >
               <span style={{ ...styles.summaryLabel, color: "#1d4ed8" }}>カウンセリング未</span>
               <span style={{ ...styles.summaryCountDanger, color: "#1d4ed8" }}>
@@ -1938,9 +1979,7 @@ export default function ReservationPage() {
             <button
               type="button"
               onClick={() => setFilterMode("ticket_pending")}
-              style={getSummaryCardStyle("ticket_pending", {
-                background: "#ede9fe",
-              })}
+              style={getSummaryCardStyle("ticket_pending", { background: "#ede9fe" })}
             >
               <span style={{ ...styles.summaryLabel, color: "#6d28d9" }}>回数券未消化</span>
               <span style={{ ...styles.summaryCountDanger, color: "#6d28d9" }}>
@@ -1951,9 +1990,7 @@ export default function ReservationPage() {
             <button
               type="button"
               onClick={() => setFilterMode("all")}
-              style={getSummaryCardStyle("all", {
-                background: "#dcfce7",
-              })}
+              style={getSummaryCardStyle("all", { background: "#dcfce7" })}
             >
               <span style={{ ...styles.summaryLabel, color: "#166534" }}>表示中</span>
               <span style={{ ...styles.summaryCount, color: "#166534" }}>{pendingSummary.visibleCount}件</span>
@@ -2056,12 +2093,7 @@ export default function ReservationPage() {
           <div style={styles.legendBox}>
             {["山口", "中西", "池田", "石川", "羽田", "菱谷", "井上", "林", "その他"].map((name) => (
               <div key={name} style={styles.legendItem}>
-                <span
-                  style={{
-                    ...styles.legendDot,
-                    background: getStaffColor(name),
-                  }}
-                />
+                <span style={{ ...styles.legendDot, background: getStaffColor(name) }} />
                 {name}
               </div>
             ))}
@@ -2070,12 +2102,7 @@ export default function ReservationPage() {
           <div style={styles.legendBoxStore}>
             {["江戸堀", "箕面", "福島", "福島P", "天満橋", "中崎町", "江坂"].map((name) => (
               <div key={name} style={styles.legendItem}>
-                <span
-                  style={{
-                    ...styles.legendDot,
-                    background: getStoreColor(name),
-                  }}
-                />
+                <span style={{ ...styles.legendDot, background: getStoreColor(name) }} />
                 {name}
               </div>
             ))}
@@ -2166,24 +2193,25 @@ export default function ReservationPage() {
                             }}
                           >
                             <div style={styles.dayMiniTime}>{trimmed(item.start_time)}</div>
+
                             <div style={styles.dayMiniNameRow}>
                               <div style={styles.dayMiniName}>{trimmed(item.customer_name)}</div>
                               {numbering ? (
                                 <span
                                   style={{
                                     ...styles.dayMiniTicketBadge,
-                                    ...(numbering.tone === "warning"
-                                      ? styles.dayMiniTicketBadgeWarning
-                                      : {}),
-                                    ...(numbering.tone === "danger"
-                                      ? styles.dayMiniTicketBadgeDanger
-                                      : {}),
+                                    ...(numbering.tone === "warning" ? styles.dayMiniTicketBadgeWarning : {}),
+                                    ...(numbering.tone === "danger" ? styles.dayMiniTicketBadgeDanger : {}),
                                   }}
                                 >
                                   {numbering.label}
                                 </span>
                               ) : null}
                             </div>
+
+                            {trimmed(item.memo) ? (
+                              <div style={styles.dayMiniMemo}>{trimmed(item.memo)}</div>
+                            ) : null}
                           </div>
                         );
                       })}
@@ -2244,12 +2272,7 @@ export default function ReservationPage() {
                               <div style={styles.timelineMetaText}>スタッフ出勤</div>
                             </div>
 
-                            <div
-                              style={{
-                                ...styles.staffAvatar,
-                                background: getStaffColor(item.staff_name),
-                              }}
-                            >
+                            <div style={{ ...styles.staffAvatar, background: getStaffColor(item.staff_name) }}>
                               {getStaffShortLabel(item.staff_name)}
                             </div>
                           </div>
@@ -2271,16 +2294,12 @@ export default function ReservationPage() {
                     });
 
                     const ticketLabelStyle: CSSProperties = {
-                      ...styles.ticketCountBadgeCompact,
-                      ...(ticketNumbering?.tone === "warning"
-                        ? styles.ticketCountBadgeWarningCompact
-                        : {}),
-                      ...(ticketNumbering?.tone === "danger"
-                        ? styles.ticketCountBadgeDangerCompact
-                        : {}),
+                      ...styles.ticketInline,
+                      ...(ticketNumbering?.tone === "warning" ? styles.ticketInlineWarning : {}),
+                      ...(ticketNumbering?.tone === "danger" ? styles.ticketInlineDanger : {}),
                     };
 
-                    const isTicket = isTicketMenu(item.menu);
+                    const isTicket = !!ticketNumbering;
                     const isSold =
                       trimmed(item.reservation_status) === "売上済" ||
                       (reservationId !== null && salesReservationIdSet.has(reservationId));
@@ -2306,16 +2325,17 @@ export default function ReservationPage() {
                                   <span style={styles.timelineTitleCompact}>
                                     {item.customer_name || "顧客名未設定"}
                                   </span>
-
-                                  {ticketNumbering ? (
-                                    <span style={ticketLabelStyle}>{ticketNumbering.label}</span>
-                                  ) : null}
+                                  {ticketNumbering ? <span style={ticketLabelStyle}>{ticketNumbering.label}</span> : null}
                                 </div>
 
                                 <span style={styles.timelineTimeInline}>
                                   {trimmed(item.start_time)} - {trimmed(item.end_time)}
                                 </span>
                               </div>
+
+                              {trimmed(item.memo) ? (
+                                <div style={styles.memoInline}>{trimmed(item.memo)}</div>
+                              ) : null}
 
                               <div style={styles.timelineMetaTextCompact}>
                                 {item.menu || "メニュー未設定"} / {item.store_name || "店舗未設定"} /{" "}
@@ -2462,51 +2482,27 @@ export default function ReservationPage() {
 
                 <div style={styles.formBlockFull}>
                   <label style={styles.label}>顧客名</label>
-                  <input
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="山田 太郎"
-                    style={styles.input}
-                  />
+                  <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="山田 太郎" style={styles.input} />
                 </div>
 
                 <div>
                   <label style={styles.label}>かな</label>
-                  <input
-                    value={customerKana}
-                    onChange={(e) => setCustomerKana(e.target.value)}
-                    placeholder="やまだ たろう"
-                    style={styles.input}
-                  />
+                  <input value={customerKana} onChange={(e) => setCustomerKana(e.target.value)} placeholder="やまだ たろう" style={styles.input} />
                 </div>
 
                 <div>
                   <label style={styles.label}>電話番号</label>
-                  <input
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    placeholder="09012345678"
-                    style={styles.input}
-                  />
+                  <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="09012345678" style={styles.input} />
                 </div>
 
                 <div>
                   <label style={styles.label}>日付</label>
-                  <input
-                    type="date"
-                    value={formDate}
-                    onChange={(e) => setFormDate(e.target.value)}
-                    style={styles.input}
-                  />
+                  <input type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} style={styles.input} />
                 </div>
 
                 <div>
                   <label style={styles.label}>来店区分</label>
-                  <select
-                    value={visitType}
-                    onChange={(e) => setVisitType(e.target.value)}
-                    style={styles.input}
-                  >
+                  <select value={visitType} onChange={(e) => setVisitType(e.target.value)} style={styles.input}>
                     {VISIT_TYPE_OPTIONS.map((option) => (
                       <option key={option} value={option}>
                         {option}
@@ -2517,12 +2513,7 @@ export default function ReservationPage() {
 
                 <div>
                   <label style={styles.label}>開始時間</label>
-                  <input
-                    type="time"
-                    value={startTime}
-                    onChange={(e) => handleChangeStartTime(e.target.value)}
-                    style={styles.input}
-                  />
+                  <input type="time" value={startTime} onChange={(e) => handleChangeStartTime(e.target.value)} style={styles.input} />
                 </div>
 
                 <div>
@@ -2573,11 +2564,7 @@ export default function ReservationPage() {
 
                 <div>
                   <label style={styles.label}>支払方法</label>
-                  <select
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                    style={styles.input}
-                  >
+                  <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} style={styles.input}>
                     {PAYMENT_OPTIONS.map((option) => (
                       <option key={option} value={option}>
                         {option}
@@ -2588,13 +2575,7 @@ export default function ReservationPage() {
 
                 <div style={styles.formBlockFull}>
                   <label style={styles.label}>メモ</label>
-                  <textarea
-                    value={memo}
-                    onChange={(e) => setMemo(e.target.value)}
-                    rows={4}
-                    style={styles.textarea}
-                    placeholder="備考があれば入力"
-                  />
+                  <textarea value={memo} onChange={(e) => setMemo(e.target.value)} rows={4} style={styles.textarea} placeholder="備考があれば入力" />
                 </div>
               </div>
 
@@ -2602,12 +2583,7 @@ export default function ReservationPage() {
                 <button type="button" onClick={() => setFormOpen(false)} style={styles.cancelBtn}>
                   キャンセル
                 </button>
-                <button
-                  type="button"
-                  onClick={() => void handleSaveReservation()}
-                  style={styles.saveBtn}
-                  disabled={saving}
-                >
+                <button type="button" onClick={() => void handleSaveReservation()} style={styles.saveBtn} disabled={saving}>
                   {saving ? "保存中..." : "保存する"}
                 </button>
               </div>
@@ -2654,28 +2630,56 @@ export default function ReservationPage() {
               ) : (
                 <div style={styles.cardList}>
                   {selectedHistoryCustomer ? (
-                    customerHistory.length > 0 ? (
-                      customerHistory.map((item) => (
-                        <div key={item.id} style={styles.historyCard}>
-                          <div style={styles.historyTitle}>
-                            {trimmed(item.date)} {trimmed(item.start_time)} - {trimmed(item.end_time)}
+                    <>
+                      <div style={styles.historySectionTitle}>予約履歴</div>
+                      {customerHistory.length > 0 ? (
+                        customerHistory.map((item) => (
+                          <div key={item.id} style={styles.historyCard}>
+                            <div style={styles.historyTitle}>
+                              {trimmed(item.date)} {trimmed(item.start_time)} - {trimmed(item.end_time)}
+                            </div>
+                            <div style={styles.historyMeta}>
+                              {trimmed(item.menu) || "メニュー未設定"}
+                              <br />
+                              {trimmed(item.store_name) || "店舗未設定"} / {trimmed(item.staff_name) || "担当未設定"}
+                              {trimmed(item.memo) ? (
+                                <>
+                                  <br />
+                                  メモ: {trimmed(item.memo)}
+                                </>
+                              ) : null}
+                            </div>
                           </div>
-                          <div style={styles.historyMeta}>
-                            {trimmed(item.menu) || "メニュー未設定"}
-                            <br />
-                            {trimmed(item.store_name) || "店舗未設定"} / {trimmed(item.staff_name) || "担当未設定"}
-                            {trimmed(item.memo) ? (
-                              <>
-                                <br />
-                                メモ: {trimmed(item.memo)}
-                              </>
-                            ) : null}
+                        ))
+                      ) : (
+                        <div style={styles.emptyBox}>予約履歴がありません。</div>
+                      )}
+
+                      <div style={styles.historySectionTitle}>売上履歴</div>
+                      {customerSalesHistory.length > 0 ? (
+                        customerSalesHistory.map((sale) => (
+                          <div key={String(sale.id)} style={styles.historyCard}>
+                            <div style={styles.historyTitle}>
+                              {trimmed(sale.sale_date) || "日付未設定"} / {formatMoney(sale.amount)}
+                            </div>
+                            <div style={styles.historyMeta}>
+                              {trimmed(sale.menu_type) || "区分未設定"} / {trimmed(sale.sale_type) || "売上種別未設定"}
+                              <br />
+                              {trimmed(sale.store_name) || "店舗未設定"} / {trimmed(sale.staff_name) || "担当未設定"} /{" "}
+                              {trimmed(sale.payment_method) || "支払未設定"}
+                              {trimmed(sale.memo) ? (
+                                <>
+                                  <br />
+                                  メモ: {trimmed(sale.memo)}
+                                </>
+                              ) : null}
+                            </div>
                           </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div style={styles.emptyBox}>履歴がありません。</div>
-                    )
+                        ))
+                      ) : (
+                        <div style={styles.emptyBox}>売上履歴がありません。</div>
+                      )}
+                    </>
                   ) : selectedHistoryStaff ? (
                     staffHistory.length > 0 ? (
                       staffHistory.map((item) => (
@@ -2716,6 +2720,7 @@ const styles: Record<string, CSSProperties> = {
     maxWidth: 520,
     margin: "0 auto",
     paddingBottom: 28,
+    overflowX: "hidden",
   },
   topBar: {
     padding: "12px 12px 0",
@@ -3022,9 +3027,12 @@ const styles: Record<string, CSSProperties> = {
   calendarGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(7, 1fr)",
+    gridAutoRows: "170px",
   },
   dayCell: {
-    minHeight: 92,
+    height: "170px",
+    minHeight: "170px",
+    maxHeight: "170px",
     border: "none",
     borderRight: "1px solid #f1f5f9",
     borderBottom: "1px solid #f1f5f9",
@@ -3033,6 +3041,10 @@ const styles: Record<string, CSSProperties> = {
     textAlign: "left",
     cursor: "pointer",
     verticalAlign: "top",
+    display: "flex",
+    flexDirection: "column",
+    boxSizing: "border-box",
+    overflow: "hidden",
   },
   dayCellSelected: {
     background: "#eff6ff",
@@ -3045,6 +3057,7 @@ const styles: Record<string, CSSProperties> = {
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 6,
+    flexShrink: 0,
   },
   dayNumber: {
     fontSize: 13,
@@ -3069,22 +3082,29 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 11,
     fontWeight: 900,
     padding: "0 5px",
+    flexShrink: 0,
   },
   dayCount: {
     fontSize: 10,
     color: "#64748b",
     fontWeight: 800,
     marginBottom: 4,
+    flexShrink: 0,
   },
   dayMiniList: {
     display: "grid",
     gap: 4,
+    flex: 1,
+    minHeight: 0,
+    overflow: "hidden",
+    alignContent: "start",
   },
   dayMiniCard: {
     borderRadius: 8,
     padding: "4px 4px 4px 6px",
     background: "#f8fafc",
     overflow: "hidden",
+    minHeight: 0,
   },
   dayMiniTime: {
     fontSize: 9,
@@ -3092,11 +3112,15 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 800,
     lineHeight: 1.2,
     marginBottom: 2,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
   dayMiniNameRow: {
     display: "flex",
     alignItems: "center",
     gap: 4,
+    minWidth: 0,
   },
   dayMiniName: {
     fontSize: 10,
@@ -3135,11 +3159,22 @@ const styles: Record<string, CSSProperties> = {
     color: "#b91c1c",
     border: "1px solid #ef4444",
   },
+  dayMiniMemo: {
+    marginTop: 2,
+    fontSize: 8,
+    color: "#94a3b8",
+    fontWeight: 700,
+    lineHeight: 1.2,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
   dayMore: {
     fontSize: 10,
     color: "#2563eb",
     fontWeight: 900,
     paddingLeft: 2,
+    marginTop: "auto",
   },
   sheetOverlay: {
     position: "fixed",
@@ -3328,34 +3363,44 @@ const styles: Record<string, CSSProperties> = {
     flexShrink: 0,
     whiteSpace: "nowrap",
   },
+  memoInline: {
+    fontSize: 11,
+    color: "#94a3b8",
+    fontWeight: 700,
+    lineHeight: 1.45,
+    marginBottom: 4,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
   timelineMetaTextCompact: {
     fontSize: 12,
     color: "#64748b",
     fontWeight: 700,
     lineHeight: 1.5,
   },
-  ticketCountBadgeCompact: {
+  ticketInline: {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    minWidth: 36,
-    height: 22,
-    padding: "0 8px",
+    minWidth: 30,
+    height: 20,
+    padding: "0 6px",
     borderRadius: 999,
-    fontSize: 11,
-    fontWeight: 800,
-    lineHeight: 1,
     background: "#eff6ff",
     color: "#1d4ed8",
     border: "1px solid #bfdbfe",
+    fontSize: 10,
+    fontWeight: 900,
+    lineHeight: 1,
     whiteSpace: "nowrap",
   },
-  ticketCountBadgeWarningCompact: {
+  ticketInlineWarning: {
     background: "#fff7ed",
     color: "#c2410c",
     border: "1px solid #fdba74",
   },
-  ticketCountBadgeDangerCompact: {
+  ticketInlineDanger: {
     background: "#fee2e2",
     color: "#b91c1c",
     border: "1px solid #ef4444",
@@ -3521,6 +3566,13 @@ const styles: Record<string, CSSProperties> = {
     lineHeight: 1.6,
     color: "#334155",
     whiteSpace: "pre-wrap",
+  },
+  historySectionTitle: {
+    fontSize: 14,
+    fontWeight: 900,
+    color: "#0f172a",
+    marginTop: 6,
+    marginBottom: 6,
   },
   historyCard: {
     background: "#fff",
