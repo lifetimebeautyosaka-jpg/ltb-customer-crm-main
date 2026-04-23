@@ -2487,7 +2487,8 @@ export default function ReservationPage() {
       </main>
     );
   }
-      fontSize: 13,
+    activeFilterLabel: {
+    fontSize: 13,
     color: "#0f172a",
     fontWeight: 800,
   },
