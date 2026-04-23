@@ -608,14 +608,12 @@ export default function ReservationPage() {
 
     setAuthChecked(true);
     void loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted, router]);
 
   useEffect(() => {
     if (!mounted || !authChecked) return;
     void loadReservations();
     void loadAttendance();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentMonth, mounted, authChecked]);
 
   async function loadAll() {
@@ -807,13 +805,11 @@ export default function ReservationPage() {
   useEffect(() => {
     if (!mounted || !authChecked) return;
     void loadReservationFlagsForVisible();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted, authChecked, baseVisibleReservations]);
 
   useEffect(() => {
     if (!mounted || !authChecked) return;
     void loadTicketContractsForVisibleCustomers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted, authChecked, baseVisibleReservations, customers]);
 
   const visibleReservations = useMemo(() => {
@@ -1271,1033 +1267,1183 @@ export default function ReservationPage() {
       .limit(1)
       .maybeSingle();
 
-    if (nameMatchError) {
-      console.warn(nameMatchError);
-    }
-
-    if (nameMatch) {
-      return String((nameMatch as CustomerRow).id);
-    }
-
-    const { data: inserted, error: insertError } = await supabase
-      .from("customers")
-      .insert({
-        name,
-        kana: kana || null,
-        phone: rawPhone || null,
-      })
-      .select("id")
-      .single();
-
-    if (insertError) throw insertError;
-
-    return String(inserted.id);
-  }
-
-  async function handleSaveReservation() {
-    if (!supabase) {
-      setError("Supabaseの環境変数が設定されていません。");
-      return;
-    }
-
-    if (!trimmed(customerName)) {
-      setError("顧客名を入力してください。");
-      return;
-    }
-
-    if (!trimmed(formDate)) {
-      setError("日付を入力してください。");
-      return;
-    }
-
-    if (!trimmed(startTime)) {
-      setError("開始時間を入力してください。");
-      return;
-    }
-
-    if (!trimmed(endTime)) {
-      setError("終了時間を入力してください。");
-      return;
-    }
-
-    if (!trimmed(visitType)) {
-      setError("来店区分を選択してください。");
-      return;
-    }
-
-    try {
-      setSaving(true);
-      setError("");
-      setSuccess("");
-
-      const customerId = await findOrCreateCustomerId();
-
-      const payload = {
-        customer_id: customerId ? Number(customerId) : null,
-        customer_name: trimmed(customerName),
-        date: formDate,
-        start_time: startTime,
-        end_time: endTime,
-        store_name: storeName,
-        staff_name: staffName,
-        menu,
-        payment_method: paymentMethod,
-        visit_type: visitType,
-        reservation_status: "予約済",
-        is_first_visit: visitType === "新規",
-        memo: trimmed(memo) || null,
-      };
-
-      const { error } = await supabase.from("reservations").insert(payload);
-      if (error) throw error;
-
-      setSuccess("予約を保存しました。");
-      setFormOpen(false);
-      setSelectedDate(formDate);
-      setDaySheetOpen(true);
-      await Promise.all([
-        loadCustomers(),
-        loadReservations(),
-        loadReservationFlagsForVisible(),
-        loadTicketContractsForVisibleCustomers(),
-      ]);
-    } catch (e) {
-      console.error(e);
-      setError(`予約保存エラー: ${extractErrorMessage(e)}`);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function loadCustomerHistory(customer: CustomerOption) {
-    if (!supabase) return;
-
-    try {
-      setHistoryLoading(true);
-      setError("");
-      setSelectedHistoryCustomer(customer);
-      setSelectedHistoryStaff("");
-      setHistoryOpen(true);
-
-      const { data, error } = await supabase
-        .from("reservations")
-        .select(
-          "id, customer_id, customer_name, date, start_time, end_time, store_name, staff_name, menu, memo"
-        )
-        .eq("customer_id", Number(customer.id))
-        .order("date", { ascending: false })
-        .order("start_time", { ascending: false })
-        .limit(50);
-
-      if (error) throw error;
-
-      setCustomerHistory((data as ReservationHistoryItem[]) || []);
-      setStaffHistory([]);
-    } catch (e) {
-      console.error(e);
-      setError(`顧客履歴取得エラー: ${extractErrorMessage(e)}`);
-    } finally {
-      setHistoryLoading(false);
-    }
-  }
-
-  async function loadStaffHistory(staff: string) {
-    if (!supabase) return;
-
-    try {
-      setHistoryLoading(true);
-      setError("");
-      setSelectedHistoryCustomer(null);
-      setSelectedHistoryStaff(staff);
-      setHistoryOpen(true);
-
-      const { data, error } = await supabase
-        .from("reservations")
-        .select("id, date, start_time, end_time, customer_name, store_name, menu")
-        .eq("staff_name", staff)
-        .order("date", { ascending: false })
-        .order("start_time", { ascending: false })
-        .limit(50);
-
-      if (error) throw error;
-
-      setStaffHistory((data as StaffHistoryItem[]) || []);
-      setCustomerHistory([]);
-    } catch (e) {
-      console.error(e);
-      setError(`スタッフ履歴取得エラー: ${extractErrorMessage(e)}`);
-    } finally {
-      setHistoryLoading(false);
-    }
-  }
-    async function handleTicketConsumeAndCreateSale(item: ReservationRow) {
-    if (!supabase) {
-      setError("Supabaseの環境変数が設定されていません。");
-      return;
-    }
-
-    const reservationId = toIdNumber(item.id);
-    const customerId = toIdNumber(item.customer_id);
-
-    if (!reservationId) {
-      setError("予約IDが不正です。");
-      return;
-    }
-
-    if (!customerId) {
-      setError("この予約に customer_id がありません。");
-      return;
-    }
-
-    try {
-      setConsumingReservationId(String(item.id));
-      setError("");
-      setSuccess("");
-
-      const alreadyUsed = ticketUsedReservationIdSet.has(reservationId);
-      if (alreadyUsed) {
-        setError("この予約はすでに回数券消化済みです。");
-        return;
+      if (nameMatchError) {
+        console.warn(nameMatchError);
       }
 
-      const alreadySold =
-        trimmed(item.reservation_status) === "売上済" ||
-        salesReservationIdSet.has(reservationId);
-
-      if (alreadySold) {
-        setError("この予約はすでに売上計上済みです。");
-        return;
+      if (nameMatch) {
+        return String((nameMatch as CustomerRow).id);
       }
 
-      const { data: customerRow, error: customerError } = await supabase
+      const { data: inserted, error: insertError } = await supabase
         .from("customers")
-        .select("id, name, plan_type")
-        .eq("id", customerId)
-        .maybeSingle();
-
-      if (customerError) throw customerError;
-      if (!customerRow) {
-        setError("顧客情報が見つかりません。");
-        return;
-      }
-
-      const ticketName = resolveTicketName({
-        reservationMenu: item.menu,
-        customerPlanType: (customerRow as { plan_type?: string | null }).plan_type,
-      });
-
-      if (!ticketName) {
-        setError(
-          "回数券名を特定できません。予約メニューか顧客プラン名を、単価表にある名前へ合わせてください。"
-        );
-        return;
-      }
-
-      const unitPrice = TICKET_UNIT_PRICES[ticketName];
-      if (!unitPrice) {
-        setError(`単価設定がありません: ${ticketName}`);
-        return;
-      }
-
-      const { data: contractRow, error: contractError } = await supabase
-        .from("ticket_contracts")
-        .select("*")
-        .eq("customer_id", customerId)
-        .eq("ticket_name", ticketName)
-        .eq("status", "active")
-        .order("id", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (contractError) throw contractError;
-      if (!contractRow) {
-        setError(`有効な回数券契約がありません: ${ticketName}`);
-        return;
-      }
-
-      const currentContract = contractRow as {
-        id: number | string;
-        remaining_count?: number | null;
-        used_count?: number | null;
-        prepaid_balance?: number | null;
-      };
-
-      const remainingCount = Number(currentContract.remaining_count ?? 0);
-      const usedCount = Number(currentContract.used_count ?? 0);
-      const prepaidBalance = Number(currentContract.prepaid_balance ?? 0);
-
-      if (remainingCount <= 0) {
-        setError("残回数がありません。");
-        return;
-      }
-
-      const ok = window.confirm(
-        `${trimmed(item.customer_name) || "この顧客"} の ${ticketName} を1回消化して、${unitPrice.toLocaleString()}円の売上を立てます。よろしいですか？`
-      );
-      if (!ok) return;
-
-      const nextRemaining = remainingCount - 1;
-      const nextUsed = usedCount + 1;
-      const nextBalance = Math.max(prepaidBalance - unitPrice, 0);
-
-      const serviceType = detectServiceTypeFromTicketName(ticketName);
-
-      const { error: usageInsertError } = await supabase.from("ticket_usages").insert({
-        contract_id: currentContract.id,
-        customer_id: customerId,
-        reservation_id: reservationId,
-        used_date: trimmed(item.date),
-        ticket_name: ticketName,
-        unit_price: unitPrice,
-        staff_name: trimmed(item.staff_name) || null,
-        store_name: trimmed(item.store_name) || null,
-      });
-
-      if (usageInsertError) throw usageInsertError;
-
-      const { error: contractUpdateError } = await supabase
-        .from("ticket_contracts")
-        .update({
-          used_count: nextUsed,
-          remaining_count: nextRemaining,
-          prepaid_balance: nextBalance,
-          updated_at: new Date().toISOString(),
+        .insert({
+          name,
+          kana: kana || null,
+          phone: rawPhone || null,
         })
-        .eq("id", currentContract.id);
+        .select("id")
+        .single();
 
-      if (contractUpdateError) throw contractUpdateError;
+      if (insertError) throw insertError;
 
-      const customerNameValue =
-        trimmed(item.customer_name) ||
-        trimmed((customerRow as { name?: string | null }).name) ||
-        null;
-
-      const { error: salesInsertError } = await supabase.from("sales").insert({
-        reservation_id: reservationId,
-        customer_id: customerId,
-        customer_name: customerNameValue,
-        sale_date: trimmed(item.date),
-        amount: unitPrice,
-        menu_type: serviceType,
-        sale_type: "回数券消化",
-        payment_method: "前受金消化",
-        staff_name: trimmed(item.staff_name) || null,
-        store_name: trimmed(item.store_name) || null,
-        memo: `${ticketName} 消化`,
-      });
-
-      if (salesInsertError) throw salesInsertError;
-
-      const { error: reservationUpdateError } = await supabase
-        .from("reservations")
-        .update({
-          reservation_status: "売上済",
-        })
-        .eq("id", reservationId);
-
-      if (reservationUpdateError) throw reservationUpdateError;
-
-      setSuccess(
-        `回数券を消化し、${unitPrice.toLocaleString()}円を売上計上しました。残回数: ${nextRemaining}`
-      );
-
-      await Promise.all([
-        loadReservations(),
-        loadReservationFlagsForVisible(),
-        loadAttendance(),
-        loadTicketContractsForVisibleCustomers(),
-      ]);
-
-      router.push(
-        `/sales?reservationId=${reservationId}&customerId=${customerId}&customerName=${encodeURIComponent(
-          customerNameValue || ""
-        )}&date=${encodeURIComponent(trimmed(item.date))}&menu=${encodeURIComponent(
-          ticketName
-        )}&staffName=${encodeURIComponent(trimmed(item.staff_name))}&storeName=${encodeURIComponent(
-          trimmed(item.store_name)
-        )}&serviceType=${encodeURIComponent(serviceType)}&saleType=${encodeURIComponent(
-          "回数券消化"
-        )}`
-      );
-    } catch (e) {
-      console.error(e);
-      setError(`回数券消化エラー: ${extractErrorMessage(e)}`);
-    } finally {
-      setConsumingReservationId("");
-    }
-  }
-
-  async function handleDeleteReservation(item: ReservationRow) {
-    if (!supabase) {
-      setError("Supabaseの環境変数が設定されていません。");
-      return;
+      return String(inserted.id);
     }
 
-    const reservationId = toIdNumber(item.id);
-    if (!reservationId) {
-      setError("予約IDが不正です。");
-      return;
+    async function handleSaveReservation() {
+      if (!supabase) {
+        setError("Supabaseの環境変数が設定されていません。");
+        return;
+      }
+
+      if (!trimmed(customerName)) {
+        setError("顧客名を入力してください。");
+        return;
+      }
+
+      if (!trimmed(formDate)) {
+        setError("日付を入力してください。");
+        return;
+      }
+            if (!trimmed(startTime)) {
+        setError("開始時間を入力してください。");
+        return;
+      }
+
+      if (!trimmed(endTime)) {
+        setError("終了時間を入力してください。");
+        return;
+      }
+
+      if (!trimmed(visitType)) {
+        setError("来店区分を選択してください。");
+        return;
+      }
+
+      try {
+        setSaving(true);
+        setError("");
+        setSuccess("");
+
+        const customerId = await findOrCreateCustomerId();
+
+        const payload = {
+          customer_id: customerId ? Number(customerId) : null,
+          customer_name: trimmed(customerName),
+          date: formDate,
+          start_time: startTime,
+          end_time: endTime,
+          store_name: storeName,
+          staff_name: staffName,
+          menu,
+          payment_method: paymentMethod,
+          visit_type: visitType,
+          reservation_status: "予約済",
+          is_first_visit: visitType === "新規",
+          memo: trimmed(memo) || null,
+        };
+
+        const { error } = await supabase.from("reservations").insert(payload);
+        if (error) throw error;
+
+        setSuccess("予約を保存しました。");
+        setFormOpen(false);
+        setSelectedDate(formDate);
+        setDaySheetOpen(true);
+        await Promise.all([
+          loadCustomers(),
+          loadReservations(),
+          loadReservationFlagsForVisible(),
+          loadTicketContractsForVisibleCustomers(),
+        ]);
+      } catch (e) {
+        console.error(e);
+        setError(`予約保存エラー: ${extractErrorMessage(e)}`);
+      } finally {
+        setSaving(false);
+      }
     }
 
-    try {
-      setDeletingReservationId(String(item.id));
-      setError("");
-      setSuccess("");
+    async function loadCustomerHistory(customer: CustomerOption) {
+      if (!supabase) return;
 
-      const [
-        { data: salesRows, error: salesError },
-        { data: counselingRows, error: counselingError },
-        { data: ticketUsageRows, error: ticketUsageError },
-      ] = await Promise.all([
-        supabase.from("sales").select("id").eq("reservation_id", reservationId),
-        supabase.from("counselings").select("id").eq("reservation_id", reservationId),
-        supabase
-          .from("ticket_usages")
-          .select("id, ticket_id, unit_price, before_count")
-          .eq("reservation_id", reservationId),
-      ]);
+      try {
+        setHistoryLoading(true);
+        setError("");
+        setSelectedHistoryCustomer(customer);
+        setSelectedHistoryStaff("");
+        setHistoryOpen(true);
 
-      if (salesError) throw salesError;
-      if (counselingError) throw counselingError;
-      if (ticketUsageError) throw ticketUsageError;
+        const { data, error } = await supabase
+          .from("reservations")
+          .select(
+            "id, customer_id, customer_name, date, start_time, end_time, store_name, staff_name, menu, memo"
+          )
+          .eq("customer_id", Number(customer.id))
+          .order("date", { ascending: false })
+          .order("start_time", { ascending: false })
+          .limit(50);
 
-      const warnings: string[] = [];
-      if ((salesRows || []).length > 0) warnings.push(`売上 ${(salesRows || []).length}件`);
-      if ((counselingRows || []).length > 0)
-        warnings.push(`カウンセリング ${(counselingRows || []).length}件`);
-      if ((ticketUsageRows || []).length > 0)
-        warnings.push(`回数券消化 ${(ticketUsageRows || []).length}件`);
+        if (error) throw error;
 
-      const ok = window.confirm(
-        warnings.length > 0
-          ? `この予約には関連データがあります。\n${warnings.join(
-              "\n"
-            )}\n\n関連データも含めて削除し、回数券消化があれば残回数も戻します。\n本当に削除しますか？`
-          : "この予約を削除しますか？"
-      );
-      if (!ok) return;
+        setCustomerHistory((data as ReservationHistoryItem[]) || []);
+        setStaffHistory([]);
+      } catch (e) {
+        console.error(e);
+        setError(`顧客履歴取得エラー: ${extractErrorMessage(e)}`);
+      } finally {
+        setHistoryLoading(false);
+      }
+    }
 
-      for (const usage of ticketUsageRows || []) {
-        const ticketId = toIdNumber((usage as { ticket_id?: unknown }).ticket_id);
-        if (!ticketId) continue;
+    async function loadStaffHistory(staff: string) {
+      if (!supabase) return;
 
-        const { data: contractRow, error: contractFetchError } = await supabase
-          .from("ticket_contracts")
-          .select("id, used_count, remaining_count, prepaid_balance")
-          .eq("id", ticketId)
+      try {
+        setHistoryLoading(true);
+        setError("");
+        setSelectedHistoryCustomer(null);
+        setSelectedHistoryStaff(staff);
+        setHistoryOpen(true);
+
+        const { data, error } = await supabase
+          .from("reservations")
+          .select("id, date, start_time, end_time, customer_name, store_name, menu")
+          .eq("staff_name", staff)
+          .order("date", { ascending: false })
+          .order("start_time", { ascending: false })
+          .limit(50);
+
+        if (error) throw error;
+
+        setStaffHistory((data as StaffHistoryItem[]) || []);
+        setCustomerHistory([]);
+      } catch (e) {
+        console.error(e);
+        setError(`スタッフ履歴取得エラー: ${extractErrorMessage(e)}`);
+      } finally {
+        setHistoryLoading(false);
+      }
+    }
+
+    async function handleTicketConsumeAndCreateSale(item: ReservationRow) {
+      if (!supabase) {
+        setError("Supabaseの環境変数が設定されていません。");
+        return;
+      }
+
+      const reservationId = toIdNumber(item.id);
+      const customerId = toIdNumber(item.customer_id);
+
+      if (!reservationId) {
+        setError("予約IDが不正です。");
+        return;
+      }
+
+      if (!customerId) {
+        setError("この予約に customer_id がありません。");
+        return;
+      }
+
+      try {
+        setConsumingReservationId(String(item.id));
+        setError("");
+        setSuccess("");
+
+        const alreadyUsed = ticketUsedReservationIdSet.has(reservationId);
+        if (alreadyUsed) {
+          setError("この予約はすでに回数券消化済みです。");
+          return;
+        }
+
+        const alreadySold =
+          trimmed(item.reservation_status) === "売上済" ||
+          salesReservationIdSet.has(reservationId);
+
+        if (alreadySold) {
+          setError("この予約はすでに売上計上済みです。");
+          return;
+        }
+
+        const { data: customerRow, error: customerError } = await supabase
+          .from("customers")
+          .select("id, name, plan_type")
+          .eq("id", customerId)
           .maybeSingle();
 
-        if (contractFetchError) throw contractFetchError;
-
-        if (contractRow) {
-          const currentUsed = Number((contractRow as { used_count?: number | null }).used_count || 0);
-          const currentRemaining = Number(
-            (contractRow as { remaining_count?: number | null }).remaining_count || 0
-          );
-          const currentBalance = Number(
-            (contractRow as { prepaid_balance?: number | null }).prepaid_balance || 0
-          );
-          const restorePrice = Number((usage as { unit_price?: number | null }).unit_price || 0);
-          const beforeCount = Number((usage as { before_count?: number | null }).before_count ?? NaN);
-
-          const nextRemaining = Number.isFinite(beforeCount)
-            ? Math.max(beforeCount, 0)
-            : currentRemaining + 1;
-          const nextUsed = Math.max(currentUsed - 1, 0);
-
-          const { error: contractUpdateError } = await supabase
-            .from("ticket_contracts")
-            .update({
-              used_count: nextUsed,
-              remaining_count: nextRemaining,
-              prepaid_balance: currentBalance + restorePrice,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", ticketId);
-
-          if (contractUpdateError) throw contractUpdateError;
+        if (customerError) throw customerError;
+        if (!customerRow) {
+          setError("顧客情報が見つかりません。");
+          return;
         }
+
+        const ticketName = resolveTicketName({
+          reservationMenu: item.menu,
+          customerPlanType: (customerRow as { plan_type?: string | null }).plan_type,
+        });
+
+        if (!ticketName) {
+          setError(
+            "回数券名を特定できません。予約メニューか顧客プラン名を、単価表にある名前へ合わせてください。"
+          );
+          return;
+        }
+
+        const unitPrice = TICKET_UNIT_PRICES[ticketName];
+        if (!unitPrice) {
+          setError(`単価設定がありません: ${ticketName}`);
+          return;
+        }
+
+        const { data: contractRow, error: contractError } = await supabase
+          .from("ticket_contracts")
+          .select("*")
+          .eq("customer_id", customerId)
+          .eq("ticket_name", ticketName)
+          .eq("status", "active")
+          .order("id", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (contractError) throw contractError;
+        if (!contractRow) {
+          setError(`有効な回数券契約がありません: ${ticketName}`);
+          return;
+        }
+
+        const currentContract = contractRow as {
+          id: number | string;
+          remaining_count?: number | null;
+          used_count?: number | null;
+          prepaid_balance?: number | null;
+        };
+
+        const remainingCount = Number(currentContract.remaining_count ?? 0);
+        const usedCount = Number(currentContract.used_count ?? 0);
+        const prepaidBalance = Number(currentContract.prepaid_balance ?? 0);
+
+        if (remainingCount <= 0) {
+          setError("残回数がありません。");
+          return;
+        }
+
+        const ok = window.confirm(
+          `${trimmed(item.customer_name) || "この顧客"} の ${ticketName} を1回消化して、${unitPrice.toLocaleString()}円の売上を立てます。よろしいですか？`
+        );
+        if (!ok) return;
+
+        const nextRemaining = remainingCount - 1;
+        const nextUsed = usedCount + 1;
+        const nextBalance = Math.max(prepaidBalance - unitPrice, 0);
+
+        const serviceType = detectServiceTypeFromTicketName(ticketName);
+
+        const { error: usageInsertError } = await supabase.from("ticket_usages").insert({
+          ticket_id: currentContract.id,
+          customer_id: customerId,
+          reservation_id: reservationId,
+          used_date: trimmed(item.date),
+          ticket_name: ticketName,
+          unit_price: unitPrice,
+          before_count: remainingCount,
+          staff_name: trimmed(item.staff_name) || null,
+          store_name: trimmed(item.store_name) || null,
+        });
+
+        if (usageInsertError) throw usageInsertError;
+
+        const { error: contractUpdateError } = await supabase
+          .from("ticket_contracts")
+          .update({
+            used_count: nextUsed,
+            remaining_count: nextRemaining,
+            prepaid_balance: nextBalance,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", currentContract.id);
+
+        if (contractUpdateError) throw contractUpdateError;
+
+        const customerNameValue =
+          trimmed(item.customer_name) ||
+          trimmed((customerRow as { name?: string | null }).name) ||
+          null;
+
+        const { error: salesInsertError } = await supabase.from("sales").insert({
+          reservation_id: reservationId,
+          customer_id: customerId,
+          customer_name: customerNameValue,
+          sale_date: trimmed(item.date),
+          amount: unitPrice,
+          menu_type: serviceType,
+          sale_type: "回数券消化",
+          payment_method: "前受金消化",
+          staff_name: trimmed(item.staff_name) || null,
+          store_name: trimmed(item.store_name) || null,
+          memo: `${ticketName} 消化`,
+        });
+
+        if (salesInsertError) throw salesInsertError;
+
+        const { error: reservationUpdateError } = await supabase
+          .from("reservations")
+          .update({
+            reservation_status: "売上済",
+          })
+          .eq("id", reservationId);
+
+        if (reservationUpdateError) throw reservationUpdateError;
+
+        setSuccess(
+          `回数券を消化し、${unitPrice.toLocaleString()}円を売上計上しました。残回数: ${nextRemaining}`
+        );
+
+        await Promise.all([
+          loadReservations(),
+          loadReservationFlagsForVisible(),
+          loadAttendance(),
+          loadTicketContractsForVisibleCustomers(),
+        ]);
+
+        router.push(
+          `/sales?reservationId=${reservationId}&customerId=${customerId}&customerName=${encodeURIComponent(
+            customerNameValue || ""
+          )}&date=${encodeURIComponent(trimmed(item.date))}&menu=${encodeURIComponent(
+            ticketName
+          )}&staffName=${encodeURIComponent(trimmed(item.staff_name))}&storeName=${encodeURIComponent(
+            trimmed(item.store_name)
+          )}&serviceType=${encodeURIComponent(serviceType)}&saleType=${encodeURIComponent(
+            "回数券消化"
+          )}`
+        );
+      } catch (e) {
+        console.error(e);
+        setError(`回数券消化エラー: ${extractErrorMessage(e)}`);
+      } finally {
+        setConsumingReservationId("");
+      }
+    }
+
+    async function handleDeleteReservation(item: ReservationRow) {
+      if (!supabase) {
+        setError("Supabaseの環境変数が設定されていません。");
+        return;
       }
 
-      if ((ticketUsageRows || []).length > 0) {
-        const usageIds = (ticketUsageRows || [])
-          .map((row) => toIdNumber((row as { id?: unknown }).id))
-          .filter((id): id is number => id !== null);
+      const reservationId = toIdNumber(item.id);
+      if (!reservationId) {
+        setError("予約IDが不正です。");
+        return;
+      }
 
-        if (usageIds.length > 0) {
-          const { error: deleteTicketUsageError } = await supabase
+      try {
+        setDeletingReservationId(String(item.id));
+        setError("");
+        setSuccess("");
+
+        const [
+          { data: salesRows, error: salesError },
+          { data: counselingRows, error: counselingError },
+          { data: ticketUsageRows, error: ticketUsageError },
+        ] = await Promise.all([
+          supabase.from("sales").select("id").eq("reservation_id", reservationId),
+          supabase.from("counselings").select("id").eq("reservation_id", reservationId),
+          supabase
             .from("ticket_usages")
-            .delete()
-            .in("id", usageIds);
+            .select("id, ticket_id, unit_price, before_count")
+            .eq("reservation_id", reservationId),
+        ]);
 
-          if (deleteTicketUsageError) throw deleteTicketUsageError;
+        if (salesError) throw salesError;
+        if (counselingError) throw counselingError;
+        if (ticketUsageError) throw ticketUsageError;
+
+        const warnings: string[] = [];
+        if ((salesRows || []).length > 0) warnings.push(`売上 ${(salesRows || []).length}件`);
+        if ((counselingRows || []).length > 0)
+          warnings.push(`カウンセリング ${(counselingRows || []).length}件`);
+        if ((ticketUsageRows || []).length > 0)
+          warnings.push(`回数券消化 ${(ticketUsageRows || []).length}件`);
+
+        const ok = window.confirm(
+          warnings.length > 0
+            ? `この予約には関連データがあります。\n${warnings.join(
+                "\n"
+              )}\n\n関連データも含めて削除し、回数券消化があれば残回数も戻します。\n本当に削除しますか？`
+            : "この予約を削除しますか？"
+        );
+        if (!ok) return;
+
+        for (const usage of ticketUsageRows || []) {
+          const ticketId = toIdNumber((usage as { ticket_id?: unknown }).ticket_id);
+          if (!ticketId) continue;
+
+          const { data: contractRow, error: contractFetchError } = await supabase
+            .from("ticket_contracts")
+            .select("id, used_count, remaining_count, prepaid_balance")
+            .eq("id", ticketId)
+            .maybeSingle();
+
+          if (contractFetchError) throw contractFetchError;
+
+          if (contractRow) {
+            const currentUsed = Number(
+              (contractRow as { used_count?: number | null }).used_count || 0
+            );
+            const currentRemaining = Number(
+              (contractRow as { remaining_count?: number | null }).remaining_count || 0
+            );
+            const currentBalance = Number(
+              (contractRow as { prepaid_balance?: number | null }).prepaid_balance || 0
+            );
+            const restorePrice = Number((usage as { unit_price?: number | null }).unit_price || 0);
+            const beforeCount = Number(
+              (usage as { before_count?: number | null }).before_count ?? NaN
+            );
+
+            const nextRemaining = Number.isFinite(beforeCount)
+              ? Math.max(beforeCount, 0)
+              : currentRemaining + 1;
+            const nextUsed = Math.max(currentUsed - 1, 0);
+
+            const { error: contractUpdateError } = await supabase
+              .from("ticket_contracts")
+              .update({
+                used_count: nextUsed,
+                remaining_count: nextRemaining,
+                prepaid_balance: currentBalance + restorePrice,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", ticketId);
+
+            if (contractUpdateError) throw contractUpdateError;
+          }
         }
+
+        if ((ticketUsageRows || []).length > 0) {
+          const usageIds = (ticketUsageRows || [])
+            .map((row) => toIdNumber((row as { id?: unknown }).id))
+            .filter((id): id is number => id !== null);
+
+          if (usageIds.length > 0) {
+            const { error: deleteTicketUsageError } = await supabase
+              .from("ticket_usages")
+              .delete()
+              .in("id", usageIds);
+
+            if (deleteTicketUsageError) throw deleteTicketUsageError;
+          }
+        }
+
+        if ((salesRows || []).length > 0) {
+          const saleIds = (salesRows || [])
+            .map((row) => toIdNumber((row as { id?: unknown }).id))
+            .filter((id): id is number => id !== null);
+
+          if (saleIds.length > 0) {
+            const { error: deleteSalesError } = await supabase
+              .from("sales")
+              .delete()
+              .in("id", saleIds);
+
+            if (deleteSalesError) throw deleteSalesError;
+          }
+        }
+
+        if ((counselingRows || []).length > 0) {
+          const counselingIds = (counselingRows || [])
+            .map((row) => toIdNumber((row as { id?: unknown }).id))
+            .filter((id): id is number => id !== null);
+
+          if (counselingIds.length > 0) {
+            const { error: deleteCounselingError } = await supabase
+              .from("counselings")
+              .delete()
+              .in("id", counselingIds);
+
+            if (deleteCounselingError) throw deleteCounselingError;
+          }
+        }
+
+        const { error: deleteReservationError } = await supabase
+          .from("reservations")
+          .delete()
+          .eq("id", reservationId);
+
+        if (deleteReservationError) throw deleteReservationError;
+
+        setOpenedMemoReservationIds((prev) => prev.filter((id) => id !== String(item.id)));
+        setOpenedActionReservationIds((prev) => prev.filter((id) => id !== String(item.id)));
+        setSuccess("予約を削除しました。");
+
+        await Promise.all([
+          loadReservations(),
+          loadReservationFlagsForVisible(),
+          loadAttendance(),
+          loadTicketContractsForVisibleCustomers(),
+        ]);
+      } catch (e) {
+        console.error(e);
+        setError(`予約削除エラー: ${extractErrorMessage(e)}`);
+      } finally {
+        setDeletingReservationId("");
+      }
+    }
+
+    function toggleReservationMemo(reservationId: string | number) {
+      const key = String(reservationId);
+      setOpenedMemoReservationIds((prev) =>
+        prev.includes(key) ? prev.filter((id) => id !== key) : [...prev, key]
+      );
+    }
+
+    function toggleReservationActions(reservationId: string | number) {
+      const key = String(reservationId);
+      setOpenedActionReservationIds((prev) =>
+        prev.includes(key) ? prev.filter((id) => id !== key) : [...prev, key]
+      );
+    }
+
+    function handleChangeStartTime(value: string) {
+      setStartTime(value);
+      if (!endTimeTouched || !trimmed(endTime)) {
+        setEndTime(addOneHour(value));
+      }
+    }
+
+    function goPrevMonth() {
+      setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+    }
+
+    function goNextMonth() {
+      setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+    }
+
+    function handleOpenCounselingPicker() {
+      setError("");
+      setSuccess("");
+
+      if (counselingCandidates.length === 0) {
+        setError("この日に新規の顧客付き予約がありません。日付を選ぶか予約を確認してください。");
+        return;
       }
 
-      if ((salesRows || []).length > 0) {
-        const saleIds = (salesRows || [])
-          .map((row) => toIdNumber((row as { id?: unknown }).id))
-          .filter((id): id is number => id !== null);
+      setCounselingPickerOpen(true);
+    }
 
-        if (saleIds.length > 0) {
-          const { error: deleteSalesError } = await supabase
-            .from("sales")
-            .delete()
-            .in("id", saleIds);
-
-          if (deleteSalesError) throw deleteSalesError;
-        }
+    function handleGoCounseling(item: ReservationRow) {
+      if (!item.customer_id) {
+        setError("この予約に customer_id がありません。");
+        return;
       }
 
-      if ((counselingRows || []).length > 0) {
-        const counselingIds = (counselingRows || [])
-          .map((row) => toIdNumber((row as { id?: unknown }).id))
-          .filter((id): id is number => id !== null);
+      setCounselingPickerOpen(false);
+      router.push(`/customer/${item.customer_id}/counseling?reservationId=${item.id}`);
+    }
 
-        if (counselingIds.length > 0) {
-          const { error: deleteCounselingError } = await supabase
-            .from("counselings")
-            .delete()
-            .in("id", counselingIds);
+    async function handleReservationTap(item: ReservationRow) {
+      const isTicket = isTicketMenu(item.menu);
+      const reservationId = toIdNumber(item.id);
+      const isSold =
+        trimmed(item.reservation_status) === "売上済" ||
+        (reservationId !== null && salesReservationIdSet.has(reservationId));
 
-          if (deleteCounselingError) throw deleteCounselingError;
-        }
+      if (isSold) {
+        router.push(`/reservation/detail/${item.id}`);
+        return;
       }
 
-      const { error: deleteReservationError } = await supabase
-        .from("reservations")
-        .delete()
-        .eq("id", reservationId);
+      if (isTicket) {
+        await handleTicketConsumeAndCreateSale(item);
+        return;
+      }
 
-      if (deleteReservationError) throw deleteReservationError;
-
-      setOpenedMemoReservationIds((prev) => prev.filter((id) => id !== String(item.id)));
-      setOpenedActionReservationIds((prev) => prev.filter((id) => id !== String(item.id)));
-      setSuccess("予約を削除しました。");
-
-      await Promise.all([
-        loadReservations(),
-        loadReservationFlagsForVisible(),
-        loadAttendance(),
-        loadTicketContractsForVisibleCustomers(),
-      ]);
-    } catch (e) {
-      console.error(e);
-      setError(`予約削除エラー: ${extractErrorMessage(e)}`);
-    } finally {
-      setDeletingReservationId("");
-    }
-  }
-
-  function toggleReservationMemo(reservationId: string | number) {
-    const key = String(reservationId);
-    setOpenedMemoReservationIds((prev) =>
-      prev.includes(key) ? prev.filter((id) => id !== key) : [...prev, key]
-    );
-  }
-
-  function toggleReservationActions(reservationId: string | number) {
-    const key = String(reservationId);
-    setOpenedActionReservationIds((prev) =>
-      prev.includes(key) ? prev.filter((id) => id !== key) : [...prev, key]
-    );
-  }
-
-  function handleChangeStartTime(value: string) {
-    setStartTime(value);
-    if (!endTimeTouched || !trimmed(endTime)) {
-      setEndTime(addOneHour(value));
-    }
-  }
-
-  function goPrevMonth() {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
-  }
-
-  function goNextMonth() {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
-  }
-
-  function handleOpenCounselingPicker() {
-    setError("");
-    setSuccess("");
-
-    if (counselingCandidates.length === 0) {
-      setError("この日に新規の顧客付き予約がありません。日付を選ぶか予約を確認してください。");
-      return;
+      router.push(buildSalesHref(item));
     }
 
-    setCounselingPickerOpen(true);
-  }
-
-  function handleGoCounseling(item: ReservationRow) {
-    if (!item.customer_id) {
-      setError("この予約に customer_id がありません。");
-      return;
+    function setFilterMode(nextMode: FilterMode) {
+      setSelectedFilterMode((prev) => (prev === nextMode ? "all" : nextMode));
     }
 
-    setCounselingPickerOpen(false);
-    router.push(`/customer/${item.customer_id}/counseling?reservationId=${item.id}`);
-  }
-
-  async function handleReservationTap(item: ReservationRow) {
-    const isTicket = isTicketMenu(item.menu);
-    const reservationId = toIdNumber(item.id);
-    const isSold =
-      trimmed(item.reservation_status) === "売上済" ||
-      (reservationId !== null && salesReservationIdSet.has(reservationId));
-
-    if (isSold) {
-      router.push(`/reservation/detail/${item.id}`);
-      return;
+    function getSummaryCardStyle(mode: FilterMode, base: CSSProperties) {
+      const active = selectedFilterMode === mode;
+      return {
+        ...styles.summaryPill,
+        ...base,
+        ...(active ? styles.summaryPillSelected : {}),
+      };
     }
 
-    if (isTicket) {
-      await handleTicketConsumeAndCreateSale(item);
-      return;
-    }
+    if (!mounted || !authChecked) return null;
 
-    router.push(buildSalesHref(item));
-  }
+    return (
+      <main style={styles.page}>
+        <div style={styles.mobileWrap}>
+          <section style={styles.topBar}>
+            <div style={styles.topHeaderRow}>
+              <div style={styles.monthRow}>
+                <button type="button" onClick={goPrevMonth} style={styles.arrowBtn}>
+                  ‹
+                </button>
+                <h1 style={styles.monthTitle}>{formatMonthTitle(currentMonth)}</h1>
+                <button type="button" onClick={goNextMonth} style={styles.arrowBtn}>
+                  ›
+                </button>
+              </div>
 
-  function setFilterMode(nextMode: FilterMode) {
-    setSelectedFilterMode((prev) => (prev === nextMode ? "all" : nextMode));
-  }
+              <div style={styles.topRightBtns}>
+                <button
+                  type="button"
+                  onClick={handleOpenCounselingPicker}
+                  style={styles.counselingTopBtn}
+                >
+                  カウンセリング
+                </button>
 
-  function getSummaryCardStyle(mode: FilterMode, base: CSSProperties) {
-    const active = selectedFilterMode === mode;
-    return {
-      ...styles.summaryPill,
-      ...base,
-      ...(active ? styles.summaryPillSelected : {}),
-    };
-  }
+                <button
+                  type="button"
+                  onClick={() => setFilterMode("pending")}
+                  style={{
+                    ...styles.pendingFilterBtn,
+                    ...(selectedFilterMode === "pending"
+                      ? styles.pendingFilterBtnActive
+                      : {}),
+                  }}
+                >
+                  {selectedFilterMode === "pending" ? "未処理だけ表示中" : "未処理だけ"}
+                </button>
 
-  if (!mounted || !authChecked) return null;
-
-  return (
-    <main style={styles.page}>
-      <div style={styles.mobileWrap}>
-        <section style={styles.topBar}>
-          <div style={styles.topHeaderRow}>
-            <div style={styles.monthRow}>
-              <button type="button" onClick={goPrevMonth} style={styles.arrowBtn}>
-                ‹
-              </button>
-              <h1 style={styles.monthTitle}>{formatMonthTitle(currentMonth)}</h1>
-              <button type="button" onClick={goNextMonth} style={styles.arrowBtn}>
-                ›
-              </button>
+                <button type="button" onClick={() => router.push("/dashboard")} style={styles.topBtn}>
+                  TOPへ戻る
+                </button>
+              </div>
             </div>
 
-            <div style={styles.topRightBtns}>
-              <button
-                type="button"
-                onClick={handleOpenCounselingPicker}
-                style={styles.counselingTopBtn}
-              >
-                カウンセリング
-              </button>
-
+            <div style={styles.summaryBar}>
               <button
                 type="button"
                 onClick={() => setFilterMode("pending")}
-                style={{
-                  ...styles.pendingFilterBtn,
-                  ...(selectedFilterMode === "pending"
-                    ? styles.pendingFilterBtnActive
-                    : {}),
-                }}
+                style={getSummaryCardStyle("pending", {
+                  background: "#fee2e2",
+                })}
               >
-                {selectedFilterMode === "pending" ? "未処理だけ表示中" : "未処理だけ"}
+                <span style={{ ...styles.summaryLabel, color: "#991b1b" }}>未処理</span>
+                <span style={{ ...styles.summaryCountDanger }}>{pendingSummary.totalPending}件</span>
               </button>
 
-              <button type="button" onClick={() => router.push("/dashboard")} style={styles.topBtn}>
-                TOPへ戻る
-              </button>
-            </div>
-          </div>
-
-          <div style={styles.summaryBar}>
-            <button
-              type="button"
-              onClick={() => setFilterMode("pending")}
-              style={getSummaryCardStyle("pending", {
-                background: "#fee2e2",
-              })}
-            >
-              <span style={{ ...styles.summaryLabel, color: "#991b1b" }}>未処理</span>
-              <span style={{ ...styles.summaryCountDanger }}>{pendingSummary.totalPending}件</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setFilterMode("sales_pending")}
-              style={getSummaryCardStyle("sales_pending", {
-                background: "#fef3c7",
-              })}
-            >
-              <span style={{ ...styles.summaryLabel, color: "#92400e" }}>売上未</span>
-              <span style={{ ...styles.summaryCountDanger, color: "#b45309" }}>
-                {pendingSummary.salesPending}件
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setFilterMode("counseling_pending")}
-              style={getSummaryCardStyle("counseling_pending", {
-                background: "#dbeafe",
-              })}
-            >
-              <span style={{ ...styles.summaryLabel, color: "#1d4ed8" }}>
-                カウンセリング未
-              </span>
-              <span style={{ ...styles.summaryCountDanger, color: "#1d4ed8" }}>
-                {pendingSummary.counselingPending}件
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setFilterMode("ticket_pending")}
-              style={getSummaryCardStyle("ticket_pending", {
-                background: "#ede9fe",
-              })}
-            >
-              <span style={{ ...styles.summaryLabel, color: "#6d28d9" }}>
-                回数券未消化
-              </span>
-              <span style={{ ...styles.summaryCountDanger, color: "#6d28d9" }}>
-                {pendingSummary.ticketPending}件
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setFilterMode("all")}
-              style={getSummaryCardStyle("all", {
-                background: "#dcfce7",
-              })}
-            >
-              <span style={{ ...styles.summaryLabel, color: "#166534" }}>表示中</span>
-              <span style={{ ...styles.summaryCount, color: "#166534" }}>
-                {pendingSummary.visibleCount}件
-              </span>
-            </button>
-          </div>
-
-          <div style={styles.activeFilterBar}>
-            <span style={styles.activeFilterLabel}>現在の表示:</span>
-            <span style={styles.activeFilterValue}>
-              {selectedFilterMode === "all" && "すべて"}
-              {selectedFilterMode === "pending" && "未処理のみ"}
-              {selectedFilterMode === "sales_pending" && "売上未のみ"}
-              {selectedFilterMode === "counseling_pending" && "カウンセリング未のみ"}
-              {selectedFilterMode === "ticket_pending" && "回数券未消化のみ"}
-            </span>
-          </div>
-
-          <div style={styles.searchPanel}>
-            <div style={styles.searchModeRow}>
               <button
                 type="button"
-                onClick={() => setSearchMode("customer")}
-                style={{
-                  ...styles.searchModeBtn,
-                  ...(searchMode === "customer" ? styles.searchModeBtnActive : {}),
-                }}
+                onClick={() => setFilterMode("sales_pending")}
+                style={getSummaryCardStyle("sales_pending", {
+                  background: "#fef3c7",
+                })}
               >
-                お客さん検索
+                <span style={{ ...styles.summaryLabel, color: "#92400e" }}>売上未</span>
+                <span style={{ ...styles.summaryCountDanger, color: "#b45309" }}>
+                  {pendingSummary.salesPending}件
+                </span>
               </button>
+
               <button
                 type="button"
-                onClick={() => setSearchMode("staff")}
-                style={{
-                  ...styles.searchModeBtn,
-                  ...(searchMode === "staff" ? styles.searchModeBtnActive : {}),
-                }}
+                onClick={() => setFilterMode("counseling_pending")}
+                style={getSummaryCardStyle("counseling_pending", {
+                  background: "#dbeafe",
+                })}
               >
-                スタッフ検索
+                <span style={{ ...styles.summaryLabel, color: "#1d4ed8" }}>
+                  カウンセリング未
+                </span>
+                <span style={{ ...styles.summaryCountDanger, color: "#1d4ed8" }}>
+                  {pendingSummary.counselingPending}件
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFilterMode("ticket_pending")}
+                style={getSummaryCardStyle("ticket_pending", {
+                  background: "#ede9fe",
+                })}
+              >
+                <span style={{ ...styles.summaryLabel, color: "#6d28d9" }}>
+                  回数券未消化
+                </span>
+                <span style={{ ...styles.summaryCountDanger, color: "#6d28d9" }}>
+                  {pendingSummary.ticketPending}件
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFilterMode("all")}
+                style={getSummaryCardStyle("all", {
+                  background: "#dcfce7",
+                })}
+              >
+                <span style={{ ...styles.summaryLabel, color: "#166534" }}>表示中</span>
+                <span style={{ ...styles.summaryCount, color: "#166534" }}>
+                  {pendingSummary.visibleCount}件
+                </span>
               </button>
             </div>
 
-            <input
-              value={globalSearch}
-              onChange={(e) => setGlobalSearch(e.target.value)}
-              placeholder={searchMode === "customer" ? "名前・かな・電話で検索" : "スタッフ名で検索"}
-              style={styles.searchInput}
-            />
+            <div style={styles.activeFilterBar}>
+              <span style={styles.activeFilterLabel}>現在の表示:</span>
+              <span style={styles.activeFilterValue}>
+                {selectedFilterMode === "all" && "すべて"}
+                {selectedFilterMode === "pending" && "未処理のみ"}
+                {selectedFilterMode === "sales_pending" && "売上未のみ"}
+                {selectedFilterMode === "counseling_pending" && "カウンセリング未のみ"}
+                {selectedFilterMode === "ticket_pending" && "回数券未消化のみ"}
+              </span>
+            </div>
 
-            {searchMode === "customer" && filteredCustomerSearchResults.length > 0 ? (
-              <div style={styles.searchResultList}>
-                {filteredCustomerSearchResults.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => void loadCustomerHistory(c)}
-                    style={styles.searchResultItem}
-                  >
-                    <div style={styles.searchResultTitle}>{c.name || "名称なし"}</div>
-                    <div style={styles.searchResultSub}>
-                      {c.kana || "かな未設定"} / {c.phone || "電話未設定"}
-                    </div>
-                  </button>
-                ))}
+            <div style={styles.searchPanel}>
+              <div style={styles.searchModeRow}>
+                <button
+                  type="button"
+                  onClick={() => setSearchMode("customer")}
+                  style={{
+                    ...styles.searchModeBtn,
+                    ...(searchMode === "customer" ? styles.searchModeBtnActive : {}),
+                  }}
+                >
+                  お客さん検索
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSearchMode("staff")}
+                  style={{
+                    ...styles.searchModeBtn,
+                    ...(searchMode === "staff" ? styles.searchModeBtnActive : {}),
+                  }}
+                >
+                  スタッフ検索
+                </button>
               </div>
-            ) : null}
 
-            {searchMode === "staff" && filteredStaffSearchResults.length > 0 ? (
-              <div style={styles.searchResultList}>
-                {filteredStaffSearchResults.map((staff) => (
-                  <button
-                    key={staff}
-                    type="button"
-                    onClick={() => void loadStaffHistory(staff)}
-                    style={styles.searchResultItem}
-                  >
-                    <div style={styles.searchResultTitle}>{staff}</div>
-                    <div style={styles.searchResultSub}>担当履歴を見る</div>
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
+              <input
+                value={globalSearch}
+                onChange={(e) => setGlobalSearch(e.target.value)}
+                placeholder={searchMode === "customer" ? "名前・かな・電話で検索" : "スタッフ名で検索"}
+                style={styles.searchInput}
+              />
 
-          <div style={styles.filterRow}>
-            {STORE_OPTIONS.map((store) => (
-              <button
-                key={store}
-                type="button"
-                onClick={() => setSelectedStoreFilter(store)}
-                style={{
-                  ...styles.storeChip,
-                  ...(selectedStoreFilter === store ? styles.storeChipActive : {}),
-                }}
-              >
-                {store}
-              </button>
-            ))}
-          </div>
+              {searchMode === "customer" && filteredCustomerSearchResults.length > 0 ? (
+                <div style={styles.searchResultList}>
+                  {filteredCustomerSearchResults.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => void loadCustomerHistory(c)}
+                      style={styles.searchResultItem}
+                    >
+                      <div style={styles.searchResultTitle}>{c.name || "名称なし"}</div>
+                      <div style={styles.searchResultSub}>
+                        {c.kana || "かな未設定"} / {c.phone || "電話未設定"}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
 
-          <div style={styles.legendBox}>
-            {["山口", "中西", "池田", "石川", "羽田", "菱谷", "井上", "林", "その他"].map(
-              (name) => (
+              {searchMode === "staff" && filteredStaffSearchResults.length > 0 ? (
+                <div style={styles.searchResultList}>
+                  {filteredStaffSearchResults.map((staff) => (
+                    <button
+                      key={staff}
+                      type="button"
+                      onClick={() => void loadStaffHistory(staff)}
+                      style={styles.searchResultItem}
+                    >
+                      <div style={styles.searchResultTitle}>{staff}</div>
+                      <div style={styles.searchResultSub}>担当履歴を見る</div>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            <div style={styles.filterRow}>
+              {STORE_OPTIONS.map((store) => (
+                <button
+                  key={store}
+                  type="button"
+                  onClick={() => setSelectedStoreFilter(store)}
+                  style={{
+                    ...styles.storeChip,
+                    ...(selectedStoreFilter === store ? styles.storeChipActive : {}),
+                  }}
+                >
+                  {store}
+                </button>
+              ))}
+            </div>
+
+            <div style={styles.legendBox}>
+              {["山口", "中西", "池田", "石川", "羽田", "菱谷", "井上", "林", "その他"].map(
+                (name) => (
+                  <div key={name} style={styles.legendItem}>
+                    <span
+                      style={{
+                        ...styles.legendDot,
+                        background: getStaffColor(name),
+                      }}
+                    />
+                    {name}
+                  </div>
+                )
+              )}
+            </div>
+
+            <div style={styles.legendBoxStore}>
+              {["江戸堀", "箕面", "福島", "福島P", "天満橋", "中崎町", "江坂"].map((name) => (
                 <div key={name} style={styles.legendItem}>
                   <span
                     style={{
                       ...styles.legendDot,
-                      background: getStaffColor(name),
+                      background: getStoreColor(name),
                     }}
                   />
                   {name}
                 </div>
-              )
-            )}
-          </div>
+              ))}
+            </div>
+          </section>
 
-          <div style={styles.legendBoxStore}>
-            {["江戸堀", "箕面", "福島", "福島P", "天満橋", "中崎町", "江坂"].map((name) => (
-              <div key={name} style={styles.legendItem}>
-                <span
+          {error ? <div style={styles.errorBox}>{error}</div> : null}
+          {success ? <div style={styles.successBox}>{success}</div> : null}
+
+          <section style={styles.calendarCard}>
+            <div style={styles.weekHeader}>
+              {WEEK_LABELS.map((label, index) => (
+                <div
+                  key={label}
                   style={{
-                    ...styles.legendDot,
-                    background: getStoreColor(name),
-                  }}
-                />
-                {name}
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {error ? <div style={styles.errorBox}>{error}</div> : null}
-        {success ? <div style={styles.successBox}>{success}</div> : null}
-
-        <section style={styles.calendarCard}>
-          <div style={styles.weekHeader}>
-            {WEEK_LABELS.map((label, index) => (
-              <div
-                key={label}
-                style={{
-                  ...styles.weekLabel,
-                  color:
-                    index === 5 ? "#2563eb" : index === 6 ? "#ef4444" : "#94a3b8",
-                }}
-              >
-                {label}
-              </div>
-            ))}
-          </div>
-
-          <div style={styles.calendarGrid}>
-            {calendarDays.map((dateObj) => {
-              const ymd = toYmd(dateObj);
-              const items = reservationsByDate.get(ymd) || [];
-              const isCurrentMonth = dateObj.getMonth() === currentMonth.getMonth();
-              const isToday = ymd === toYmd(new Date());
-              const isSelected = ymd === selectedDate;
-
-              const pendingCount = items.filter((item) =>
-                getPendingFlags({
-                  item,
-                  salesReservationIdSet,
-                  counseledReservationIdSet,
-                  ticketUsedReservationIdSet,
-                }).isPending
-              ).length;
-
-              return (
-                <button
-                  key={ymd}
-                  type="button"
-                  onClick={() => openDay(ymd)}
-                  style={{
-                    ...styles.dayCell,
-                    ...(isSelected ? styles.dayCellSelected : {}),
-                    opacity: isCurrentMonth ? 1 : 0.4,
-                    ...(pendingCount > 0 ? styles.dayCellPending : {}),
+                    ...styles.weekLabel,
+                    color:
+                      index === 5 ? "#2563eb" : index === 6 ? "#ef4444" : "#94a3b8",
                   }}
                 >
-                  <div style={styles.dayHead}>
-                    <span
-                      style={{
-                        ...styles.dayNumber,
-                        color:
-                          dateObj.getDay() === 0
-                            ? "#ef4444"
-                            : dateObj.getDay() === 6
-                            ? "#2563eb"
-                            : "#0f172a",
-                        ...(isToday ? styles.todayBadge : {}),
-                      }}
-                    >
-                      {dateObj.getDate()}
-                    </span>
+                  {label}
+                </div>
+              ))}
+            </div>
 
-                    {pendingCount > 0 ? (
-                      <span style={styles.dayPendingBadge}>{pendingCount}</span>
-                    ) : null}
+            <div style={styles.calendarGrid}>
+              {calendarDays.map((dateObj) => {
+                const ymd = toYmd(dateObj);
+                const items = reservationsByDate.get(ymd) || [];
+                const isCurrentMonth = dateObj.getMonth() === currentMonth.getMonth();
+                const isToday = ymd === toYmd(new Date());
+                const isSelected = ymd === selectedDate;
+
+                const pendingCount = items.filter((item) =>
+                  getPendingFlags({
+                    item,
+                    salesReservationIdSet,
+                    counseledReservationIdSet,
+                    ticketUsedReservationIdSet,
+                  }).isPending
+                ).length;
+
+                return (
+                  <button
+                    key={ymd}
+                    type="button"
+                    onClick={() => openDay(ymd)}
+                    style={{
+                      ...styles.dayCell,
+                      ...(isSelected ? styles.dayCellSelected : {}),
+                      opacity: isCurrentMonth ? 1 : 0.4,
+                      ...(pendingCount > 0 ? styles.dayCellPending : {}),
+                    }}
+                  >
+                    <div style={styles.dayHead}>
+                      <span
+                        style={{
+                          ...styles.dayNumber,
+                          color:
+                            dateObj.getDay() === 0
+                              ? "#ef4444"
+                              : dateObj.getDay() === 6
+                              ? "#2563eb"
+                              : "#0f172a",
+                          ...(isToday ? styles.todayBadge : {}),
+                        }}
+                      >
+                        {dateObj.getDate()}
+                      </span>
+
+                      {pendingCount > 0 ? (
+                        <span style={styles.dayPendingBadge}>{pendingCount}</span>
+                      ) : null}
+                    </div>
+
+                    <div style={styles.dayCount}>{items.length}件</div>
+
+                    <div style={styles.dayMiniList}>
+                      {items.slice(0, 3).map((item) => (
+                        <div
+                          key={String(item.id)}
+                          style={{
+                            ...styles.dayMiniCard,
+                            borderLeft: `3px solid ${getStaffColor(item.staff_name)}`,
+                          }}
+                        >
+                          <div style={styles.dayMiniTime}>{trimmed(item.start_time)}</div>
+                          <div style={styles.dayMiniName}>{trimmed(item.customer_name)}</div>
+                        </div>
+                      ))}
+                      {items.length > 3 ? (
+                        <div style={styles.dayMore}>+{items.length - 3}</div>
+                      ) : null}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+                    {/* ===== Day Sheet ===== */}
+          {daySheetOpen ? (
+            <div style={styles.sheetOverlay} onClick={() => setDaySheetOpen(false)}>
+              <div style={styles.sheet} onClick={(e) => e.stopPropagation()}>
+                <div style={styles.sheetHandle} />
+
+                <div style={styles.sheetHeader}>
+                  <div>
+                    <div style={styles.sheetSubTitle}>予約 / 出勤一覧</div>
+                    <h2 style={styles.sheetTitle}>
+                      {formatJapaneseDate(selectedDate)}
+                    </h2>
                   </div>
 
-                  <div style={styles.eventListMini}>
-                    {items.slice(0, 3).map((item) => {
-                      const flags = getPendingFlags({
-                        item,
-                        salesReservationIdSet,
-                        counseledReservationIdSet,
-                        ticketUsedReservationIdSet,
-                      });
+                  <div style={styles.sheetHeaderBtns}>
+                    <button
+                      type="button"
+                      onClick={() => openCreateModal(selectedDate)}
+                      style={styles.sheetActionBtn}
+                    >
+                      ＋予約追加
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDaySheetOpen(false)}
+                      style={styles.sheetCloseBtn}
+                    >
+                      閉じる
+                    </button>
+                  </div>
+                </div>
+
+                {selectedDayTimeline.length === 0 ? (
+                  <div style={styles.emptyDayBox}>この日の予定はありません。</div>
+                ) : (
+                  <div style={styles.timelineListCompact}>
+                    {selectedDayTimeline.map((timelineItem) => {
+                      // ===== 出勤 =====
+                      if (timelineItem.type === "attendance") {
+                        const item = timelineItem.attendance;
+
+                        return (
+                          <div
+                            key={`attendance-${item.id}`}
+                            style={{
+                              ...styles.timelineCard,
+                              borderLeft: `5px solid ${getStaffColor(item.staff_name)}`,
+                            }}
+                          >
+                            <div style={styles.timelineRow}>
+                              <div style={styles.timelineTimeBlock}>
+                                <div style={styles.timelineTimeMain}>
+                                  {trimmed(item.clock_in) || "--:--"}
+                                </div>
+                                <div style={styles.timelineTimeSub}>
+                                  {trimmed(item.clock_out) || "--:--"}
+                                </div>
+                              </div>
+
+                              <div style={styles.timelineContent}>
+                                <div style={styles.timelineTitle}>
+                                  {trimmed(item.staff_name) || "スタッフ未設定"}勤務
+                                </div>
+                                <div style={styles.timelineMetaText}>
+                                  スタッフ出勤
+                                </div>
+                              </div>
+
+                              <div
+                                style={{
+                                  ...styles.staffAvatar,
+                                  background: getStaffColor(item.staff_name),
+                                }}
+                              >
+                                {getStaffShortLabel(item.staff_name)}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // ===== 予約 =====
+                      const item = timelineItem.reservation;
+
+                      const ticketNumbering =
+                        getTicketNumberingForReservation(item);
+
+                      const ticketLabelStyle: CSSProperties = {
+                        ...styles.ticketCountBadgeCompact,
+                        ...(ticketNumbering?.tone === "warning"
+                          ? styles.ticketCountBadgeWarningCompact
+                          : {}),
+                        ...(ticketNumbering?.tone === "danger"
+                          ? styles.ticketCountBadgeDangerCompact
+                          : {}),
+                      };
+
+                      const memoOpened = openedMemoReservationIds.includes(
+                        String(item.id)
+                      );
+                      const actionOpened = openedActionReservationIds.includes(
+                        String(item.id)
+                      );
 
                       return (
                         <div
                           key={String(item.id)}
                           style={{
-                            ...styles.eventMini,
-                            borderLeft: `4px solid ${getStaffColor(item.staff_name)}`,
-                            ...(flags.isPending ? styles.eventMiniPending : {}),
+                            ...styles.timelineCardCompact,
+                            borderLeft: `4px solid ${getStaffColor(
+                              item.staff_name
+                            )}`,
                           }}
                         >
-                          <div style={styles.eventMiniLine}>
-                            <span
-                              style={{
-                                ...styles.eventMiniStoreDot,
-                                background: getStoreColor(item.store_name),
-                              }}
-                            />
-                            <span style={styles.eventMiniText}>
-                              {trimmed(item.start_time) || "--:--"}{" "}
-                              {trimmed(item.customer_name) || "顧客名未設定"}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
+                          <div style={styles.timelineRowCompact}>
+                            <div style={styles.timelineContentCompact}>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  router.push(
+                                    `/reservation/detail/${item.id}`
+                                  )
+                                }
+                                style={styles.timelineMainActionCompact}
+                              >
+                                <div style={styles.timelineTopLineCompact}>
+                                  <div
+                                    style={
+                                      styles.timelineNameGroupCompact
+                                    }
+                                  >
+                                    <span
+                                      style={
+                                        styles.timelineTitleCompact
+                                      }
+                                    >
+                                      {item.customer_name ||
+                                        "顧客名未設定"}
+                                    </span>
 
-                    {items.length > 3 ? (
-                      <div style={styles.moreText}>+{items.length - 3}件</div>
-                    ) : null}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </section>
+                                    {ticketNumbering ? (
+                                      <span style={ticketLabelStyle}>
+                                        {ticketNumbering.label}
+                                      </span>
+                                    ) : null}
+                                  </div>
 
-        <button type="button" onClick={() => openCreateModal()} style={styles.fab}>
-          ＋
-        </button>
+                                  <span
+                                    style={styles.timelineTimeInline}
+                                  >
+                                    {trimmed(item.start_time)} -{" "}
+                                    {trimmed(item.end_time)}
+                                  </span>
+                                </div>
 
-        {daySheetOpen ? (
-          <div style={styles.sheetOverlay} onClick={() => setDaySheetOpen(false)}>
-            <div style={styles.sheet} onClick={(e) => e.stopPropagation()}>
-              <div style={styles.sheetHandle} />
+                                <div
+                                  style={styles.timelineMetaTextCompact}
+                                >
+                                  {item.menu || "メニュー未設定"} /{" "}
+                                  {item.store_name || "店舗未設定"} /{" "}
+                                  {item.staff_name || "担当未設定"}
+                                </div>
+                              </button>
 
-              <div style={styles.sheetHeader}>
-                <div>
-                  <div style={styles.sheetSubTitle}>予約 / 出勤一覧</div>
-                  <h2 style={styles.sheetTitle}>{formatJapaneseDate(selectedDate)}</h2>
-                </div>
-
-                <div style={styles.sheetHeaderBtns}>
-                  <button
-                    type="button"
-                    onClick={() => openCreateModal(selectedDate)}
-                    style={styles.sheetActionBtnPrimary}
-                  >
-                    ＋予約追加
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDaySheetOpen(false)}
-                    style={styles.sheetCloseBtn}
-                  >
-                    閉じる
-                  </button>
-                </div>
-              </div>
-
-              {selectedDayTimeline.length === 0 ? (
-                <div style={styles.emptyBox}>この日の予定はありません。</div>
-              ) : (
-                <div style={styles.cardList}>
-                  {selectedDayTimeline.map((timelineItem) => {
-                    if (timelineItem.type === "attendance") {
-                      const item = timelineItem.attendance;
-                      return (
-                        <div
-                          key={`attendance-${item.id}`}
-                          style={{
-                            ...styles.timelineCard,
-                            borderLeft: `5px solid ${getStaffColor(item.staff_name)}`,
-                          }}
-                        >
-                          <div style={styles.timelineRow}>
-                            <div style={styles.timelineTimeBlock}>
-                              <div style={styles.timelineTimeMain}>
-                                {trimmed(item.clock_in) || "--:--"}
+                              <div style={styles.cardActionBarSingle}>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    toggleReservationActions(item.id)
+                                  }
+                                  style={styles.actionToggleBtn}
+                                >
+                                  {actionOpened
+                                    ? "操作を閉じる"
+                                    : "操作を開く"}
+                                </button>
                               </div>
-                              <div style={styles.timelineTimeSub}>
-                                {trimmed(item.clock_out) || "--:--"}
-                              </div>
-                            </div>
 
-                            <div style={styles.timelineContent}>
-                              <div style={styles.timelineTitle}>
-                                {trimmed(item.staff_name) || "スタッフ未設定"}勤務
-                              </div>
-                              <div style={styles.timelineMetaText}>スタッフ出勤</div>
-                              {trimmed(item.memo) ? (
-                                <div style={styles.attendanceMemoBox}>
-                                  不可時間メモ: {trimmed(item.memo)}
+                              {actionOpened ? (
+                                <div style={styles.actionDrawer}>
+                                  <div
+                                    style={
+                                      styles.cardActionRowCompact
+                                    }
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        router.push(
+                                          `/reservation/detail/${item.id}`
+                                        )
+                                      }
+                                      style={styles.actionBtnBlueCompact}
+                                    >
+                                      詳細
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleDeleteReservation(item)
+                                      }
+                                      style={
+                                        styles.actionBtnDeleteCompact
+                                      }
+                                    >
+                                      削除
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        toggleReservationMemo(item.id)
+                                      }
+                                      style={styles.actionBtnMemoCompact}
+                                    >
+                                      {memoOpened
+                                        ? "メモ閉じる"
+                                        : "メモ"}
+                                    </button>
+                                  </div>
+
+                                  {memoOpened && trimmed(item.memo) ? (
+                                    <div
+                                      style={styles.memoBoxCompact}
+                                    >
+                                      {trimmed(item.memo)}
+                                    </div>
+                                  ) : null}
                                 </div>
                               ) : null}
                             </div>
 
                             <div
                               style={{
-                                ...styles.staffAvatar,
-                                background: getStaffColor(item.staff_name),
+                                ...styles.staffAvatarCompact,
+                                background: getStaffColor(
+                                  item.staff_name
+                                ),
                               }}
                             >
                               {getStaffShortLabel(item.staff_name)}
@@ -2305,722 +2451,52 @@ export default function ReservationPage() {
                           </div>
                         </div>
                       );
-                    }
-
-                    const item = timelineItem.reservation;
-                    const flags = getPendingFlags({
-                      item,
-                      salesReservationIdSet,
-                      counseledReservationIdSet,
-                      ticketUsedReservationIdSet,
-                    });
-
-                    const isTicket = isTicketMenu(item.menu);
-                    const reservationIdNum = toIdNumber(item.id);
-                    const isSold =
-                      trimmed(item.reservation_status) === "売上済" ||
-                      (reservationIdNum !== null && salesReservationIdSet.has(reservationIdNum));
-                    const isCounseled =
-                      reservationIdNum !== null &&
-                      counseledReservationIdSet.has(reservationIdNum);
-                    const isTicketUsed =
-                      reservationIdNum !== null &&
-                      ticketUsedReservationIdSet.has(reservationIdNum);
-                    const memoOpened = openedMemoReservationIds.includes(String(item.id));
-                    const actionOpened = openedActionReservationIds.includes(String(item.id));
-
-                    const ticketNumbering = getTicketNumberingForReservation(item);
-
-                    const ticketLabelStyle: CSSProperties = {
-                      ...styles.ticketCountBadgeCompact,
-                      ...(ticketNumbering?.tone === "warning"
-                        ? styles.ticketCountBadgeWarningCompact
-                        : {}),
-                      ...(ticketNumbering?.tone === "danger"
-                        ? styles.ticketCountBadgeDangerCompact
-                        : {}),
-                    };
-
-                    return (
-                      <div
-                        key={String(item.id)}
-                        style={{
-                          ...styles.timelineCardCompact,
-                          ...(flags.isPending ? styles.reserveCardPendingCompact : {}),
-                          borderLeft: `4px solid ${getStaffColor(item.staff_name)}`,
-                        }}
-                      >
-                        <div style={styles.timelineRowCompact}>
-                          <div style={styles.timelineContentCompact}>
-                            <button
-                              type="button"
-                              onClick={() => void handleReservationTap(item)}
-                              style={styles.timelineMainActionCompact}
-                            >
-                              <div style={styles.timelineTopLineCompact}>
-                                <span style={styles.timelineTimeInline}>
-                                  {trimmed(item.start_time) || "--:--"}
-                                  {trimmed(item.end_time)
-                                    ? `〜${trimmed(item.end_time)}`
-                                    : ""}
-                                </span>
-
-                                <div style={styles.timelineNameGroupCompact}>
-                                  <span style={styles.timelineTitleCompact}>
-                                    {trimmed(item.customer_name) || "顧客名未設定"}
-                                  </span>
-
-                                  {ticketNumbering ? (
-                                    <span style={ticketLabelStyle}>
-                                      {ticketNumbering.label}
-                                    </span>
-                                  ) : null}
-                                </div>
-                              </div>
-                              <div style={styles.timelineMetaTextCompact}>
-                                {trimmed(item.menu) || "—"} / {trimmed(item.staff_name) || "—"}
-                                {trimmed(item.store_name)
-                                  ? ` / ${trimmed(item.store_name)}`
-                                  : ""}
-                              </div>
-
-                              <div style={styles.statusRowCompact}>
-                                <span
-                                  style={
-                                    isSold
-                                      ? styles.doneBadgeCompact
-                                      : styles.pendingBadgeCompact
-                                  }
-                                >
-                                  {isSold ? "売上済" : "売上未"}
-                                </span>
-
-                                {isNewVisit(item) ? (
-                                  <span
-                                    style={
-                                      isCounseled
-                                        ? styles.doneBadgeBlueCompact
-                                        : styles.pendingBadgeYellowCompact
-                                    }
-                                  >
-                                    {isCounseled
-                                      ? "カウンセリング済"
-                                      : "カウンセリング未"}
-                                  </span>
-                                ) : null}
-
-                                {isTicket ? (
-                                  <>
-                                    <span style={styles.ticketBadgeCompact}>回数券</span>
-                                    <span
-                                      style={
-                                        isTicketUsed
-                                          ? styles.doneBadgePurpleCompact
-                                          : styles.pendingBadgePurpleCompact
-                                      }
-                                    >
-                                      {isTicketUsed ? "消化済" : "未消化"}
-                                    </span>
-                                  </>
-                                ) : null}
-                              </div>
-
-                              {ticketNumbering?.showPaymentAlert ? (
-                                <div style={styles.paymentAlertBoxCompact}>
-                                  支払い更新アラート
-                                </div>
-                              ) : null}
-
-                              <div style={styles.tapHintCompact}>
-                                {isSold
-                                  ? "タップで詳細"
-                                  : isTicket
-                                  ? "タップで回数券消化＋売上登録"
-                                  : "タップで売上登録"}
-                              </div>
-                            </button>
-
-                            <div style={styles.cardActionBarSingle}>
-                              <button
-                                type="button"
-                                onClick={() => toggleReservationActions(item.id)}
-                                style={styles.actionToggleBtn}
-                              >
-                                {actionOpened ? "操作を閉じる" : "操作"}
-                              </button>
-                            </div>
-
-                            {actionOpened ? (
-                              <div style={styles.actionDrawer}>
-                                <div style={styles.cardActionRowCompact}>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      router.push(`/reservation/detail/${item.id}`)
-                                    }
-                                    style={styles.actionBtnDarkCompact}
-                                  >
-                                    詳細
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      router.push(`/reservation/detail/${item.id}`)
-                                    }
-                                    style={styles.actionBtnBlueCompact}
-                                  >
-                                    詳細
-                                  </button>
-
-                                  {!isSold ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => void handleReservationTap(item)}
-                                      disabled={consumingReservationId === String(item.id)}
-                                      style={styles.actionBtnBlueCompact}
-                                    >
-                                      {consumingReservationId === String(item.id)
-                                        ? "処理中..."
-                                        : isTicket
-                                        ? "消化/売上"
-                                        : "売上登録"}
-                                    </button>
-                                  ) : null}
-
-                                  {isNewVisit(item) && !isCounseled ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleGoCounseling(item)}
-                                      style={styles.actionBtnOrangeCompact}
-                                    >
-                                      カウンセ
-                                    </button>
-                                  ) : null}
-
-                                  <button
-                                    type="button"
-                                    onClick={() => void handleDeleteReservation(item)}
-                                    disabled={deletingReservationId === String(item.id)}
-                                    style={styles.actionBtnDeleteCompact}
-                                  >
-                                    {deletingReservationId === String(item.id)
-                                      ? "削除中..."
-                                      : "削除"}
-                                  </button>
-
-                                  {trimmed(item.memo) ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleReservationMemo(item.id)}
-                                      style={styles.actionBtnMemoCompact}
-                                    >
-                                      {memoOpened ? "メモ閉じる" : "メモ"}
-                                    </button>
-                                  ) : null}
-                                </div>
-
-                                {trimmed(item.memo) && memoOpened ? (
-                                  <div style={styles.memoBoxCompact}>{trimmed(item.memo)}</div>
-                                ) : null}
-                              </div>
-                            ) : null}
-                          </div>
-
-                          <div
-                            style={{
-                              ...styles.staffAvatarCompact,
-                              background: getStaffColor(item.staff_name),
-                            }}
-                          >
-                            {getStaffShortLabel(item.staff_name)}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        ) : null}
-                {formOpen ? (
-          <div style={styles.modalOverlay} onClick={() => setFormOpen(false)}>
-            <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
-              <div style={styles.modalHeader}>
-                <h3 style={styles.modalTitle}>新規予約</h3>
-                <button
-                  type="button"
-                  onClick={() => setFormOpen(false)}
-                  style={styles.modalCloseBtn}
-                >
-                  ×
-                </button>
-              </div>
-
-              <div style={styles.formGrid}>
-                <div style={styles.formBlockFull}>
-                  <label style={styles.label}>顧客検索</label>
-                  <input
-                    value={customerSearch}
-                    onChange={(e) => setCustomerSearch(e.target.value)}
-                    placeholder="名前・かな・電話で検索"
-                    style={styles.input}
-                  />
-                  {filteredCustomers.length > 0 ? (
-                    <div style={styles.customerSearchList}>
-                      {filteredCustomers.map((c) => (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() => handleSelectCustomer(c.id)}
-                          style={styles.customerSearchItem}
-                        >
-                          <div style={styles.customerSearchName}>{c.name || "名称なし"}</div>
-                          <div style={styles.customerSearchSub}>
-                            {c.kana || "かな未設定"} / {c.phone || "電話未設定"}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div>
-                  <label style={styles.label}>顧客名</label>
-                  <input
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    style={styles.input}
-                  />
-                </div>
-
-                <div>
-                  <label style={styles.label}>かな</label>
-                  <input
-                    value={customerKana}
-                    onChange={(e) => setCustomerKana(e.target.value)}
-                    style={styles.input}
-                  />
-                </div>
-
-                <div>
-                  <label style={styles.label}>電話</label>
-                  <input
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    style={styles.input}
-                  />
-                </div>
-
-                <div></div>
-                <label style={styles.label}>日付</label>
-                  <input
-                    type="date"
-                    value={formDate}
-                    onChange={(e) => setFormDate(e.target.value)}
-                    style={styles.input}
-                  />
-                </div>
-
-                <div>
-                  <label style={styles.label}>開始時間</label>
-                  <input
-                    type="time"
-                    value={startTime}
-                    onChange={(e) => handleChangeStartTime(e.target.value)}
-                    style={styles.input}
-                  />
-                </div>
-
-                <div>
-                  <label style={styles.label}>終了時間</label>
-                  <input
-                    type="time"
-                    value={endTime}
-                    onChange={(e) => {
-                      setEndTimeTouched(true);
-                      setEndTime(e.target.value);
-                    }}
-                    style={styles.input}
-                  />
-                </div>
-
-                <div>
-                  <label style={styles.label}>店舗</label>
-                  <select
-                    value={storeName}
-                    onChange={(e) => setStoreName(e.target.value)}
-                    style={styles.input}
-                  >
-                    {STORE_OPTIONS_FOR_FORM.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={styles.label}>担当スタッフ</label>
-                  <select
-                    value={staffName}
-                    onChange={(e) => setStaffName(e.target.value)}
-                    style={styles.input}
-                  >
-                    {STAFF_OPTIONS.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={styles.label}>メニュー</label>
-                  <select
-                    value={menu}
-                    onChange={(e) => setMenu(e.target.value)}
-                    style={styles.input}
-                  >
-                    {MENU_OPTIONS.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={styles.label}>支払方法</label>
-                  <select
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                    style={styles.input}
-                  >
-                    {PAYMENT_OPTIONS.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={styles.label}>来店区分</label>
-                  <select
-                    value={visitType}
-                    onChange={(e) => setVisitType(e.target.value)}
-                    style={styles.input}
-                  >
-                    {VISIT_TYPE_OPTIONS.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div style={styles.formBlockFull}>
-                  <label style={styles.label}>メモ</label>
-                  <textarea
-                    value={memo}
-                    onChange={(e) => setMemo(e.target.value)}
-                    style={styles.textarea}
-                    rows={4}
-                  />
-                </div>
-              </div>
-
-              <div style={styles.modalFooter}>
-                <button type="button" onClick={() => setFormOpen(false)} style={styles.cancelBtn}>
-                  キャンセル
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleSaveReservation()}
-                  style={styles.saveBtn}
-                  disabled={saving}
-                >
-                  {saving ? "保存中..." : "保存する"}
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        {counselingPickerOpen ? (
-          <div style={styles.modalOverlay} onClick={() => setCounselingPickerOpen(false)}>
-            <div style={styles.modalSmall} onClick={(e) => e.stopPropagation()}>
-              <div style={styles.modalHeader}>
-                <h3 style={styles.modalTitle}>カウンセリング対象を選択</h3>
-                <button
-                  type="button"
-                  onClick={() => setCounselingPickerOpen(false)}
-                  style={styles.modalCloseBtn}
-                >
-                  ×
-                </button>
-              </div>
-
-              {counselingCandidates.length === 0 ? (
-                <div style={styles.emptyBox}>対象がありません。</div>
-              ) : (
-                <div style={styles.cardList}>
-                  {counselingCandidates.map((item) => (
-                    <button
-                      key={String(item.id)}
-                      type="button"
-                      onClick={() => handleGoCounseling(item)}
-                      style={styles.counselingSelectCard}
-                    >
-                      <div style={styles.counselingSelectTime}>
-                        {trimmed(item.start_time) || "--:--"}
-                        {trimmed(item.end_time) ? ` 〜 ${trimmed(item.end_time)}` : ""}
-                      </div>
-                      <div style={styles.counselingSelectName}>
-                        {trimmed(item.customer_name) || "顧客名未設定"}
-                      </div>
-                      <div style={styles.counselingSelectSub}>
-                        {trimmed(item.menu) || "メニュー未設定"} /{" "}
-                        {trimmed(item.staff_name) || "担当未設定"}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        ) : null}
-
-        {historyOpen ? (
-          <div style={styles.modalOverlay} onClick={() => setHistoryOpen(false)}>
-            <div style={styles.modalSmall} onClick={(e) => e.stopPropagation()}>
-              <div style={styles.modalHeader}>
-                <h3 style={styles.modalTitle}>
-                  {selectedHistoryCustomer
-                    ? `${selectedHistoryCustomer.name} の予約履歴`
-                    : selectedHistoryStaff
-                    ? `${selectedHistoryStaff} の担当履歴`
-                    : "履歴"}
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setHistoryOpen(false)}
-                  style={styles.modalCloseBtn}
-                >
-                  ×
-                </button>
-              </div>
-
-              {historyLoading ? (
-                <div style={styles.emptyBox}>読み込み中...</div>
-              ) : selectedHistoryCustomer ? (
-                customerHistory.length === 0 ? (
-                  <div style={styles.emptyBox}>履歴がありません。</div>
-                ) : (
-                  <div style={styles.cardList}>
-                    {customerHistory.map((item) => (
-                      <div key={String(item.id)} style={styles.historyCard}>
-                        <div style={styles.historyTitle}>
-                          {trimmed(item.date)} {trimmed(item.start_time)}
-                          {trimmed(item.end_time) ? `〜${trimmed(item.end_time)}` : ""}
-                        </div>
-                        <div style={styles.historyMeta}>
-                          店舗: {trimmed(item.store_name) || "—"} / 担当:{" "}
-                          {trimmed(item.staff_name) || "—"}
-                        </div>
-                        <div style={styles.historyMeta}>メニュー: {trimmed(item.menu) || "—"}</div>
-                        {trimmed(item.memo) ? (
-                          <div style={styles.memoBox}>{trimmed(item.memo)}</div>
-                        ) : null}
-                      </div>
-                    ))}
+                    })}
                   </div>
-                )
-              ) : staffHistory.length === 0 ? (
-                <div style={styles.emptyBox}>履歴がありません。</div>
-              ) : (
-                <div style={styles.cardList}>
-                  {staffHistory.map((item) => (
-                    <div key={String(item.id)} style={styles.historyCard}>
-                      <div style={styles.historyTitle}>
-                        {trimmed(item.date)} {trimmed(item.start_time)}
-                        {trimmed(item.end_time) ? `〜${trimmed(item.end_time)}` : ""}
-                      </div>
-                      <div style={styles.historyMeta}>
-                        顧客: {trimmed(item.customer_name) || "—"} / 店舗:{" "}
-                        {trimmed(item.store_name) || "—"}
-                      </div>
-                      <div style={styles.historyMeta}>メニュー: {trimmed(item.menu) || "—"}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
-        ) : null}
-      </div>
-    </main>
-  );
-}
+          ) : null}
 
-const styles: Record<string, CSSProperties> = {
-  page: {
-    minHeight: "100vh",
-    background: "linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)",
-    padding: "0 0 100px",
-  },
-  mobileWrap: {
-    width: "100%",
-    maxWidth: 420,
-    margin: "0 auto",
-    minHeight: "100vh",
-    position: "relative",
-  },
-  topBar: {
-    position: "sticky",
-    top: 0,
-    zIndex: 20,
-    padding: "14px 12px 12px",
-    background: "rgba(248,250,252,0.92)",
-    backdropFilter: "blur(10px)",
-    borderBottom: "1px solid rgba(226,232,240,0.9)",
-  },
-  topHeaderRow: {
-    display: "grid",
-    gap: 10,
-    marginBottom: 10,
-  },
-  monthRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  monthTitle: {
-    margin: 0,
-    fontSize: 24,
-    fontWeight: 900,
+          {/* ===== Counseling Picker ===== */}
+          {counselingPickerOpen ? (
+            <div style={styles.modalOverlay}>
+              <div style={styles.modal}>
+                <h3>カウンセリング対象を選択</h3>
+
+                {counselingCandidates.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => handleGoCounseling(item)}
+                    style={styles.modalItem}
+                  >
+                    {item.customer_name}
+                  </button>
+                ))}
+
+                <button
+                  onClick={() => setCounselingPickerOpen(false)}
+                  style={styles.modalClose}
+                >
+                  閉じる
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </main>
+    );
+  }
+      fontSize: 13,
     color: "#0f172a",
-    textAlign: "center",
-    flex: 1,
-  },
-  arrowBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 999,
-    border: "1px solid #e2e8f0",
-    background: "#fff",
-    color: "#111827",
-    fontSize: 24,
-    cursor: "pointer",
-    flexShrink: 0,
-  },
-  topRightBtns: {
-    display: "flex",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  topBtn: {
-    border: "none",
-    background: "#111827",
-    color: "#fff",
-    padding: "10px 12px",
-    borderRadius: 999,
-    fontSize: 12,
     fontWeight: 800,
-    cursor: "pointer",
-  },
-  counselingTopBtn: {
-    border: "none",
-    background: "linear-gradient(135deg, #f59e0b, #d97706)",
-    color: "#fff",
-    padding: "10px 12px",
-    borderRadius: 999,
-    fontSize: 12,
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  pendingFilterBtn: {
-    border: "1px solid #e2e8f0",
-    background: "#fff",
-    color: "#111827",
-    padding: "10px 12px",
-    borderRadius: 999,
-    fontSize: 12,
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  pendingFilterBtnActive: {
-    background: "#fee2e2",
-    color: "#b91c1c",
-    border: "1px solid #fecaca",
-  },
-  summaryBar: {
-    display: "flex",
-    gap: 8,
-    overflowX: "auto",
-    paddingBottom: 4,
-    marginBottom: 8,
-  },
-  summaryPill: {
-    border: "none",
-    borderRadius: 16,
-    padding: "10px 12px",
-    minWidth: 96,
-    display: "grid",
-    gap: 4,
-    boxShadow: "0 6px 16px rgba(0,0,0,0.05)",
-    flexShrink: 0,
-    cursor: "pointer",
-    textAlign: "left",
-  },
-  summaryPillSelected: {
-    outline: "2px solid #111827",
-    transform: "translateY(-1px)",
-  },
-  summaryLabel: {
-    fontSize: 11,
-    color: "#64748b",
-    fontWeight: 700,
-  },
-  summaryCount: {
-    fontSize: 18,
-    color: "#0f172a",
-    fontWeight: 900,
-  },
-  summaryCountDanger: {
-    fontSize: 18,
-    color: "#dc2626",
-    fontWeight: 900,
-  },
-  activeFilterBar: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-    marginBottom: 10,
-  },
-  activeFilterLabel: {
-    fontSize: 11,
-    color: "#64748b",
-    fontWeight: 800,
-  },
-  activeFilterValue: {
-    fontSize: 12,
-    color: "#111827",
-    fontWeight: 900,
-    background: "#fff",
-    border: "1px solid #e2e8f0",
-    borderRadius: 999,
-    padding: "6px 10px",
   },
   searchPanel: {
-    background: "#ffffff",
+    background: "#fff",
     borderRadius: 18,
-    padding: "12px",
-    boxShadow: "0 6px 16px rgba(0,0,0,0.05)",
+    padding: 12,
+    boxShadow: "0 10px 24px rgba(15,23,42,0.06)",
+    border: "1px solid #e2e8f0",
     marginBottom: 10,
   },
   searchModeRow: {
@@ -3029,13 +2505,14 @@ const styles: Record<string, CSSProperties> = {
     marginBottom: 10,
   },
   searchModeBtn: {
-    border: "1px solid #e2e8f0",
-    background: "#fff",
+    flex: 1,
+    borderRadius: 12,
+    padding: "10px 12px",
+    border: "1px solid #dbe2ea",
+    background: "#f8fafc",
     color: "#334155",
-    borderRadius: 999,
-    padding: "8px 12px",
+    fontSize: 13,
     fontWeight: 800,
-    fontSize: 12,
     cursor: "pointer",
   },
   searchModeBtnActive: {
@@ -3045,12 +2522,11 @@ const styles: Record<string, CSSProperties> = {
   },
   searchInput: {
     width: "100%",
-    height: 42,
+    height: 44,
     borderRadius: 12,
-    border: "1px solid #e2e8f0",
+    border: "1px solid #dbe2ea",
     background: "#fff",
-    color: "#0f172a",
-    padding: "0 12px",
+    padding: "0 14px",
     fontSize: 14,
     outline: "none",
     boxSizing: "border-box",
@@ -3059,26 +2535,26 @@ const styles: Record<string, CSSProperties> = {
     display: "grid",
     gap: 8,
     marginTop: 10,
-    maxHeight: 220,
-    overflowY: "auto",
   },
   searchResultItem: {
+    width: "100%",
     border: "1px solid #e2e8f0",
+    borderRadius: 14,
     background: "#f8fafc",
-    borderRadius: 12,
-    padding: "10px 12px",
-    cursor: "pointer",
+    padding: 12,
     textAlign: "left",
+    cursor: "pointer",
   },
   searchResultTitle: {
     fontSize: 14,
     fontWeight: 900,
     color: "#0f172a",
+    marginBottom: 4,
   },
   searchResultSub: {
     fontSize: 12,
     color: "#64748b",
-    marginTop: 4,
+    fontWeight: 700,
   },
   filterRow: {
     display: "flex",
@@ -3088,13 +2564,13 @@ const styles: Record<string, CSSProperties> = {
     marginBottom: 10,
   },
   storeChip: {
-    border: "1px solid #e2e8f0",
+    border: "1px solid #dbe2ea",
     background: "#fff",
     color: "#334155",
+    padding: "8px 12px",
     borderRadius: 999,
-    padding: "9px 12px",
-    fontWeight: 800,
     fontSize: 12,
+    fontWeight: 800,
     cursor: "pointer",
     flexShrink: 0,
   },
@@ -3105,183 +2581,166 @@ const styles: Record<string, CSSProperties> = {
   },
   legendBox: {
     display: "flex",
-    gap: 10,
-    overflowX: "auto",
-    paddingBottom: 4,
+    gap: 8,
+    flexWrap: "wrap",
     marginBottom: 8,
   },
   legendBoxStore: {
     display: "flex",
-    gap: 10,
-    overflowX: "auto",
-    paddingBottom: 2,
+    gap: 8,
+    flexWrap: "wrap",
   },
   legendItem: {
-    display: "flex",
+    display: "inline-flex",
     alignItems: "center",
     gap: 6,
     fontSize: 11,
-    color: "#475569",
     fontWeight: 700,
-    flexShrink: 0,
-    background: "#fff",
+    color: "#475569",
+    background: "rgba(255,255,255,0.9)",
     borderRadius: 999,
     padding: "6px 10px",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
+    border: "1px solid #e2e8f0",
   },
   legendDot: {
-    width: 9,
-    height: 9,
+    width: 10,
+    height: 10,
     borderRadius: 999,
-    flexShrink: 0,
+    display: "inline-block",
   },
   errorBox: {
     margin: "12px",
     background: "#fee2e2",
-    color: "#991b1b",
-    borderRadius: 14,
+    color: "#b91c1c",
     padding: "12px 14px",
-    fontWeight: 700,
+    borderRadius: 14,
     fontSize: 13,
+    fontWeight: 700,
+    border: "1px solid #fecaca",
   },
   successBox: {
     margin: "12px",
     background: "#dcfce7",
     color: "#166534",
-    borderRadius: 14,
     padding: "12px 14px",
-    fontWeight: 700,
+    borderRadius: 14,
     fontSize: 13,
+    fontWeight: 700,
+    border: "1px solid #bbf7d0",
   },
   calendarCard: {
-    padding: "6px 8px 18px",
+    margin: "12px",
+    marginTop: 8,
+    background: "#fff",
+    borderRadius: 22,
+    border: "1px solid #e2e8f0",
+    boxShadow: "0 16px 30px rgba(15,23,42,0.08)",
+    overflow: "hidden",
   },
   weekHeader: {
     display: "grid",
     gridTemplateColumns: "repeat(7, 1fr)",
-    gap: 5,
-    marginBottom: 7,
-    padding: "0 3px",
+    background: "#f8fafc",
+    borderBottom: "1px solid #e2e8f0",
   },
   weekLabel: {
     textAlign: "center",
-    fontWeight: 700,
-    fontSize: 11,
+    fontSize: 12,
+    fontWeight: 900,
+    padding: "10px 0",
   },
   calendarGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(7, 1fr)",
-    gap: 5,
   },
   dayCell: {
+    minHeight: 92,
     border: "none",
-    background: "#ffffff",
-    borderRadius: 16,
-    minHeight: 100,
-    padding: "7px 5px",
+    borderRight: "1px solid #f1f5f9",
+    borderBottom: "1px solid #f1f5f9",
+    background: "#fff",
+    padding: 6,
     textAlign: "left",
-    boxShadow: "0 6px 16px rgba(0,0,0,0.05)",
-    display: "flex",
-    flexDirection: "column",
-    gap: 5,
     cursor: "pointer",
+    verticalAlign: "top",
   },
   dayCellSelected: {
-    outline: "2px solid #111827",
+    background: "#eff6ff",
   },
   dayCellPending: {
-    boxShadow: "0 10px 24px rgba(239,68,68,0.10)",
+    background: "#fff7ed",
   },
   dayHead: {
     display: "flex",
-    justifyContent: "space-between",
     alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
   },
   dayNumber: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 900,
-    minWidth: 24,
-    textAlign: "center",
+    color: "#111827",
   },
   todayBadge: {
     background: "#111827",
     color: "#fff",
     borderRadius: 999,
-    padding: "2px 8px",
+    padding: "2px 7px",
   },
   dayPendingBadge: {
     minWidth: 18,
     height: 18,
     borderRadius: 999,
-    background: "#ef4444",
+    background: "#dc2626",
     color: "#fff",
-    fontSize: 10,
-    fontWeight: 900,
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
+    fontSize: 11,
+    fontWeight: 900,
     padding: "0 5px",
   },
-  eventListMini: {
+  dayCount: {
+    fontSize: 10,
+    color: "#64748b",
+    fontWeight: 800,
+    marginBottom: 4,
+  },
+  dayMiniList: {
     display: "grid",
     gap: 4,
   },
-  eventMini: {
-    background: "#f8fafc",
+  dayMiniCard: {
     borderRadius: 8,
-    padding: "3px 4px 3px 6px",
+    padding: "4px 4px 4px 6px",
+    background: "#f8fafc",
     overflow: "hidden",
   },
-  eventMiniPending: {
-    background: "#fff1f2",
-  },
-  eventMiniLine: {
-    display: "flex",
-    alignItems: "center",
-    gap: 4,
-    minWidth: 0,
-  },
-  eventMiniStoreDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 999,
-    flexShrink: 0,
-  },
-  eventMiniText: {
-    display: "block",
+  dayMiniTime: {
     fontSize: 9,
-    fontWeight: 700,
-    color: "#334155",
+    color: "#64748b",
+    fontWeight: 800,
+    lineHeight: 1.2,
+    marginBottom: 2,
+  },
+  dayMiniName: {
+    fontSize: 10,
+    color: "#0f172a",
+    fontWeight: 800,
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
-    minWidth: 0,
   },
-  moreText: {
-    fontSize: 9,
-    fontWeight: 700,
-    color: "#64748b",
+  dayMore: {
+    fontSize: 10,
+    color: "#2563eb",
+    fontWeight: 900,
     paddingLeft: 2,
-  },
-  fab: {
-    position: "fixed",
-    right: "max(calc(50% - 200px), 18px)",
-    bottom: 22,
-    width: 60,
-    height: 60,
-    borderRadius: 999,
-    border: "none",
-    background: "#111827",
-    color: "#fff",
-    fontSize: 32,
-    boxShadow: "0 18px 36px rgba(0,0,0,0.22)",
-    zIndex: 40,
-    cursor: "pointer",
   },
   sheetOverlay: {
     position: "fixed",
     inset: 0,
-    background: "rgba(15,23,42,0.35)",
+    background: "rgba(15,23,42,0.34)",
     zIndex: 50,
     display: "flex",
     alignItems: "flex-end",
@@ -3290,31 +2749,33 @@ const styles: Record<string, CSSProperties> = {
   sheet: {
     width: "100%",
     maxWidth: 420,
-    maxHeight: "86vh",
-    background: "#f8fafc",
+    maxHeight: "88vh",
+    overflowY: "auto",
+    background: "#fff",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    overflow: "auto",
-    padding: "8px 12px 20px",
+    padding: "10px 12px 18px",
+    boxSizing: "border-box",
+    boxShadow: "0 -10px 30px rgba(15,23,42,0.18)",
   },
   sheetHandle: {
     width: 48,
     height: 5,
     borderRadius: 999,
     background: "#cbd5e1",
-    margin: "6px auto 12px",
+    margin: "4px auto 12px",
   },
   sheetHeader: {
     display: "flex",
-    justifyContent: "space-between",
     alignItems: "flex-start",
+    justifyContent: "space-between",
     gap: 10,
     marginBottom: 12,
   },
   sheetSubTitle: {
     fontSize: 11,
     color: "#64748b",
-    fontWeight: 700,
+    fontWeight: 800,
     marginBottom: 4,
   },
   sheetTitle: {
@@ -3322,6 +2783,7 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 20,
     color: "#0f172a",
     fontWeight: 900,
+    lineHeight: 1.3,
   },
   sheetHeaderBtns: {
     display: "flex",
@@ -3329,127 +2791,102 @@ const styles: Record<string, CSSProperties> = {
     flexWrap: "wrap",
     justifyContent: "flex-end",
   },
-  sheetActionBtnPrimary: {
+  sheetActionBtn: {
     border: "none",
-    background: "#111827",
+    background: "linear-gradient(135deg, #f59e0b, #d97706)",
     color: "#fff",
-    padding: "9px 11px",
-    borderRadius: 12,
-    fontWeight: 800,
+    borderRadius: 999,
+    padding: "10px 14px",
     fontSize: 12,
+    fontWeight: 900,
     cursor: "pointer",
   },
   sheetCloseBtn: {
-    border: "1px solid #e2e8f0",
+    border: "1px solid #dbe2ea",
     background: "#fff",
     color: "#334155",
-    padding: "9px 11px",
-    borderRadius: 12,
-    fontWeight: 800,
+    borderRadius: 999,
+    padding: "10px 14px",
     fontSize: 12,
+    fontWeight: 900,
     cursor: "pointer",
   },
-  emptyBox: {
-    background: "#fff",
-    borderRadius: 16,
-    padding: "18px 14px",
+  emptyDayBox: {
+    background: "#f8fafc",
+    border: "1px dashed #cbd5e1",
     color: "#64748b",
-    fontWeight: 700,
-    fontSize: 13,
+    borderRadius: 18,
+    padding: "18px 14px",
     textAlign: "center",
+    fontSize: 13,
+    fontWeight: 700,
   },
-  cardList: {
+  timelineListCompact: {
     display: "grid",
-    gap: 8,
+    gap: 10,
   },
   timelineCard: {
     background: "#fff",
-    borderRadius: 16,
-    padding: 10,
-    boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
     border: "1px solid #e2e8f0",
+    borderRadius: 18,
+    padding: 12,
+    boxShadow: "0 10px 22px rgba(15,23,42,0.05)",
+  },
+  timelineCardCompact: {
+    background: "#fff",
+    border: "1px solid #e2e8f0",
+    borderRadius: 18,
+    padding: 12,
+    boxShadow: "0 10px 22px rgba(15,23,42,0.05)",
+  },
+  reserveCardPendingCompact: {
+    background: "#fffaf5",
+    border: "1px solid #fed7aa",
   },
   timelineRow: {
     display: "flex",
+    alignItems: "center",
+    gap: 12,
+  },
+  timelineRowCompact: {
+    display: "flex",
     alignItems: "flex-start",
-    gap: 9,
+    gap: 10,
   },
   timelineTimeBlock: {
-    width: 50,
+    width: 64,
     flexShrink: 0,
   },
   timelineTimeMain: {
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: 900,
     color: "#0f172a",
     lineHeight: 1.1,
   },
   timelineTimeSub: {
-    marginTop: 4,
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748b",
     fontWeight: 700,
+    marginTop: 4,
   },
   timelineContent: {
     flex: 1,
     minWidth: 0,
   },
-  timelineTitle: {
-    fontSize: 16,
-    fontWeight: 900,
-    color: "#111827",
-    lineHeight: 1.2,
-    marginBottom: 4,
-  },
-  timelineMetaText: {
-    fontSize: 11,
-    color: "#475569",
-    fontWeight: 700,
-    lineHeight: 1.45,
-  },
-  attendanceMemoBox: {
-    marginTop: 8,
-    background: "#fff1f2",
-    border: "1px solid #fecdd3",
-    color: "#be123c",
-    borderRadius: 10,
-    padding: "8px 10px",
-    fontSize: 11,
-    fontWeight: 800,
-    lineHeight: 1.5,
-    whiteSpace: "pre-wrap",
-  },
-  staffAvatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 999,
-    color: "#fff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 14,
-    fontWeight: 900,
-    flexShrink: 0,
-  },
-  timelineCardCompact: {
-    background: "#fff",
-    borderRadius: 12,
-    padding: "8px 9px",
-    boxShadow: "0 3px 10px rgba(0,0,0,0.04)",
-    border: "1px solid #e2e8f0",
-  },
-  reserveCardPendingCompact: {
-    border: "1.5px solid #ef4444",
-    boxShadow: "0 6px 14px rgba(239,68,68,0.10)",
-  },
-  timelineRowCompact: {
-    display: "flex",
-    alignItems: "flex-start",
-    gap: 8,
-  },
   timelineContentCompact: {
     flex: 1,
     minWidth: 0,
+  },
+  timelineTitle: {
+    fontSize: 15,
+    fontWeight: 900,
+    color: "#0f172a",
+    marginBottom: 4,
+  },
+  timelineMetaText: {
+    fontSize: 12,
+    color: "#64748b",
+    fontWeight: 700,
   },
   timelineMainActionCompact: {
     width: "100%",
@@ -3462,453 +2899,355 @@ const styles: Record<string, CSSProperties> = {
   },
   timelineTopLineCompact: {
     display: "flex",
-    alignItems: "center",
-    gap: 8,
-    minWidth: 0,
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
+    marginBottom: 4,
   },
   timelineNameGroupCompact: {
     display: "flex",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
     minWidth: 0,
     flexWrap: "wrap",
-    flex: 1,
-  },
-  timelineNameRowCompact: {
-  display: "flex",
-  alignItems: "center",
-  gap: 6,
-  flex: 1,
-  minWidth: 0,
-},
-  timelineTimeInline: {
-    fontSize: 11,
-    fontWeight: 900,
-    color: "#0f172a",
-    whiteSpace: "nowrap",
-    flexShrink: 0,
   },
   timelineTitleCompact: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: 900,
-    color: "#111827",
-    lineHeight: 1.2,
+    color: "#0f172a",
+    lineHeight: 1.3,
+  },
+  timelineTimeInline: {
+    fontSize: 12,
+    color: "#475569",
+    fontWeight: 800,
+    flexShrink: 0,
     whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    minWidth: 0,
-    maxWidth: "100%",
+  },
+  timelineMetaTextCompact: {
+    fontSize: 12,
+    color: "#64748b",
+    fontWeight: 700,
+    lineHeight: 1.5,
+  },
+  timelineTimeCompact: {
+    fontSize: 12,
+    color: "#475569",
+    fontWeight: 800,
+    flexShrink: 0,
+    whiteSpace: "nowrap",
+  },
+  timelineCardHeaderCompact: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    marginBottom: 6,
+  },
+  timelineMetaRowCompact: {
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+    fontSize: 12,
+    color: "#64748b",
+    fontWeight: 700,
   },
   ticketCountBadgeCompact: {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
+    minWidth: 36,
+    height: 22,
+    padding: "0 8px",
     borderRadius: 999,
-    padding: "2px 7px",
-    fontSize: 10,
-    fontWeight: 900,
-    background: "#e2e8f0",
-    color: "#334155",
+    fontSize: 11,
+    fontWeight: 800,
+    lineHeight: 1,
+    background: "#eff6ff",
+    color: "#1d4ed8",
+    border: "1px solid #bfdbfe",
     whiteSpace: "nowrap",
-    flexShrink: 0,
   },
   ticketCountBadgeWarningCompact: {
-    background: "#fef3c7",
-    color: "#92400e",
-    border: "1px solid #f59e0b",
+    background: "#fff7ed",
+    color: "#c2410c",
+    border: "1px solid #fdba74",
   },
   ticketCountBadgeDangerCompact: {
     background: "#fee2e2",
     color: "#b91c1c",
     border: "1px solid #ef4444",
   },
-  ticketUpdateBadgeCompact: {
+  statusRowCompact: {
+    display: "flex",
+    gap: 6,
+    flexWrap: "wrap",
+    marginTop: 8,
+  },
+  pendingBadgeCompact: {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
+    minHeight: 22,
+    padding: "0 8px",
     borderRadius: 999,
-    padding: "2px 7px",
-    fontSize: 10,
-    fontWeight: 900,
-    background: "#dc2626",
-    color: "#fff",
-    whiteSpace: "nowrap",
-    flexShrink: 0,
-  },
-  timelineMetaTextCompact: {
-    fontSize: 10,
-    color: "#475569",
-    fontWeight: 700,
-    lineHeight: 1.35,
-    marginTop: 3,
-  },
-  statusRowCompact: {
-    display: "flex",
-    gap: 4,
-    flexWrap: "wrap",
-    marginTop: 5,
-    marginBottom: 4,
-  },
-  pendingBadgeCompact: {
-    background: "#fee2e2",
-    color: "#991b1b",
-    borderRadius: 999,
-    padding: "3px 6px",
-    fontSize: 9,
-    fontWeight: 800,
-  },
-  doneBadgeCompact: {
-    background: "#dcfce7",
-    color: "#166534",
-    borderRadius: 999,
-    padding: "3px 6px",
-    fontSize: 9,
-    fontWeight: 800,
-  },
-  doneBadgeBlueCompact: {
-    background: "#dbeafe",
-    color: "#1d4ed8",
-    borderRadius: 999,
-    padding: "3px 6px",
-    fontSize: 9,
-    fontWeight: 800,
-  },
-  pendingBadgeYellowCompact: {
     background: "#fef3c7",
     color: "#92400e",
-    borderRadius: 999,
-    padding: "3px 6px",
-    fontSize: 9,
-    fontWeight: 800,
+    fontSize: 11,
+    fontWeight: 900,
   },
-  ticketBadgeCompact: {
-    background: "#ede9fe",
-    color: "#6d28d9",
+  doneBadgeCompact: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 22,
+    padding: "0 8px",
     borderRadius: 999,
-    padding: "3px 6px",
-    fontSize: 9,
-    fontWeight: 800,
+    background: "#dcfce7",
+    color: "#166534",
+    fontSize: 11,
+    fontWeight: 900,
   },
-  doneBadgePurpleCompact: {
-    background: "#e9d5ff",
-    color: "#6d28d9",
+  doneBadgeBlueCompact: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 22,
+    padding: "0 8px",
     borderRadius: 999,
-    padding: "3px 6px",
-    fontSize: 9,
-    fontWeight: 800,
+    background: "#dbeafe",
+    color: "#1d4ed8",
+    fontSize: 11,
+    fontWeight: 900,
+  },
+  pendingBadgeYellowCompact: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 22,
+    padding: "0 8px",
+    borderRadius: 999,
+    background: "#fef3c7",
+    color: "#b45309",
+    fontSize: 11,
+    fontWeight: 900,
   },
   pendingBadgePurpleCompact: {
-    background: "#f3e8ff",
-    color: "#7c3aed",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 22,
+    padding: "0 8px",
     borderRadius: 999,
-    padding: "3px 6px",
-    fontSize: 9,
-    fontWeight: 800,
-  },
-  paymentAlertBoxCompact: {
-    marginTop: 6,
-    background: "#fff1f2",
-    border: "1px solid #fecdd3",
-    color: "#be123c",
-    borderRadius: 10,
-    padding: "7px 9px",
-    fontSize: 10,
+    background: "#ede9fe",
+    color: "#6d28d9",
+    fontSize: 11,
     fontWeight: 900,
-    lineHeight: 1.3,
   },
-  tapHintCompact: {
-    marginTop: 5,
-    fontSize: 9,
+  doneBadgePurpleCompact: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 22,
+    padding: "0 8px",
+    borderRadius: 999,
+    background: "#f3e8ff",
+    color: "#7e22ce",
+    fontSize: 11,
     fontWeight: 900,
-    color: "#2563eb",
   },
   cardActionBarSingle: {
-    display: "flex",
-    justifyContent: "flex-start",
-    marginTop: 6,
+    marginTop: 10,
   },
   actionToggleBtn: {
-    border: "1px solid #cbd5e1",
+    width: "100%",
+    border: "1px solid #dbe2ea",
     background: "#fff",
-    color: "#0f172a",
-    borderRadius: 999,
-    padding: "5px 10px",
-    fontSize: 10,
+    color: "#334155",
+    borderRadius: 12,
+    padding: "10px 12px",
+    fontSize: 12,
     fontWeight: 900,
     cursor: "pointer",
-    lineHeight: 1.1,
   },
   actionDrawer: {
-    marginTop: 6,
-    paddingTop: 6,
-    borderTop: "1px dashed #e2e8f0",
+    marginTop: 10,
+    display: "grid",
+    gap: 8,
   },
   cardActionRowCompact: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 8,
+  },
+  timelineActionRowCompact: {
     display: "flex",
-    gap: 5,
+    gap: 8,
     flexWrap: "wrap",
-    marginTop: 0,
+    marginTop: 10,
+  },
+  timelinePrimaryBtnCompact: {
+    border: "none",
+    background: "#111827",
+    color: "#fff",
+    borderRadius: 12,
+    padding: "10px 12px",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  timelineGhostBtnCompact: {
+    border: "1px solid #dbe2ea",
+    background: "#fff",
+    color: "#334155",
+    borderRadius: 12,
+    padding: "10px 12px",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  timelineDoneBtnCompact: {
+    background: "#ecfeff",
+    color: "#155e75",
+    border: "1px solid #a5f3fc",
+  },
+  timelineMoreBtnCompact: {
+    border: "1px solid #dbe2ea",
+    background: "#f8fafc",
+    color: "#334155",
+    borderRadius: 12,
+    padding: "10px 12px",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  timelineActionMenuCompact: {
+    marginTop: 10,
+    display: "grid",
+    gap: 8,
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  },
+  timelineMenuBtnCompact: {
+    border: "1px solid #dbe2ea",
+    background: "#fff",
+    color: "#334155",
+    borderRadius: 12,
+    padding: "10px 12px",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  timelineDeleteBtnCompact: {
+    border: "none",
+    background: "#dc2626",
+    color: "#fff",
+    borderRadius: 12,
+    padding: "10px 12px",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  timelineMemoWrapCompact: {
+    marginTop: 10,
+    display: "grid",
+    gap: 8,
+  },
+  memoToggleBtnCompact: {
+    border: "1px solid #dbe2ea",
+    background: "#fff",
+    color: "#334155",
+    borderRadius: 12,
+    padding: "10px 12px",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  timelineMemoCompact: {
+    background: "#f8fafc",
+    border: "1px solid #e2e8f0",
+    borderRadius: 12,
+    padding: 10,
+    fontSize: 12,
+    lineHeight: 1.6,
+    color: "#334155",
+    whiteSpace: "pre-wrap",
   },
   actionBtnDarkCompact: {
     border: "none",
     background: "#111827",
     color: "#fff",
-    borderRadius: 9,
-    padding: "6px 8px",
-    fontSize: 10,
-    fontWeight: 800,
+    borderRadius: 12,
+    padding: "10px 12px",
+    fontSize: 12,
+    fontWeight: 900,
     cursor: "pointer",
-    lineHeight: 1.1,
   },
   actionBtnBlueCompact: {
     border: "none",
-    background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+    background: "#2563eb",
     color: "#fff",
-    borderRadius: 9,
-    padding: "6px 8px",
-    fontSize: 10,
-    fontWeight: 800,
+    borderRadius: 12,
+    padding: "10px 12px",
+    fontSize: 12,
+    fontWeight: 900,
     cursor: "pointer",
-    lineHeight: 1.1,
   },
   actionBtnOrangeCompact: {
     border: "none",
-    background: "linear-gradient(135deg, #f59e0b, #d97706)",
+    background: "#f59e0b",
     color: "#fff",
-    borderRadius: 9,
-    padding: "6px 8px",
-    fontSize: 10,
-    fontWeight: 800,
+    borderRadius: 12,
+    padding: "10px 12px",
+    fontSize: 12,
+    fontWeight: 900,
     cursor: "pointer",
-    lineHeight: 1.1,
+  },
+  actionBtnMemoCompact: {
+    border: "1px solid #dbe2ea",
+    background: "#fff",
+    color: "#334155",
+    borderRadius: 12,
+    padding: "10px 12px",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
   },
   actionBtnDeleteCompact: {
     border: "none",
-    background: "linear-gradient(135deg, #ef4444, #dc2626)",
+    background: "#dc2626",
     color: "#fff",
-    borderRadius: 9,
-    padding: "6px 8px",
-    fontSize: 10,
-    fontWeight: 800,
+    borderRadius: 12,
+    padding: "10px 12px",
+    fontSize: 12,
+    fontWeight: 900,
     cursor: "pointer",
-    lineHeight: 1.1,
-  },
-  actionBtnMemoCompact: {
-    border: "1px solid #dbeafe",
-    background: "#eff6ff",
-    color: "#1d4ed8",
-    borderRadius: 9,
-    padding: "6px 8px",
-    fontSize: 10,
-    fontWeight: 800,
-    cursor: "pointer",
-    lineHeight: 1.1,
   },
   memoBoxCompact: {
     background: "#f8fafc",
-    borderRadius: 9,
-    padding: "7px 8px",
-    color: "#475569",
-    fontSize: 10,
-    lineHeight: 1.4,
-    marginTop: 6,
-    whiteSpace: "pre-wrap",
-  },
-  staffAvatarCompact: {
-    width: 28,
-    height: 28,
-    borderRadius: 999,
-    color: "#fff",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 11,
-    fontWeight: 900,
-    flexShrink: 0,
-  },
-  memoBox: {
-    background: "#f8fafc",
+    border: "1px solid #e2e8f0",
     borderRadius: 12,
-    padding: "10px 12px",
-    color: "#475569",
+    padding: 10,
     fontSize: 12,
     lineHeight: 1.6,
-    marginTop: 10,
+    color: "#334155",
     whiteSpace: "pre-wrap",
   },
-  modalOverlay: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(15,23,42,0.35)",
-    zIndex: 60,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 12,
-  },
-  modal: {
-    width: "100%",
-    maxWidth: 420,
-    maxHeight: "88vh",
-    overflow: "auto",
-    background: "#fff",
-    borderRadius: 22,
-    padding: 16,
-    boxShadow: "0 24px 60px rgba(0,0,0,0.18)",
-  },
-  modalSmall: {
-    width: "100%",
-    maxWidth: 420,
-    maxHeight: "80vh",
-    overflow: "auto",
-    background: "#fff",
-    borderRadius: 22,
-    padding: 16,
-    boxShadow: "0 24px 60px rgba(0,0,0,0.18)",
-  },
-  modalHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 14,
-  },
-  modalTitle: {
-    margin: 0,
-    fontSize: 20,
-    fontWeight: 900,
-    color: "#0f172a",
-  },
-  modalCloseBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 999,
-    border: "1px solid #e2e8f0",
-    background: "#fff",
-    color: "#111827",
-    fontSize: 20,
-    cursor: "pointer",
-  },
-  formGrid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 12,
-  },
-  formBlockFull: {
-    gridColumn: "1 / -1",
-  },
-  label: {
-    display: "block",
-    fontSize: 12,
-    fontWeight: 800,
-    color: "#334155",
-    marginBottom: 6,
-  },
-  input: {
-    width: "100%",
-    boxSizing: "border-box",
-    border: "1px solid #e2e8f0",
-    borderRadius: 12,
-    padding: "11px 12px",
-    fontSize: 14,
-    background: "#fff",
-    color: "#0f172a",
-  },
-  textarea: {
-    width: "100%",
-    boxSizing: "border-box",
-    border: "1px solid #e2e8f0",
-    borderRadius: 12,
-    padding: "11px 12px",
-    fontSize: 14,
-    background: "#fff",
-    color: "#0f172a",
-    resize: "vertical",
-  },
-  customerSearchList: {
-    display: "grid",
-    gap: 8,
+  memoBox: {
     marginTop: 8,
-    maxHeight: 220,
-    overflowY: "auto",
-    paddingRight: 2,
-  },
-  customerSearchItem: {
-    border: "1px solid #e2e8f0",
     background: "#f8fafc",
-    borderRadius: 12,
-    padding: "10px 12px",
-    textAlign: "left",
-    cursor: "pointer",
-  },
-  customerSearchName: {
-    fontSize: 14,
-    fontWeight: 800,
-    color: "#0f172a",
-    marginBottom: 4,
-  },
-  customerSearchSub: {
-    fontSize: 11,
-    color: "#64748b",
-    fontWeight: 700,
-  },
-  modalFooter: {
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: 8,
-    marginTop: 16,
-  },
-  cancelBtn: {
     border: "1px solid #e2e8f0",
-    background: "#fff",
-    color: "#334155",
     borderRadius: 12,
-    padding: "11px 14px",
-    fontWeight: 800,
-    fontSize: 13,
-    cursor: "pointer",
-  },
-  saveBtn: {
-    border: "none",
-    background: "#111827",
-    color: "#fff",
-    borderRadius: 12,
-    padding: "11px 14px",
-    fontWeight: 800,
-    fontSize: 13,
-    cursor: "pointer",
-  },
-  counselingSelectCard: {
-    border: "1px solid #e2e8f0",
-    background: "#f8fafc",
-    borderRadius: 16,
-    padding: 14,
-    textAlign: "left",
-    cursor: "pointer",
-  },
-  counselingSelectTime: {
-    fontSize: 13,
-    fontWeight: 900,
-    color: "#0f172a",
-    marginBottom: 6,
-  },
-  counselingSelectName: {
-    fontSize: 17,
-    fontWeight: 900,
-    color: "#111827",
-    marginBottom: 6,
-  },
-  counselingSelectSub: {
+    padding: 10,
     fontSize: 12,
-    color: "#64748b",
-    fontWeight: 700,
+    lineHeight: 1.6,
+    color: "#334155",
+    whiteSpace: "pre-wrap",
   },
   historyCard: {
     background: "#fff",
-    borderRadius: 16,
-    padding: 12,
     border: "1px solid #e2e8f0",
-    boxShadow: "0 6px 16px rgba(0,0,0,0.05)",
+    borderRadius: 14,
+    padding: 12,
   },
   historyTitle: {
     fontSize: 14,
@@ -3918,7 +3257,218 @@ const styles: Record<string, CSSProperties> = {
   },
   historyMeta: {
     fontSize: 12,
+    color: "#64748b",
+    fontWeight: 700,
+    lineHeight: 1.6,
+  },
+  staffAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    color: "#fff",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 14,
+    fontWeight: 900,
+    flexShrink: 0,
+  },
+  staffAvatarCompact: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    color: "#fff",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 13,
+    fontWeight: 900,
+    flexShrink: 0,
+  },
+  modalOverlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(15,23,42,0.34)",
+    zIndex: 60,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+    boxSizing: "border-box",
+  },
+  modal: {
+    width: "100%",
+    maxWidth: 420,
+    background: "#fff",
+    borderRadius: 20,
+    padding: 16,
+    boxSizing: "border-box",
+    boxShadow: "0 20px 40px rgba(15,23,42,0.18)",
+  },
+  modalSmall: {
+    width: "100%",
+    maxWidth: 420,
+    maxHeight: "80vh",
+    overflowY: "auto",
+    background: "#fff",
+    borderRadius: 20,
+    padding: 16,
+    boxSizing: "border-box",
+    boxShadow: "0 20px 40px rgba(15,23,42,0.18)",
+  },
+  modalHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    marginBottom: 12,
+  },
+  modalTitle: {
+    margin: 0,
+    fontSize: 18,
+    fontWeight: 900,
+    color: "#0f172a",
+  },
+  modalCloseBtn: {
+    border: "none",
+    background: "#f1f5f9",
+    color: "#334155",
+    width: 34,
+    height: 34,
+    borderRadius: 999,
+    fontSize: 20,
+    lineHeight: 1,
+    cursor: "pointer",
+  },
+  formGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 10,
+  },
+  formBlockFull: {
+    gridColumn: "1 / -1",
+  },
+  label: {
+    display: "block",
+    fontSize: 12,
+    fontWeight: 800,
     color: "#475569",
-    lineHeight: 1.7,
+    marginBottom: 6,
+  },
+  input: {
+    width: "100%",
+    height: 42,
+    borderRadius: 12,
+    border: "1px solid #dbe2ea",
+    background: "#fff",
+    padding: "0 12px",
+    fontSize: 14,
+    color: "#0f172a",
+    boxSizing: "border-box",
+    outline: "none",
+  },
+  textarea: {
+    width: "100%",
+    borderRadius: 12,
+    border: "1px solid #dbe2ea",
+    background: "#fff",
+    padding: 12,
+    fontSize: 14,
+    color: "#0f172a",
+    boxSizing: "border-box",
+    outline: "none",
+    resize: "vertical",
+  },
+  modalFooter: {
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: 8,
+    marginTop: 14,
+  },
+  cancelBtn: {
+    border: "1px solid #dbe2ea",
+    background: "#fff",
+    color: "#334155",
+    borderRadius: 12,
+    padding: "10px 14px",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  saveBtn: {
+    border: "none",
+    background: "#111827",
+    color: "#fff",
+    borderRadius: 12,
+    padding: "10px 14px",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  cardList: {
+    display: "grid",
+    gap: 10,
+  },
+  emptyBox: {
+    background: "#f8fafc",
+    border: "1px dashed #cbd5e1",
+    color: "#64748b",
+    borderRadius: 14,
+    padding: "16px 12px",
+    textAlign: "center",
+    fontSize: 13,
+    fontWeight: 700,
+  },
+  counselingSelectCard: {
+    width: "100%",
+    border: "1px solid #e2e8f0",
+    background: "#fff",
+    borderRadius: 14,
+    padding: 12,
+    textAlign: "left",
+    cursor: "pointer",
+  },
+  counselingSelectTime: {
+    fontSize: 12,
+    fontWeight: 800,
+    color: "#475569",
+    marginBottom: 4,
+  },
+  counselingSelectName: {
+    fontSize: 15,
+    fontWeight: 900,
+    color: "#0f172a",
+    marginBottom: 4,
+  },
+  counselingSelectSub: {
+    fontSize: 12,
+    fontWeight: 700,
+    color: "#64748b",
+    lineHeight: 1.5,
+  },
+  modalItem: {
+    width: "100%",
+    border: "1px solid #e2e8f0",
+    background: "#fff",
+    borderRadius: 12,
+    padding: "12px 14px",
+    textAlign: "left",
+    cursor: "pointer",
+    marginBottom: 8,
+    fontSize: 14,
+    fontWeight: 800,
+    color: "#0f172a",
+  },
+  modalClose: {
+    width: "100%",
+    border: "1px solid #dbe2ea",
+    background: "#fff",
+    color: "#334155",
+    borderRadius: 12,
+    padding: "10px 12px",
+    cursor: "pointer",
+    fontSize: 13,
+    fontWeight: 900,
+    marginTop: 8,
   },
 };
