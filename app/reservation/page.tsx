@@ -1156,9 +1156,7 @@ export default function ReservationPage() {
     return list[0] || null;
   }
 
-  function getTicketNumberingForReservation(
-    item: ReservationRow
-  ): TicketNumberingInfo | null {
+  function getTicketNumberingForReservation(item: ReservationRow): TicketNumberingInfo | null {
     if (!isTicketMenu(item.menu)) return null;
 
     const contract = getTicketContractForReservation(item);
@@ -1171,30 +1169,15 @@ export default function ReservationPage() {
     if (totalCount <= 0) return null;
 
     const reservationId = toIdNumber(item.id);
-
-
-const alreadyUsed =
-  reservationId !== null &&
-  ticketUsedReservationIdSet.has(reservationId);
+    const alreadyUsed =
+      reservationId !== null && ticketUsedReservationIdSet.has(reservationId);
 
     const currentNumber = alreadyUsed
-  ? Math.min(usedCount, totalCount)
-  : Math.min(usedCount + 1, totalCount);
+      ? Math.min(usedCount, totalCount)
+      : Math.min(usedCount + 1, totalCount);
+
     const isDanger = currentNumber >= totalCount;
     const isWarning = !isDanger && currentNumber === totalCount - 1;
-    console.log({
-  usedCount,
-  totalCount,
-  alreadyUsed,
-  reservationId
-});
-
-return {
-  label: `${totalCount}-${currentNumber}`,
-  tone: isDanger ? "danger" : isWarning ? "warning" : "normal",
-  showUpdate: isDanger,
-  showPaymentAlert: isDanger,
-};
 
     return {
       label: `${totalCount}-${currentNumber}`,
@@ -1203,7 +1186,8 @@ return {
       showPaymentAlert: isDanger,
     };
   }
-    function openDay(dateStr: string) {
+
+  function openDay(dateStr: string) {
     setSelectedDate(dateStr);
     setDaySheetOpen(true);
   }
@@ -1287,9 +1271,9 @@ return {
       .limit(1)
       .maybeSingle();
 
-      if (nameMatchError) {
-        console.warn(nameMatchError);
-      }
+    if (nameMatchError) {
+      console.warn(nameMatchError);
+    }
 
     if (nameMatch) {
       return String((nameMatch as CustomerRow).id);
@@ -1446,8 +1430,7 @@ return {
       setHistoryLoading(false);
     }
   }
-
-  async function handleTicketConsumeAndCreateSale(item: ReservationRow) {
+    async function handleTicketConsumeAndCreateSale(item: ReservationRow) {
     if (!supabase) {
       setError("Supabaseの環境変数が設定されていません。");
       return;
@@ -2039,7 +2022,8 @@ return {
               placeholder={searchMode === "customer" ? "名前・かな・電話で検索" : "スタッフ名で検索"}
               style={styles.searchInput}
             />
-                        {searchMode === "customer" && filteredCustomerSearchResults.length > 0 ? (
+
+            {searchMode === "customer" && filteredCustomerSearchResults.length > 0 ? (
               <div style={styles.searchResultList}>
                 {filteredCustomerSearchResults.map((c) => (
                   <button
@@ -2338,31 +2322,18 @@ return {
                       ticketUsedReservationIdSet.has(reservationIdNum);
                     const memoOpened = openedMemoReservationIds.includes(String(item.id));
                     const actionOpened = openedActionReservationIds.includes(String(item.id));
+
                     const ticketNumbering = getTicketNumberingForReservation(item);
 
                     const ticketLabelStyle: CSSProperties = {
-                      fontSize: 11,
-                      fontWeight: 800,
-                      lineHeight: 1,
-                      padding: "4px 7px",
-                      borderRadius: 999,
-                      whiteSpace: "nowrap",
-                      border: "1px solid #cbd5e1",
-                      background: "#f8fafc",
-                      color: "#475569",
+                      ...styles.ticketNumberBadgeCompact,
+                      ...(ticketNumbering?.tone === "warning"
+                        ? styles.ticketNumberBadgeWarningCompact
+                        : {}),
+                      ...(ticketNumbering?.tone === "danger"
+                        ? styles.ticketNumberBadgeDangerCompact
+                        : {}),
                     };
-
-                    if (ticketNumbering?.tone === "warning") {
-                      ticketLabelStyle.background = "#fef3c7";
-                      ticketLabelStyle.color = "#92400e";
-                      ticketLabelStyle.border = "1px solid #f59e0b";
-                    }
-
-                    if (ticketNumbering?.tone === "danger") {
-                      ticketLabelStyle.background = "#fee2e2";
-                      ticketLabelStyle.color = "#b91c1c";
-                      ticketLabelStyle.border = "1px solid #ef4444";
-                    }
 
                     return (
                       <div
@@ -2394,7 +2365,6 @@ return {
                                   {ticketNumbering ? (
                                     <span style={ticketLabelStyle}>
                                       {ticketNumbering.label}
-                                      {ticketNumbering.showUpdate ? " 更新" : ""}
                                     </span>
                                   ) : null}
                                 </div>
@@ -2557,8 +2527,7 @@ return {
             </div>
           </div>
         ) : null}
-
-        {formOpen ? (
+                {formOpen ? (
           <div style={styles.modalOverlay} onClick={() => setFormOpen(false)}>
             <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
               <div style={styles.modalHeader}>
