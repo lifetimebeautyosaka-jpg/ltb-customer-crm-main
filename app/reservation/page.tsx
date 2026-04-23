@@ -1653,7 +1653,7 @@ export default function ReservationPage() {
         supabase.from("counselings").select("id").eq("reservation_id", reservationId),
         supabase
           .from("ticket_usages")
-          .select("id, contract_id, unit_price")
+          .select("id, ticket_id, unit_price, before_count")
           .eq("reservation_id", reservationId),
       ]);
 
@@ -1678,13 +1678,13 @@ export default function ReservationPage() {
       if (!ok) return;
 
       for (const usage of ticketUsageRows || []) {
-        const contractId = toIdNumber((usage as { contract_id?: unknown }).contract_id);
-        if (!contractId) continue;
+        const ticketId = toIdNumber((usage as { ticket_id?: unknown }).ticket_id);
+        if (!ticketId) continue;
 
         const { data: contractRow, error: contractFetchError } = await supabase
           .from("ticket_contracts")
           .select("id, used_count, remaining_count, prepaid_balance")
-          .eq("id", contractId)
+          .eq("id", ticketId)
           .maybeSingle();
 
         if (contractFetchError) throw contractFetchError;
@@ -1698,16 +1698,22 @@ export default function ReservationPage() {
             (contractRow as { prepaid_balance?: number | null }).prepaid_balance || 0
           );
           const restorePrice = Number((usage as { unit_price?: number | null }).unit_price || 0);
+          const beforeCount = Number((usage as { before_count?: number | null }).before_count ?? NaN);
+
+          const nextRemaining = Number.isFinite(beforeCount)
+            ? Math.max(beforeCount, 0)
+            : currentRemaining + 1;
+          const nextUsed = Math.max(currentUsed - 1, 0);
 
           const { error: contractUpdateError } = await supabase
             .from("ticket_contracts")
             .update({
-              used_count: Math.max(currentUsed - 1, 0),
-              remaining_count: currentRemaining + 1,
+              used_count: nextUsed,
+              remaining_count: nextRemaining,
               prepaid_balance: currentBalance + restorePrice,
               updated_at: new Date().toISOString(),
             })
-            .eq("id", contractId);
+            .eq("id", ticketId);
 
           if (contractUpdateError) throw contractUpdateError;
         }
@@ -2326,12 +2332,12 @@ export default function ReservationPage() {
                     const ticketNumbering = getTicketNumberingForReservation(item);
 
                     const ticketLabelStyle: CSSProperties = {
-                      ...styles.ticketNumberBadgeCompact,
+                      ...styles.ticketCountBadgeCompact,
                       ...(ticketNumbering?.tone === "warning"
-                        ? styles.ticketNumberBadgeWarningCompact
+                        ? styles.ticketCountBadgeWarningCompact
                         : {}),
                       ...(ticketNumbering?.tone === "danger"
-                        ? styles.ticketNumberBadgeDangerCompact
+                        ? styles.ticketCountBadgeDangerCompact
                         : {}),
                     };
 
@@ -2352,23 +2358,25 @@ export default function ReservationPage() {
                               style={styles.timelineMainActionCompact}
                             >
                               <div style={styles.timelineTopLineCompact}>
-  <span style={styles.timelineTimeInline}>
-    {trimmed(item.start_time) || "--:--"}
-    {trimmed(item.end_time) ? `〜${trimmed(item.end_time)}` : ""}
-  </span>
+                                <span style={styles.timelineTimeInline}>
+                                  {trimmed(item.start_time) || "--:--"}
+                                  {trimmed(item.end_time)
+                                    ? `〜${trimmed(item.end_time)}`
+                                    : ""}
+                                </span>
 
-<div style={styles.timelineNameRowCompact}>
-  <span style={styles.timelineTitleCompact}>
-    {trimmed(item.customer_name) || "顧客名未設定"}
-  </span>
+                                <div style={styles.timelineNameGroupCompact}>
+                                  <span style={styles.timelineTitleCompact}>
+                                    {trimmed(item.customer_name) || "顧客名未設定"}
+                                  </span>
 
-  {ticketNumbering ? (
-    <span style={ticketLabelStyle}>
-      {ticketNumbering.label}
-    </span>
-  ) : null}
-</div>
-</div>
+                                  {ticketNumbering ? (
+                                    <span style={ticketLabelStyle}>
+                                      {ticketNumbering.label}
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </div>
                               <div style={styles.timelineMetaTextCompact}>
                                 {trimmed(item.menu) || "—"} / {trimmed(item.staff_name) || "—"}
                                 {trimmed(item.store_name)
@@ -2451,6 +2459,16 @@ export default function ReservationPage() {
                                       router.push(`/reservation/detail/${item.id}`)
                                     }
                                     style={styles.actionBtnDarkCompact}
+                                  >
+                                    詳細
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      router.push(`/reservation/detail/${item.id}`)
+                                    }
+                                    style={styles.actionBtnBlueCompact}
                                   >
                                     詳細
                                   </button>
@@ -2595,8 +2613,8 @@ export default function ReservationPage() {
                   />
                 </div>
 
-                <div>
-                  <label style={styles.label}>日付</label>
+                <div></div>
+                <label style={styles.label}>日付</label>
                   <input
                     type="date"
                     value={formDate}
@@ -3481,7 +3499,7 @@ const styles: Record<string, CSSProperties> = {
     minWidth: 0,
     maxWidth: "100%",
   },
-  ticketNumberBadgeCompact: {
+  ticketCountBadgeCompact: {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
@@ -3494,12 +3512,12 @@ const styles: Record<string, CSSProperties> = {
     whiteSpace: "nowrap",
     flexShrink: 0,
   },
-  ticketNumberBadgeWarningCompact: {
+  ticketCountBadgeWarningCompact: {
     background: "#fef3c7",
     color: "#92400e",
     border: "1px solid #f59e0b",
   },
-  ticketNumberBadgeDangerCompact: {
+  ticketCountBadgeDangerCompact: {
     background: "#fee2e2",
     color: "#b91c1c",
     border: "1px solid #ef4444",
