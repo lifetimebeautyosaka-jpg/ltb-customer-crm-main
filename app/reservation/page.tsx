@@ -110,6 +110,7 @@ type TicketContractRow = {
   prepaid_balance?: number | null;
   status?: string | null;
   created_at?: string | null;
+  updated_at?: string | null;
 };
 
 type CustomerTicketRow = {
@@ -118,7 +119,6 @@ type CustomerTicketRow = {
   ticket_name?: string | null;
   total_count?: number | null;
   remaining_count?: number | null;
-  used_count?: number | null;
   status?: string | null;
   created_at?: string | null;
 };
@@ -134,7 +134,7 @@ type ReservationSaleLite = {
   created_at?: string | null;
 };
 
-type TicketBadge = {
+type TicketNumberingInfo = {
   label: string;
   tone: "normal" | "warning" | "danger";
   showUpdate: boolean;
@@ -413,6 +413,25 @@ function extractErrorMessage(error: unknown): string {
   }
 
   return "不明なエラーです。";
+}
+
+function formatTicketDisplayLabel(ticketName?: string | null) {
+  const text = trimmed(ticketName);
+  return text || "回数券";
+}
+
+function buildTicketSearchText(item: ReservationRow, badges: TicketNumberingInfo[]) {
+  return [
+    trimmed(item.customer_name),
+    trimmed(item.memo),
+    trimmed(item.menu),
+    trimmed(item.store_name),
+    trimmed(item.staff_name),
+    ...badges.map((badge) => `${badge.label} ${badge.tone}`),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
 }
 
 function getVisitTypeLabel(item: ReservationRow) {
@@ -793,7 +812,8 @@ export default function ReservationPage() {
       })
       .slice(0, 25);
   }, [customerSearch, customers]);
-    const filteredCustomerSearchResults = useMemo(() => {
+
+  const filteredCustomerSearchResults = useMemo(() => {
     const q = trimmed(globalSearch).toLowerCase();
     if (!q || searchMode !== "customer") return [];
 
@@ -856,300 +876,6 @@ export default function ReservationPage() {
     return [...list];
   }, [reservations, selectedStoreFilter]);
 
-  async function loadReservationFlagsForVisible() {
-    if (!supabase) return;
-
-    const reservationIds = baseVisibleReservations
-      .map((item) => toIdNumber(item.id))
-      .filter((id): id is number => id !== null);
-
-    if (reservationIds.length === 0) {
-      setSalesReservationIds([]);
-      setCounseledReservationIds([]);
-      setTicketUsedReservationIds([]);
-      setReservationSales([]);
-      return;
-    }
-
-    try {
-      const [
-        { data: salesData, error: salesError },
-        { data: counselingData, error: counselingError },
-        { data: ticketUsageData, error: ticketUsageError },
-      ] = await Promise.all([
-        supabase
-          .from("sales")
-          .select("id, reservation_id, amount, payment_method, sale_type, menu_type, memo, created_at")
-          .in("reservation_id", reservationIds),
-        supabase.from("counselings").select("reservation_id").in("reservation_id", reservationIds),
-        supabase
-          .from("ticket_usages")
-          .select("reservation_id")
-          .in("reservation_id", reservationIds),
-      ]);
-
-      if (salesError) throw salesError;
-      if (counselingError) throw counselingError;
-      if (ticketUsageError) throw ticketUsageError;
-
-      setReservationSales((salesData as ReservationSaleLite[]) || []);
-
-      setSalesReservationIds(
-        ((salesData as SimpleReservationIdRow[]) || [])
-          .map((row) => toIdNumber(row.reservation_id))
-          .filter((id): id is number => id !== null)
-      );
-
-      setCounseledReservationIds(
-        ((counselingData as SimpleReservationIdRow[]) || [])
-          .map((row) => toIdNumber(row.reservation_id))
-          .filter((id): id is number => id !== null)
-      );
-
-      setTicketUsedReservationIds(
-        ((ticketUsageData as SimpleReservationIdRow[]) || [])
-          .map((row) => toIdNumber(row.reservation_id))
-          .filter((id): id is number => id !== null)
-      );
-    } catch (e) {
-      console.error(e);
-      setError(`状態取得エラー: ${extractErrorMessage(e)}`);
-    }
-  }
-
-  async function loadTicketContractsForVisibleCustomers() {
-    if (!supabase) return;
-
-    const customerIds = Array.from(
-      new Set(
-        baseVisibleReservations
-          .map((item) => toIdNumber(item.customer_id))
-          .filter((id): id is number => id !== null)
-      )
-    );
-
-    if (customerIds.length === 0) {
-      setTicketContracts([]);
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from("ticket_contracts")
-        .select(
-          "id, customer_id, ticket_name, remaining_count, used_count, prepaid_balance, status, created_at"
-        )
-        .in("customer_id", customerIds)
-        .order("id", { ascending: false });
-
-      if (error) {
-        if (
-          (error as { code?: string }).code === "PGRST205" ||
-          (error as { code?: string }).code === "42P01"
-        ) {
-          setTicketContracts([]);
-          return;
-        }
-        throw error;
-      }
-
-      setTicketContracts((data as TicketContractRow[]) || []);
-    } catch (e) {
-      console.error("ticket_contracts取得失敗:", e);
-      setError(`ticket_contracts取得エラー: ${extractErrorMessage(e)}`);
-      setTicketContracts([]);
-    }
-  }
-
-  async function loadCustomerTicketsForVisibleCustomers() {
-    if (!supabase) return;
-
-    const customerIds = Array.from(
-      new Set(
-        baseVisibleReservations
-          .map((item) => toIdNumber(item.customer_id))
-          .filter((id): id is number => id !== null)
-      )
-    );
-
-    if (customerIds.length === 0) {
-      setCustomerTickets([]);
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from("customer_tickets")
-        .select(
-          "id, customer_id, ticket_name, total_count, remaining_count, used_count, status, created_at"
-        )
-        .in("customer_id", customerIds)
-        .order("id", { ascending: false });
-
-      if (error) {
-        if (
-          (error as { code?: string }).code === "PGRST205" ||
-          (error as { code?: string }).code === "42P01"
-        ) {
-          setCustomerTickets([]);
-          return;
-        }
-        throw error;
-      }
-
-      setCustomerTickets((data as CustomerTicketRow[]) || []);
-    } catch (e) {
-      console.error("customer_tickets取得失敗:", e);
-      setError(`customer_tickets取得エラー: ${extractErrorMessage(e)}`);
-      setCustomerTickets([]);
-    }
-  }
-
-  const ticketContractsByCustomerId = useMemo(() => {
-    const map = new Map<string, TicketContractRow[]>();
-
-    for (const contract of ticketContracts) {
-      const customerId = trimmed(contract.customer_id);
-      if (!customerId) continue;
-      if (!map.has(customerId)) map.set(customerId, []);
-      map.get(customerId)!.push(contract);
-    }
-
-    for (const [, list] of map) {
-      list.sort((a, b) => {
-        const aActive = trimmed(a.status).toLowerCase() === "active" ? 1 : 0;
-        const bActive = trimmed(b.status).toLowerCase() === "active" ? 1 : 0;
-        if (aActive !== bActive) return bActive - aActive;
-
-        const aCreated = trimmed(a.created_at);
-        const bCreated = trimmed(b.created_at);
-        if (aCreated !== bCreated) return aCreated < bCreated ? 1 : -1;
-
-        const aId = toIdNumber(a.id) || 0;
-        const bId = toIdNumber(b.id) || 0;
-        return bId - aId;
-      });
-    }
-
-    return map;
-  }, [ticketContracts]);
-
-  const customerTicketsByCustomerId = useMemo(() => {
-    const map = new Map<string, CustomerTicketRow[]>();
-
-    for (const ticket of customerTickets) {
-      const customerId = trimmed(ticket.customer_id);
-      if (!customerId) continue;
-      if (!map.has(customerId)) map.set(customerId, []);
-      map.get(customerId)!.push(ticket);
-    }
-
-    for (const [, list] of map) {
-      list.sort((a, b) => {
-        const aCreated = trimmed(a.created_at);
-        const bCreated = trimmed(b.created_at);
-        if (aCreated !== bCreated) return aCreated < bCreated ? 1 : -1;
-
-        const aId = toIdNumber(a.id) || 0;
-        const bId = toIdNumber(b.id) || 0;
-        return bId - aId;
-      });
-    }
-
-    return map;
-  }, [customerTickets]);
-
-  const reservationSalesByReservationId = useMemo(() => {
-    const map = new Map<string, ReservationSaleLite[]>();
-
-    for (const sale of reservationSales) {
-      const reservationId = trimmed(sale.reservation_id);
-      if (!reservationId) continue;
-      if (!map.has(reservationId)) map.set(reservationId, []);
-      map.get(reservationId)!.push(sale);
-    }
-
-    return map;
-  }, [reservationSales]);
-
-  function getTicketBadgesForReservation(item: ReservationRow): TicketBadge[] {
-    const customerId = trimmed(item.customer_id);
-    if (!customerId) return [];
-
-    const badges: TicketBadge[] = [];
-    const seen = new Set<string>();
-
-    const pushBadge = (labelBase: string, totalCountRaw: unknown, remainingCountRaw: unknown) => {
-      const totalCount = Math.max(Number(totalCountRaw ?? 0), 0);
-      const remainingCount = Math.max(Number(remainingCountRaw ?? 0), 0);
-      if (totalCount <= 0) return;
-
-      const label = `${totalCount}-${remainingCount}`;
-      const key = `${labelBase}__${label}`;
-      if (seen.has(key)) return;
-      seen.add(key);
-
-      const tone: TicketBadge["tone"] =
-        remainingCount <= 0 ? "danger" : remainingCount <= 1 ? "warning" : "normal";
-
-      badges.push({
-        label,
-        tone,
-        showUpdate: remainingCount <= 0,
-        showPaymentAlert: remainingCount <= 0,
-      });
-    };
-
-    const contractRows = (ticketContractsByCustomerId.get(customerId) || []).filter((row) => {
-      const status = trimmed(row.status).toLowerCase();
-      return !status || status === "active";
-    });
-
-    contractRows.forEach((contract) => {
-      const usedCount = Math.max(Number(contract.used_count ?? 0), 0);
-      const remainingCount = Math.max(Number(contract.remaining_count ?? 0), 0);
-      const totalCount = usedCount + remainingCount;
-      pushBadge(trimmed(contract.ticket_name) || "回数券", totalCount, remainingCount);
-    });
-
-    const customerTicketRows = (customerTicketsByCustomerId.get(customerId) || []).filter((row) => {
-      const status = trimmed(row.status).toLowerCase();
-      return !status || status === "active";
-    });
-
-    customerTicketRows.forEach((ticket) => {
-      const totalCount =
-        Number(ticket.total_count ?? 0) > 0
-          ? Number(ticket.total_count ?? 0)
-          : Math.max(Number(ticket.used_count ?? 0), 0) +
-            Math.max(Number(ticket.remaining_count ?? 0), 0);
-
-      pushBadge(trimmed(ticket.ticket_name) || "回数券", totalCount, ticket.remaining_count);
-    });
-
-    return badges;
-  }
-
-  function getReservationSalesForReservation(item: ReservationRow) {
-    return reservationSalesByReservationId.get(String(item.id)) || [];
-  }
-
-  function getReservationSaleSummary(item: ReservationRow) {
-    const sales = getReservationSalesForReservation(item);
-    if (sales.length === 0) return "";
-
-    const total = sales.reduce((sum, sale) => sum + Number(sale.amount ?? 0), 0);
-    const mainSale = sales[0];
-
-    return [
-      `売上¥${total.toLocaleString()}`,
-      trimmed(mainSale.sale_type),
-      trimmed(mainSale.payment_method),
-    ]
-      .filter(Boolean)
-      .join(" / ");
-  }
-
   const visibleReservations = useMemo(() => {
     let list = [...baseVisibleReservations];
 
@@ -1176,7 +902,6 @@ export default function ReservationPage() {
         const ticketText = getTicketBadgesForReservation(item)
           .map((badge) => badge.label)
           .join(" ");
-
         const saleText = [
           getReservationSaleSummary(item),
           ...getReservationSalesForReservation(item).map((sale) =>
@@ -1376,6 +1101,331 @@ export default function ReservationPage() {
     ticketUsedReservationIdSet,
   ]);
 
+  const ticketContractsByCustomerId = useMemo(() => {
+    const map = new Map<string, TicketContractRow[]>();
+
+    for (const contract of ticketContracts) {
+      const customerId = trimmed(contract.customer_id);
+      if (!customerId) continue;
+      if (!map.has(customerId)) map.set(customerId, []);
+      map.get(customerId)!.push(contract);
+    }
+
+    for (const [, list] of map) {
+      list.sort((a, b) => {
+        const aActive = trimmed(a.status) === "active" ? 1 : 0;
+        const bActive = trimmed(b.status) === "active" ? 1 : 0;
+        if (aActive !== bActive) return bActive - aActive;
+
+        const aCreated = trimmed(a.created_at);
+        const bCreated = trimmed(b.created_at);
+        if (aCreated !== bCreated) return aCreated < bCreated ? 1 : -1;
+
+        const aId = toIdNumber(a.id) || 0;
+        const bId = toIdNumber(b.id) || 0;
+        return bId - aId;
+      });
+    }
+
+    return map;
+  }, [ticketContracts]);
+
+  async function loadReservationFlagsForVisible() {
+    if (!supabase) return;
+
+    const reservationIds = baseVisibleReservations
+      .map((item) => toIdNumber(item.id))
+      .filter((id): id is number => id !== null);
+
+    if (reservationIds.length === 0) {
+      setSalesReservationIds([]);
+      setCounseledReservationIds([]);
+      setTicketUsedReservationIds([]);
+      setReservationSales([]);
+      return;
+    }
+
+    try {
+      const [
+        { data: salesData, error: salesError },
+        { data: counselingData, error: counselingError },
+        { data: ticketUsageData, error: ticketUsageError },
+      ] = await Promise.all([
+        supabase
+          .from("sales")
+          .select("id, reservation_id, amount, payment_method, sale_type, menu_type, memo, created_at")
+          .in("reservation_id", reservationIds),
+        supabase.from("counselings").select("reservation_id").in("reservation_id", reservationIds),
+        supabase
+          .from("ticket_usages")
+          .select("reservation_id")
+          .in("reservation_id", reservationIds),
+      ]);
+
+      if (salesError) throw salesError;
+      if (counselingError) throw counselingError;
+      if (ticketUsageError) throw ticketUsageError;
+
+      setReservationSales((salesData as ReservationSaleLite[]) || []);
+
+      setSalesReservationIds(
+        ((salesData as SimpleReservationIdRow[]) || [])
+          .map((row) => toIdNumber(row.reservation_id))
+          .filter((id): id is number => id !== null)
+      );
+
+      setCounseledReservationIds(
+        ((counselingData as SimpleReservationIdRow[]) || [])
+          .map((row) => toIdNumber(row.reservation_id))
+          .filter((id): id is number => id !== null)
+      );
+
+      setTicketUsedReservationIds(
+        ((ticketUsageData as SimpleReservationIdRow[]) || [])
+          .map((row) => toIdNumber(row.reservation_id))
+          .filter((id): id is number => id !== null)
+      );
+    } catch (e) {
+      console.error(e);
+      setError(`状態取得エラー: ${extractErrorMessage(e)}`);
+    }
+  }
+
+  async function loadTicketContractsForVisibleCustomers() {
+    if (!supabase) return;
+
+    const customerIds = Array.from(
+      new Set(
+        baseVisibleReservations
+          .map((item) => toIdNumber(item.customer_id))
+          .filter((id): id is number => id !== null)
+      )
+    );
+
+    if (customerIds.length === 0) {
+      setTicketContracts([]);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("ticket_contracts")
+        .select(
+          "id, customer_id, ticket_name, remaining_count, used_count, prepaid_balance, status, created_at"
+        )
+        .in("customer_id", customerIds)
+        .order("id", { ascending: false });
+
+      if (error) {
+        if ((error as { code?: string }).code === "PGRST205") {
+          setTicketContracts([]);
+          return;
+        }
+        throw error;
+      }
+
+      setTicketContracts((data as TicketContractRow[]) || []);
+    } catch (e) {
+      console.error(e);
+      setTicketContracts([]);
+    }
+  }
+
+  async function loadCustomerTicketsForVisibleCustomers() {
+    if (!supabase) return;
+
+    const customerIds = Array.from(
+      new Set(
+        baseVisibleReservations
+          .map((item) => toIdNumber(item.customer_id))
+          .filter((id): id is number => id !== null)
+      )
+    );
+
+    if (customerIds.length === 0) {
+      setCustomerTickets([]);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("customer_tickets")
+        .select(
+          "id, customer_id, ticket_name, total_count, remaining_count, status, created_at"
+        )
+        .in("customer_id", customerIds)
+        .order("id", { ascending: false });
+
+      if (error) {
+        if (
+          (error as { code?: string }).code === "PGRST205" ||
+          (error as { code?: string }).code === "42P01"
+        ) {
+          setCustomerTickets([]);
+          return;
+        }
+        throw error;
+      }
+
+      setCustomerTickets((data as CustomerTicketRow[]) || []);
+    } catch (e) {
+      console.error(e);
+      setCustomerTickets([]);
+    }
+  }
+
+  const customerTicketsByCustomerId = useMemo(() => {
+    const map = new Map<string, CustomerTicketRow[]>();
+
+    for (const ticket of customerTickets) {
+      const customerId = trimmed(ticket.customer_id);
+      if (!customerId) continue;
+      if (!map.has(customerId)) map.set(customerId, []);
+      map.get(customerId)!.push(ticket);
+    }
+
+    for (const [, list] of map) {
+      list.sort((a, b) => {
+        const aCreated = trimmed(a.created_at);
+        const bCreated = trimmed(b.created_at);
+        if (aCreated !== bCreated) return aCreated < bCreated ? 1 : -1;
+
+        const aId = toIdNumber(a.id) || 0;
+        const bId = toIdNumber(b.id) || 0;
+        return bId - aId;
+      });
+    }
+
+    return map;
+  }, [customerTickets]);
+
+  const reservationSalesByReservationId = useMemo(() => {
+    const map = new Map<string, ReservationSaleLite[]>();
+
+    for (const sale of reservationSales) {
+      const reservationId = trimmed(sale.reservation_id);
+      if (!reservationId) continue;
+      if (!map.has(reservationId)) map.set(reservationId, []);
+      map.get(reservationId)!.push(sale);
+    }
+
+    return map;
+  }, [reservationSales]);
+
+  function getTicketBadgesForReservation(item: ReservationRow): TicketNumberingInfo[] {
+    const customerId = trimmed(item.customer_id);
+    if (!customerId) return [];
+
+    const badges: TicketNumberingInfo[] = [];
+    const seen = new Set<string>();
+
+    const pushBadge = (labelBase: string, totalCountRaw: unknown, remainingCountRaw: unknown) => {
+      const totalCount = Math.max(Number(totalCountRaw ?? 0), 0);
+      const remainingCount = Math.max(Number(remainingCountRaw ?? 0), 0);
+
+      if (totalCount <= 0) return;
+
+      const label = `${totalCount}-${remainingCount}`;
+      const key = `${labelBase}__${label}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+
+      const tone: TicketNumberingInfo["tone"] =
+        remainingCount <= 0 ? "danger" : remainingCount <= 1 ? "warning" : "normal";
+
+      badges.push({
+        label,
+        tone,
+        showUpdate: remainingCount <= 0,
+        showPaymentAlert: remainingCount <= 0,
+      });
+    };
+
+    const contractRows = ticketContractsByCustomerId.get(customerId) || [];
+    contractRows.forEach((contract) => {
+      const usedCount = Math.max(Number(contract.used_count ?? 0), 0);
+      const remainingCount = Math.max(Number(contract.remaining_count ?? 0), 0);
+      const totalCount = usedCount + remainingCount;
+      pushBadge(formatTicketDisplayLabel(contract.ticket_name), totalCount, remainingCount);
+    });
+
+    const customerTicketRows = customerTicketsByCustomerId.get(customerId) || [];
+    customerTicketRows.forEach((ticket) => {
+      const totalCount =
+        Number(ticket.total_count ?? 0) > 0
+          ? Number(ticket.total_count ?? 0)
+          : Math.max(Number(0), 0) + Math.max(Number(ticket.remaining_count ?? 0), 0);
+
+      const labelBase =
+        trimmed(ticket.ticket_name) ||
+        "回数券";
+
+      pushBadge(labelBase, totalCount, ticket.remaining_count);
+  });
+
+    return badges;
+  }
+
+  function getReservationSalesForReservation(item: ReservationRow) {
+    return reservationSalesByReservationId.get(String(item.id)) || [];
+  }
+
+  function getReservationSaleSummary(item: ReservationRow) {
+    const sales = getReservationSalesForReservation(item);
+    if (sales.length === 0) return "";
+
+    const total = sales.reduce((sum, sale) => sum + Number(sale.amount ?? 0), 0);
+    const mainSale = sales[0];
+
+    return [
+      `売上¥${total.toLocaleString()}`,
+      trimmed(mainSale.sale_type),
+      trimmed(mainSale.payment_method),
+    ]
+      .filter(Boolean)
+      .join(" / ");
+  }
+
+  function getTicketContractForReservation(item: ReservationRow): TicketContractRow | null {
+    const customerId = trimmed(item.customer_id);
+    if (!customerId) return null;
+
+    const list = ticketContractsByCustomerId.get(customerId) || [];
+    if (list.length === 0) return null;
+
+    const customerPlanType = customerPlanTypeById.get(customerId) || "";
+    const resolvedTicketName = resolveTicketName({
+      reservationMenu: item.menu,
+      customerPlanType,
+    });
+
+    if (resolvedTicketName) {
+      const exactActive = list.find(
+        (contract) =>
+          trimmed(contract.ticket_name) === resolvedTicketName &&
+          (trimmed(contract.status) === "active" || !trimmed(contract.status))
+      );
+      if (exactActive) return exactActive;
+
+      const exactAny = list.find(
+        (contract) => trimmed(contract.ticket_name) === resolvedTicketName
+      );
+      if (exactAny) return exactAny;
+    }
+
+    const activeContract = list.find(
+      (contract) => trimmed(contract.status) === "active" || !trimmed(contract.status)
+    );
+    if (activeContract) return activeContract;
+
+    return list[0] || null;
+  }
+
+  function getTicketNumberingForReservation(item: ReservationRow): TicketNumberingInfo | null {
+    const badges = getTicketBadgesForReservation(item);
+    return badges[0] || null;
+  }
+
   function openDay(dateStr: string) {
     setSelectedDate(dateStr);
     setDaySheetOpen(true);
@@ -1460,27 +1510,27 @@ export default function ReservationPage() {
       .limit(1)
       .maybeSingle();
 
-      if (nameMatchError) {
-        console.warn(nameMatchError);
-      }
+    if (nameMatchError) {
+      console.warn(nameMatchError);
+    }
 
-      if (nameMatch) {
-        return String((nameMatch as CustomerRow).id);
-      }
+    if (nameMatch) {
+      return String((nameMatch as CustomerRow).id);
+    }
 
-      const { data: inserted, error: insertError } = await supabase
-        .from("customers")
-        .insert({
-          name,
-          kana: kana || null,
-          phone: rawPhone || null,
-        })
-        .select("id")
-        .single();
+    const { data: inserted, error: insertError } = await supabase
+      .from("customers")
+      .insert({
+        name,
+        kana: kana || null,
+        phone: rawPhone || null,
+      })
+      .select("id")
+      .single();
 
-      if (insertError) throw insertError;
+    if (insertError) throw insertError;
 
-      return String(inserted.id);
+    return String(inserted.id);
   }
 
   async function handleSaveReservation() {
@@ -1559,7 +1609,8 @@ export default function ReservationPage() {
       setSaving(false);
     }
   }
-    async function loadCustomerHistory(customer: CustomerOption) {
+
+  async function loadCustomerHistory(customer: CustomerOption) {
     if (!supabase) return;
 
     try {
@@ -1569,30 +1620,28 @@ export default function ReservationPage() {
       setSelectedHistoryStaff("");
       setHistoryOpen(true);
 
-      const [
-        { data: reservationData, error: reservationError },
-        { data: salesData, error: salesError },
-      ] = await Promise.all([
-        supabase
-          .from("reservations")
-          .select(
-            "id, customer_id, customer_name, date, start_time, end_time, store_name, staff_name, menu, memo"
-          )
-          .eq("customer_id", Number(customer.id))
-          .order("date", { ascending: false })
-          .order("start_time", { ascending: false })
-          .limit(50),
+      const [{ data: reservationData, error: reservationError }, { data: salesData, error: salesError }] =
+        await Promise.all([
+          supabase
+            .from("reservations")
+            .select(
+              "id, customer_id, customer_name, date, start_time, end_time, store_name, staff_name, menu, memo"
+            )
+            .eq("customer_id", Number(customer.id))
+            .order("date", { ascending: false })
+            .order("start_time", { ascending: false })
+            .limit(50),
 
-        supabase
-          .from("sales")
-          .select(
-            "id, sale_date, customer_name, menu_type, sale_type, payment_method, amount, staff_name, store_name, memo, created_at"
-          )
-          .eq("customer_id", Number(customer.id))
-          .order("sale_date", { ascending: false })
-          .order("created_at", { ascending: false })
-          .limit(50),
-      ]);
+          supabase
+            .from("sales")
+            .select(
+              "id, sale_date, customer_name, menu_type, sale_type, payment_method, amount, staff_name, store_name, memo, created_at"
+            )
+            .eq("customer_id", Number(customer.id))
+            .order("sale_date", { ascending: false })
+            .order("created_at", { ascending: false })
+            .limit(50),
+        ]);
 
       if (reservationError) throw reservationError;
       if (salesError) throw salesError;
@@ -1695,14 +1744,21 @@ export default function ReservationPage() {
         customerPlanType: (customerRow as { plan_type?: string | null }).plan_type,
       });
 
-      const resolvedName =
-        ticketName || (trimmed(item.menu) && TICKET_UNIT_PRICES[trimmed(item.menu)] ? trimmed(item.menu) : "");
+      if (!ticketName) {
+        const fallbackContract = getTicketContractForReservation(item);
+        if (!fallbackContract || !trimmed(fallbackContract.ticket_name)) {
+          setError("有効な回数券契約が見つかりません。");
+          return;
+        }
 
-      if (!resolvedName) {
-        setError("有効な回数券名を判定できません。");
-        return;
+        const fallbackName = trimmed(fallbackContract.ticket_name);
+        const fallbackUnitPrice = TICKET_UNIT_PRICES[fallbackName];
+        if (!fallbackUnitPrice) {
+          setError(`単価設定がありません: ${fallbackName}`);
+          return;
+        }
       }
-
+            const resolvedName = ticketName || trimmed(getTicketContractForReservation(item)?.ticket_name);
       const unitPrice = TICKET_UNIT_PRICES[resolvedName];
       if (!unitPrice) {
         setError(`単価設定がありません: ${resolvedName}`);
@@ -1772,6 +1828,7 @@ export default function ReservationPage() {
           used_count: nextUsed,
           remaining_count: nextRemaining,
           prepaid_balance: nextBalance,
+          updated_at: new Date().toISOString(),
         })
         .eq("id", currentContract.id);
 
@@ -1918,6 +1975,7 @@ export default function ReservationPage() {
               used_count: nextUsed,
               remaining_count: nextRemaining,
               prepaid_balance: currentBalance + restorePrice,
+              updated_at: new Date().toISOString(),
             })
             .eq("id", ticketId);
 
@@ -2058,8 +2116,8 @@ export default function ReservationPage() {
       return;
     }
 
-    const ticketBadges = getTicketBadgesForReservation(item);
-    if (ticketBadges.length > 0) {
+    const ticketNumbering = getTicketNumberingForReservation(item);
+    if (ticketNumbering) {
       await handleTicketConsumeAndCreateSale(item);
       return;
     }
@@ -2481,6 +2539,7 @@ export default function ReservationPage() {
 
                     const item = timelineItem.reservation;
                     const ticketBadges = getTicketBadgesForReservation(item);
+                    const ticketNumbering = ticketBadges[0] || null;
                     const memoOpened = openedMemoReservationIds.includes(String(item.id));
                     const actionOpened = openedActionReservationIds.includes(String(item.id));
 
@@ -2665,7 +2724,7 @@ export default function ReservationPage() {
             <div style={styles.modalSmall} onClick={(e) => e.stopPropagation()}>
               <div style={styles.modalHeader}>
                 <h3 style={styles.modalTitle}>新規予約追加</h3>
-                <button type="button" style={styles.modalCloseBtn} onClick={() => setFormOpen(false)}>
+<button type="button" style={styles.modalCloseBtn} onClick={() => setFormOpen(false)}>
                   ×
                 </button>
               </div>
@@ -2700,42 +2759,22 @@ export default function ReservationPage() {
 
                 <div style={styles.formBlockFull}>
                   <label style={styles.label}>顧客名</label>
-                  <input
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="山田 太郎"
-                    style={styles.input}
-                  />
+                  <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="山田 太郎" style={styles.input} />
                 </div>
 
                 <div>
                   <label style={styles.label}>かな</label>
-                  <input
-                    value={customerKana}
-                    onChange={(e) => setCustomerKana(e.target.value)}
-                    placeholder="やまだ たろう"
-                    style={styles.input}
-                  />
+                  <input value={customerKana} onChange={(e) => setCustomerKana(e.target.value)} placeholder="やまだ たろう" style={styles.input} />
                 </div>
 
                 <div>
                   <label style={styles.label}>電話番号</label>
-                  <input
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    placeholder="09012345678"
-                    style={styles.input}
-                  />
+                  <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="09012345678" style={styles.input} />
                 </div>
 
                 <div>
                   <label style={styles.label}>日付</label>
-                  <input
-                    type="date"
-                    value={formDate}
-                    onChange={(e) => setFormDate(e.target.value)}
-                    style={styles.input}
-                  />
+                  <input type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} style={styles.input} />
                 </div>
 
                 <div>
@@ -2751,12 +2790,7 @@ export default function ReservationPage() {
 
                 <div>
                   <label style={styles.label}>開始時間</label>
-                  <input
-                    type="time"
-                    value={startTime}
-                    onChange={(e) => handleChangeStartTime(e.target.value)}
-                    style={styles.input}
-                  />
+                  <input type="time" value={startTime} onChange={(e) => handleChangeStartTime(e.target.value)} style={styles.input} />
                 </div>
 
                 <div>
@@ -2818,13 +2852,7 @@ export default function ReservationPage() {
 
                 <div style={styles.formBlockFull}>
                   <label style={styles.label}>メモ</label>
-                  <textarea
-                    value={memo}
-                    onChange={(e) => setMemo(e.target.value)}
-                    rows={4}
-                    style={styles.textarea}
-                    placeholder="備考があれば入力"
-                  />
+                  <textarea value={memo} onChange={(e) => setMemo(e.target.value)} rows={4} style={styles.textarea} placeholder="備考があれば入力" />
                 </div>
               </div>
 
@@ -3388,15 +3416,6 @@ const styles: Record<string, CSSProperties> = {
     flex: 1,
     minWidth: 0,
   },
-  dayMiniTicketWrap: {
-    display: "flex",
-    gap: 3,
-    flexWrap: "wrap",
-    justifyContent: "flex-end",
-    flexShrink: 0,
-    maxWidth: "52%",
-    overflow: "hidden",
-  },
   dayMiniTicketBadge: {
     display: "inline-flex",
     alignItems: "center",
@@ -3424,12 +3443,6 @@ const styles: Record<string, CSSProperties> = {
     color: "#b91c1c",
     border: "1px solid #ef4444",
   },
-  dayMiniTicketPlaceholder: {
-    fontSize: 8,
-    fontWeight: 900,
-    color: "#94a3b8",
-    whiteSpace: "nowrap",
-  },
   dayMiniMemo: {
     marginTop: 2,
     fontSize: 8,
@@ -3439,21 +3452,6 @@ const styles: Record<string, CSSProperties> = {
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
-  },
-  dayMiniSale: {
-    fontSize: 8,
-    color: "#0f766e",
-    fontWeight: 800,
-    lineHeight: 1.2,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-  dayMiniSaleMuted: {
-    fontSize: 8,
-    color: "#94a3b8",
-    fontWeight: 800,
-    lineHeight: 1.2,
   },
   dayMore: {
     fontSize: 10,
@@ -3659,33 +3657,11 @@ const styles: Record<string, CSSProperties> = {
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
-  saleInline: {
-    fontSize: 11,
-    color: "#0f766e",
-    fontWeight: 800,
-    lineHeight: 1.45,
-    marginBottom: 4,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-  saleInlineMuted: {
-    fontSize: 11,
-    color: "#94a3b8",
-    fontWeight: 800,
-    lineHeight: 1.45,
-    marginBottom: 4,
-  },
   timelineMetaTextCompact: {
     fontSize: 12,
     color: "#64748b",
     fontWeight: 700,
     lineHeight: 1.5,
-  },
-  ticketInlineWrap: {
-    display: "flex",
-    gap: 4,
-    flexWrap: "wrap",
   },
   ticketInline: {
     display: "inline-flex",
@@ -3712,11 +3688,6 @@ const styles: Record<string, CSSProperties> = {
     background: "#fee2e2",
     color: "#b91c1c",
     border: "1px solid #ef4444",
-  },
-  ticketInlinePlaceholder: {
-    fontSize: 10,
-    fontWeight: 900,
-    color: "#94a3b8",
   },
   statusRowCompact: {
     display: "flex",
