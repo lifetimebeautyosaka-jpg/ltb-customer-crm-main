@@ -1343,7 +1343,7 @@ export default function ReservationPage() {
 
     const contractRows = ticketContractsByCustomerId.get(customerId) || [];
     contractRows.forEach((contract) => {
-      const usedCount = Math.max(Number(contract.used_count ?? 0), 0);
+ const usedCount = Math.max(Number(contract.used_count ?? 0), 0);
       const remainingCount = Math.max(Number(contract.remaining_count ?? 0), 0);
       const totalCount = usedCount + remainingCount;
       pushBadge(formatTicketDisplayLabel(contract.ticket_name), totalCount, remainingCount);
@@ -1361,7 +1361,7 @@ export default function ReservationPage() {
         "回数券";
 
       pushBadge(labelBase, totalCount, ticket.remaining_count);
-  });
+    });
 
     return badges;
   }
@@ -2138,6 +2138,158 @@ export default function ReservationPage() {
     };
   }
 
+
+  function renderTimeTreeItem(timelineItem: DayTimelineItem) {
+    if (timelineItem.type === "attendance") {
+      const item = timelineItem.attendance;
+      const color = getStaffColor(item.staff_name);
+
+      return (
+        <div key={`attendance-${item.id}`} style={styles.ttCardPlain}>
+          <div style={styles.ttItem}>
+            <div style={styles.ttTimeCol}>
+              <div style={styles.ttStart}>{trimmed(item.clock_in) || "--:--"}</div>
+              <div style={styles.ttEnd}>{trimmed(item.clock_out) || "--:--"}</div>
+            </div>
+
+            <div style={{ ...styles.ttLine, background: color }} />
+
+            <div style={styles.ttBody}>
+              <div style={styles.ttTitle}>{trimmed(item.staff_name) || "スタッフ未設定"}勤務</div>
+              <div style={styles.ttMemo}>{trimmed(item.memo) || "スタッフ出勤"}</div>
+            </div>
+
+            <div style={{ ...styles.ttAvatar, background: color }}>
+              {getStaffShortLabel(item.staff_name)}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const item = timelineItem.reservation;
+    const ticketBadges = getTicketBadgesForReservation(item);
+    const saleSummary = getReservationSaleSummary(item);
+    const color = getStaffColor(item.staff_name);
+    const reservationId = toIdNumber(item.id);
+    const flags = getPendingFlags({
+      item,
+      salesReservationIdSet,
+      counseledReservationIdSet,
+      ticketUsedReservationIdSet,
+    });
+
+    const isTicket = ticketBadges.length > 0;
+    const isSold =
+      trimmed(item.reservation_status) === "売上済" ||
+      (reservationId !== null && salesReservationIdSet.has(reservationId));
+    const actionOpened = openedActionReservationIds.includes(String(item.id));
+
+    return (
+      <div key={`reservation-${item.id}`} style={styles.ttCard}>
+        <div style={styles.ttItem}>
+          <div style={styles.ttTimeCol}>
+            <div style={styles.ttStart}>{trimmed(item.start_time) || "--:--"}</div>
+            <div style={styles.ttEnd}>{trimmed(item.end_time) || "--:--"}</div>
+          </div>
+
+          <div style={{ ...styles.ttLine, background: color }} />
+
+          <button
+            type="button"
+            onClick={() => router.push(`/reservation/detail/${item.id}`)}
+            style={styles.ttBodyButton}
+          >
+            <div style={styles.ttTitleRow}>
+              <span style={styles.ttTitle}>{trimmed(item.customer_name) || "顧客名未設定"}</span>
+
+              {ticketBadges.length > 0 ? (
+                <span style={styles.ttTicketWrap}>
+                  {ticketBadges.map((badge, index) => (
+                    <span
+                      key={`${String(item.id)}-tt-ticket-${index}`}
+                      style={{
+                        ...styles.ttTicket,
+                        ...(badge.tone === "warning" ? styles.ttTicketWarning : {}),
+                        ...(badge.tone === "danger" ? styles.ttTicketDanger : {}),
+                      }}
+                    >
+                      {badge.label}
+                    </span>
+                  ))}
+                </span>
+              ) : null}
+            </div>
+
+            <div style={styles.ttMemo}>
+              {trimmed(item.memo) || trimmed(item.menu) || "メモなし"}
+            </div>
+
+            {saleSummary ? (
+              <div style={styles.ttSale}>{saleSummary}</div>
+            ) : (
+              <div style={styles.ttSaleMuted}>売上未</div>
+            )}
+
+            <div style={styles.ttSub}>
+              {trimmed(item.menu) || "メニュー未設定"} / {trimmed(item.store_name) || "店舗未設定"} / {trimmed(item.staff_name) || "担当未設定"}
+            </div>
+          </button>
+
+          <div style={{ ...styles.ttAvatar, background: color }}>
+            {getStaffShortLabel(item.staff_name)}
+          </div>
+        </div>
+
+        <div style={styles.ttStatusRow}>
+          {flags.salesPending ? <span style={styles.ttStatusYellow}>売上未</span> : <span style={styles.ttStatusGreen}>売上済</span>}
+          {flags.counselingPending ? <span style={styles.ttStatusBlue}>カウンセリング未</span> : null}
+          {isTicket ? (
+            flags.ticketPending ? <span style={styles.ttStatusPurple}>回数券未消化</span> : <span style={styles.ttStatusGreen}>消化済</span>
+          ) : null}
+        </div>
+
+        <div style={styles.ttActionRow}>
+          <button type="button" onClick={() => toggleReservationActions(item.id)} style={styles.ttActionBtn}>
+            {actionOpened ? "操作を閉じる" : "操作"}
+          </button>
+        </div>
+
+        {actionOpened ? (
+          <div style={styles.ttDrawer}>
+            <button type="button" onClick={() => router.push(`/reservation/detail/${item.id}`)} style={styles.ttBlueBtn}>
+              詳細
+            </button>
+
+            {!isSold ? (
+              <button
+                type="button"
+                onClick={() => void handleReservationTap(item)}
+                style={isTicket ? styles.ttOrangeBtn : styles.ttDarkBtn}
+                disabled={consumingReservationId === String(item.id)}
+              >
+                {consumingReservationId === String(item.id)
+                  ? "処理中..."
+                  : isTicket
+                  ? "消化/売上"
+                  : "売上登録"}
+              </button>
+            ) : null}
+
+            <button
+              type="button"
+              onClick={() => handleDeleteReservation(item)}
+              style={styles.ttDeleteBtn}
+              disabled={deletingReservationId === String(item.id)}
+            >
+              {deletingReservationId === String(item.id) ? "削除中..." : "削除"}
+            </button>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
   if (!mounted || !authChecked) return null;
 
   return (
@@ -2506,213 +2658,7 @@ export default function ReservationPage() {
                 <div style={styles.emptyDayBox}>この日の予定はありません。</div>
               ) : (
                 <div style={styles.timelineListCompact}>
-                  {selectedDayTimeline.map((timelineItem) => {
-                    if (timelineItem.type === "attendance") {
-                      const item = timelineItem.attendance;
-
-                      return (
-                        <div
-                          key={`attendance-${item.id}`}
-                          style={{
-                            ...styles.timelineCard,
-                            borderLeft: `5px solid ${getStaffColor(item.staff_name)}`,
-                          }}
-                        >
-                          <div style={styles.timelineRow}>
-                            <div style={styles.timelineTimeBlock}>
-                              <div style={styles.timelineTimeMain}>{trimmed(item.clock_in) || "--:--"}</div>
-                              <div style={styles.timelineTimeSub}>{trimmed(item.clock_out) || "--:--"}</div>
-                            </div>
-
-                            <div style={styles.timelineContent}>
-                              <div style={styles.timelineTitle}>{trimmed(item.staff_name) || "スタッフ未設定"}勤務</div>
-                              <div style={styles.timelineMetaText}>スタッフ出勤</div>
-                            </div>
-
-                            <div style={{ ...styles.staffAvatar, background: getStaffColor(item.staff_name) }}>
-                              {getStaffShortLabel(item.staff_name)}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    const item = timelineItem.reservation;
-                    const ticketBadges = getTicketBadgesForReservation(item);
-                    const ticketNumbering = ticketBadges[0] || null;
-                    const memoOpened = openedMemoReservationIds.includes(String(item.id));
-                    const actionOpened = openedActionReservationIds.includes(String(item.id));
-
-                    const reservationId = toIdNumber(item.id);
-                    const flags = getPendingFlags({
-                      item,
-                      salesReservationIdSet,
-                      counseledReservationIdSet,
-                      ticketUsedReservationIdSet,
-                    });
-
-                    const isTicket = ticketBadges.length > 0;
-                    const isSold =
-                      trimmed(item.reservation_status) === "売上済" ||
-                      (reservationId !== null && salesReservationIdSet.has(reservationId));
-                    const saleSummary = getReservationSaleSummary(item);
-
-                    return (
-                      <div
-                        key={String(item.id)}
-                        style={{
-                          ...styles.timelineCardCompact,
-                          ...(flags.isPending ? styles.reserveCardPendingCompact : {}),
-                          borderLeft: `4px solid ${getStaffColor(item.staff_name)}`,
-                        }}
-                      >
-                        <div style={styles.timelineRowCompact}>
-                          <div style={styles.timelineContentCompact}>
-                            <button
-                              type="button"
-                              onClick={() => router.push(`/reservation/detail/${item.id}`)}
-                              style={styles.timelineMainActionCompact}
-                            >
-                              <div style={styles.timelineTopLineCompact}>
-                                <div style={styles.timelineNameGroupCompact}>
-                                  <span style={styles.timelineTitleCompact}>
-                                    {item.customer_name || "顧客名未設定"}
-                                  </span>
-
-                                  <div style={styles.ticketInlineWrap}>
-                                    {ticketBadges.length > 0 ? (
-                                      ticketBadges.map((badge, index) => (
-                                        <span
-                                          key={`${String(item.id)}-inline-ticket-${index}`}
-                                          style={{
-                                            ...styles.ticketInline,
-                                            ...(badge.tone === "warning" ? styles.ticketInlineWarning : {}),
-                                            ...(badge.tone === "danger" ? styles.ticketInlineDanger : {}),
-                                          }}
-                                        >
-                                          {badge.label}
-                                        </span>
-                                      ))
-                                    ) : (
-                                      <span style={styles.ticketInlinePlaceholder}>--</span>
-                                    )}
-                                  </div>
-                                </div>
-
-                                <span style={styles.timelineTimeInline}>
-                                  {trimmed(item.start_time)} - {trimmed(item.end_time)}
-                                </span>
-                              </div>
-
-                              <div style={styles.memoInline}>
-                                {trimmed(item.memo) || "メモなし"}
-                              </div>
-
-                              {saleSummary ? (
-                                <div style={styles.saleInline}>{saleSummary}</div>
-                              ) : (
-                                <div style={styles.saleInlineMuted}>売上未</div>
-                              )}
-
-                              <div style={styles.timelineMetaTextCompact}>
-                                {item.menu || "メニュー未設定"} / {item.store_name || "店舗未設定"} /{" "}
-                                {item.staff_name || "担当未設定"}
-                              </div>
-                            </button>
-
-                            <div style={styles.statusRowCompact}>
-                              {flags.salesPending ? (
-                                <span style={styles.pendingBadgeYellowCompact}>売上未</span>
-                              ) : (
-                                <span style={styles.doneBadgeCompact}>売上済</span>
-                              )}
-                              {flags.counselingPending ? (
-                                <span style={styles.pendingBadgeCompact}>カウンセリング未</span>
-                              ) : isNewVisit(item) ? (
-                                <span style={styles.doneBadgeBlueCompact}>カウンセリング済</span>
-                              ) : null}
-                              {isTicket ? (
-                                flags.ticketPending ? (
-                                  <span style={styles.pendingBadgePurpleCompact}>回数券未消化</span>
-                                ) : (
-                                  <span style={styles.doneBadgePurpleCompact}>回数券消化済</span>
-                                )
-                              ) : null}
-                            </div>
-
-                            <div style={styles.cardActionBarSingle}>
-                              <button
-                                type="button"
-                                onClick={() => toggleReservationActions(item.id)}
-                                style={styles.actionToggleBtn}
-                              >
-                                {actionOpened ? "操作を閉じる" : "操作を開く"}
-                              </button>
-                            </div>
-
-                            {actionOpened ? (
-                              <div style={styles.actionDrawer}>
-                                <div style={styles.cardActionRowCompact}>
-                                  <button
-                                    type="button"
-                                    onClick={() => router.push(`/reservation/detail/${item.id}`)}
-                                    style={styles.actionBtnBlueCompact}
-                                  >
-                                    詳細
-                                  </button>
-
-                                  {!isSold ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => void handleReservationTap(item)}
-                                      style={isTicket ? styles.actionBtnOrangeCompact : styles.actionBtnDarkCompact}
-                                      disabled={consumingReservationId === String(item.id)}
-                                    >
-                                      {consumingReservationId === String(item.id)
-                                        ? "処理中..."
-                                        : isTicket
-                                        ? "消化/売上"
-                                        : "売上登録"}
-                                    </button>
-                                  ) : null}
-
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteReservation(item)}
-                                    style={styles.actionBtnDeleteCompact}
-                                    disabled={deletingReservationId === String(item.id)}
-                                  >
-                                    {deletingReservationId === String(item.id) ? "削除中..." : "削除"}
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleReservationMemo(item.id)}
-                                    style={styles.actionBtnMemoCompact}
-                                  >
-                                    {memoOpened ? "メモ閉じる" : "メモ"}
-                                  </button>
-                                </div>
-
-                                {memoOpened && trimmed(item.memo) ? (
-                                  <div style={styles.memoBoxCompact}>{trimmed(item.memo)}</div>
-                                ) : null}
-                              </div>
-                            ) : null}
-                          </div>
-
-                          <div
-                            style={{
-                              ...styles.staffAvatarCompact,
-                              background: getStaffColor(item.staff_name),
-                            }}
-                          >
-                            {getStaffShortLabel(item.staff_name)}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {selectedDayTimeline.map((timelineItem) => renderTimeTreeItem(timelineItem))}
                 </div>
               )}
             </div>
@@ -2724,7 +2670,7 @@ export default function ReservationPage() {
             <div style={styles.modalSmall} onClick={(e) => e.stopPropagation()}>
               <div style={styles.modalHeader}>
                 <h3 style={styles.modalTitle}>新規予約追加</h3>
-<button type="button" style={styles.modalCloseBtn} onClick={() => setFormOpen(false)}>
+                <button type="button" style={styles.modalCloseBtn} onClick={() => setFormOpen(false)}>
                   ×
                 </button>
               </div>
@@ -2742,7 +2688,7 @@ export default function ReservationPage() {
                     <div style={styles.customerSuggestList}>
                       {filteredCustomers.map((c) => (
                         <button
-                          key={c.id}
+key={c.id}
                           type="button"
                           onClick={() => handleSelectCustomer(c.id)}
                           style={styles.customerSuggestItem}
