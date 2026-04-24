@@ -251,7 +251,6 @@ const TICKET_UNIT_PRICES: Record<string, number> = {
   "120分4回_旧": 16000,
   "120分8回_旧": 15270,
   "120分12回_旧": 15000,
-
   "40分4回_新": 5330,
   "40分8回_新": 5090,
   "40分12回_新": 5000,
@@ -264,7 +263,6 @@ const TICKET_UNIT_PRICES: Record<string, number> = {
   "120分4回_新": 16000,
   "120分8回_新": 15270,
   "120分12回_新": 15000,
-
   "ダイエット16回": 11000,
   "ゴールド24回": 10450,
   "プラチナ32回": 10230,
@@ -418,20 +416,6 @@ function extractErrorMessage(error: unknown): string {
 function formatTicketDisplayLabel(ticketName?: string | null) {
   const text = trimmed(ticketName);
   return text || "回数券";
-}
-
-function buildTicketSearchText(item: ReservationRow, badges: TicketNumberingInfo[]) {
-  return [
-    trimmed(item.customer_name),
-    trimmed(item.memo),
-    trimmed(item.menu),
-    trimmed(item.store_name),
-    trimmed(item.staff_name),
-    ...badges.map((badge) => `${badge.label} ${badge.tone}`),
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
 }
 
 function getVisitTypeLabel(item: ReservationRow) {
@@ -613,6 +597,7 @@ export default function ReservationPage() {
   const [attendanceStaffName, setAttendanceStaffName] = useState("山口");
   const [attendanceClockIn, setAttendanceClockIn] = useState("10:00");
   const [attendanceClockOut, setAttendanceClockOut] = useState("17:00");
+  const [attendanceMemo, setAttendanceMemo] = useState("");
 
   const [storeName, setStoreName] = useState("江戸堀");
   const [staffName, setStaffName] = useState("山口");
@@ -626,7 +611,6 @@ export default function ReservationPage() {
   const [ticketUsedReservationIds, setTicketUsedReservationIds] = useState<number[]>([]);
   const [consumingReservationId, setConsumingReservationId] = useState("");
   const [deletingReservationId, setDeletingReservationId] = useState("");
-  const [openedMemoReservationIds, setOpenedMemoReservationIds] = useState<string[]>([]);
   const [openedActionReservationIds, setOpenedActionReservationIds] = useState<string[]>([]);
 
   const [reservationSearch, setReservationSearch] = useState("");
@@ -640,8 +624,7 @@ export default function ReservationPage() {
   const [customerSalesHistory, setCustomerSalesHistory] = useState<CustomerSaleHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-
-  useEffect(() => {
+    useEffect(() => {
     setMounted(true);
   }, []);
 
@@ -775,7 +758,7 @@ export default function ReservationPage() {
 
       const { data, error } = await supabase
         .from("attendance_records")
-        .select("id, staff_name, work_date, clock_in, clock_out")
+        .select("id, staff_name, work_date, clock_in, clock_out, memo")
         .gte("work_date", monthStart)
         .lte("work_date", monthEnd)
         .order("work_date", { ascending: true })
@@ -784,9 +767,32 @@ export default function ReservationPage() {
       if (error) {
         if (
           (error as { code?: string }).code === "PGRST205" ||
-          (error as { code?: string }).code === "42P01"
+          (error as { code?: string }).code === "42P01" ||
+          (error as { code?: string }).code === "42703"
         ) {
-          setAttendanceItems([]);
+          const fallback = await supabase
+            .from("attendance_records")
+            .select("id, staff_name, work_date, clock_in, clock_out")
+            .gte("work_date", monthStart)
+            .lte("work_date", monthEnd)
+            .order("work_date", { ascending: true })
+            .order("clock_in", { ascending: true });
+
+          if (fallback.error) {
+            setAttendanceItems([]);
+            return;
+          }
+
+          setAttendanceItems(
+            ((fallback.data as Record<string, unknown>[]) || []).map((row) => ({
+              id: String(row.id),
+              staff_name: trimmed(row.staff_name),
+              work_date: trimmed(row.work_date),
+              clock_in: row.clock_in ? String(row.clock_in) : null,
+              clock_out: row.clock_out ? String(row.clock_out) : null,
+              memo: null,
+            }))
+          );
           return;
         }
         throw error;
@@ -799,7 +805,7 @@ export default function ReservationPage() {
           work_date: trimmed(row.work_date),
           clock_in: row.clock_in ? String(row.clock_in) : null,
           clock_out: row.clock_out ? String(row.clock_out) : null,
-          memo: null,
+          memo: row.memo ? String(row.memo) : null,
         }))
       );
     } catch (e) {
@@ -885,7 +891,8 @@ export default function ReservationPage() {
 
     return [...list];
   }, [reservations, selectedStoreFilter]);
-    const ticketContractsByCustomerId = useMemo(() => {
+
+  const ticketContractsByCustomerId = useMemo(() => {
     const map = new Map<string, TicketContractRow[]>();
 
     for (const contract of ticketContracts) {
@@ -1046,8 +1053,9 @@ export default function ReservationPage() {
     const keyword = trimmed(reservationSearch).toLowerCase();
     if (keyword) {
       list = list.filter((item) => {
-        const ticketBadges = getTicketBadgesForReservation(item);
-        const ticketText = buildTicketSearchText(item, ticketBadges);
+        const ticketText = getTicketBadgesForReservation(item)
+          .map((badge) => badge.label)
+          .join(" ");
 
         const saleText = [
           getReservationSaleSummary(item),
@@ -1067,12 +1075,17 @@ export default function ReservationPage() {
           .join(" ");
 
         const haystack = [
+          trimmed(item.customer_name),
+          trimmed(item.memo),
+          trimmed(item.menu),
+          trimmed(item.store_name),
+          trimmed(item.staff_name),
+          trimmed(item.payment_method),
           ticketText,
           saleText,
           trimmed(item.date),
           trimmed(item.start_time),
           trimmed(item.end_time),
-          trimmed(item.payment_method),
         ]
           .filter(Boolean)
           .join(" ")
@@ -1462,6 +1475,7 @@ export default function ReservationPage() {
     setAttendanceStaffName(STAFF_OPTIONS.includes(rememberedStaff) ? rememberedStaff : "山口");
     setAttendanceClockIn("10:00");
     setAttendanceClockOut("17:00");
+    setAttendanceMemo("");
     setError("");
     setSuccess("");
     setAttendanceFormOpen(true);
@@ -1546,8 +1560,7 @@ export default function ReservationPage() {
 
     return String(inserted.id);
   }
-
-  async function handleSaveReservation() {
+    async function handleSaveReservation() {
     if (!supabase) {
       setError("Supabaseの環境変数が設定されていません。");
       return;
@@ -1650,14 +1663,26 @@ export default function ReservationPage() {
       setError("");
       setSuccess("");
 
-      const { error } = await supabase.from("attendance_records").insert({
+      const basePayload = {
         staff_name: attendanceStaffName,
         work_date: attendanceDate,
         clock_in: attendanceClockIn,
         clock_out: trimmed(attendanceClockOut) || null,
+      };
+
+      const { error } = await supabase.from("attendance_records").insert({
+        ...basePayload,
+        memo: trimmed(attendanceMemo) || null,
       });
 
-      if (error) throw error;
+      if (error) {
+        if ((error as { code?: string }).code === "42703") {
+          const fallback = await supabase.from("attendance_records").insert(basePayload);
+          if (fallback.error) throw fallback.error;
+        } else {
+          throw error;
+        }
+      }
 
       setSuccess("スタッフ出勤を追加しました。");
       setAttendanceFormOpen(false);
@@ -1956,7 +1981,8 @@ export default function ReservationPage() {
       setConsumingReservationId("");
     }
   }
-    async function handleDeleteReservation(item: ReservationRow) {
+
+  async function handleDeleteReservation(item: ReservationRow) {
     if (!supabase) {
       setError("Supabaseの環境変数が設定されていません。");
       return;
@@ -2046,49 +2072,43 @@ export default function ReservationPage() {
         }
       }
 
-      if ((ticketUsageRows || []).length > 0) {
-        const usageIds = (ticketUsageRows || [])
-          .map((row) => toIdNumber((row as { id?: unknown }).id))
-          .filter((id): id is number => id !== null);
+      const usageIds = (ticketUsageRows || [])
+        .map((row) => toIdNumber((row as { id?: unknown }).id))
+        .filter((id): id is number => id !== null);
 
-        if (usageIds.length > 0) {
-          const { error: deleteTicketUsageError } = await supabase
-            .from("ticket_usages")
-            .delete()
-            .in("id", usageIds);
+      if (usageIds.length > 0) {
+        const { error: deleteTicketUsageError } = await supabase
+          .from("ticket_usages")
+          .delete()
+          .in("id", usageIds);
 
-          if (deleteTicketUsageError) throw deleteTicketUsageError;
-        }
+        if (deleteTicketUsageError) throw deleteTicketUsageError;
       }
 
-      if ((salesRows || []).length > 0) {
-        const saleIds = (salesRows || [])
-          .map((row) => toIdNumber((row as { id?: unknown }).id))
-          .filter((id): id is number => id !== null);
+      const saleIds = (salesRows || [])
+        .map((row) => toIdNumber((row as { id?: unknown }).id))
+        .filter((id): id is number => id !== null);
 
-        if (saleIds.length > 0) {
-          const { error: deleteSalesError } = await supabase
-            .from("sales")
-            .delete()
-            .in("id", saleIds);
+      if (saleIds.length > 0) {
+        const { error: deleteSalesError } = await supabase
+          .from("sales")
+          .delete()
+          .in("id", saleIds);
 
-          if (deleteSalesError) throw deleteSalesError;
-        }
+        if (deleteSalesError) throw deleteSalesError;
       }
 
-      if ((counselingRows || []).length > 0) {
-        const counselingIds = (counselingRows || [])
-          .map((row) => toIdNumber((row as { id?: unknown }).id))
-          .filter((id): id is number => id !== null);
+      const counselingIds = (counselingRows || [])
+        .map((row) => toIdNumber((row as { id?: unknown }).id))
+        .filter((id): id is number => id !== null);
 
-        if (counselingIds.length > 0) {
-          const { error: deleteCounselingError } = await supabase
-            .from("counselings")
-            .delete()
-            .in("id", counselingIds);
+      if (counselingIds.length > 0) {
+        const { error: deleteCounselingError } = await supabase
+          .from("counselings")
+          .delete()
+          .in("id", counselingIds);
 
-          if (deleteCounselingError) throw deleteCounselingError;
-        }
+        if (deleteCounselingError) throw deleteCounselingError;
       }
 
       const { error: deleteReservationError } = await supabase
@@ -2098,7 +2118,6 @@ export default function ReservationPage() {
 
       if (deleteReservationError) throw deleteReservationError;
 
-      setOpenedMemoReservationIds((prev) => prev.filter((id) => id !== String(item.id)));
       setOpenedActionReservationIds((prev) => prev.filter((id) => id !== String(item.id)));
       setSuccess("予約を削除しました。");
 
@@ -2115,13 +2134,6 @@ export default function ReservationPage() {
     } finally {
       setDeletingReservationId("");
     }
-  }
-
-  function toggleReservationMemo(reservationId: string | number) {
-    const key = String(reservationId);
-    setOpenedMemoReservationIds((prev) =>
-      prev.includes(key) ? prev.filter((id) => id !== key) : [...prev, key]
-    );
   }
 
   function toggleReservationActions(reservationId: string | number) {
@@ -2239,11 +2251,11 @@ export default function ReservationPage() {
                   ...(selectedFilterMode === "pending" ? styles.pendingFilterBtnActive : {}),
                 }}
               >
-                {selectedFilterMode === "pending" ? "未処理だけ表示中" : "未処理だけ"}
+                未処理だけ
               </button>
 
               <button type="button" onClick={() => router.push("/dashboard")} style={styles.topBtn}>
-                TOPへ戻る
+                TOP
               </button>
             </div>
           </div>
@@ -2563,10 +2575,10 @@ export default function ReservationPage() {
 
                 <div style={styles.sheetHeaderBtns}>
                   <button type="button" onClick={() => openCreateModal(selectedDate)} style={styles.sheetActionBtn}>
-                    ＋予約追加
+                    ＋予約
                   </button>
                   <button type="button" onClick={() => openAttendanceModal(selectedDate)} style={styles.sheetAttendanceBtn}>
-                    ＋出勤追加
+                    ＋出勤
                   </button>
                   <button type="button" onClick={() => setDaySheetOpen(false)} style={styles.sheetCloseBtn}>
                     閉じる
@@ -2602,8 +2614,7 @@ export default function ReservationPage() {
                         </div>
                       );
                     }
-
-                    const item = timelineItem.reservation;
+                                        const item = timelineItem.reservation;
                     const ticketBadges = getTicketBadgesForReservation(item);
                     const actionOpened = openedActionReservationIds.includes(String(item.id));
                     const reservationId = toIdNumber(item.id);
@@ -2741,7 +2752,11 @@ export default function ReservationPage() {
               <div style={styles.formGrid}>
                 <div style={styles.formBlockFull}>
                   <label style={styles.label}>スタッフ</label>
-                  <select value={attendanceStaffName} onChange={(e) => setAttendanceStaffName(e.target.value)} style={styles.input}>
+                  <select
+                    value={attendanceStaffName}
+                    onChange={(e) => setAttendanceStaffName(e.target.value)}
+                    style={styles.input}
+                  >
                     {STAFF_OPTIONS.map((option) => (
                       <option key={option} value={option}>
                         {option}
@@ -2752,25 +2767,60 @@ export default function ReservationPage() {
 
                 <div>
                   <label style={styles.label}>日付</label>
-                  <input type="date" value={attendanceDate} onChange={(e) => setAttendanceDate(e.target.value)} style={styles.input} />
+                  <input
+                    type="date"
+                    value={attendanceDate}
+                    onChange={(e) => setAttendanceDate(e.target.value)}
+                    style={styles.input}
+                  />
                 </div>
 
                 <div>
                   <label style={styles.label}>出勤</label>
-                  <input type="time" value={attendanceClockIn} onChange={(e) => setAttendanceClockIn(e.target.value)} style={styles.input} />
+                  <input
+                    type="time"
+                    value={attendanceClockIn}
+                    onChange={(e) => setAttendanceClockIn(e.target.value)}
+                    style={styles.input}
+                  />
                 </div>
 
                 <div>
                   <label style={styles.label}>退勤</label>
-                  <input type="time" value={attendanceClockOut} onChange={(e) => setAttendanceClockOut(e.target.value)} style={styles.input} />
+                  <input
+                    type="time"
+                    value={attendanceClockOut}
+                    onChange={(e) => setAttendanceClockOut(e.target.value)}
+                    style={styles.input}
+                  />
+                </div>
+
+                <div style={styles.formBlockFull}>
+                  <label style={styles.label}>メモ</label>
+                  <textarea
+                    value={attendanceMemo}
+                    onChange={(e) => setAttendanceMemo(e.target.value)}
+                    rows={3}
+                    style={styles.textarea}
+                    placeholder="例：ヘルプ勤務 / 早上がり / 研修など"
+                  />
                 </div>
               </div>
 
               <div style={styles.modalFooter}>
-                <button type="button" onClick={() => setAttendanceFormOpen(false)} style={styles.cancelBtn}>
+                <button
+                  type="button"
+                  onClick={() => setAttendanceFormOpen(false)}
+                  style={styles.cancelBtn}
+                >
                   キャンセル
                 </button>
-                <button type="button" onClick={() => void handleSaveAttendance()} style={styles.saveBtn} disabled={attendanceSaving}>
+                <button
+                  type="button"
+                  onClick={() => void handleSaveAttendance()}
+                  style={styles.saveBtn}
+                  disabled={attendanceSaving}
+                >
                   {attendanceSaving ? "保存中..." : "保存する"}
                 </button>
               </div>
@@ -2818,22 +2868,42 @@ export default function ReservationPage() {
 
                 <div style={styles.formBlockFull}>
                   <label style={styles.label}>顧客名</label>
-                  <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="山田 太郎" style={styles.input} />
+                  <input
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="山田 太郎"
+                    style={styles.input}
+                  />
                 </div>
 
                 <div>
                   <label style={styles.label}>かな</label>
-                  <input value={customerKana} onChange={(e) => setCustomerKana(e.target.value)} placeholder="やまだ たろう" style={styles.input} />
+                  <input
+                    value={customerKana}
+                    onChange={(e) => setCustomerKana(e.target.value)}
+                    placeholder="やまだ たろう"
+                    style={styles.input}
+                  />
                 </div>
 
                 <div>
                   <label style={styles.label}>電話番号</label>
-                  <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="09012345678" style={styles.input} />
+                  <input
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    placeholder="09012345678"
+                    style={styles.input}
+                  />
                 </div>
 
                 <div>
                   <label style={styles.label}>日付</label>
-                  <input type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} style={styles.input} />
+                  <input
+                    type="date"
+                    value={formDate}
+                    onChange={(e) => setFormDate(e.target.value)}
+                    style={styles.input}
+                  />
                 </div>
 
                 <div>
@@ -2849,7 +2919,12 @@ export default function ReservationPage() {
 
                 <div>
                   <label style={styles.label}>開始時間</label>
-                  <input type="time" value={startTime} onChange={(e) => handleChangeStartTime(e.target.value)} style={styles.input} />
+                  <input
+                    type="time"
+                    value={startTime}
+                    onChange={(e) => handleChangeStartTime(e.target.value)}
+                    style={styles.input}
+                  />
                 </div>
 
                 <div>
@@ -2900,7 +2975,11 @@ export default function ReservationPage() {
 
                 <div>
                   <label style={styles.label}>支払方法</label>
-                  <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} style={styles.input}>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    style={styles.input}
+                  >
                     {PAYMENT_OPTIONS.map((option) => (
                       <option key={option} value={option}>
                         {option}
@@ -2911,7 +2990,13 @@ export default function ReservationPage() {
 
                 <div style={styles.formBlockFull}>
                   <label style={styles.label}>メモ</label>
-                  <textarea value={memo} onChange={(e) => setMemo(e.target.value)} rows={4} style={styles.textarea} placeholder="備考があれば入力" />
+                  <textarea
+                    value={memo}
+                    onChange={(e) => setMemo(e.target.value)}
+                    rows={4}
+                    style={styles.textarea}
+                    placeholder="備考があれば入力"
+                  />
                 </div>
               </div>
 
@@ -3095,43 +3180,40 @@ const styles: Record<string, CSSProperties> = {
     cursor: "pointer",
   },
   topRightBtns: {
-    display: "flex",
+    display: "grid",
+    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
     gap: 8,
-    flexWrap: "wrap",
   },
   attendanceTopBtn: {
-    flex: 1,
     minWidth: 0,
     border: "none",
     background: "linear-gradient(135deg, #16a34a, #15803d)",
     color: "#fff",
     borderRadius: 14,
-    padding: "12px 14px",
-    fontSize: 13,
+    padding: "11px 8px",
+    fontSize: 12,
     fontWeight: 900,
     cursor: "pointer",
   },
   counselingTopBtn: {
-    flex: 1,
     minWidth: 0,
     border: "none",
     background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
     color: "#fff",
     borderRadius: 14,
-    padding: "12px 14px",
-    fontSize: 13,
+    padding: "11px 8px",
+    fontSize: 12,
     fontWeight: 900,
     cursor: "pointer",
   },
   pendingFilterBtn: {
-    flex: 1,
     minWidth: 0,
     border: "1px solid #fecaca",
     background: "#fff1f2",
     color: "#b91c1c",
     borderRadius: 14,
-    padding: "12px 14px",
-    fontSize: 13,
+    padding: "11px 8px",
+    fontSize: 12,
     fontWeight: 900,
     cursor: "pointer",
   },
@@ -3141,14 +3223,13 @@ const styles: Record<string, CSSProperties> = {
     border: "1px solid #dc2626",
   },
   topBtn: {
-    flex: 1,
     minWidth: 0,
     border: "1px solid #dbe2ea",
     background: "#fff",
     color: "#334155",
     borderRadius: 14,
-    padding: "12px 14px",
-    fontSize: 13,
+    padding: "11px 8px",
+    fontSize: 12,
     fontWeight: 900,
     cursor: "pointer",
   },
@@ -3161,9 +3242,9 @@ const styles: Record<string, CSSProperties> = {
   summaryPill: {
     border: "1px solid transparent",
     borderRadius: 16,
-    padding: 12,
+    padding: 10,
     display: "grid",
-    gap: 4,
+    gap: 2,
     textAlign: "left",
     cursor: "pointer",
     boxShadow: "0 10px 24px rgba(15,23,42,0.05)",
@@ -3173,15 +3254,15 @@ const styles: Record<string, CSSProperties> = {
     outlineOffset: -2,
   },
   summaryLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 900,
   },
   summaryCount: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 900,
   },
   summaryCountDanger: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 900,
     color: "#dc2626",
   },
@@ -3191,26 +3272,26 @@ const styles: Record<string, CSSProperties> = {
     gap: 8,
     background: "#fff",
     borderRadius: 14,
-    padding: "10px 12px",
+    padding: "9px 12px",
     border: "1px solid #e2e8f0",
     boxShadow: "0 10px 24px rgba(15,23,42,0.04)",
     marginBottom: 10,
     flexWrap: "wrap",
   },
   activeFilterLabel: {
-    fontSize: 13,
+    fontSize: 12,
     color: "#0f172a",
     fontWeight: 800,
   },
   activeFilterValue: {
-    fontSize: 13,
+    fontSize: 12,
     color: "#2563eb",
     fontWeight: 900,
   },
   searchPanel: {
     background: "#fff",
     borderRadius: 18,
-    padding: 12,
+    padding: 11,
     boxShadow: "0 10px 24px rgba(15,23,42,0.06)",
     border: "1px solid #e2e8f0",
     marginBottom: 10,
@@ -3218,16 +3299,16 @@ const styles: Record<string, CSSProperties> = {
   searchModeRow: {
     display: "flex",
     gap: 8,
-    marginBottom: 10,
+    marginBottom: 9,
   },
   searchModeBtn: {
     flex: 1,
     borderRadius: 12,
-    padding: "10px 12px",
+    padding: "9px 12px",
     border: "1px solid #dbe2ea",
     background: "#f8fafc",
     color: "#334155",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 800,
     cursor: "pointer",
   },
@@ -3238,7 +3319,7 @@ const styles: Record<string, CSSProperties> = {
   },
   searchInput: {
     width: "100%",
-    height: 44,
+    height: 42,
     borderRadius: 12,
     border: "1px solid #dbe2ea",
     background: "#fff",
@@ -3378,12 +3459,12 @@ const styles: Record<string, CSSProperties> = {
   calendarGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(7, 1fr)",
-    gridAutoRows: "172px",
+    gridAutoRows: "168px",
   },
   dayCell: {
-    height: "172px",
-    minHeight: "172px",
-    maxHeight: "172px",
+    height: "168px",
+    minHeight: "168px",
+    maxHeight: "168px",
     border: "none",
     borderRight: "1px solid #f1f5f9",
     borderBottom: "1px solid #f1f5f9",
@@ -3407,7 +3488,7 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 5,
+    marginBottom: 4,
     flexShrink: 0,
   },
   dayNumber: {
@@ -3584,31 +3665,31 @@ const styles: Record<string, CSSProperties> = {
     height: 5,
     borderRadius: 999,
     background: "#cbd5e1",
-    margin: "4px auto 12px",
+    margin: "4px auto 10px",
   },
   sheetHeader: {
     display: "flex",
     alignItems: "flex-start",
     justifyContent: "space-between",
     gap: 10,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   sheetSubTitle: {
-    fontSize: 11,
+    fontSize: 10,
     color: "#64748b",
     fontWeight: 800,
-    marginBottom: 4,
+    marginBottom: 3,
   },
   sheetTitle: {
     margin: 0,
-    fontSize: 20,
+    fontSize: 19,
     color: "#0f172a",
     fontWeight: 900,
-    lineHeight: 1.3,
+    lineHeight: 1.25,
   },
   sheetHeaderBtns: {
     display: "flex",
-    gap: 6,
+    gap: 5,
     flexWrap: "wrap",
     justifyContent: "flex-end",
   },
@@ -3617,8 +3698,8 @@ const styles: Record<string, CSSProperties> = {
     background: "linear-gradient(135deg, #f59e0b, #d97706)",
     color: "#fff",
     borderRadius: 999,
-    padding: "9px 11px",
-    fontSize: 12,
+    padding: "8px 10px",
+    fontSize: 11,
     fontWeight: 900,
     cursor: "pointer",
   },
@@ -3627,8 +3708,8 @@ const styles: Record<string, CSSProperties> = {
     background: "linear-gradient(135deg, #16a34a, #15803d)",
     color: "#fff",
     borderRadius: 999,
-    padding: "9px 11px",
-    fontSize: 12,
+    padding: "8px 10px",
+    fontSize: 11,
     fontWeight: 900,
     cursor: "pointer",
   },
@@ -3637,8 +3718,8 @@ const styles: Record<string, CSSProperties> = {
     background: "#fff",
     color: "#334155",
     borderRadius: 999,
-    padding: "9px 11px",
-    fontSize: 12,
+    padding: "8px 10px",
+    fontSize: 11,
     fontWeight: 900,
     cursor: "pointer",
   },
@@ -3655,42 +3736,42 @@ const styles: Record<string, CSSProperties> = {
   timeTreeList: {
     display: "grid",
     gap: 0,
-    padding: "2px 0 12px",
+    padding: "0 0 12px",
   },
   timeTreeCard: {
     borderBottom: "1px solid #f1f5f9",
-    padding: "2px 0 6px",
+    padding: "1px 0 4px",
     background: "#fff",
   },
   timeTreeItem: {
     display: "flex",
     alignItems: "center",
-    gap: 9,
+    gap: 8,
     width: "100%",
-    minHeight: 54,
+    minHeight: 48,
   },
   timeTreeTimeCol: {
-    width: 54,
+    width: 50,
     flexShrink: 0,
     textAlign: "right",
     paddingRight: 2,
   },
   timeTreeStart: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: 900,
     color: "#111827",
     lineHeight: 1.05,
   },
   timeTreeEnd: {
-    marginTop: 6,
-    fontSize: 13,
+    marginTop: 5,
+    fontSize: 12,
     fontWeight: 700,
     color: "#9ca3af",
     lineHeight: 1.05,
   },
   timeTreeLine: {
     width: 4,
-    minHeight: 42,
+    minHeight: 38,
     alignSelf: "stretch",
     borderRadius: 999,
     flexShrink: 0,
@@ -3712,16 +3793,16 @@ const styles: Record<string, CSSProperties> = {
   timeTreeTitleRow: {
     display: "flex",
     alignItems: "center",
-    gap: 6,
+    gap: 5,
     minWidth: 0,
     flexWrap: "wrap",
   },
   timeTreeTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 900,
     color: "#171717",
     letterSpacing: "-0.03em",
-    lineHeight: 1.18,
+    lineHeight: 1.12,
   },
   timeTreeTicketGroup: {
     display: "inline-flex",
@@ -3733,14 +3814,14 @@ const styles: Record<string, CSSProperties> = {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    minWidth: 32,
-    height: 19,
-    padding: "0 7px",
+    minWidth: 30,
+    height: 18,
+    padding: "0 6px",
     borderRadius: 999,
     background: "#eff6ff",
     color: "#1d4ed8",
     border: "1px solid #bfdbfe",
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: 900,
     lineHeight: 1,
     whiteSpace: "nowrap",
@@ -3757,44 +3838,44 @@ const styles: Record<string, CSSProperties> = {
   },
   timeTreeMemo: {
     marginTop: 2,
-    fontSize: 12,
+    fontSize: 11,
     color: "#8b8b8b",
     fontWeight: 700,
-    lineHeight: 1.25,
+    lineHeight: 1.18,
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
   timeTreeMemoMuted: {
     marginTop: 2,
-    fontSize: 11,
+    fontSize: 10,
     color: "#c4c4c4",
     fontWeight: 700,
-    lineHeight: 1.25,
+    lineHeight: 1.18,
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
   timeTreeSale: {
     marginTop: 2,
-    fontSize: 11,
+    fontSize: 10,
     color: "#0f766e",
     fontWeight: 800,
-    lineHeight: 1.25,
+    lineHeight: 1.18,
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
   timeTreeSaleMuted: {
     marginTop: 2,
-    fontSize: 11,
+    fontSize: 10,
     color: "#ef4444",
     fontWeight: 900,
-    lineHeight: 1.25,
+    lineHeight: 1.18,
   },
   timeTreeSub: {
     marginTop: 1,
-    fontSize: 11,
+    fontSize: 10,
     color: "#94a3b8",
     fontWeight: 700,
     whiteSpace: "nowrap",
@@ -3802,44 +3883,44 @@ const styles: Record<string, CSSProperties> = {
     textOverflow: "ellipsis",
   },
   timeTreeAvatar: {
-    width: 34,
-    height: 34,
+    width: 31,
+    height: 31,
     borderRadius: 999,
     color: "#fff",
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: 900,
     flexShrink: 0,
   },
   timeTreeOperationLine: {
-    marginTop: -3,
-    paddingLeft: 67,
+    marginTop: -4,
+    paddingLeft: 62,
   },
   timeTreeOperationBtn: {
     border: "none",
     background: "transparent",
     color: "#94a3b8",
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: 800,
-    padding: "3px 0",
+    padding: "2px 0",
     cursor: "pointer",
   },
   timeTreeDrawer: {
-    marginLeft: 67,
-    marginTop: 4,
+    marginLeft: 62,
+    marginTop: 3,
     display: "grid",
     gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-    gap: 7,
+    gap: 6,
   },
   timeTreeBlueBtn: {
     border: "none",
     background: "#2563eb",
     color: "#fff",
-    borderRadius: 11,
-    padding: "8px 7px",
-    fontSize: 12,
+    borderRadius: 10,
+    padding: "7px 6px",
+    fontSize: 11,
     fontWeight: 900,
     cursor: "pointer",
   },
@@ -3847,9 +3928,9 @@ const styles: Record<string, CSSProperties> = {
     border: "none",
     background: "#f59e0b",
     color: "#fff",
-    borderRadius: 11,
-    padding: "8px 7px",
-    fontSize: 12,
+    borderRadius: 10,
+    padding: "7px 6px",
+    fontSize: 11,
     fontWeight: 900,
     cursor: "pointer",
   },
@@ -3857,9 +3938,9 @@ const styles: Record<string, CSSProperties> = {
     border: "none",
     background: "#111827",
     color: "#fff",
-    borderRadius: 11,
-    padding: "8px 7px",
-    fontSize: 12,
+    borderRadius: 10,
+    padding: "7px 6px",
+    fontSize: 11,
     fontWeight: 900,
     cursor: "pointer",
   },
@@ -3867,9 +3948,9 @@ const styles: Record<string, CSSProperties> = {
     border: "none",
     background: "#dc2626",
     color: "#fff",
-    borderRadius: 11,
-    padding: "8px 7px",
-    fontSize: 12,
+    borderRadius: 10,
+    padding: "7px 6px",
+    fontSize: 11,
     fontWeight: 900,
     cursor: "pointer",
   },
