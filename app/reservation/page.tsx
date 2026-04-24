@@ -150,6 +150,8 @@ type FilterMode =
 
 type SearchMode = "customer" | "staff";
 
+type AttendanceFormMode = "create" | "edit";
+
 type DayTimelineItem =
   | {
       type: "attendance";
@@ -404,7 +406,7 @@ function extractErrorMessage(error: unknown): string {
       typeof maybe.message === "string" ? maybe.message : "",
       typeof maybe.details === "string" ? maybe.details : "",
       typeof maybe.hint === "string" ? maybe.hint : "",
-      typeof maybe.code === "string" ? `code: ${maybe.code}` : "",
+      typeof maybe.code === "string" ? `コード: ${maybe.code}` : "",
     ].filter(Boolean);
 
     if (parts.length > 0) return parts.join(" / ");
@@ -558,6 +560,7 @@ export default function ReservationPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [attendanceSaving, setAttendanceSaving] = useState(false);
+  const [attendanceDeletingId, setAttendanceDeletingId] = useState("");
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -573,6 +576,8 @@ export default function ReservationPage() {
   const [daySheetOpen, setDaySheetOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [attendanceFormOpen, setAttendanceFormOpen] = useState(false);
+  const [attendanceFormMode, setAttendanceFormMode] = useState<AttendanceFormMode>("create");
+  const [editingAttendanceId, setEditingAttendanceId] = useState("");
   const [counselingPickerOpen, setCounselingPickerOpen] = useState(false);
 
   const [reservations, setReservations] = useState<ReservationRow[]>([]);
@@ -612,6 +617,7 @@ export default function ReservationPage() {
   const [consumingReservationId, setConsumingReservationId] = useState("");
   const [deletingReservationId, setDeletingReservationId] = useState("");
   const [openedActionReservationIds, setOpenedActionReservationIds] = useState<string[]>([]);
+  const [openedAttendanceActionIds, setOpenedAttendanceActionIds] = useState<string[]>([]);
 
   const [reservationSearch, setReservationSearch] = useState("");
   const [globalSearch, setGlobalSearch] = useState("");
@@ -699,15 +705,15 @@ export default function ReservationPage() {
 
       if (error) throw error;
 
-      const normalized = ((data as CustomerRow[]) || []).map((row) => ({
-        id: String(row.id),
-        name: row.name || "",
-        kana: row.kana || "",
-        phone: row.phone || "",
-        planType: row.plan_type || "",
-      }));
-
-      setCustomers(normalized);
+      setCustomers(
+        ((data as CustomerRow[]) || []).map((row) => ({
+          id: String(row.id),
+          name: row.name || "",
+          kana: row.kana || "",
+          phone: row.phone || "",
+          planType: row.plan_type || "",
+        }))
+      );
     } catch (e) {
       console.error(e);
       setError(`顧客取得エラー: ${extractErrorMessage(e)}`);
@@ -765,11 +771,7 @@ export default function ReservationPage() {
         .order("clock_in", { ascending: true });
 
       if (error) {
-        if (
-          (error as { code?: string }).code === "PGRST205" ||
-          (error as { code?: string }).code === "42P01" ||
-          (error as { code?: string }).code === "42703"
-        ) {
+        if ((error as { code?: string }).code === "PGRST204") {
           const fallback = await supabase
             .from("attendance_records")
             .select("id, staff_name, work_date, clock_in, clock_out")
@@ -778,10 +780,7 @@ export default function ReservationPage() {
             .order("work_date", { ascending: true })
             .order("clock_in", { ascending: true });
 
-          if (fallback.error) {
-            setAttendanceItems([]);
-            return;
-          }
+          if (fallback.error) throw fallback.error;
 
           setAttendanceItems(
             ((fallback.data as Record<string, unknown>[]) || []).map((row) => ({
@@ -795,6 +794,15 @@ export default function ReservationPage() {
           );
           return;
         }
+
+        if (
+          (error as { code?: string }).code === "PGRST205" ||
+          (error as { code?: string }).code === "42P01"
+        ) {
+          setAttendanceItems([]);
+          return;
+        }
+
         throw error;
       }
 
@@ -819,13 +827,12 @@ export default function ReservationPage() {
     if (!q) return customers.slice(0, 25);
 
     return customers
-      .filter((c) => {
-        return (
+      .filter(
+        (c) =>
           c.name.toLowerCase().includes(q) ||
           c.kana.toLowerCase().includes(q) ||
           c.phone.includes(q)
-        );
-      })
+      )
       .slice(0, 25);
   }, [customerSearch, customers]);
 
@@ -834,20 +841,18 @@ export default function ReservationPage() {
     if (!q || searchMode !== "customer") return [];
 
     return customers
-      .filter((c) => {
-        return (
+      .filter(
+        (c) =>
           c.name.toLowerCase().includes(q) ||
           c.kana.toLowerCase().includes(q) ||
           c.phone.includes(q)
-        );
-      })
+      )
       .slice(0, 20);
   }, [customers, globalSearch, searchMode]);
 
   const filteredStaffSearchResults = useMemo(() => {
     const q = trimmed(globalSearch).toLowerCase();
     if (!q || searchMode !== "staff") return [];
-
     return STAFF_OPTIONS.filter((staff) => staff.toLowerCase().includes(q)).slice(0, 20);
   }, [globalSearch, searchMode]);
 
@@ -1464,18 +1469,33 @@ export default function ReservationPage() {
     setFormOpen(true);
   }
 
-  function openAttendanceModal(dateStr?: string) {
+  function openAttendanceCreateModal(dateStr?: string) {
     const useDate = dateStr || selectedDate || toYmd(new Date());
     const rememberedStaff =
       typeof window !== "undefined"
         ? trimmed(localStorage.getItem(STAFF_NAME_STORAGE_KEY))
         : "";
 
+    setAttendanceFormMode("create");
+    setEditingAttendanceId("");
     setAttendanceDate(useDate);
     setAttendanceStaffName(STAFF_OPTIONS.includes(rememberedStaff) ? rememberedStaff : "山口");
     setAttendanceClockIn("10:00");
     setAttendanceClockOut("17:00");
     setAttendanceMemo("");
+    setError("");
+    setSuccess("");
+    setAttendanceFormOpen(true);
+  }
+
+  function openAttendanceEditModal(item: StaffAttendanceItem) {
+    setAttendanceFormMode("edit");
+    setEditingAttendanceId(String(item.id));
+    setAttendanceDate(trimmed(item.work_date) || selectedDate);
+    setAttendanceStaffName(trimmed(item.staff_name) || "山口");
+    setAttendanceClockIn(trimmed(item.clock_in) || "10:00");
+    setAttendanceClockOut(trimmed(item.clock_out) || "");
+    setAttendanceMemo(trimmed(item.memo));
     setError("");
     setSuccess("");
     setAttendanceFormOpen(true);
@@ -1501,10 +1521,7 @@ export default function ReservationPage() {
     const phone = normalizePhone(rawPhone);
 
     if (!name) return null;
-
-    if (selectedCustomerId) {
-      return selectedCustomerId;
-    }
+    if (selectedCustomerId) return selectedCustomerId;
 
     const localMatch = customers.find((c) => {
       const sameName = trimmed(c.name) === name;
@@ -1522,13 +1539,8 @@ export default function ReservationPage() {
         .limit(1)
         .maybeSingle();
 
-      if (phoneMatchError) {
-        console.warn(phoneMatchError);
-      }
-
-      if (phoneMatch) {
-        return String((phoneMatch as CustomerRow).id);
-      }
+      if (phoneMatchError) console.warn(phoneMatchError);
+      if (phoneMatch) return String((phoneMatch as CustomerRow).id);
     }
 
     const { data: nameMatch, error: nameMatchError } = await supabase
@@ -1538,13 +1550,8 @@ export default function ReservationPage() {
       .limit(1)
       .maybeSingle();
 
-    if (nameMatchError) {
-      console.warn(nameMatchError);
-    }
-
-    if (nameMatch) {
-      return String((nameMatch as CustomerRow).id);
-    }
+    if (nameMatchError) console.warn(nameMatchError);
+    if (nameMatch) return String((nameMatch as CustomerRow).id);
 
     const { data: inserted, error: insertError } = await supabase
       .from("customers")
@@ -1670,22 +1677,54 @@ export default function ReservationPage() {
         clock_out: trimmed(attendanceClockOut) || null,
       };
 
-      const { error } = await supabase.from("attendance_records").insert({
+      const payloadWithMemo = {
         ...basePayload,
         memo: trimmed(attendanceMemo) || null,
-      });
+      };
 
-      if (error) {
-        if ((error as { code?: string }).code === "42703") {
-          const fallback = await supabase.from("attendance_records").insert(basePayload);
-          if (fallback.error) throw fallback.error;
-        } else {
-          throw error;
+      if (attendanceFormMode === "edit") {
+        if (!editingAttendanceId) {
+          setError("編集対象の出勤データがありません。");
+          return;
         }
+
+        const { error } = await supabase
+          .from("attendance_records")
+          .update(payloadWithMemo)
+          .eq("id", editingAttendanceId);
+
+        if (error) {
+          if ((error as { code?: string }).code === "PGRST204") {
+            const fallback = await supabase
+              .from("attendance_records")
+              .update(basePayload)
+              .eq("id", editingAttendanceId);
+
+            if (fallback.error) throw fallback.error;
+          } else {
+            throw error;
+          }
+        }
+
+        setSuccess("スタッフ出勤を編集しました。");
+      } else {
+        const { error } = await supabase.from("attendance_records").insert(payloadWithMemo);
+
+        if (error) {
+          if ((error as { code?: string }).code === "PGRST204") {
+            const fallback = await supabase.from("attendance_records").insert(basePayload);
+            if (fallback.error) throw fallback.error;
+          } else {
+            throw error;
+          }
+        }
+
+        setSuccess("スタッフ出勤を追加しました。");
       }
 
-      setSuccess("スタッフ出勤を追加しました。");
       setAttendanceFormOpen(false);
+      setEditingAttendanceId("");
+      setAttendanceFormMode("create");
       setSelectedDate(attendanceDate);
       setDaySheetOpen(true);
 
@@ -1695,6 +1734,41 @@ export default function ReservationPage() {
       setError(`出勤保存エラー: ${extractErrorMessage(e)}`);
     } finally {
       setAttendanceSaving(false);
+    }
+  }
+
+  async function handleDeleteAttendance(item: StaffAttendanceItem) {
+    if (!supabase) {
+      setError("Supabaseの環境変数が設定されていません。");
+      return;
+    }
+
+    const ok = window.confirm(
+      `${trimmed(item.staff_name) || "スタッフ"} の出勤データを削除しますか？`
+    );
+    if (!ok) return;
+
+    try {
+      setAttendanceDeletingId(String(item.id));
+      setError("");
+      setSuccess("");
+
+      const { error } = await supabase
+        .from("attendance_records")
+        .delete()
+        .eq("id", item.id);
+
+      if (error) throw error;
+
+      setOpenedAttendanceActionIds((prev) => prev.filter((id) => id !== String(item.id)));
+      setSuccess("スタッフ出勤を削除しました。");
+
+      await loadAttendance();
+    } catch (e) {
+      console.error(e);
+      setError(`出勤削除エラー: ${extractErrorMessage(e)}`);
+    } finally {
+      setAttendanceDeletingId("");
     }
   }
 
@@ -1800,8 +1874,7 @@ export default function ReservationPage() {
       setError("");
       setSuccess("");
 
-      const alreadyUsed = ticketUsedReservationIdSet.has(reservationId);
-      if (alreadyUsed) {
+      if (ticketUsedReservationIdSet.has(reservationId)) {
         setError("この予約はすでに回数券消化済みです。");
         return;
       }
@@ -1832,25 +1905,12 @@ export default function ReservationPage() {
         customerPlanType: (customerRow as { plan_type?: string | null }).plan_type,
       });
 
-      if (!ticketName) {
-        const fallbackContract = getTicketContractForReservation(item);
-        if (!fallbackContract || !trimmed(fallbackContract.ticket_name)) {
-          setError("有効な回数券契約が見つかりません。");
-          return;
-        }
-
-        const fallbackName = trimmed(fallbackContract.ticket_name);
-        const fallbackUnitPrice = TICKET_UNIT_PRICES[fallbackName];
-        if (!fallbackUnitPrice) {
-          setError(`単価設定がありません: ${fallbackName}`);
-          return;
-        }
-      }
-
-      const resolvedName = ticketName || trimmed(getTicketContractForReservation(item)?.ticket_name);
+      const fallbackContract = getTicketContractForReservation(item);
+      const resolvedName = ticketName || trimmed(fallbackContract?.ticket_name);
       const unitPrice = TICKET_UNIT_PRICES[resolvedName];
-      if (!unitPrice) {
-        setError(`単価設定がありません: ${resolvedName}`);
+
+      if (!resolvedName || !unitPrice) {
+        setError(`単価設定がありません: ${resolvedName || "未設定"}`);
         return;
       }
 
@@ -1894,7 +1954,6 @@ export default function ReservationPage() {
       const nextRemaining = remainingCount - 1;
       const nextUsed = usedCount + 1;
       const nextBalance = Math.max(prepaidBalance - unitPrice, 0);
-
       const serviceType = detectServiceTypeFromTicketName(resolvedName);
 
       const { error: usageInsertError } = await supabase.from("ticket_usages").insert({
@@ -1944,9 +2003,7 @@ export default function ReservationPage() {
 
       const { error: reservationUpdateError } = await supabase
         .from("reservations")
-        .update({
-          reservation_status: "売上済",
-        })
+        .update({ reservation_status: "売上済" })
         .eq("id", reservationId);
 
       if (reservationUpdateError) throw reservationUpdateError;
@@ -2018,8 +2075,10 @@ export default function ReservationPage() {
 
       const warnings: string[] = [];
       if ((salesRows || []).length > 0) warnings.push(`売上 ${(salesRows || []).length}件`);
-      if ((counselingRows || []).length > 0) warnings.push(`カウンセリング ${(counselingRows || []).length}件`);
-      if ((ticketUsageRows || []).length > 0) warnings.push(`回数券消化 ${(ticketUsageRows || []).length}件`);
+      if ((counselingRows || []).length > 0)
+        warnings.push(`カウンセリング ${(counselingRows || []).length}件`);
+      if ((ticketUsageRows || []).length > 0)
+        warnings.push(`回数券消化 ${(ticketUsageRows || []).length}件`);
 
       const ok = window.confirm(
         warnings.length > 0
@@ -2077,12 +2136,8 @@ export default function ReservationPage() {
         .filter((id): id is number => id !== null);
 
       if (usageIds.length > 0) {
-        const { error: deleteTicketUsageError } = await supabase
-          .from("ticket_usages")
-          .delete()
-          .in("id", usageIds);
-
-        if (deleteTicketUsageError) throw deleteTicketUsageError;
+        const { error } = await supabase.from("ticket_usages").delete().in("id", usageIds);
+        if (error) throw error;
       }
 
       const saleIds = (salesRows || [])
@@ -2090,12 +2145,8 @@ export default function ReservationPage() {
         .filter((id): id is number => id !== null);
 
       if (saleIds.length > 0) {
-        const { error: deleteSalesError } = await supabase
-          .from("sales")
-          .delete()
-          .in("id", saleIds);
-
-        if (deleteSalesError) throw deleteSalesError;
+        const { error } = await supabase.from("sales").delete().in("id", saleIds);
+        if (error) throw error;
       }
 
       const counselingIds = (counselingRows || [])
@@ -2103,12 +2154,8 @@ export default function ReservationPage() {
         .filter((id): id is number => id !== null);
 
       if (counselingIds.length > 0) {
-        const { error: deleteCounselingError } = await supabase
-          .from("counselings")
-          .delete()
-          .in("id", counselingIds);
-
-        if (deleteCounselingError) throw deleteCounselingError;
+        const { error } = await supabase.from("counselings").delete().in("id", counselingIds);
+        if (error) throw error;
       }
 
       const { error: deleteReservationError } = await supabase
@@ -2139,6 +2186,13 @@ export default function ReservationPage() {
   function toggleReservationActions(reservationId: string | number) {
     const key = String(reservationId);
     setOpenedActionReservationIds((prev) =>
+      prev.includes(key) ? prev.filter((id) => id !== key) : [...prev, key]
+    );
+  }
+
+  function toggleAttendanceActions(attendanceId: string | number) {
+    const key = String(attendanceId);
+    setOpenedAttendanceActionIds((prev) =>
       prev.includes(key) ? prev.filter((id) => id !== key) : [...prev, key]
     );
   }
@@ -2221,28 +2275,18 @@ export default function ReservationPage() {
         <section style={styles.topBar}>
           <div style={styles.topHeaderRow}>
             <div style={styles.monthRow}>
-              <button type="button" onClick={goPrevMonth} style={styles.arrowBtn}>
-                ‹
-              </button>
+              <button type="button" onClick={goPrevMonth} style={styles.arrowBtn}>‹</button>
               <h1 style={styles.monthTitle}>{formatMonthTitle(currentMonth)}</h1>
-              <button type="button" onClick={goNextMonth} style={styles.arrowBtn}>
-                ›
-              </button>
+              <button type="button" onClick={goNextMonth} style={styles.arrowBtn}>›</button>
             </div>
 
             <div style={styles.topRightBtns}>
-              <button
-                type="button"
-                onClick={() => openAttendanceModal(selectedDate)}
-                style={styles.attendanceTopBtn}
-              >
+              <button type="button" onClick={() => openAttendanceCreateModal(selectedDate)} style={styles.attendanceTopBtn}>
                 出勤追加
               </button>
-
               <button type="button" onClick={handleOpenCounselingPicker} style={styles.counselingTopBtn}>
                 カウンセリング
               </button>
-
               <button
                 type="button"
                 onClick={() => setFilterMode("pending")}
@@ -2253,7 +2297,6 @@ export default function ReservationPage() {
               >
                 未処理だけ
               </button>
-
               <button type="button" onClick={() => router.push("/dashboard")} style={styles.topBtn}>
                 TOP
               </button>
@@ -2261,53 +2304,23 @@ export default function ReservationPage() {
           </div>
 
           <div style={styles.summaryBar}>
-            <button
-              type="button"
-              onClick={() => setFilterMode("pending")}
-              style={getSummaryCardStyle("pending", { background: "#fee2e2" })}
-            >
+            <button type="button" onClick={() => setFilterMode("pending")} style={getSummaryCardStyle("pending", { background: "#fee2e2" })}>
               <span style={{ ...styles.summaryLabel, color: "#991b1b" }}>未処理</span>
-              <span style={{ ...styles.summaryCountDanger }}>{pendingSummary.totalPending}件</span>
+              <span style={styles.summaryCountDanger}>{pendingSummary.totalPending}件</span>
             </button>
-
-            <button
-              type="button"
-              onClick={() => setFilterMode("sales_pending")}
-              style={getSummaryCardStyle("sales_pending", { background: "#fef3c7" })}
-            >
+            <button type="button" onClick={() => setFilterMode("sales_pending")} style={getSummaryCardStyle("sales_pending", { background: "#fef3c7" })}>
               <span style={{ ...styles.summaryLabel, color: "#92400e" }}>売上未</span>
-              <span style={{ ...styles.summaryCountDanger, color: "#b45309" }}>
-                {pendingSummary.salesPending}件
-              </span>
+              <span style={{ ...styles.summaryCountDanger, color: "#b45309" }}>{pendingSummary.salesPending}件</span>
             </button>
-
-            <button
-              type="button"
-              onClick={() => setFilterMode("counseling_pending")}
-              style={getSummaryCardStyle("counseling_pending", { background: "#dbeafe" })}
-            >
+            <button type="button" onClick={() => setFilterMode("counseling_pending")} style={getSummaryCardStyle("counseling_pending", { background: "#dbeafe" })}>
               <span style={{ ...styles.summaryLabel, color: "#1d4ed8" }}>カウンセリング未</span>
-              <span style={{ ...styles.summaryCountDanger, color: "#1d4ed8" }}>
-                {pendingSummary.counselingPending}件
-              </span>
+              <span style={{ ...styles.summaryCountDanger, color: "#1d4ed8" }}>{pendingSummary.counselingPending}件</span>
             </button>
-
-            <button
-              type="button"
-              onClick={() => setFilterMode("ticket_pending")}
-              style={getSummaryCardStyle("ticket_pending", { background: "#ede9fe" })}
-            >
+            <button type="button" onClick={() => setFilterMode("ticket_pending")} style={getSummaryCardStyle("ticket_pending", { background: "#ede9fe" })}>
               <span style={{ ...styles.summaryLabel, color: "#6d28d9" }}>回数券未消化</span>
-              <span style={{ ...styles.summaryCountDanger, color: "#6d28d9" }}>
-                {pendingSummary.ticketPending}件
-              </span>
+              <span style={{ ...styles.summaryCountDanger, color: "#6d28d9" }}>{pendingSummary.ticketPending}件</span>
             </button>
-
-            <button
-              type="button"
-              onClick={() => setFilterMode("all")}
-              style={getSummaryCardStyle("all", { background: "#dcfce7" })}
-            >
+            <button type="button" onClick={() => setFilterMode("all")} style={getSummaryCardStyle("all", { background: "#dcfce7" })}>
               <span style={{ ...styles.summaryLabel, color: "#166534" }}>表示中</span>
               <span style={{ ...styles.summaryCount, color: "#166534" }}>{pendingSummary.visibleCount}件</span>
             </button>
@@ -2326,24 +2339,10 @@ export default function ReservationPage() {
 
           <div style={styles.searchPanel}>
             <div style={styles.searchModeRow}>
-              <button
-                type="button"
-                onClick={() => setSearchMode("customer")}
-                style={{
-                  ...styles.searchModeBtn,
-                  ...(searchMode === "customer" ? styles.searchModeBtnActive : {}),
-                }}
-              >
+              <button type="button" onClick={() => setSearchMode("customer")} style={{ ...styles.searchModeBtn, ...(searchMode === "customer" ? styles.searchModeBtnActive : {}) }}>
                 お客さん検索
               </button>
-              <button
-                type="button"
-                onClick={() => setSearchMode("staff")}
-                style={{
-                  ...styles.searchModeBtn,
-                  ...(searchMode === "staff" ? styles.searchModeBtnActive : {}),
-                }}
-              >
+              <button type="button" onClick={() => setSearchMode("staff")} style={{ ...styles.searchModeBtn, ...(searchMode === "staff" ? styles.searchModeBtnActive : {}) }}>
                 スタッフ検索
               </button>
             </div>
@@ -2358,16 +2357,9 @@ export default function ReservationPage() {
             {searchMode === "customer" && filteredCustomerSearchResults.length > 0 ? (
               <div style={styles.searchResultList}>
                 {filteredCustomerSearchResults.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => void loadCustomerHistory(c)}
-                    style={styles.searchResultItem}
-                  >
+                  <button key={c.id} type="button" onClick={() => void loadCustomerHistory(c)} style={styles.searchResultItem}>
                     <div style={styles.searchResultTitle}>{c.name || "名称なし"}</div>
-                    <div style={styles.searchResultSub}>
-                      {c.kana || "かな未設定"} / {c.phone || "電話未設定"}
-                    </div>
+                    <div style={styles.searchResultSub}>{c.kana || "かな未設定"} / {c.phone || "電話未設定"}</div>
                   </button>
                 ))}
               </div>
@@ -2376,12 +2368,7 @@ export default function ReservationPage() {
             {searchMode === "staff" && filteredStaffSearchResults.length > 0 ? (
               <div style={styles.searchResultList}>
                 {filteredStaffSearchResults.map((staff) => (
-                  <button
-                    key={staff}
-                    type="button"
-                    onClick={() => void loadStaffHistory(staff)}
-                    style={styles.searchResultItem}
-                  >
+                  <button key={staff} type="button" onClick={() => void loadStaffHistory(staff)} style={styles.searchResultItem}>
                     <div style={styles.searchResultTitle}>{staff}</div>
                     <div style={styles.searchResultSub}>担当履歴を見る</div>
                   </button>
@@ -2401,15 +2388,7 @@ export default function ReservationPage() {
 
           <div style={styles.filterRow}>
             {STORE_OPTIONS.map((store) => (
-              <button
-                key={store}
-                type="button"
-                onClick={() => setSelectedStoreFilter(store)}
-                style={{
-                  ...styles.storeChip,
-                  ...(selectedStoreFilter === store ? styles.storeChipActive : {}),
-                }}
-              >
+              <button key={store} type="button" onClick={() => setSelectedStoreFilter(store)} style={{ ...styles.storeChip, ...(selectedStoreFilter === store ? styles.storeChipActive : {}) }}>
                 {store}
               </button>
             ))}
@@ -2440,13 +2419,7 @@ export default function ReservationPage() {
         <section style={styles.calendarCard}>
           <div style={styles.weekHeader}>
             {WEEK_LABELS.map((label, index) => (
-              <div
-                key={label}
-                style={{
-                  ...styles.weekLabel,
-                  color: index === 5 ? "#2563eb" : index === 6 ? "#ef4444" : "#94a3b8",
-                }}
-              >
+              <div key={label} style={{ ...styles.weekLabel, color: index === 5 ? "#2563eb" : index === 6 ? "#ef4444" : "#94a3b8" }}>
                 {label}
               </div>
             ))}
@@ -2485,21 +2458,9 @@ export default function ReservationPage() {
                     }}
                   >
                     <div style={styles.dayHead}>
-                      <span
-                        style={{
-                          ...styles.dayNumber,
-                          color:
-                            dateObj.getDay() === 0
-                              ? "#ef4444"
-                              : dateObj.getDay() === 6
-                              ? "#2563eb"
-                              : "#0f172a",
-                          ...(isToday ? styles.todayBadge : {}),
-                        }}
-                      >
+                      <span style={{ ...styles.dayNumber, ...(isToday ? styles.todayBadge : {}) }}>
                         {dateObj.getDate()}
                       </span>
-
                       {pendingCount > 0 ? <span style={styles.dayPendingBadge}>{pendingCount}</span> : null}
                     </div>
 
@@ -2511,29 +2472,14 @@ export default function ReservationPage() {
                         const saleSummary = getReservationSaleSummary(item);
 
                         return (
-                          <div
-                            key={String(item.id)}
-                            style={{
-                              ...styles.dayMiniCard,
-                              borderLeft: `3px solid ${getStaffColor(item.staff_name)}`,
-                            }}
-                          >
+                          <div key={String(item.id)} style={{ ...styles.dayMiniCard, borderLeft: `3px solid ${getStaffColor(item.staff_name)}` }}>
                             <div style={styles.dayMiniTime}>{trimmed(item.start_time)}</div>
-
                             <div style={styles.dayMiniNameRow}>
                               <div style={styles.dayMiniName}>{trimmed(item.customer_name)}</div>
-
                               <div style={styles.dayMiniTicketWrap}>
                                 {ticketBadges.length > 0 ? (
                                   ticketBadges.map((badge, index) => (
-                                    <span
-                                      key={`${String(item.id)}-ticket-${index}`}
-                                      style={{
-                                        ...styles.dayMiniTicketBadge,
-                                        ...(badge.tone === "warning" ? styles.dayMiniTicketBadgeWarning : {}),
-                                        ...(badge.tone === "danger" ? styles.dayMiniTicketBadgeDanger : {}),
-                                      }}
-                                    >
+                                    <span key={`${String(item.id)}-ticket-${index}`} style={{ ...styles.dayMiniTicketBadge, ...(badge.tone === "warning" ? styles.dayMiniTicketBadgeWarning : {}), ...(badge.tone === "danger" ? styles.dayMiniTicketBadgeDanger : {}) }}>
                                       {badge.label}
                                     </span>
                                   ))
@@ -2542,14 +2488,8 @@ export default function ReservationPage() {
                                 )}
                               </div>
                             </div>
-
                             <div style={styles.dayMiniMemo}>{trimmed(item.memo) || "メモなし"}</div>
-
-                            {saleSummary ? (
-                              <div style={styles.dayMiniSale}>{saleSummary}</div>
-                            ) : (
-                              <div style={styles.dayMiniSaleMuted}>売上未</div>
-                            )}
+                            {saleSummary ? <div style={styles.dayMiniSale}>{saleSummary}</div> : <div style={styles.dayMiniSaleMuted}>売上未</div>}
                           </div>
                         );
                       })}
@@ -2577,7 +2517,7 @@ export default function ReservationPage() {
                   <button type="button" onClick={() => openCreateModal(selectedDate)} style={styles.sheetActionBtn}>
                     ＋予約
                   </button>
-                  <button type="button" onClick={() => openAttendanceModal(selectedDate)} style={styles.sheetAttendanceBtn}>
+                  <button type="button" onClick={() => openAttendanceCreateModal(selectedDate)} style={styles.sheetAttendanceBtn}>
                     ＋出勤
                   </button>
                   <button type="button" onClick={() => setDaySheetOpen(false)} style={styles.sheetCloseBtn}>
@@ -2593,28 +2533,56 @@ export default function ReservationPage() {
                   {selectedDayTimeline.map((timelineItem) => {
                     if (timelineItem.type === "attendance") {
                       const item = timelineItem.attendance;
+                      const actionOpened = openedAttendanceActionIds.includes(String(item.id));
 
                       return (
-                        <div key={`attendance-${item.id}`} style={styles.timeTreeItem}>
-                          <div style={styles.timeTreeTimeCol}>
-                            <div style={styles.timeTreeStart}>{trimmed(item.clock_in) || "--:--"}</div>
-                            <div style={styles.timeTreeEnd}>{trimmed(item.clock_out) || "--:--"}</div>
+                        <div key={`attendance-${item.id}`} style={styles.timeTreeCard}>
+                          <div style={styles.timeTreeItem}>
+                            <div style={styles.timeTreeTimeCol}>
+                              <div style={styles.timeTreeStart}>{trimmed(item.clock_in) || "--:--"}</div>
+                              <div style={styles.timeTreeEnd}>{trimmed(item.clock_out) || "--:--"}</div>
+                            </div>
+
+                            <div style={{ ...styles.timeTreeLine, background: getStaffColor(item.staff_name) }} />
+
+                            <button
+                              type="button"
+                              onClick={() => toggleAttendanceActions(item.id)}
+                              style={styles.timeTreeBodyButton}
+                            >
+                              <div style={styles.timeTreeTitleRow}>
+                                <span style={styles.timeTreeTitle}>{trimmed(item.staff_name) || "スタッフ未設定"}勤務</span>
+                                <span style={styles.attendanceBadge}>出勤</span>
+                              </div>
+                              <div style={styles.timeTreeMemo}>{trimmed(item.memo) || "スタッフ出勤"}</div>
+                              <div style={styles.timeTreeSub}>タップで編集・削除</div>
+                            </button>
+
+                            <div style={{ ...styles.timeTreeAvatar, background: getStaffColor(item.staff_name) }}>
+                              {getStaffShortLabel(item.staff_name)}
+                            </div>
                           </div>
 
-                          <div style={{ ...styles.timeTreeLine, background: getStaffColor(item.staff_name) }} />
-
-                          <div style={styles.timeTreeBody}>
-                            <div style={styles.timeTreeTitle}>{trimmed(item.staff_name) || "スタッフ未設定"}勤務</div>
-                            <div style={styles.timeTreeMemo}>{trimmed(item.memo) || "スタッフ出勤"}</div>
-                          </div>
-
-                          <div style={{ ...styles.timeTreeAvatar, background: getStaffColor(item.staff_name) }}>
-                            {getStaffShortLabel(item.staff_name)}
-                          </div>
+                          {actionOpened ? (
+                            <div style={styles.timeTreeDrawerTwo}>
+                              <button type="button" onClick={() => openAttendanceEditModal(item)} style={styles.timeTreeBlueBtn}>
+                                編集
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleDeleteAttendance(item)}
+                                style={styles.timeTreeDeleteBtn}
+                                disabled={attendanceDeletingId === String(item.id)}
+                              >
+                                {attendanceDeletingId === String(item.id) ? "削除中..." : "削除"}
+                              </button>
+                            </div>
+                          ) : null}
                         </div>
                       );
                     }
-                                        const item = timelineItem.reservation;
+
+                    const item = timelineItem.reservation;
                     const ticketBadges = getTicketBadgesForReservation(item);
                     const actionOpened = openedActionReservationIds.includes(String(item.id));
                     const reservationId = toIdNumber(item.id);
@@ -2638,24 +2606,13 @@ export default function ReservationPage() {
 
                           <div style={{ ...styles.timeTreeLine, background: getStaffColor(item.staff_name) }} />
 
-                          <button
-                            type="button"
-                            onClick={() => router.push(`/reservation/detail/${item.id}`)}
-                            style={styles.timeTreeBodyButton}
-                          >
+                          <button type="button" onClick={() => router.push(`/reservation/detail/${item.id}`)} style={styles.timeTreeBodyButton}>
                             <div style={styles.timeTreeTitleRow}>
                               <span style={styles.timeTreeTitle}>{title}</span>
                               {ticketBadges.length > 0 ? (
                                 <span style={styles.timeTreeTicketGroup}>
                                   {ticketBadges.map((badge, index) => (
-                                    <span
-                                      key={`${String(item.id)}-tt-ticket-${index}`}
-                                      style={{
-                                        ...styles.timeTreeTicket,
-                                        ...(badge.tone === "warning" ? styles.timeTreeTicketWarning : {}),
-                                        ...(badge.tone === "danger" ? styles.timeTreeTicketDanger : {}),
-                                      }}
-                                    >
+                                    <span key={`${String(item.id)}-tt-ticket-${index}`} style={{ ...styles.timeTreeTicket, ...(badge.tone === "warning" ? styles.timeTreeTicketWarning : {}), ...(badge.tone === "danger" ? styles.timeTreeTicketDanger : {}) }}>
                                       {badge.label}
                                     </span>
                                   ))}
@@ -2663,18 +2620,8 @@ export default function ReservationPage() {
                               ) : null}
                             </div>
 
-                            {memoText ? (
-                              <div style={styles.timeTreeMemo}>{memoText}</div>
-                            ) : (
-                              <div style={styles.timeTreeMemoMuted}>メモなし</div>
-                            )}
-
-                            {saleSummary ? (
-                              <div style={styles.timeTreeSale}>{saleSummary}</div>
-                            ) : (
-                              <div style={styles.timeTreeSaleMuted}>売上未</div>
-                            )}
-
+                            {memoText ? <div style={styles.timeTreeMemo}>{memoText}</div> : <div style={styles.timeTreeMemoMuted}>メモなし</div>}
+                            {saleSummary ? <div style={styles.timeTreeSale}>{saleSummary}</div> : <div style={styles.timeTreeSaleMuted}>売上未</div>}
                             <div style={styles.timeTreeSub}>
                               {trimmed(item.store_name) || "店舗未設定"} / {trimmed(item.staff_name) || "担当未設定"}
                             </div>
@@ -2686,46 +2633,22 @@ export default function ReservationPage() {
                         </div>
 
                         <div style={styles.timeTreeOperationLine}>
-                          <button
-                            type="button"
-                            onClick={() => toggleReservationActions(item.id)}
-                            style={styles.timeTreeOperationBtn}
-                          >
+                          <button type="button" onClick={() => toggleReservationActions(item.id)} style={styles.timeTreeOperationBtn}>
                             {actionOpened ? "閉じる" : "操作"}
                           </button>
                         </div>
 
                         {actionOpened ? (
                           <div style={styles.timeTreeDrawer}>
-                            <button
-                              type="button"
-                              onClick={() => router.push(`/reservation/detail/${item.id}`)}
-                              style={styles.timeTreeBlueBtn}
-                            >
+                            <button type="button" onClick={() => router.push(`/reservation/detail/${item.id}`)} style={styles.timeTreeBlueBtn}>
                               詳細
                             </button>
-
                             {!isSold ? (
-                              <button
-                                type="button"
-                                onClick={() => void handleReservationTap(item)}
-                                style={isTicket ? styles.timeTreeOrangeBtn : styles.timeTreeDarkBtn}
-                                disabled={consumingReservationId === String(item.id)}
-                              >
-                                {consumingReservationId === String(item.id)
-                                  ? "処理中..."
-                                  : isTicket
-                                  ? "消化/売上"
-                                  : "売上登録"}
+                              <button type="button" onClick={() => void handleReservationTap(item)} style={isTicket ? styles.timeTreeOrangeBtn : styles.timeTreeDarkBtn} disabled={consumingReservationId === String(item.id)}>
+                                {consumingReservationId === String(item.id) ? "処理中..." : isTicket ? "消化/売上" : "売上登録"}
                               </button>
                             ) : null}
-
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteReservation(item)}
-                              style={styles.timeTreeDeleteBtn}
-                              disabled={deletingReservationId === String(item.id)}
-                            >
+                            <button type="button" onClick={() => handleDeleteReservation(item)} style={styles.timeTreeDeleteBtn} disabled={deletingReservationId === String(item.id)}>
                               {deletingReservationId === String(item.id) ? "削除中..." : "削除"}
                             </button>
                           </div>
@@ -2743,7 +2666,9 @@ export default function ReservationPage() {
           <div style={styles.modalOverlay} onClick={() => setAttendanceFormOpen(false)}>
             <div style={styles.modalSmall} onClick={(e) => e.stopPropagation()}>
               <div style={styles.modalHeader}>
-                <h3 style={styles.modalTitle}>スタッフ出勤追加</h3>
+                <h3 style={styles.modalTitle}>
+                  {attendanceFormMode === "edit" ? "スタッフ出勤編集" : "スタッフ出勤追加"}
+                </h3>
                 <button type="button" style={styles.modalCloseBtn} onClick={() => setAttendanceFormOpen(false)}>
                   ×
                 </button>
@@ -2752,83 +2677,46 @@ export default function ReservationPage() {
               <div style={styles.formGrid}>
                 <div style={styles.formBlockFull}>
                   <label style={styles.label}>スタッフ</label>
-                  <select
-                    value={attendanceStaffName}
-                    onChange={(e) => setAttendanceStaffName(e.target.value)}
-                    style={styles.input}
-                  >
+                  <select value={attendanceStaffName} onChange={(e) => setAttendanceStaffName(e.target.value)} style={styles.input}>
                     {STAFF_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
+                      <option key={option} value={option}>{option}</option>
                     ))}
                   </select>
                 </div>
 
                 <div>
                   <label style={styles.label}>日付</label>
-                  <input
-                    type="date"
-                    value={attendanceDate}
-                    onChange={(e) => setAttendanceDate(e.target.value)}
-                    style={styles.input}
-                  />
+                  <input type="date" value={attendanceDate} onChange={(e) => setAttendanceDate(e.target.value)} style={styles.input} />
                 </div>
 
                 <div>
                   <label style={styles.label}>出勤</label>
-                  <input
-                    type="time"
-                    value={attendanceClockIn}
-                    onChange={(e) => setAttendanceClockIn(e.target.value)}
-                    style={styles.input}
-                  />
+                  <input type="time" value={attendanceClockIn} onChange={(e) => setAttendanceClockIn(e.target.value)} style={styles.input} />
                 </div>
 
                 <div>
                   <label style={styles.label}>退勤</label>
-                  <input
-                    type="time"
-                    value={attendanceClockOut}
-                    onChange={(e) => setAttendanceClockOut(e.target.value)}
-                    style={styles.input}
-                  />
+                  <input type="time" value={attendanceClockOut} onChange={(e) => setAttendanceClockOut(e.target.value)} style={styles.input} />
                 </div>
 
                 <div style={styles.formBlockFull}>
                   <label style={styles.label}>メモ</label>
-                  <textarea
-                    value={attendanceMemo}
-                    onChange={(e) => setAttendanceMemo(e.target.value)}
-                    rows={3}
-                    style={styles.textarea}
-                    placeholder="例：ヘルプ勤務 / 早上がり / 研修など"
-                  />
+                  <textarea value={attendanceMemo} onChange={(e) => setAttendanceMemo(e.target.value)} rows={3} style={styles.textarea} placeholder="例：ヘルプ勤務 / 早上がり / 研修など" />
                 </div>
               </div>
 
               <div style={styles.modalFooter}>
-                <button
-                  type="button"
-                  onClick={() => setAttendanceFormOpen(false)}
-                  style={styles.cancelBtn}
-                >
+                <button type="button" onClick={() => setAttendanceFormOpen(false)} style={styles.cancelBtn}>
                   キャンセル
                 </button>
-                <button
-                  type="button"
-                  onClick={() => void handleSaveAttendance()}
-                  style={styles.saveBtn}
-                  disabled={attendanceSaving}
-                >
-                  {attendanceSaving ? "保存中..." : "保存する"}
+                <button type="button" onClick={() => void handleSaveAttendance()} style={styles.saveBtn} disabled={attendanceSaving}>
+                  {attendanceSaving ? "保存中..." : attendanceFormMode === "edit" ? "編集保存" : "保存する"}
                 </button>
               </div>
             </div>
           </div>
         ) : null}
-
-        {formOpen ? (
+                {formOpen ? (
           <div style={styles.modalOverlay} onClick={() => setFormOpen(false)}>
             <div style={styles.modalSmall} onClick={(e) => e.stopPropagation()}>
               <div style={styles.modalHeader}>
@@ -3804,6 +3692,20 @@ const styles: Record<string, CSSProperties> = {
     letterSpacing: "-0.03em",
     lineHeight: 1.12,
   },
+  attendanceBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 18,
+    padding: "0 7px",
+    borderRadius: 999,
+    background: "#dcfce7",
+    color: "#166534",
+    border: "1px solid #bbf7d0",
+    fontSize: 10,
+    fontWeight: 900,
+    lineHeight: 1,
+  },
   timeTreeTicketGroup: {
     display: "inline-flex",
     alignItems: "center",
@@ -3912,6 +3814,13 @@ const styles: Record<string, CSSProperties> = {
     marginTop: 3,
     display: "grid",
     gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: 6,
+  },
+  timeTreeDrawerTwo: {
+    marginLeft: 62,
+    marginTop: 3,
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
     gap: 6,
   },
   timeTreeBlueBtn: {
