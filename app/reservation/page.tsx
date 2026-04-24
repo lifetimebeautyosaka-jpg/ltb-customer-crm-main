@@ -1401,7 +1401,7 @@ export default function ReservationPage() {
 
     if (resolvedTicketName) {
       const exactActive = list.find(
-(contract) =>
+        (contract) =>
           trimmed(contract.ticket_name) === resolvedTicketName &&
           (trimmed(contract.status) === "active" || !trimmed(contract.status))
       );
@@ -1414,7 +1414,7 @@ export default function ReservationPage() {
     }
 
     const activeContract = list.find(
-      (contract) => trimmed(contract.status) === "active" || !trimmed(contract.status)
+(contract) => trimmed(contract.status) === "active" || !trimmed(contract.status)
     );
     if (activeContract) return activeContract;
 
@@ -2540,10 +2540,10 @@ export default function ReservationPage() {
                       (reservationId !== null && salesReservationIdSet.has(reservationId));
                     const isTicket = ticketBadges.length > 0;
                     const saleSummary = getReservationSaleSummary(item);
+                    const memoText = trimmed(item.memo);
                     const title = `${trimmed(item.customer_name) || "顧客名未設定"}${
                       trimmed(item.menu) ? `様${trimmed(item.menu)}` : ""
                     }`;
-                    const secondLine = trimmed(item.memo) || saleSummary || "売上未";
 
                     return (
                       <div key={`reservation-${item.id}`} style={styles.timeTreeCard}>
@@ -2580,7 +2580,18 @@ export default function ReservationPage() {
                               ) : null}
                             </div>
 
-                            <div style={styles.timeTreeMemo}>{secondLine}</div>
+                            {memoText ? (
+                              <div style={styles.timeTreeMemo}>{memoText}</div>
+                            ) : (
+                              <div style={styles.timeTreeMemoMuted}>メモなし</div>
+                            )}
+
+                            {saleSummary ? (
+                              <div style={styles.timeTreeSale}>{saleSummary}</div>
+                            ) : (
+                              <div style={styles.timeTreeSaleMuted}>売上未</div>
+                            )}
+
                             <div style={styles.timeTreeSub}>
                               {trimmed(item.store_name) || "店舗未設定"} / {trimmed(item.staff_name) || "担当未設定"}
                             </div>
@@ -2819,7 +2830,7 @@ export default function ReservationPage() {
                 <h3 style={styles.modalTitle}>
                   {selectedHistoryCustomer
                     ? `${selectedHistoryCustomer.name} の履歴`
-                    : selectedHistoryStaff
+: selectedHistoryStaff
                     ? `${selectedHistoryStaff} の担当履歴`
                     : "履歴"}
                 </h3>
@@ -4205,6 +4216,34 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 12,
     fontWeight: 900,
     cursor: "pointer",
+  },
+
+  timeTreeMemoMuted: {
+    marginTop: 2,
+    fontSize: 12,
+    color: "#c4c4c4",
+    fontWeight: 700,
+    lineHeight: 1.35,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  timeTreeSale: {
+    marginTop: 3,
+    fontSize: 12,
+    color: "#0f766e",
+    fontWeight: 800,
+    lineHeight: 1.35,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  timeTreeSaleMuted: {
+    marginTop: 3,
+    fontSize: 12,
+    color: "#ef4444",
+    fontWeight: 900,
+    lineHeight: 1.35,
   },
 
 };
