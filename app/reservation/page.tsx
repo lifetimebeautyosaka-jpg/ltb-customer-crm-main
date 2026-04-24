@@ -1343,7 +1343,7 @@ export default function ReservationPage() {
 
     const contractRows = ticketContractsByCustomerId.get(customerId) || [];
     contractRows.forEach((contract) => {
- const usedCount = Math.max(Number(contract.used_count ?? 0), 0);
+      const usedCount = Math.max(Number(contract.used_count ?? 0), 0);
       const remainingCount = Math.max(Number(contract.remaining_count ?? 0), 0);
       const totalCount = usedCount + remainingCount;
       pushBadge(formatTicketDisplayLabel(contract.ticket_name), totalCount, remainingCount);
@@ -1361,7 +1361,7 @@ export default function ReservationPage() {
         "回数券";
 
       pushBadge(labelBase, totalCount, ticket.remaining_count);
-    });
+  });
 
     return badges;
   }
@@ -1401,7 +1401,7 @@ export default function ReservationPage() {
 
     if (resolvedTicketName) {
       const exactActive = list.find(
-        (contract) =>
+(contract) =>
           trimmed(contract.ticket_name) === resolvedTicketName &&
           (trimmed(contract.status) === "active" || !trimmed(contract.status))
       );
@@ -2138,158 +2138,6 @@ export default function ReservationPage() {
     };
   }
 
-
-  function renderTimeTreeItem(timelineItem: DayTimelineItem) {
-    if (timelineItem.type === "attendance") {
-      const item = timelineItem.attendance;
-      const color = getStaffColor(item.staff_name);
-
-      return (
-        <div key={`attendance-${item.id}`} style={styles.ttCardPlain}>
-          <div style={styles.ttItem}>
-            <div style={styles.ttTimeCol}>
-              <div style={styles.ttStart}>{trimmed(item.clock_in) || "--:--"}</div>
-              <div style={styles.ttEnd}>{trimmed(item.clock_out) || "--:--"}</div>
-            </div>
-
-            <div style={{ ...styles.ttLine, background: color }} />
-
-            <div style={styles.ttBody}>
-              <div style={styles.ttTitle}>{trimmed(item.staff_name) || "スタッフ未設定"}勤務</div>
-              <div style={styles.ttMemo}>{trimmed(item.memo) || "スタッフ出勤"}</div>
-            </div>
-
-            <div style={{ ...styles.ttAvatar, background: color }}>
-              {getStaffShortLabel(item.staff_name)}
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    const item = timelineItem.reservation;
-    const ticketBadges = getTicketBadgesForReservation(item);
-    const saleSummary = getReservationSaleSummary(item);
-    const color = getStaffColor(item.staff_name);
-    const reservationId = toIdNumber(item.id);
-    const flags = getPendingFlags({
-      item,
-      salesReservationIdSet,
-      counseledReservationIdSet,
-      ticketUsedReservationIdSet,
-    });
-
-    const isTicket = ticketBadges.length > 0;
-    const isSold =
-      trimmed(item.reservation_status) === "売上済" ||
-      (reservationId !== null && salesReservationIdSet.has(reservationId));
-    const actionOpened = openedActionReservationIds.includes(String(item.id));
-
-    return (
-      <div key={`reservation-${item.id}`} style={styles.ttCard}>
-        <div style={styles.ttItem}>
-          <div style={styles.ttTimeCol}>
-            <div style={styles.ttStart}>{trimmed(item.start_time) || "--:--"}</div>
-            <div style={styles.ttEnd}>{trimmed(item.end_time) || "--:--"}</div>
-          </div>
-
-          <div style={{ ...styles.ttLine, background: color }} />
-
-          <button
-            type="button"
-            onClick={() => router.push(`/reservation/detail/${item.id}`)}
-            style={styles.ttBodyButton}
-          >
-            <div style={styles.ttTitleRow}>
-              <span style={styles.ttTitle}>{trimmed(item.customer_name) || "顧客名未設定"}</span>
-
-              {ticketBadges.length > 0 ? (
-                <span style={styles.ttTicketWrap}>
-                  {ticketBadges.map((badge, index) => (
-                    <span
-                      key={`${String(item.id)}-tt-ticket-${index}`}
-                      style={{
-                        ...styles.ttTicket,
-                        ...(badge.tone === "warning" ? styles.ttTicketWarning : {}),
-                        ...(badge.tone === "danger" ? styles.ttTicketDanger : {}),
-                      }}
-                    >
-                      {badge.label}
-                    </span>
-                  ))}
-                </span>
-              ) : null}
-            </div>
-
-            <div style={styles.ttMemo}>
-              {trimmed(item.memo) || trimmed(item.menu) || "メモなし"}
-            </div>
-
-            {saleSummary ? (
-              <div style={styles.ttSale}>{saleSummary}</div>
-            ) : (
-              <div style={styles.ttSaleMuted}>売上未</div>
-            )}
-
-            <div style={styles.ttSub}>
-              {trimmed(item.menu) || "メニュー未設定"} / {trimmed(item.store_name) || "店舗未設定"} / {trimmed(item.staff_name) || "担当未設定"}
-            </div>
-          </button>
-
-          <div style={{ ...styles.ttAvatar, background: color }}>
-            {getStaffShortLabel(item.staff_name)}
-          </div>
-        </div>
-
-        <div style={styles.ttStatusRow}>
-          {flags.salesPending ? <span style={styles.ttStatusYellow}>売上未</span> : <span style={styles.ttStatusGreen}>売上済</span>}
-          {flags.counselingPending ? <span style={styles.ttStatusBlue}>カウンセリング未</span> : null}
-          {isTicket ? (
-            flags.ticketPending ? <span style={styles.ttStatusPurple}>回数券未消化</span> : <span style={styles.ttStatusGreen}>消化済</span>
-          ) : null}
-        </div>
-
-        <div style={styles.ttActionRow}>
-          <button type="button" onClick={() => toggleReservationActions(item.id)} style={styles.ttActionBtn}>
-            {actionOpened ? "操作を閉じる" : "操作"}
-          </button>
-        </div>
-
-        {actionOpened ? (
-          <div style={styles.ttDrawer}>
-            <button type="button" onClick={() => router.push(`/reservation/detail/${item.id}`)} style={styles.ttBlueBtn}>
-              詳細
-            </button>
-
-            {!isSold ? (
-              <button
-                type="button"
-                onClick={() => void handleReservationTap(item)}
-                style={isTicket ? styles.ttOrangeBtn : styles.ttDarkBtn}
-                disabled={consumingReservationId === String(item.id)}
-              >
-                {consumingReservationId === String(item.id)
-                  ? "処理中..."
-                  : isTicket
-                  ? "消化/売上"
-                  : "売上登録"}
-              </button>
-            ) : null}
-
-            <button
-              type="button"
-              onClick={() => handleDeleteReservation(item)}
-              style={styles.ttDeleteBtn}
-              disabled={deletingReservationId === String(item.id)}
-            >
-              {deletingReservationId === String(item.id) ? "削除中..." : "削除"}
-            </button>
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-
   if (!mounted || !authChecked) return null;
 
   return (
@@ -2657,8 +2505,140 @@ export default function ReservationPage() {
               {selectedDayTimeline.length === 0 ? (
                 <div style={styles.emptyDayBox}>この日の予定はありません。</div>
               ) : (
-                <div style={styles.timelineListCompact}>
-                  {selectedDayTimeline.map((timelineItem) => renderTimeTreeItem(timelineItem))}
+                <div style={styles.timeTreeList}>
+                  {selectedDayTimeline.map((timelineItem) => {
+                    if (timelineItem.type === "attendance") {
+                      const item = timelineItem.attendance;
+
+                      return (
+                        <div key={`attendance-${item.id}`} style={styles.timeTreeItem}>
+                          <div style={styles.timeTreeTimeCol}>
+                            <div style={styles.timeTreeStart}>{trimmed(item.clock_in) || "--:--"}</div>
+                            <div style={styles.timeTreeEnd}>{trimmed(item.clock_out) || "--:--"}</div>
+                          </div>
+
+                          <div style={{ ...styles.timeTreeLine, background: getStaffColor(item.staff_name) }} />
+
+                          <div style={styles.timeTreeBody}>
+                            <div style={styles.timeTreeTitle}>{trimmed(item.staff_name) || "スタッフ未設定"}勤務</div>
+                            <div style={styles.timeTreeMemo}>{trimmed(item.memo) || "スタッフ出勤"}</div>
+                          </div>
+
+                          <div style={{ ...styles.timeTreeAvatar, background: getStaffColor(item.staff_name) }}>
+                            {getStaffShortLabel(item.staff_name)}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    const item = timelineItem.reservation;
+                    const ticketBadges = getTicketBadgesForReservation(item);
+                    const actionOpened = openedActionReservationIds.includes(String(item.id));
+                    const reservationId = toIdNumber(item.id);
+                    const isSold =
+                      trimmed(item.reservation_status) === "売上済" ||
+                      (reservationId !== null && salesReservationIdSet.has(reservationId));
+                    const isTicket = ticketBadges.length > 0;
+                    const saleSummary = getReservationSaleSummary(item);
+                    const title = `${trimmed(item.customer_name) || "顧客名未設定"}${
+                      trimmed(item.menu) ? `様${trimmed(item.menu)}` : ""
+                    }`;
+                    const secondLine = trimmed(item.memo) || saleSummary || "売上未";
+
+                    return (
+                      <div key={`reservation-${item.id}`} style={styles.timeTreeCard}>
+                        <div style={styles.timeTreeItem}>
+                          <div style={styles.timeTreeTimeCol}>
+                            <div style={styles.timeTreeStart}>{trimmed(item.start_time) || "--:--"}</div>
+                            <div style={styles.timeTreeEnd}>{trimmed(item.end_time) || "--:--"}</div>
+                          </div>
+
+                          <div style={{ ...styles.timeTreeLine, background: getStaffColor(item.staff_name) }} />
+
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/reservation/detail/${item.id}`)}
+                            style={styles.timeTreeBodyButton}
+                          >
+                            <div style={styles.timeTreeTitleRow}>
+                              <span style={styles.timeTreeTitle}>{title}</span>
+                              {ticketBadges.length > 0 ? (
+                                <span style={styles.timeTreeTicketGroup}>
+                                  {ticketBadges.map((badge, index) => (
+                                    <span
+                                      key={`${String(item.id)}-tt-ticket-${index}`}
+                                      style={{
+                                        ...styles.timeTreeTicket,
+                                        ...(badge.tone === "warning" ? styles.timeTreeTicketWarning : {}),
+                                        ...(badge.tone === "danger" ? styles.timeTreeTicketDanger : {}),
+                                      }}
+                                    >
+                                      {badge.label}
+                                    </span>
+                                  ))}
+                                </span>
+                              ) : null}
+                            </div>
+
+                            <div style={styles.timeTreeMemo}>{secondLine}</div>
+                            <div style={styles.timeTreeSub}>
+                              {trimmed(item.store_name) || "店舗未設定"} / {trimmed(item.staff_name) || "担当未設定"}
+                            </div>
+                          </button>
+
+                          <div style={{ ...styles.timeTreeAvatar, background: getStaffColor(item.staff_name) }}>
+                            {getStaffShortLabel(item.staff_name)}
+                          </div>
+                        </div>
+
+                        <div style={styles.timeTreeOperationLine}>
+                          <button
+                            type="button"
+                            onClick={() => toggleReservationActions(item.id)}
+                            style={styles.timeTreeOperationBtn}
+                          >
+                            {actionOpened ? "閉じる" : "操作"}
+                          </button>
+                        </div>
+
+                        {actionOpened ? (
+                          <div style={styles.timeTreeDrawer}>
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/reservation/detail/${item.id}`)}
+                              style={styles.timeTreeBlueBtn}
+                            >
+                              詳細
+                            </button>
+
+                            {!isSold ? (
+                              <button
+                                type="button"
+                                onClick={() => void handleReservationTap(item)}
+                                style={isTicket ? styles.timeTreeOrangeBtn : styles.timeTreeDarkBtn}
+                                disabled={consumingReservationId === String(item.id)}
+                              >
+                                {consumingReservationId === String(item.id)
+                                  ? "処理中..."
+                                  : isTicket
+                                  ? "消化/売上"
+                                  : "売上登録"}
+                              </button>
+                            ) : null}
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteReservation(item)}
+                              style={styles.timeTreeDeleteBtn}
+                              disabled={deletingReservationId === String(item.id)}
+                            >
+                              {deletingReservationId === String(item.id) ? "削除中..." : "削除"}
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -2670,7 +2650,7 @@ export default function ReservationPage() {
             <div style={styles.modalSmall} onClick={(e) => e.stopPropagation()}>
               <div style={styles.modalHeader}>
                 <h3 style={styles.modalTitle}>新規予約追加</h3>
-                <button type="button" style={styles.modalCloseBtn} onClick={() => setFormOpen(false)}>
+<button type="button" style={styles.modalCloseBtn} onClick={() => setFormOpen(false)}>
                   ×
                 </button>
               </div>
@@ -2688,7 +2668,7 @@ export default function ReservationPage() {
                     <div style={styles.customerSuggestList}>
                       {filteredCustomers.map((c) => (
                         <button
-key={c.id}
+                          key={c.id}
                           type="button"
                           onClick={() => handleSelectCustomer(c.id)}
                           style={styles.customerSuggestItem}
@@ -4032,4 +4012,199 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 900,
     marginTop: 8,
   },
+  timeTreeList: {
+    display: "grid",
+    gap: 0,
+    padding: "2px 0 12px",
+  },
+  timeTreeCard: {
+    borderBottom: "1px solid #f1f5f9",
+    padding: "3px 0 8px",
+    background: "#fff",
+  },
+  timeTreeItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    width: "100%",
+    minHeight: 64,
+  },
+  timeTreeTimeCol: {
+    width: 58,
+    flexShrink: 0,
+    textAlign: "right",
+    paddingRight: 2,
+  },
+  timeTreeStart: {
+    fontSize: 16,
+    fontWeight: 900,
+    color: "#111827",
+    lineHeight: 1.1,
+  },
+  timeTreeEnd: {
+    marginTop: 8,
+    fontSize: 14,
+    fontWeight: 700,
+    color: "#9ca3af",
+    lineHeight: 1.1,
+  },
+  timeTreeLine: {
+    width: 4,
+    minHeight: 52,
+    alignSelf: "stretch",
+    borderRadius: 999,
+    flexShrink: 0,
+  },
+  timeTreeBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+  timeTreeBodyButton: {
+    flex: 1,
+    minWidth: 0,
+    border: "none",
+    background: "transparent",
+    padding: 0,
+    margin: 0,
+    textAlign: "left",
+    cursor: "pointer",
+  },
+  timeTreeTitleRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    minWidth: 0,
+    flexWrap: "wrap",
+  },
+  timeTreeTitle: {
+    fontSize: 18,
+    fontWeight: 900,
+    color: "#171717",
+    letterSpacing: "-0.03em",
+    lineHeight: 1.25,
+  },
+  timeTreeTicketGroup: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
+    flexWrap: "wrap",
+  },
+  timeTreeTicket: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 34,
+    height: 20,
+    padding: "0 7px",
+    borderRadius: 999,
+    background: "#eff6ff",
+    color: "#1d4ed8",
+    border: "1px solid #bfdbfe",
+    fontSize: 11,
+    fontWeight: 900,
+    lineHeight: 1,
+    whiteSpace: "nowrap",
+  },
+  timeTreeTicketWarning: {
+    background: "#fff7ed",
+    color: "#c2410c",
+    border: "1px solid #fdba74",
+  },
+  timeTreeTicketDanger: {
+    background: "#fee2e2",
+    color: "#b91c1c",
+    border: "1px solid #ef4444",
+  },
+  timeTreeMemo: {
+    marginTop: 3,
+    fontSize: 14,
+    color: "#8b8b8b",
+    fontWeight: 700,
+    lineHeight: 1.35,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  timeTreeSub: {
+    marginTop: 2,
+    fontSize: 12,
+    color: "#94a3b8",
+    fontWeight: 700,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  timeTreeAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    color: "#fff",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 18,
+    fontWeight: 900,
+    flexShrink: 0,
+  },
+  timeTreeOperationLine: {
+    marginTop: -2,
+    paddingLeft: 72,
+  },
+  timeTreeOperationBtn: {
+    border: "none",
+    background: "transparent",
+    color: "#94a3b8",
+    fontSize: 12,
+    fontWeight: 800,
+    padding: "4px 0",
+    cursor: "pointer",
+  },
+  timeTreeDrawer: {
+    marginLeft: 72,
+    marginTop: 6,
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: 8,
+  },
+  timeTreeBlueBtn: {
+    border: "none",
+    background: "#2563eb",
+    color: "#fff",
+    borderRadius: 12,
+    padding: "9px 8px",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  timeTreeOrangeBtn: {
+    border: "none",
+    background: "#f59e0b",
+    color: "#fff",
+    borderRadius: 12,
+    padding: "9px 8px",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  timeTreeDarkBtn: {
+    border: "none",
+    background: "#111827",
+    color: "#fff",
+    borderRadius: 12,
+    padding: "9px 8px",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  timeTreeDeleteBtn: {
+    border: "none",
+    background: "#dc2626",
+    color: "#fff",
+    borderRadius: 12,
+    padding: "9px 8px",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+
 };
