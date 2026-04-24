@@ -573,6 +573,7 @@ export default function ReservationPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [attendanceSaving, setAttendanceSaving] = useState(false);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -587,6 +588,7 @@ export default function ReservationPage() {
   const [selectedDate, setSelectedDate] = useState(toYmd(new Date()));
   const [daySheetOpen, setDaySheetOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
+  const [attendanceFormOpen, setAttendanceFormOpen] = useState(false);
   const [counselingPickerOpen, setCounselingPickerOpen] = useState(false);
 
   const [reservations, setReservations] = useState<ReservationRow[]>([]);
@@ -606,6 +608,11 @@ export default function ReservationPage() {
   const [startTime, setStartTime] = useState("10:00");
   const [endTime, setEndTime] = useState("11:00");
   const [endTimeTouched, setEndTimeTouched] = useState(false);
+
+  const [attendanceDate, setAttendanceDate] = useState(toYmd(new Date()));
+  const [attendanceStaffName, setAttendanceStaffName] = useState("山口");
+  const [attendanceClockIn, setAttendanceClockIn] = useState("10:00");
+  const [attendanceClockOut, setAttendanceClockOut] = useState("17:00");
 
   const [storeName, setStoreName] = useState("江戸堀");
   const [staffName, setStaffName] = useState("山口");
@@ -775,7 +782,10 @@ export default function ReservationPage() {
         .order("clock_in", { ascending: true });
 
       if (error) {
-        if ((error as { code?: string }).code === "PGRST205") {
+        if (
+          (error as { code?: string }).code === "PGRST205" ||
+          (error as { code?: string }).code === "42P01"
+        ) {
           setAttendanceItems([]);
           return;
         }
@@ -875,6 +885,143 @@ export default function ReservationPage() {
 
     return [...list];
   }, [reservations, selectedStoreFilter]);
+    const ticketContractsByCustomerId = useMemo(() => {
+    const map = new Map<string, TicketContractRow[]>();
+
+    for (const contract of ticketContracts) {
+      const customerId = trimmed(contract.customer_id);
+      if (!customerId) continue;
+      if (!map.has(customerId)) map.set(customerId, []);
+      map.get(customerId)!.push(contract);
+    }
+
+    for (const [, list] of map) {
+      list.sort((a, b) => {
+        const aActive = trimmed(a.status) === "active" ? 1 : 0;
+        const bActive = trimmed(b.status) === "active" ? 1 : 0;
+        if (aActive !== bActive) return bActive - aActive;
+
+        const aCreated = trimmed(a.created_at);
+        const bCreated = trimmed(b.created_at);
+        if (aCreated !== bCreated) return aCreated < bCreated ? 1 : -1;
+
+        const aId = toIdNumber(a.id) || 0;
+        const bId = toIdNumber(b.id) || 0;
+        return bId - aId;
+      });
+    }
+
+    return map;
+  }, [ticketContracts]);
+
+  const customerTicketsByCustomerId = useMemo(() => {
+    const map = new Map<string, CustomerTicketRow[]>();
+
+    for (const ticket of customerTickets) {
+      const customerId = trimmed(ticket.customer_id);
+      if (!customerId) continue;
+      if (!map.has(customerId)) map.set(customerId, []);
+      map.get(customerId)!.push(ticket);
+    }
+
+    for (const [, list] of map) {
+      list.sort((a, b) => {
+        const aCreated = trimmed(a.created_at);
+        const bCreated = trimmed(b.created_at);
+        if (aCreated !== bCreated) return aCreated < bCreated ? 1 : -1;
+
+        const aId = toIdNumber(a.id) || 0;
+        const bId = toIdNumber(b.id) || 0;
+        return bId - aId;
+      });
+    }
+
+    return map;
+  }, [customerTickets]);
+
+  const reservationSalesByReservationId = useMemo(() => {
+    const map = new Map<string, ReservationSaleLite[]>();
+
+    for (const sale of reservationSales) {
+      const reservationId = trimmed(sale.reservation_id);
+      if (!reservationId) continue;
+      if (!map.has(reservationId)) map.set(reservationId, []);
+      map.get(reservationId)!.push(sale);
+    }
+
+    return map;
+  }, [reservationSales]);
+
+  function getTicketBadgesForReservation(item: ReservationRow): TicketNumberingInfo[] {
+    const customerId = trimmed(item.customer_id);
+    if (!customerId) return [];
+
+    const badges: TicketNumberingInfo[] = [];
+    const seen = new Set<string>();
+
+    const pushBadge = (labelBase: string, totalCountRaw: unknown, remainingCountRaw: unknown) => {
+      const totalCount = Math.max(Number(totalCountRaw ?? 0), 0);
+      const remainingCount = Math.max(Number(remainingCountRaw ?? 0), 0);
+
+      if (totalCount <= 0) return;
+
+      const label = `${totalCount}-${remainingCount}`;
+      const key = `${labelBase}__${label}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+
+      const tone: TicketNumberingInfo["tone"] =
+        remainingCount <= 0 ? "danger" : remainingCount <= 1 ? "warning" : "normal";
+
+      badges.push({
+        label,
+        tone,
+        showUpdate: remainingCount <= 0,
+        showPaymentAlert: remainingCount <= 0,
+      });
+    };
+
+    const contractRows = ticketContractsByCustomerId.get(customerId) || [];
+    contractRows.forEach((contract) => {
+      const usedCount = Math.max(Number(contract.used_count ?? 0), 0);
+      const remainingCount = Math.max(Number(contract.remaining_count ?? 0), 0);
+      const totalCount = usedCount + remainingCount;
+      pushBadge(formatTicketDisplayLabel(contract.ticket_name), totalCount, remainingCount);
+    });
+
+    const customerTicketRows = customerTicketsByCustomerId.get(customerId) || [];
+    customerTicketRows.forEach((ticket) => {
+      const totalCount =
+        Number(ticket.total_count ?? 0) > 0
+          ? Number(ticket.total_count ?? 0)
+          : Math.max(Number(ticket.remaining_count ?? 0), 0);
+
+      const labelBase = trimmed(ticket.ticket_name) || "回数券";
+      pushBadge(labelBase, totalCount, ticket.remaining_count);
+    });
+
+    return badges;
+  }
+
+  function getReservationSalesForReservation(item: ReservationRow) {
+    return reservationSalesByReservationId.get(String(item.id)) || [];
+  }
+
+  function getReservationSaleSummary(item: ReservationRow) {
+    const sales = getReservationSalesForReservation(item);
+    if (sales.length === 0) return "";
+
+    const total = sales.reduce((sum, sale) => sum + Number(sale.amount ?? 0), 0);
+    const mainSale = sales[0];
+
+    return [
+      `売上¥${total.toLocaleString()}`,
+      trimmed(mainSale.sale_type),
+      trimmed(mainSale.payment_method),
+    ]
+      .filter(Boolean)
+      .join(" / ");
+  }
 
   const visibleReservations = useMemo(() => {
     let list = [...baseVisibleReservations];
@@ -899,9 +1046,9 @@ export default function ReservationPage() {
     const keyword = trimmed(reservationSearch).toLowerCase();
     if (keyword) {
       list = list.filter((item) => {
-        const ticketText = getTicketBadgesForReservation(item)
-          .map((badge) => badge.label)
-          .join(" ");
+        const ticketBadges = getTicketBadgesForReservation(item);
+        const ticketText = buildTicketSearchText(item, ticketBadges);
+
         const saleText = [
           getReservationSaleSummary(item),
           ...getReservationSalesForReservation(item).map((sale) =>
@@ -920,17 +1067,12 @@ export default function ReservationPage() {
           .join(" ");
 
         const haystack = [
-          trimmed(item.customer_name),
-          trimmed(item.memo),
-          trimmed(item.menu),
-          trimmed(item.store_name),
-          trimmed(item.staff_name),
-          trimmed(item.payment_method),
           ticketText,
           saleText,
           trimmed(item.date),
           trimmed(item.start_time),
           trimmed(item.end_time),
+          trimmed(item.payment_method),
         ]
           .filter(Boolean)
           .join(" ")
@@ -1101,35 +1243,6 @@ export default function ReservationPage() {
     ticketUsedReservationIdSet,
   ]);
 
-  const ticketContractsByCustomerId = useMemo(() => {
-    const map = new Map<string, TicketContractRow[]>();
-
-    for (const contract of ticketContracts) {
-      const customerId = trimmed(contract.customer_id);
-      if (!customerId) continue;
-      if (!map.has(customerId)) map.set(customerId, []);
-      map.get(customerId)!.push(contract);
-    }
-
-    for (const [, list] of map) {
-      list.sort((a, b) => {
-        const aActive = trimmed(a.status) === "active" ? 1 : 0;
-        const bActive = trimmed(b.status) === "active" ? 1 : 0;
-        if (aActive !== bActive) return bActive - aActive;
-
-        const aCreated = trimmed(a.created_at);
-        const bCreated = trimmed(b.created_at);
-        if (aCreated !== bCreated) return aCreated < bCreated ? 1 : -1;
-
-        const aId = toIdNumber(a.id) || 0;
-        const bId = toIdNumber(b.id) || 0;
-        return bId - aId;
-      });
-    }
-
-    return map;
-  }, [ticketContracts]);
-
   async function loadReservationFlagsForVisible() {
     if (!supabase) return;
 
@@ -1156,10 +1269,7 @@ export default function ReservationPage() {
           .select("id, reservation_id, amount, payment_method, sale_type, menu_type, memo, created_at")
           .in("reservation_id", reservationIds),
         supabase.from("counselings").select("reservation_id").in("reservation_id", reservationIds),
-        supabase
-          .from("ticket_usages")
-          .select("reservation_id")
-          .in("reservation_id", reservationIds),
+        supabase.from("ticket_usages").select("reservation_id").in("reservation_id", reservationIds),
       ]);
 
       if (salesError) throw salesError;
@@ -1274,118 +1384,6 @@ export default function ReservationPage() {
     }
   }
 
-  const customerTicketsByCustomerId = useMemo(() => {
-    const map = new Map<string, CustomerTicketRow[]>();
-
-    for (const ticket of customerTickets) {
-      const customerId = trimmed(ticket.customer_id);
-      if (!customerId) continue;
-      if (!map.has(customerId)) map.set(customerId, []);
-      map.get(customerId)!.push(ticket);
-    }
-
-    for (const [, list] of map) {
-      list.sort((a, b) => {
-        const aCreated = trimmed(a.created_at);
-        const bCreated = trimmed(b.created_at);
-        if (aCreated !== bCreated) return aCreated < bCreated ? 1 : -1;
-
-        const aId = toIdNumber(a.id) || 0;
-        const bId = toIdNumber(b.id) || 0;
-        return bId - aId;
-      });
-    }
-
-    return map;
-  }, [customerTickets]);
-
-  const reservationSalesByReservationId = useMemo(() => {
-    const map = new Map<string, ReservationSaleLite[]>();
-
-    for (const sale of reservationSales) {
-      const reservationId = trimmed(sale.reservation_id);
-      if (!reservationId) continue;
-      if (!map.has(reservationId)) map.set(reservationId, []);
-      map.get(reservationId)!.push(sale);
-    }
-
-    return map;
-  }, [reservationSales]);
-
-  function getTicketBadgesForReservation(item: ReservationRow): TicketNumberingInfo[] {
-    const customerId = trimmed(item.customer_id);
-    if (!customerId) return [];
-
-    const badges: TicketNumberingInfo[] = [];
-    const seen = new Set<string>();
-
-    const pushBadge = (labelBase: string, totalCountRaw: unknown, remainingCountRaw: unknown) => {
-      const totalCount = Math.max(Number(totalCountRaw ?? 0), 0);
-      const remainingCount = Math.max(Number(remainingCountRaw ?? 0), 0);
-
-      if (totalCount <= 0) return;
-
-      const label = `${totalCount}-${remainingCount}`;
-      const key = `${labelBase}__${label}`;
-      if (seen.has(key)) return;
-      seen.add(key);
-
-      const tone: TicketNumberingInfo["tone"] =
-        remainingCount <= 0 ? "danger" : remainingCount <= 1 ? "warning" : "normal";
-
-      badges.push({
-        label,
-        tone,
-        showUpdate: remainingCount <= 0,
-        showPaymentAlert: remainingCount <= 0,
-      });
-    };
-
-    const contractRows = ticketContractsByCustomerId.get(customerId) || [];
-    contractRows.forEach((contract) => {
-      const usedCount = Math.max(Number(contract.used_count ?? 0), 0);
-      const remainingCount = Math.max(Number(contract.remaining_count ?? 0), 0);
-      const totalCount = usedCount + remainingCount;
-      pushBadge(formatTicketDisplayLabel(contract.ticket_name), totalCount, remainingCount);
-    });
-
-    const customerTicketRows = customerTicketsByCustomerId.get(customerId) || [];
-    customerTicketRows.forEach((ticket) => {
-      const totalCount =
-        Number(ticket.total_count ?? 0) > 0
-          ? Number(ticket.total_count ?? 0)
-          : Math.max(Number(0), 0) + Math.max(Number(ticket.remaining_count ?? 0), 0);
-
-      const labelBase =
-        trimmed(ticket.ticket_name) ||
-        "回数券";
-
-      pushBadge(labelBase, totalCount, ticket.remaining_count);
-  });
-
-    return badges;
-  }
-
-  function getReservationSalesForReservation(item: ReservationRow) {
-    return reservationSalesByReservationId.get(String(item.id)) || [];
-  }
-
-  function getReservationSaleSummary(item: ReservationRow) {
-    const sales = getReservationSalesForReservation(item);
-    if (sales.length === 0) return "";
-
-    const total = sales.reduce((sum, sale) => sum + Number(sale.amount ?? 0), 0);
-    const mainSale = sales[0];
-
-    return [
-      `売上¥${total.toLocaleString()}`,
-      trimmed(mainSale.sale_type),
-      trimmed(mainSale.payment_method),
-    ]
-      .filter(Boolean)
-      .join(" / ");
-  }
-
   function getTicketContractForReservation(item: ReservationRow): TicketContractRow | null {
     const customerId = trimmed(item.customer_id);
     if (!customerId) return null;
@@ -1414,7 +1412,7 @@ export default function ReservationPage() {
     }
 
     const activeContract = list.find(
-(contract) => trimmed(contract.status) === "active" || !trimmed(contract.status)
+      (contract) => trimmed(contract.status) === "active" || !trimmed(contract.status)
     );
     if (activeContract) return activeContract;
 
@@ -1451,6 +1449,22 @@ export default function ReservationPage() {
     setError("");
     setSuccess("");
     setFormOpen(true);
+  }
+
+  function openAttendanceModal(dateStr?: string) {
+    const useDate = dateStr || selectedDate || toYmd(new Date());
+    const rememberedStaff =
+      typeof window !== "undefined"
+        ? trimmed(localStorage.getItem(STAFF_NAME_STORAGE_KEY))
+        : "";
+
+    setAttendanceDate(useDate);
+    setAttendanceStaffName(STAFF_OPTIONS.includes(rememberedStaff) ? rememberedStaff : "山口");
+    setAttendanceClockIn("10:00");
+    setAttendanceClockOut("17:00");
+    setError("");
+    setSuccess("");
+    setAttendanceFormOpen(true);
   }
 
   function handleSelectCustomer(id: string) {
@@ -1610,6 +1624,55 @@ export default function ReservationPage() {
     }
   }
 
+  async function handleSaveAttendance() {
+    if (!supabase) {
+      setError("Supabaseの環境変数が設定されていません。");
+      return;
+    }
+
+    if (!trimmed(attendanceDate)) {
+      setError("出勤日を入力してください。");
+      return;
+    }
+
+    if (!trimmed(attendanceStaffName)) {
+      setError("スタッフを選択してください。");
+      return;
+    }
+
+    if (!trimmed(attendanceClockIn)) {
+      setError("出勤時間を入力してください。");
+      return;
+    }
+
+    try {
+      setAttendanceSaving(true);
+      setError("");
+      setSuccess("");
+
+      const { error } = await supabase.from("attendance_records").insert({
+        staff_name: attendanceStaffName,
+        work_date: attendanceDate,
+        clock_in: attendanceClockIn,
+        clock_out: trimmed(attendanceClockOut) || null,
+      });
+
+      if (error) throw error;
+
+      setSuccess("スタッフ出勤を追加しました。");
+      setAttendanceFormOpen(false);
+      setSelectedDate(attendanceDate);
+      setDaySheetOpen(true);
+
+      await loadAttendance();
+    } catch (e) {
+      console.error(e);
+      setError(`出勤保存エラー: ${extractErrorMessage(e)}`);
+    } finally {
+      setAttendanceSaving(false);
+    }
+  }
+
   async function loadCustomerHistory(customer: CustomerOption) {
     if (!supabase) return;
 
@@ -1758,7 +1821,8 @@ export default function ReservationPage() {
           return;
         }
       }
-            const resolvedName = ticketName || trimmed(getTicketContractForReservation(item)?.ticket_name);
+
+      const resolvedName = ticketName || trimmed(getTicketContractForReservation(item)?.ticket_name);
       const unitPrice = TICKET_UNIT_PRICES[resolvedName];
       if (!unitPrice) {
         setError(`単価設定がありません: ${resolvedName}`);
@@ -1892,8 +1956,7 @@ export default function ReservationPage() {
       setConsumingReservationId("");
     }
   }
-
-  async function handleDeleteReservation(item: ReservationRow) {
+    async function handleDeleteReservation(item: ReservationRow) {
     if (!supabase) {
       setError("Supabaseの環境変数が設定されていません。");
       return;
@@ -2156,6 +2219,14 @@ export default function ReservationPage() {
             </div>
 
             <div style={styles.topRightBtns}>
+              <button
+                type="button"
+                onClick={() => openAttendanceModal(selectedDate)}
+                style={styles.attendanceTopBtn}
+              >
+                出勤追加
+              </button>
+
               <button type="button" onClick={handleOpenCounselingPicker} style={styles.counselingTopBtn}>
                 カウンセリング
               </button>
@@ -2460,9 +2531,7 @@ export default function ReservationPage() {
                               </div>
                             </div>
 
-                            <div style={styles.dayMiniMemo}>
-                              {trimmed(item.memo) || "メモなし"}
-                            </div>
+                            <div style={styles.dayMiniMemo}>{trimmed(item.memo) || "メモなし"}</div>
 
                             {saleSummary ? (
                               <div style={styles.dayMiniSale}>{saleSummary}</div>
@@ -2495,6 +2564,9 @@ export default function ReservationPage() {
                 <div style={styles.sheetHeaderBtns}>
                   <button type="button" onClick={() => openCreateModal(selectedDate)} style={styles.sheetActionBtn}>
                     ＋予約追加
+                  </button>
+                  <button type="button" onClick={() => openAttendanceModal(selectedDate)} style={styles.sheetAttendanceBtn}>
+                    ＋出勤追加
                   </button>
                   <button type="button" onClick={() => setDaySheetOpen(false)} style={styles.sheetCloseBtn}>
                     閉じる
@@ -2656,12 +2728,62 @@ export default function ReservationPage() {
           </div>
         ) : null}
 
+        {attendanceFormOpen ? (
+          <div style={styles.modalOverlay} onClick={() => setAttendanceFormOpen(false)}>
+            <div style={styles.modalSmall} onClick={(e) => e.stopPropagation()}>
+              <div style={styles.modalHeader}>
+                <h3 style={styles.modalTitle}>スタッフ出勤追加</h3>
+                <button type="button" style={styles.modalCloseBtn} onClick={() => setAttendanceFormOpen(false)}>
+                  ×
+                </button>
+              </div>
+
+              <div style={styles.formGrid}>
+                <div style={styles.formBlockFull}>
+                  <label style={styles.label}>スタッフ</label>
+                  <select value={attendanceStaffName} onChange={(e) => setAttendanceStaffName(e.target.value)} style={styles.input}>
+                    {STAFF_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={styles.label}>日付</label>
+                  <input type="date" value={attendanceDate} onChange={(e) => setAttendanceDate(e.target.value)} style={styles.input} />
+                </div>
+
+                <div>
+                  <label style={styles.label}>出勤</label>
+                  <input type="time" value={attendanceClockIn} onChange={(e) => setAttendanceClockIn(e.target.value)} style={styles.input} />
+                </div>
+
+                <div>
+                  <label style={styles.label}>退勤</label>
+                  <input type="time" value={attendanceClockOut} onChange={(e) => setAttendanceClockOut(e.target.value)} style={styles.input} />
+                </div>
+              </div>
+
+              <div style={styles.modalFooter}>
+                <button type="button" onClick={() => setAttendanceFormOpen(false)} style={styles.cancelBtn}>
+                  キャンセル
+                </button>
+                <button type="button" onClick={() => void handleSaveAttendance()} style={styles.saveBtn} disabled={attendanceSaving}>
+                  {attendanceSaving ? "保存中..." : "保存する"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {formOpen ? (
           <div style={styles.modalOverlay} onClick={() => setFormOpen(false)}>
             <div style={styles.modalSmall} onClick={(e) => e.stopPropagation()}>
               <div style={styles.modalHeader}>
                 <h3 style={styles.modalTitle}>新規予約追加</h3>
-<button type="button" style={styles.modalCloseBtn} onClick={() => setFormOpen(false)}>
+                <button type="button" style={styles.modalCloseBtn} onClick={() => setFormOpen(false)}>
                   ×
                 </button>
               </div>
@@ -2830,7 +2952,7 @@ export default function ReservationPage() {
                 <h3 style={styles.modalTitle}>
                   {selectedHistoryCustomer
                     ? `${selectedHistoryCustomer.name} の履歴`
-: selectedHistoryStaff
+                    : selectedHistoryStaff
                     ? `${selectedHistoryStaff} の担当履歴`
                     : "履歴"}
                 </h3>
@@ -2976,6 +3098,18 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     gap: 8,
     flexWrap: "wrap",
+  },
+  attendanceTopBtn: {
+    flex: 1,
+    minWidth: 0,
+    border: "none",
+    background: "linear-gradient(135deg, #16a34a, #15803d)",
+    color: "#fff",
+    borderRadius: 14,
+    padding: "12px 14px",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
   },
   counselingTopBtn: {
     flex: 1,
@@ -3244,17 +3378,17 @@ const styles: Record<string, CSSProperties> = {
   calendarGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(7, 1fr)",
-    gridAutoRows: "188px",
+    gridAutoRows: "172px",
   },
   dayCell: {
-    height: "188px",
-    minHeight: "188px",
-    maxHeight: "188px",
+    height: "172px",
+    minHeight: "172px",
+    maxHeight: "172px",
     border: "none",
     borderRight: "1px solid #f1f5f9",
     borderBottom: "1px solid #f1f5f9",
     background: "#fff",
-    padding: 6,
+    padding: 5,
     textAlign: "left",
     cursor: "pointer",
     verticalAlign: "top",
@@ -3273,7 +3407,7 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 6,
+    marginBottom: 5,
     flexShrink: 0,
   },
   dayNumber: {
@@ -3305,12 +3439,12 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 10,
     color: "#64748b",
     fontWeight: 800,
-    marginBottom: 4,
+    marginBottom: 3,
     flexShrink: 0,
   },
   dayMiniList: {
     display: "grid",
-    gap: 4,
+    gap: 3,
     flex: 1,
     minHeight: 0,
     overflow: "hidden",
@@ -3318,21 +3452,21 @@ const styles: Record<string, CSSProperties> = {
   },
   dayMiniCard: {
     borderRadius: 8,
-    padding: "4px 4px 4px 6px",
+    padding: "3px 4px 3px 6px",
     background: "#f8fafc",
     overflow: "hidden",
     minHeight: 0,
     display: "flex",
     flexDirection: "column",
-    gap: 2,
+    gap: 1,
     alignItems: "stretch",
   },
   dayMiniTime: {
     fontSize: 9,
     color: "#64748b",
     fontWeight: 800,
-    lineHeight: 1.2,
-    marginBottom: 2,
+    lineHeight: 1.1,
+    marginBottom: 1,
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
@@ -3353,12 +3487,17 @@ const styles: Record<string, CSSProperties> = {
     flex: 1,
     minWidth: 0,
   },
+  dayMiniTicketWrap: {
+    display: "inline-flex",
+    gap: 2,
+    flexShrink: 0,
+  },
   dayMiniTicketBadge: {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
     minWidth: 24,
-    height: 16,
+    height: 15,
     padding: "0 4px",
     borderRadius: 999,
     background: "#eff6ff",
@@ -3380,15 +3519,37 @@ const styles: Record<string, CSSProperties> = {
     color: "#b91c1c",
     border: "1px solid #ef4444",
   },
+  dayMiniTicketPlaceholder: {
+    fontSize: 8,
+    color: "#cbd5e1",
+    fontWeight: 900,
+  },
   dayMiniMemo: {
-    marginTop: 2,
+    marginTop: 1,
     fontSize: 8,
     color: "#94a3b8",
     fontWeight: 700,
-    lineHeight: 1.2,
+    lineHeight: 1.15,
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
+  },
+  dayMiniSale: {
+    marginTop: 1,
+    fontSize: 8,
+    color: "#0f766e",
+    fontWeight: 800,
+    lineHeight: 1.15,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  dayMiniSaleMuted: {
+    marginTop: 1,
+    fontSize: 8,
+    color: "#ef4444",
+    fontWeight: 900,
+    lineHeight: 1.15,
   },
   dayMore: {
     fontSize: 10,
@@ -3414,7 +3575,7 @@ const styles: Record<string, CSSProperties> = {
     background: "#fff",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    padding: "10px 12px 18px",
+    padding: "8px 12px 18px",
     boxSizing: "border-box",
     boxShadow: "0 -10px 30px rgba(15,23,42,0.18)",
   },
@@ -3430,7 +3591,7 @@ const styles: Record<string, CSSProperties> = {
     alignItems: "flex-start",
     justifyContent: "space-between",
     gap: 10,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   sheetSubTitle: {
     fontSize: 11,
@@ -3447,7 +3608,7 @@ const styles: Record<string, CSSProperties> = {
   },
   sheetHeaderBtns: {
     display: "flex",
-    gap: 8,
+    gap: 6,
     flexWrap: "wrap",
     justifyContent: "flex-end",
   },
@@ -3456,7 +3617,17 @@ const styles: Record<string, CSSProperties> = {
     background: "linear-gradient(135deg, #f59e0b, #d97706)",
     color: "#fff",
     borderRadius: 999,
-    padding: "10px 14px",
+    padding: "9px 11px",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  sheetAttendanceBtn: {
+    border: "none",
+    background: "linear-gradient(135deg, #16a34a, #15803d)",
+    color: "#fff",
+    borderRadius: 999,
+    padding: "9px 11px",
     fontSize: 12,
     fontWeight: 900,
     cursor: "pointer",
@@ -3466,7 +3637,7 @@ const styles: Record<string, CSSProperties> = {
     background: "#fff",
     color: "#334155",
     borderRadius: 999,
-    padding: "10px 14px",
+    padding: "9px 11px",
     fontSize: 12,
     fontWeight: 900,
     cursor: "pointer",
@@ -3481,75 +3652,56 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 13,
     fontWeight: 700,
   },
-  timelineListCompact: {
+  timeTreeList: {
     display: "grid",
-    gap: 10,
+    gap: 0,
+    padding: "2px 0 12px",
   },
-  timelineCard: {
+  timeTreeCard: {
+    borderBottom: "1px solid #f1f5f9",
+    padding: "2px 0 6px",
     background: "#fff",
-    border: "1px solid #e2e8f0",
-    borderRadius: 18,
-    padding: 12,
-    boxShadow: "0 10px 22px rgba(15,23,42,0.05)",
   },
-  timelineCardCompact: {
-    background: "#fff",
-    border: "1px solid #e2e8f0",
-    borderRadius: 18,
-    padding: 12,
-    boxShadow: "0 10px 22px rgba(15,23,42,0.05)",
-  },
-  reserveCardPendingCompact: {
-    background: "#fffaf5",
-    border: "1px solid #fed7aa",
-  },
-  timelineRow: {
+  timeTreeItem: {
     display: "flex",
     alignItems: "center",
-    gap: 12,
+    gap: 9,
+    width: "100%",
+    minHeight: 54,
   },
-  timelineRowCompact: {
-    display: "flex",
-    alignItems: "flex-start",
-    gap: 10,
-  },
-  timelineTimeBlock: {
-    width: 64,
+  timeTreeTimeCol: {
+    width: 54,
     flexShrink: 0,
+    textAlign: "right",
+    paddingRight: 2,
   },
-  timelineTimeMain: {
-    fontSize: 18,
-    fontWeight: 900,
-    color: "#0f172a",
-    lineHeight: 1.1,
-  },
-  timelineTimeSub: {
-    fontSize: 12,
-    color: "#64748b",
-    fontWeight: 700,
-    marginTop: 4,
-  },
-  timelineContent: {
-    flex: 1,
-    minWidth: 0,
-  },
-  timelineContentCompact: {
-    flex: 1,
-    minWidth: 0,
-  },
-  timelineTitle: {
+  timeTreeStart: {
     fontSize: 15,
     fontWeight: 900,
-    color: "#0f172a",
-    marginBottom: 4,
+    color: "#111827",
+    lineHeight: 1.05,
   },
-  timelineMetaText: {
-    fontSize: 12,
-    color: "#64748b",
+  timeTreeEnd: {
+    marginTop: 6,
+    fontSize: 13,
     fontWeight: 700,
+    color: "#9ca3af",
+    lineHeight: 1.05,
   },
-  timelineMainActionCompact: {
-    width: "100%",
+  timeTreeLine: {
+    width: 4,
+    minHeight: 42,
+    alignSelf: "stretch",
+    borderRadius: 999,
+    flexShrink: 0,
+  },
+  timeTreeBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+  timeTreeBodyButton: {
+    flex: 1,
+    minWidth: 0,
     border: "none",
     background: "transparent",
     padding: 0,
@@ -3557,285 +3709,169 @@ const styles: Record<string, CSSProperties> = {
     textAlign: "left",
     cursor: "pointer",
   },
-  timelineTopLineCompact: {
-    display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 10,
-    marginBottom: 4,
-  },
-  timelineNameGroupCompact: {
+  timeTreeTitleRow: {
     display: "flex",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
     minWidth: 0,
     flexWrap: "wrap",
   },
-  timelineTitleCompact: {
-    fontSize: 15,
+  timeTreeTitle: {
+    fontSize: 16,
     fontWeight: 900,
-    color: "#0f172a",
-    lineHeight: 1.3,
+    color: "#171717",
+    letterSpacing: "-0.03em",
+    lineHeight: 1.18,
   },
-  timelineTimeInline: {
-    fontSize: 12,
-    color: "#475569",
-    fontWeight: 800,
-    flexShrink: 0,
-    whiteSpace: "nowrap",
+  timeTreeTicketGroup: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
+    flexWrap: "wrap",
   },
-  memoInline: {
-    fontSize: 11,
-    color: "#94a3b8",
-    fontWeight: 700,
-    lineHeight: 1.45,
-    marginBottom: 4,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-  timelineMetaTextCompact: {
-    fontSize: 12,
-    color: "#64748b",
-    fontWeight: 700,
-    lineHeight: 1.5,
-  },
-  ticketInline: {
+  timeTreeTicket: {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    minWidth: 30,
-    height: 20,
-    padding: "0 6px",
+    minWidth: 32,
+    height: 19,
+    padding: "0 7px",
     borderRadius: 999,
     background: "#eff6ff",
     color: "#1d4ed8",
     border: "1px solid #bfdbfe",
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: 900,
     lineHeight: 1,
     whiteSpace: "nowrap",
   },
-  ticketInlineWarning: {
+  timeTreeTicketWarning: {
     background: "#fff7ed",
     color: "#c2410c",
     border: "1px solid #fdba74",
   },
-  ticketInlineDanger: {
+  timeTreeTicketDanger: {
     background: "#fee2e2",
     color: "#b91c1c",
     border: "1px solid #ef4444",
   },
-  statusRowCompact: {
-    display: "flex",
-    gap: 6,
-    flexWrap: "wrap",
-    marginTop: 8,
-  },
-  pendingBadgeCompact: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 22,
-    padding: "0 8px",
-    borderRadius: 999,
-    background: "#fef3c7",
-    color: "#92400e",
-    fontSize: 11,
-    fontWeight: 900,
-  },
-  doneBadgeCompact: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 22,
-    padding: "0 8px",
-    borderRadius: 999,
-    background: "#dcfce7",
-    color: "#166534",
-    fontSize: 11,
-    fontWeight: 900,
-  },
-  doneBadgeBlueCompact: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 22,
-    padding: "0 8px",
-    borderRadius: 999,
-    background: "#dbeafe",
-    color: "#1d4ed8",
-    fontSize: 11,
-    fontWeight: 900,
-  },
-  pendingBadgeYellowCompact: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 22,
-    padding: "0 8px",
-    borderRadius: 999,
-    background: "#fef3c7",
-    color: "#b45309",
-    fontSize: 11,
-    fontWeight: 900,
-  },
-  pendingBadgePurpleCompact: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 22,
-    padding: "0 8px",
-    borderRadius: 999,
-    background: "#ede9fe",
-    color: "#6d28d9",
-    fontSize: 11,
-    fontWeight: 900,
-  },
-  doneBadgePurpleCompact: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 22,
-    padding: "0 8px",
-    borderRadius: 999,
-    background: "#f3e8ff",
-    color: "#7e22ce",
-    fontSize: 11,
-    fontWeight: 900,
-  },
-  cardActionBarSingle: {
-    marginTop: 10,
-  },
-  actionToggleBtn: {
-    width: "100%",
-    border: "1px solid #dbe2ea",
-    background: "#fff",
-    color: "#334155",
-    borderRadius: 12,
-    padding: "10px 12px",
+  timeTreeMemo: {
+    marginTop: 2,
     fontSize: 12,
+    color: "#8b8b8b",
+    fontWeight: 700,
+    lineHeight: 1.25,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  timeTreeMemoMuted: {
+    marginTop: 2,
+    fontSize: 11,
+    color: "#c4c4c4",
+    fontWeight: 700,
+    lineHeight: 1.25,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  timeTreeSale: {
+    marginTop: 2,
+    fontSize: 11,
+    color: "#0f766e",
+    fontWeight: 800,
+    lineHeight: 1.25,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  timeTreeSaleMuted: {
+    marginTop: 2,
+    fontSize: 11,
+    color: "#ef4444",
     fontWeight: 900,
-    cursor: "pointer",
+    lineHeight: 1.25,
   },
-  actionDrawer: {
-    marginTop: 10,
-    display: "grid",
-    gap: 8,
+  timeTreeSub: {
+    marginTop: 1,
+    fontSize: 11,
+    color: "#94a3b8",
+    fontWeight: 700,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
-  cardActionRowCompact: {
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: 8,
-  },
-  actionBtnDarkCompact: {
-    border: "none",
-    background: "#111827",
+  timeTreeAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 999,
     color: "#fff",
-    borderRadius: 12,
-    padding: "10px 12px",
-    fontSize: 12,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 17,
     fontWeight: 900,
+    flexShrink: 0,
+  },
+  timeTreeOperationLine: {
+    marginTop: -3,
+    paddingLeft: 67,
+  },
+  timeTreeOperationBtn: {
+    border: "none",
+    background: "transparent",
+    color: "#94a3b8",
+    fontSize: 11,
+    fontWeight: 800,
+    padding: "3px 0",
     cursor: "pointer",
   },
-  actionBtnBlueCompact: {
+  timeTreeDrawer: {
+    marginLeft: 67,
+    marginTop: 4,
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: 7,
+  },
+  timeTreeBlueBtn: {
     border: "none",
     background: "#2563eb",
     color: "#fff",
-    borderRadius: 12,
-    padding: "10px 12px",
+    borderRadius: 11,
+    padding: "8px 7px",
     fontSize: 12,
     fontWeight: 900,
     cursor: "pointer",
   },
-  actionBtnOrangeCompact: {
+  timeTreeOrangeBtn: {
     border: "none",
     background: "#f59e0b",
     color: "#fff",
-    borderRadius: 12,
-    padding: "10px 12px",
+    borderRadius: 11,
+    padding: "8px 7px",
     fontSize: 12,
     fontWeight: 900,
     cursor: "pointer",
   },
-  actionBtnMemoCompact: {
-    border: "1px solid #dbe2ea",
-    background: "#fff",
-    color: "#334155",
-    borderRadius: 12,
-    padding: "10px 12px",
+  timeTreeDarkBtn: {
+    border: "none",
+    background: "#111827",
+    color: "#fff",
+    borderRadius: 11,
+    padding: "8px 7px",
     fontSize: 12,
     fontWeight: 900,
     cursor: "pointer",
   },
-  actionBtnDeleteCompact: {
+  timeTreeDeleteBtn: {
     border: "none",
     background: "#dc2626",
     color: "#fff",
-    borderRadius: 12,
-    padding: "10px 12px",
+    borderRadius: 11,
+    padding: "8px 7px",
     fontSize: 12,
     fontWeight: 900,
     cursor: "pointer",
-  },
-  memoBoxCompact: {
-    background: "#f8fafc",
-    border: "1px solid #e2e8f0",
-    borderRadius: 12,
-    padding: 10,
-    fontSize: 12,
-    lineHeight: 1.6,
-    color: "#334155",
-    whiteSpace: "pre-wrap",
-  },
-  historySectionTitle: {
-    fontSize: 14,
-    fontWeight: 900,
-    color: "#0f172a",
-    marginTop: 6,
-    marginBottom: 6,
-  },
-  historyCard: {
-    background: "#fff",
-    border: "1px solid #e2e8f0",
-    borderRadius: 14,
-    padding: 12,
-  },
-  historyTitle: {
-    fontSize: 14,
-    fontWeight: 900,
-    color: "#0f172a",
-    marginBottom: 6,
-  },
-  historyMeta: {
-    fontSize: 12,
-    color: "#64748b",
-    fontWeight: 700,
-    lineHeight: 1.6,
-  },
-  staffAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 999,
-    color: "#fff",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 14,
-    fontWeight: 900,
-    flexShrink: 0,
-  },
-  staffAvatarCompact: {
-    width: 32,
-    height: 32,
-    borderRadius: 999,
-    color: "#fff",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 13,
-    fontWeight: 900,
-    flexShrink: 0,
   },
   modalOverlay: {
     position: "fixed",
@@ -4023,227 +4059,29 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 900,
     marginTop: 8,
   },
-  timeTreeList: {
-    display: "grid",
-    gap: 0,
-    padding: "2px 0 12px",
-  },
-  timeTreeCard: {
-    borderBottom: "1px solid #f1f5f9",
-    padding: "3px 0 8px",
-    background: "#fff",
-  },
-  timeTreeItem: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    width: "100%",
-    minHeight: 64,
-  },
-  timeTreeTimeCol: {
-    width: 58,
-    flexShrink: 0,
-    textAlign: "right",
-    paddingRight: 2,
-  },
-  timeTreeStart: {
-    fontSize: 16,
-    fontWeight: 900,
-    color: "#111827",
-    lineHeight: 1.1,
-  },
-  timeTreeEnd: {
-    marginTop: 8,
+  historySectionTitle: {
     fontSize: 14,
-    fontWeight: 700,
-    color: "#9ca3af",
-    lineHeight: 1.1,
-  },
-  timeTreeLine: {
-    width: 4,
-    minHeight: 52,
-    alignSelf: "stretch",
-    borderRadius: 999,
-    flexShrink: 0,
-  },
-  timeTreeBody: {
-    flex: 1,
-    minWidth: 0,
-  },
-  timeTreeBodyButton: {
-    flex: 1,
-    minWidth: 0,
-    border: "none",
-    background: "transparent",
-    padding: 0,
-    margin: 0,
-    textAlign: "left",
-    cursor: "pointer",
-  },
-  timeTreeTitleRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-    minWidth: 0,
-    flexWrap: "wrap",
-  },
-  timeTreeTitle: {
-    fontSize: 18,
     fontWeight: 900,
-    color: "#171717",
-    letterSpacing: "-0.03em",
-    lineHeight: 1.25,
-  },
-  timeTreeTicketGroup: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 4,
-    flexWrap: "wrap",
-  },
-  timeTreeTicket: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 34,
-    height: 20,
-    padding: "0 7px",
-    borderRadius: 999,
-    background: "#eff6ff",
-    color: "#1d4ed8",
-    border: "1px solid #bfdbfe",
-    fontSize: 11,
-    fontWeight: 900,
-    lineHeight: 1,
-    whiteSpace: "nowrap",
-  },
-  timeTreeTicketWarning: {
-    background: "#fff7ed",
-    color: "#c2410c",
-    border: "1px solid #fdba74",
-  },
-  timeTreeTicketDanger: {
-    background: "#fee2e2",
-    color: "#b91c1c",
-    border: "1px solid #ef4444",
-  },
-  timeTreeMemo: {
-    marginTop: 3,
-    fontSize: 14,
-    color: "#8b8b8b",
-    fontWeight: 700,
-    lineHeight: 1.35,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-  timeTreeSub: {
-    marginTop: 2,
-    fontSize: 12,
-    color: "#94a3b8",
-    fontWeight: 700,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-  timeTreeAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 999,
-    color: "#fff",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 18,
-    fontWeight: 900,
-    flexShrink: 0,
-  },
-  timeTreeOperationLine: {
-    marginTop: -2,
-    paddingLeft: 72,
-  },
-  timeTreeOperationBtn: {
-    border: "none",
-    background: "transparent",
-    color: "#94a3b8",
-    fontSize: 12,
-    fontWeight: 800,
-    padding: "4px 0",
-    cursor: "pointer",
-  },
-  timeTreeDrawer: {
-    marginLeft: 72,
+    color: "#0f172a",
     marginTop: 6,
-    display: "grid",
-    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-    gap: 8,
+    marginBottom: 6,
   },
-  timeTreeBlueBtn: {
-    border: "none",
-    background: "#2563eb",
-    color: "#fff",
-    borderRadius: 12,
-    padding: "9px 8px",
-    fontSize: 12,
+  historyCard: {
+    background: "#fff",
+    border: "1px solid #e2e8f0",
+    borderRadius: 14,
+    padding: 12,
+  },
+  historyTitle: {
+    fontSize: 14,
     fontWeight: 900,
-    cursor: "pointer",
+    color: "#0f172a",
+    marginBottom: 6,
   },
-  timeTreeOrangeBtn: {
-    border: "none",
-    background: "#f59e0b",
-    color: "#fff",
-    borderRadius: 12,
-    padding: "9px 8px",
+  historyMeta: {
     fontSize: 12,
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-  timeTreeDarkBtn: {
-    border: "none",
-    background: "#111827",
-    color: "#fff",
-    borderRadius: 12,
-    padding: "9px 8px",
-    fontSize: 12,
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-  timeTreeDeleteBtn: {
-    border: "none",
-    background: "#dc2626",
-    color: "#fff",
-    borderRadius: 12,
-    padding: "9px 8px",
-    fontSize: 12,
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-
-  timeTreeMemoMuted: {
-    marginTop: 2,
-    fontSize: 12,
-    color: "#c4c4c4",
+    color: "#64748b",
     fontWeight: 700,
-    lineHeight: 1.35,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
+    lineHeight: 1.6,
   },
-  timeTreeSale: {
-    marginTop: 3,
-    fontSize: 12,
-    color: "#0f766e",
-    fontWeight: 800,
-    lineHeight: 1.35,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-  timeTreeSaleMuted: {
-    marginTop: 3,
-    fontSize: 12,
-    color: "#ef4444",
-    fontWeight: 900,
-    lineHeight: 1.35,
-  },
-
 };
