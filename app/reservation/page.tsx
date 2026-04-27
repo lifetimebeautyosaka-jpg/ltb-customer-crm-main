@@ -173,6 +173,7 @@ const STORE_OPTIONS = [
   "天満橋",
   "中崎町",
   "江坂",
+  "西梅田",
 ];
 
 const STORE_OPTIONS_FOR_FORM = [
@@ -183,6 +184,7 @@ const STORE_OPTIONS_FOR_FORM = [
   "天満橋",
   "中崎町",
   "江坂",
+  "西梅田",
 ];
 
 const STAFF_OPTIONS = [
