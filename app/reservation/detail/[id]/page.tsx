@@ -523,8 +523,7 @@ export default function ReservationDetailPage() {
       if (ticketUpdateError) throw ticketUpdateError;
     }
   }
-
-  async function handleDeleteReservation() {
+    async function handleDeleteReservation() {
     if (!supabase || !reservation) return;
 
     const reservationIdNum = toNumberOrNull(reservation.id);
@@ -773,6 +772,12 @@ export default function ReservationDetailPage() {
                 </Link>
               ) : null}
 
+              {reservation?.customer_id ? (
+                <Link href={`/customer/${reservation.customer_id}`} style={styles.customerLink}>
+                  顧客
+                </Link>
+              ) : null}
+
               <button
                 type="button"
                 onClick={handleDeleteReservation}
@@ -890,6 +895,20 @@ export default function ReservationDetailPage() {
                   style={styles.actionBlue}
                 >
                   {isTicketReservation ? "回数券消化へ" : "売上登録へ"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!reservation.customer_id) {
+                      window.alert("customer_id がありません");
+                      return;
+                    }
+                    router.push(`/customer/${reservation.customer_id}`);
+                  }}
+                  style={styles.actionCustomer}
+                >
+                  顧客マイページへ
                 </button>
 
                 {isNewVisit(reservation) ? (
@@ -1432,6 +1451,19 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 13,
     fontWeight: 800,
   },
+  customerLink: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    textDecoration: "none",
+    border: "none",
+    background: "linear-gradient(135deg, #111827, #374151)",
+    color: "#fff",
+    borderRadius: 14,
+    padding: "10px 14px",
+    fontSize: 13,
+    fontWeight: 800,
+  },
   deleteBtn: {
     border: "none",
     background: "linear-gradient(135deg, #ef4444, #dc2626)",
@@ -1582,6 +1614,16 @@ const styles: Record<string, CSSProperties> = {
   actionBlue: {
     border: "none",
     background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+    color: "#fff",
+    borderRadius: 14,
+    padding: "11px 16px",
+    fontWeight: 900,
+    fontSize: 13,
+    cursor: "pointer",
+  },
+  actionCustomer: {
+    border: "none",
+    background: "linear-gradient(135deg, #111827, #374151)",
     color: "#fff",
     borderRadius: 14,
     padding: "11px 16px",
