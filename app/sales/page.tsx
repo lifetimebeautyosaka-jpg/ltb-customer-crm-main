@@ -2431,6 +2431,64 @@ if (reservationId) {
     return;
   }
 }
+// 🔴 二重売上チェック（回数券ロールバック対応）
+if (reservationId) {
+  const { data: existingSales, error: existingSalesError } = await supabase
+    .from("sales")
+    .select("id")
+    .eq("reservation_id", reservationId);
+
+  if (existingSalesError) {
+    throw new Error(`二重売上チェックエラー: ${existingSalesError.message}`);
+  }
+
+  if (existingSales && existingSales.length > 0) {
+    const ok = window.confirm(
+      "すでに売上登録されています。\n上書きしますか？\n\n回数券消化がある場合は、残数を戻してから再登録します。"
+    );
+
+    if (!ok) return;
+
+    const { data: existingUsages, error: existingUsagesError } = await supabase
+      .from("ticket_usages")
+      .select("id, ticket_id, before_count, reservation_id")
+      .eq("reservation_id", reservationId);
+
+    if (existingUsagesError) {
+      throw new Error(`回数券消化履歴チェックエラー: ${existingUsagesError.message}`);
+    }
+
+    if (existingUsages && existingUsages.length > 0) {
+      for (const usage of existingUsages) {
+        if (!usage.ticket_id) continue;
+
+        await rollbackConsumedTicket({
+          ticketId: usage.ticket_id,
+          beforeCount: Number(usage.before_count || 0),
+          reservationId,
+        });
+      }
+
+      const { error: deleteUsageError } = await supabase
+        .from("ticket_usages")
+        .delete()
+        .eq("reservation_id", reservationId);
+
+      if (deleteUsageError) {
+        throw new Error(`回数券消化履歴削除エラー: ${deleteUsageError.message}`);
+      }
+    }
+
+    const { error: deleteSalesError } = await supabase
+      .from("sales")
+      .delete()
+      .eq("reservation_id", reservationId);
+
+    if (deleteSalesError) {
+      throw new Error(`既存売上削除エラー: ${deleteSalesError.message}`);
+    }
+  }
+}
 
 // 🔵 元の処理（そのまま）
 const { data: insertedData, error: insertError } = await supabase
