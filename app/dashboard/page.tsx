@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
@@ -19,7 +19,6 @@ type ReservationRow = {
   visit_type?: string | null;
   reservation_status?: string | null;
   is_first_visit?: boolean | null;
-  created_at?: string | null;
 };
 
 type CustomerRow = {
@@ -37,27 +36,17 @@ type SaleRow = {
   customer_name?: string | null;
   amount?: number | null;
   sale_date?: string | null;
-  sale_type?: string | null;
-  menu_type?: string | null;
-  payment_method?: string | null;
   created_at?: string | null;
 };
 
 type TicketUsageRow = {
   id: string | number;
   reservation_id?: string | number | null;
-  ticket_id?: string | number | null;
-  customer_id?: string | number | null;
-  before_count?: number | null;
-  after_count?: number | null;
-  created_at?: string | null;
 };
 
 type CounselingRow = {
   id: string | number;
   reservation_id?: string | number | null;
-  customer_id?: string | number | null;
-  created_at?: string | null;
 };
 
 type TicketContractRow = {
@@ -95,7 +84,6 @@ type DashboardReservation = {
 
 type TodoItem = {
   id: string;
-  type: "sales" | "ticket" | "counseling" | "ticket-warning";
   title: string;
   sub: string;
   href: string;
@@ -110,12 +98,11 @@ type LtvCustomer = {
   count: number;
 };
 
-type SystemStatus = "ONLINE" | "FALLBACK" | "OFFLINE";
+type SystemStatus = "ONLINE" | "OFFLINE";
 
 type DashboardStats = {
   todayReservationCount: number;
   todaySalesAmount: number | null;
-  todayTodoCount: number;
   todayUnsoldCount: number;
   todayTicketPendingCount: number;
   todayCounselingPendingCount: number;
@@ -178,24 +165,12 @@ function getSupabaseClient(): SupabaseClient | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anonKey) return null;
-
-  try {
-    return createClient(url, anonKey);
-  } catch (error) {
-    console.error("Supabase client create error:", error);
-    return null;
-  }
+  return createClient(url, anonKey);
 }
 
 function trimmed(value: unknown): string {
   if (value === null || value === undefined) return "";
   return String(value).trim();
-}
-
-function toNumberOrNull(value: unknown): number | null {
-  if (value === null || value === undefined || value === "") return null;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
 }
 
 function formatYen(value: number | null | undefined) {
@@ -214,6 +189,7 @@ function getTodayDateString() {
 function shiftDateString(dateString: string, diffDays: number) {
   const date = new Date(`${dateString}T00:00:00`);
   date.setDate(date.getDate() + diffDays);
+
   const y = date.getFullYear();
   const m = `${date.getMonth() + 1}`.padStart(2, "0");
   const d = `${date.getDate()}`.padStart(2, "0");
@@ -223,6 +199,7 @@ function shiftDateString(dateString: string, diffDays: number) {
 function formatDateLabel(dateString: string) {
   const date = new Date(`${dateString}T00:00:00`);
   if (Number.isNaN(date.getTime())) return dateString;
+
   return new Intl.DateTimeFormat("ja-JP", {
     year: "numeric",
     month: "long",
@@ -303,33 +280,6 @@ function isTicketMenu(menu?: string | null) {
   );
 }
 
-function detectServiceTypeFromTicketName(ticketName: string) {
-  if (
-    ticketName.includes("40分") ||
-    ticketName.includes("60分") ||
-    ticketName.includes("80分") ||
-    ticketName.includes("120分") ||
-    ticketName.includes("ストレッチ")
-  ) {
-    return "ストレッチ";
-  }
-  return "トレーニング";
-}
-
-function detectServiceTypeFromMenu(menu?: string | null) {
-  const text = trimmed(menu);
-  if (
-    text.includes("40分") ||
-    text.includes("60分") ||
-    text.includes("80分") ||
-    text.includes("120分") ||
-    text.includes("ストレッチ")
-  ) {
-    return "ストレッチ";
-  }
-  return "トレーニング";
-}
-
 function resolveTicketName(params: {
   reservationMenu?: string | null;
   customerPlanType?: string | null;
@@ -397,14 +347,16 @@ function isNewVisit(row: DashboardReservation) {
 function ticketRemainingClass(value: number | null) {
   if (value === null) return "";
   if (value <= 0) return "zero";
-  if (value === 1) return "danger";
-  if (value <= 3) return "warn";
-  return "ok";
+  if (value === 1) return "red";
+  if (value <= 3) return "orange";
+  return "done";
 }
 
-function getCustomerName(row: CustomerRow) {
+function getCustomerName(row?: CustomerRow | null) {
+  if (!row) return "名前未設定";
   return trimmed(row.name) || trimmed(row.customer_name) || "名前未設定";
 }
+
 export default function DashboardPage() {
   const router = useRouter();
 
@@ -423,7 +375,6 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>({
     todayReservationCount: 0,
     todaySalesAmount: null,
-    todayTodoCount: 0,
     todayUnsoldCount: 0,
     todayTicketPendingCount: 0,
     todayCounselingPendingCount: 0,
@@ -486,6 +437,7 @@ export default function DashboardPage() {
         const supabase = getSupabaseClient();
 
         if (!supabase) {
+          if (!mounted) return;
           setSystemStatus("OFFLINE");
           setReservations([]);
           setTodoItems([]);
@@ -494,7 +446,6 @@ export default function DashboardPage() {
           setStats({
             todayReservationCount: 0,
             todaySalesAmount: null,
-            todayTodoCount: 0,
             todayUnsoldCount: 0,
             todayTicketPendingCount: 0,
             todayCounselingPendingCount: 0,
@@ -586,6 +537,7 @@ export default function DashboardPage() {
           const id = trimmed(customer.id);
           const name = getCustomerName(customer);
           if (id) customerMapById.set(id, customer);
+
           const normalized = normalizeName(name);
           if (normalized && !customerMapByName.has(normalized)) {
             customerMapByName.set(normalized, customer);
@@ -593,29 +545,25 @@ export default function DashboardPage() {
         }
 
         const reservationIds = rawReservations
-          .map((row) => toNumberOrNull(row.id))
-          .filter((id): id is number => id !== null);
+          .map((row) => Number(row.id))
+          .filter((id) => Number.isFinite(id));
 
         const customerIds = rawReservations
-          .map((row) => toNumberOrNull(row.customer_id))
-          .filter((id): id is number => id !== null);
+          .map((row) => Number(row.customer_id))
+          .filter((id) => Number.isFinite(id));
 
-        const [
-          usageResult,
-          counselingResult,
-          contractResult,
-        ] = await Promise.all([
+        const [usageResult, counselingResult, contractResult] = await Promise.all([
           reservationIds.length > 0
             ? supabase
                 .from("ticket_usages")
-                .select("id, reservation_id, ticket_id, customer_id, before_count, after_count, created_at")
+                .select("id, reservation_id")
                 .in("reservation_id", reservationIds)
             : Promise.resolve({ data: [], error: null }),
 
           reservationIds.length > 0
             ? supabase
                 .from("counselings")
-                .select("id, reservation_id, customer_id, created_at")
+                .select("id, reservation_id")
                 .in("reservation_id", reservationIds)
             : Promise.resolve({ data: [], error: null }),
 
@@ -640,24 +588,19 @@ export default function DashboardPage() {
         const contractRows = ((contractResult.data || []) as TicketContractRow[]) || [];
 
         const usageByReservation = new Set(
-          usageRows
-            .map((row) => trimmed(row.reservation_id))
-            .filter(Boolean)
+          usageRows.map((row) => trimmed(row.reservation_id)).filter(Boolean)
         );
 
         const counselingByReservation = new Set(
-          counselingRows
-            .map((row) => trimmed(row.reservation_id))
-            .filter(Boolean)
+          counselingRows.map((row) => trimmed(row.reservation_id)).filter(Boolean)
         );
 
         const salesByReservation = new Set(
-          todaySales
-            .map((row) => trimmed(row.reservation_id))
-            .filter(Boolean)
+          todaySales.map((row) => trimmed(row.reservation_id)).filter(Boolean)
         );
 
         const contractByCustomer = new Map<string, TicketContractRow[]>();
+
         for (const contract of contractRows) {
           const customerId = trimmed(contract.customer_id);
           if (!customerId) continue;
@@ -668,15 +611,15 @@ export default function DashboardPage() {
 
         const displayReservations: DashboardReservation[] = rawReservations.map((row) => {
           let customerId = trimmed(row.customer_id);
-          const customerName = trimmed(row.customer_name);
+          const rawCustomerName = trimmed(row.customer_name);
           let matchedCustomer: CustomerRow | undefined;
 
           if (customerId) {
             matchedCustomer = customerMapById.get(customerId);
           }
 
-          if (!matchedCustomer && customerName) {
-            matchedCustomer = customerMapByName.get(normalizeName(customerName));
+          if (!matchedCustomer && rawCustomerName) {
+            matchedCustomer = customerMapByName.get(normalizeName(rawCustomerName));
             if (matchedCustomer) customerId = trimmed(matchedCustomer.id);
           }
 
@@ -705,10 +648,10 @@ export default function DashboardPage() {
           return {
             id: reservationId,
             date: trimmed(row.date),
-            time: trimmed(row.start_time)?.slice(0, 5) || "--:--",
-            endTime: trimmed(row.end_time)?.slice(0, 5),
+            time: trimmed(row.start_time).slice(0, 5) || "--:--",
+            endTime: trimmed(row.end_time).slice(0, 5),
             customerId,
-            customerName: customerName || matchedCustomer ? customerName || getCustomerName(matchedCustomer as CustomerRow) : "名前未設定",
+            customerName: rawCustomerName || getCustomerName(matchedCustomer),
             menu,
             staffName: trimmed(row.staff_name) || "担当未設定",
             storeName: trimmed(row.store_name),
@@ -721,7 +664,9 @@ export default function DashboardPage() {
             isCounseled,
             ticketName: trimmed(matchedContract?.ticket_name) || ticketName,
             remainingCount:
-              matchedContract && matchedContract.remaining_count !== null && matchedContract.remaining_count !== undefined
+              matchedContract &&
+              matchedContract.remaining_count !== null &&
+              matchedContract.remaining_count !== undefined
                 ? Number(matchedContract.remaining_count)
                 : null,
           };
@@ -733,7 +678,6 @@ export default function DashboardPage() {
           if (!item.isSold) {
             nextTodoItems.push({
               id: `sales-${item.id}`,
-              type: "sales",
               title: `${item.time} ${item.customerName}：売上未`,
               sub: `${item.menu} / ${item.staffName}${item.storeName ? ` / ${item.storeName}` : ""}`,
               href: `/reservation/detail/${item.id}`,
@@ -745,7 +689,6 @@ export default function DashboardPage() {
           if (item.isTicket && !item.isTicketUsed) {
             nextTodoItems.push({
               id: `ticket-${item.id}`,
-              type: "ticket",
               title: `${item.time} ${item.customerName}：回数券未消化`,
               sub: `${item.ticketName || item.menu} / 残${item.remainingCount ?? "不明"}回`,
               href: `/reservation/detail/${item.id}`,
@@ -757,7 +700,6 @@ export default function DashboardPage() {
           if (isNewVisit(item) && !item.isCounseled) {
             nextTodoItems.push({
               id: `counseling-${item.id}`,
-              type: "counseling",
               title: `${item.time} ${item.customerName}：カウンセリング未`,
               sub: `${item.menu} / 新規`,
               href: `/reservation/detail/${item.id}`,
@@ -769,7 +711,6 @@ export default function DashboardPage() {
           if (item.isTicket && item.remainingCount !== null && item.remainingCount <= 2) {
             nextTodoItems.push({
               id: `ticket-warning-${item.id}`,
-              type: "ticket-warning",
               title: `${item.customerName}：回数券残り${item.remainingCount}回`,
               sub: `${item.ticketName || item.menu} / 更新案内候補`,
               href: item.customerId ? `/customer/${item.customerId}` : `/reservation/detail/${item.id}`,
@@ -788,7 +729,7 @@ export default function DashboardPage() {
           const customerId = trimmed(sale.customer_id) || `name-${trimmed(sale.customer_name)}`;
           const customerName =
             trimmed(sale.customer_name) ||
-            getCustomerName(customerMapById.get(trimmed(sale.customer_id)) as CustomerRow) ||
+            getCustomerName(customerMapById.get(trimmed(sale.customer_id))) ||
             "顧客名未設定";
 
           const current = ltvMap.get(customerId) || {
@@ -816,7 +757,6 @@ export default function DashboardPage() {
         setStats({
           todayReservationCount: displayReservations.length,
           todaySalesAmount: calcSalesAmount(todaySales),
-          todayTodoCount: nextTodoItems.length,
           todayUnsoldCount: displayReservations.filter((item) => !item.isSold).length,
           todayTicketPendingCount: displayReservations.filter(
             (item) => item.isTicket && !item.isTicketUsed
@@ -853,212 +793,7 @@ export default function DashboardPage() {
       mounted = false;
     };
   }, [authChecked, selectedDate]);
-
-  async function handleConsumeTicket(
-    item: DashboardReservation,
-    e: MouseEvent<HTMLButtonElement>
-  ) {
-    e.stopPropagation();
-
-    if (!item.isTicket) {
-      window.alert("この予約は回数券消化の対象外です。");
-      return;
-    }
-
-    if (item.isTicketUsed || item.isSold) {
-      window.alert("この予約はすでに処理済みです。");
-      return;
-    }
-
-    const reservationId = toNumberOrNull(item.id);
-    const customerId = toNumberOrNull(item.customerId);
-
-    if (!reservationId) {
-      window.alert("予約IDが不正です。");
-      return;
-    }
-
-    if (!customerId) {
-      window.alert("customer_id がありません。顧客詳細から確認してください。");
-      return;
-    }
-
-    const ok = window.confirm(
-      `${item.customerName} 様の回数券を1回消化して、売上を自動作成します。よろしいですか？`
-    );
-
-    if (!ok) return;
-
-    try {
-      const supabase = getSupabaseClient();
-      if (!supabase) throw new Error("Supabaseの環境変数が設定されていません。");
-
-      const { data: alreadyUsage, error: alreadyUsageError } = await supabase
-        .from("ticket_usages")
-        .select("id")
-        .eq("reservation_id", reservationId)
-        .limit(1);
-
-      if (alreadyUsageError) throw alreadyUsageError;
-
-      const { data: alreadySales, error: alreadySalesError } = await supabase
-        .from("sales")
-        .select("id")
-        .eq("reservation_id", reservationId)
-        .limit(1);
-
-      if (alreadySalesError) throw alreadySalesError;
-
-      if ((alreadyUsage && alreadyUsage.length > 0) || (alreadySales && alreadySales.length > 0)) {
-        window.alert("この予約はすでに売上または回数券消化が登録されています。");
-        setReservations((prev) =>
-          prev.map((row) =>
-            row.id === item.id
-              ? { ...row, isTicketUsed: true, isSold: true, reservationStatus: "売上済" }
-              : row
-          )
-        );
-        return;
-      }
-
-      const ticketName = item.ticketName || item.menu;
-      const unitPrice = TICKET_UNIT_PRICES[ticketName] || 0;
-
-      if (!unitPrice) {
-        window.alert("単価が未設定です。売上管理画面から登録してください。");
-        router.push(`/sales?reservationId=${reservationId}`);
-        return;
-      }
-
-      const { data: contractRow, error: contractError } = await supabase
-        .from("ticket_contracts")
-        .select("*")
-        .eq("customer_id", customerId)
-        .eq("ticket_name", ticketName)
-        .order("updated_at", { ascending: false })
-        .order("id", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (contractError) throw contractError;
-      if (!contractRow) {
-        window.alert("有効な回数券契約が見つかりません。売上管理画面から登録してください。");
-        router.push(`/sales?reservationId=${reservationId}`);
-        return;
-      }
-
-      const remaining = Number((contractRow as any).remaining_count || 0);
-      const used = Number((contractRow as any).used_count || 0);
-      const prepaidBalance = Number((contractRow as any).prepaid_balance || 0);
-
-      if (remaining <= 0) {
-        window.alert("残回数がありません。");
-        return;
-      }
-
-      const nextRemaining = remaining - 1;
-      const nextUsed = used + 1;
-      const nextBalance = Math.max(prepaidBalance - unitPrice, 0);
-      const serviceType = detectServiceTypeFromTicketName(ticketName);
-
-      const { error: usageInsertError } = await supabase.from("ticket_usages").insert({
-        ticket_id: (contractRow as any).id,
-        customer_id: customerId,
-        customer_name: item.customerName,
-        reservation_id: reservationId,
-        used_date: item.date || selectedDate,
-        ticket_name: ticketName,
-        service_type: serviceType,
-        unit_price: unitPrice,
-        before_count: remaining,
-        after_count: nextRemaining,
-        staff_name: item.staffName || null,
-        store_name: item.storeName || null,
-      });
-
-      if (usageInsertError) throw usageInsertError;
-
-      const { error: contractUpdateError } = await supabase
-        .from("ticket_contracts")
-        .update({
-          used_count: nextUsed,
-          remaining_count: nextRemaining,
-          prepaid_balance: nextBalance,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", (contractRow as any).id);
-
-      if (contractUpdateError) throw contractUpdateError;
-
-      const { error: salesInsertError } = await supabase.from("sales").insert({
-        reservation_id: reservationId,
-        customer_id: customerId,
-        customer_name: item.customerName,
-        sale_date: item.date || selectedDate,
-        amount: unitPrice,
-        menu_type: serviceType,
-        sale_type: "回数券消化",
-        payment_method: "前受金消化",
-        staff_name: item.staffName || null,
-        store_name: item.storeName || null,
-        memo: `${ticketName} 消化`,
-      });
-
-      if (salesInsertError) throw salesInsertError;
-
-      const { error: reservationUpdateError } = await supabase
-        .from("reservations")
-        .update({ reservation_status: "売上済" })
-        .eq("id", reservationId);
-
-      if (reservationUpdateError) throw reservationUpdateError;
-
-      setReservations((prev) =>
-        prev.map((row) =>
-          row.id === item.id
-            ? {
-                ...row,
-                isTicketUsed: true,
-                isSold: true,
-                reservationStatus: "売上済",
-                remainingCount: nextRemaining,
-              }
-            : row
-        )
-      );
-
-      setTodoItems((prev) =>
-        prev.filter(
-          (todo) =>
-            todo.id !== `sales-${item.id}` &&
-            todo.id !== `ticket-${item.id}` &&
-            todo.id !== `ticket-warning-${item.id}`
-        )
-      );
-
-      setStats((prev) => ({
-        ...prev,
-        todaySalesAmount:
-          typeof prev.todaySalesAmount === "number"
-            ? prev.todaySalesAmount + unitPrice
-            : unitPrice,
-        monthSalesAmount:
-          typeof prev.monthSalesAmount === "number"
-            ? prev.monthSalesAmount + unitPrice
-            : unitPrice,
-        todayTodoCount: Math.max(prev.todayTodoCount - 2, 0),
-        todayUnsoldCount: Math.max(prev.todayUnsoldCount - 1, 0),
-        todayTicketPendingCount: Math.max(prev.todayTicketPendingCount - 1, 0),
-      }));
-
-      window.alert(`回数券を1回消化しました。残回数は ${nextRemaining} 回です。`);
-    } catch (e) {
-      console.error("ticket consume error:", e);
-      window.alert(`回数券消化エラー: ${extractErrorMessage(e)}`);
-    }
-  }
-
-  function handleLogout() {
+    function handleLogout() {
     localStorage.removeItem(AUTH_STORAGE_KEY);
     localStorage.removeItem(ROLE_STORAGE_KEY);
     localStorage.removeItem(STAFF_NAME_STORAGE_KEY);
@@ -1083,11 +818,7 @@ export default function DashboardPage() {
   }
 
   if (!authChecked) {
-    return (
-      <main className="gymup-loading">
-        認証を確認中...
-      </main>
-    );
+    return <main className="gymup-loading">認証を確認中...</main>;
   }
 
   const topStats = [
@@ -1113,7 +844,11 @@ export default function DashboardPage() {
       label: "今月売上",
       value: loading ? "..." : formatYen(stats.monthSalesAmount),
       sub: `前月比 ${monthlyChangeText}`,
-      accent: monthlyChangeText.startsWith("+") ? "green" : monthlyChangeText.startsWith("-") ? "red" : "",
+      accent: monthlyChangeText.startsWith("+")
+        ? "green"
+        : monthlyChangeText.startsWith("-")
+        ? "red"
+        : "",
     },
   ];
 
@@ -1143,7 +878,8 @@ export default function DashboardPage() {
       accent: stats.lowTicketCount > 0 ? "orange" : "green",
     },
   ];
-    return (
+
+  return (
     <>
       <style>{`
         .gymup-loading {
@@ -1557,29 +1293,10 @@ export default function DashboardPage() {
           white-space: nowrap;
         }
 
-        .mini-link.orange,
-        .mini-btn.orange {
+        .mini-link.orange {
           color: #ffd7ae;
           border-color: rgba(240,138,39,0.24);
           background: rgba(240,138,39,0.10);
-        }
-
-        .mini-link.red {
-          color: #ffb4b4;
-          border-color: rgba(255,80,80,0.24);
-          background: rgba(255,80,80,0.10);
-        }
-
-        .mini-link.green,
-        .mini-btn.green {
-          color: #a7f3c6;
-          border-color: rgba(92,214,146,0.22);
-          background: rgba(92,214,146,0.09);
-        }
-
-        .mini-btn:disabled {
-          opacity: 0.55;
-          cursor: not-allowed;
         }
 
         .reservation-item {
@@ -1640,12 +1357,6 @@ export default function DashboardPage() {
           color: #e9d5ff;
           border-color: rgba(168,85,247,0.24);
           background: rgba(168,85,247,0.10);
-        }
-
-        .status.zero {
-          color: #d1d5db;
-          border-color: rgba(156,163,175,0.20);
-          background: rgba(156,163,175,0.08);
         }
 
         .empty {
@@ -1777,10 +1488,7 @@ export default function DashboardPage() {
 
           .date-actions,
           .stats-grid,
-          .quick-grid {
-            grid-template-columns: 1fr;
-          }
-
+          .quick-grid,
           .reservation-item,
           .todo-item {
             grid-template-columns: 1fr;
@@ -1797,7 +1505,6 @@ export default function DashboardPage() {
           }
 
           .mini-link,
-          .mini-btn,
           .date-btn,
           .date-input {
             width: 100%;
@@ -1958,9 +1665,7 @@ export default function DashboardPage() {
                 <div className="panel-head">
                   <div>
                     <div className="panel-title">本日の予約</div>
-                    <div className="panel-sub">
-                      予約カードから予約詳細へ移動できます。
-                    </div>
+                    <div className="panel-sub">予約カードから予約詳細へ移動できます。</div>
                   </div>
                   <div className="panel-badge">
                     {loading ? "確認中" : `${reservations.length}件`}
@@ -1970,9 +1675,7 @@ export default function DashboardPage() {
                 {loading ? (
                   <div className="empty">読み込み中...</div>
                 ) : reservations.length === 0 ? (
-                  <div className="empty">
-                    この日の予約はありません。
-                  </div>
+                  <div className="empty">この日の予約はありません。</div>
                 ) : (
                   <div className="reservation-list">
                     {reservations.map((item) => {
@@ -2025,16 +1728,6 @@ export default function DashboardPage() {
                                 残{item.remainingCount}
                               </span>
                             ) : null}
-
-                            {item.isTicket && !item.isTicketUsed && !item.isSold ? (
-                              <button
-                                type="button"
-                                className="mini-btn orange"
-                                onClick={(e) => handleConsumeTicket(item, e)}
-                              >
-                                消化
-                              </button>
-                            ) : null}
                           </div>
                         </div>
                       );
@@ -2049,9 +1742,7 @@ export default function DashboardPage() {
                 <div className="panel-head">
                   <div>
                     <div className="panel-title">クイック導線</div>
-                    <div className="panel-sub">
-                      よく使う管理ページへすぐ移動
-                    </div>
+                    <div className="panel-sub">よく使う管理ページへすぐ移動</div>
                   </div>
                 </div>
 
@@ -2069,11 +1760,11 @@ export default function DashboardPage() {
                 <div className="panel-head">
                   <div>
                     <div className="panel-title">回数券 残数注意</div>
-                    <div className="panel-sub">
-                      残3回以下の契約回数券
-                    </div>
+                    <div className="panel-sub">残3回以下の契約回数券</div>
                   </div>
-                  <div className="panel-badge">{loading ? "確認中" : `${lowTickets.length}件`}</div>
+                  <div className="panel-badge">
+                    {loading ? "確認中" : `${lowTickets.length}件`}
+                  </div>
                 </div>
 
                 {loading ? (
@@ -2085,16 +1776,10 @@ export default function DashboardPage() {
                     {lowTickets.map((ticket) => (
                       <Link
                         key={String(ticket.id)}
-                        href={
-                          ticket.customer_id
-                            ? `/customer/${ticket.customer_id}`
-                            : "/customer"
-                        }
+                        href={ticket.customer_id ? `/customer/${ticket.customer_id}` : "/customer"}
                         className="side-item"
                       >
-                        <div className="side-main">
-                          {ticket.ticket_name || "回数券"}
-                        </div>
+                        <div className="side-main">{ticket.ticket_name || "回数券"}</div>
                         <div className="side-sub">
                           顧客ID {ticket.customer_id || "—"} / 残
                           {Number(ticket.remaining_count || 0)}回 / 使用
@@ -2110,9 +1795,7 @@ export default function DashboardPage() {
                 <div className="panel-head">
                   <div>
                     <div className="panel-title">LTV上位顧客</div>
-                    <div className="panel-sub">
-                      売上累計上位5名
-                    </div>
+                    <div className="panel-sub">売上累計上位5名</div>
                   </div>
                 </div>
 
@@ -2148,9 +1831,7 @@ export default function DashboardPage() {
                 <div className="panel-head">
                   <div>
                     <div className="panel-title">引き継ぎメモ</div>
-                    <div className="panel-sub">
-                      {selectedDateLabel} の共有事項
-                    </div>
+                    <div className="panel-sub">{selectedDateLabel} の共有事項</div>
                   </div>
                 </div>
 
@@ -2173,9 +1854,7 @@ export default function DashboardPage() {
                 <div className="panel-head">
                   <div>
                     <div className="panel-title">システム状態</div>
-                    <div className="panel-sub">
-                      Supabase接続とデータ確認
-                    </div>
+                    <div className="panel-sub">Supabase接続とデータ確認</div>
                   </div>
                   <div className="panel-badge">{systemStatus}</div>
                 </div>
