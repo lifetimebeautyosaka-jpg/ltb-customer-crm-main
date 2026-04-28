@@ -2406,6 +2406,46 @@ const [nominationFee, setNominationFee] = useState("1000");
         reservation_id: reservationId ? Number(reservationId) : null,
         memo: mergedNote || null,
       };
+      // 🔴 二重売上防止（ここ追加）
+if (reservationId) {
+  const { data: existingSales, error: existingSalesError } = await supabase
+    .from("sales")
+    .select("id")
+    .eq("reservation_id", reservationId)
+    .limit(1);
+
+  if (existingSalesError) {
+    throw new Error(`二重売上チェックエラー: ${existingSalesError.message}`);
+  }
+
+  if (existingSales && existingSales.length > 0) {
+    if (isTicketConsume && ticketResult) {
+      await rollbackConsumedTicket({
+        ticketId: ticketResult.ticketId,
+        beforeCount: ticketResult.beforeCount,
+        reservationId,
+      });
+    }
+
+    alert("この予約はすでに売上登録されています");
+    return;
+  }
+}
+
+// 🔵 元の処理（そのまま）
+const { data: insertedData, error: insertError } = await supabase
+  .from("sales")
+  .insert([salePayload])
+  .select("id");
+
+if (insertError) {
+  if (isTicketConsume && ticketResult) {
+    await rollbackConsumedTicket({
+      ticketId: ticketResult.ticketId,
+      beforeCount: ticketResult.beforeCount,
+      reservationId,
+    });
+  }
 
       const { data: insertedData, error: insertError } = await supabase
         .from("sales")
