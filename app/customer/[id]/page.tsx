@@ -43,10 +43,19 @@ type TrainingSessionRow = {
 };
 
 type SaleRow = {
-  id: string;
-  customer_id?: string | null;
+  id: string | number;
+  reservation_id?: string | number | null;
+  customer_id?: string | number | null;
+  customer_name?: string | null;
   amount?: number | null;
   sale_date?: string | null;
+  menu_type?: string | null;
+  sale_type?: string | null;
+  payment_method?: string | null;
+  staff_name?: string | null;
+  store_name?: string | null;
+  memo?: string | null;
+  created_at?: string | null;
 };
 
 type ReservationVisitRow = {
@@ -75,6 +84,18 @@ type CustomerTicketRow = {
   status?: string | null;
   note?: string | null;
   created_at?: string | null;
+};
+
+type TicketContractRow = {
+  id: string | number;
+  customer_id?: string | number | null;
+  ticket_name?: string | null;
+  remaining_count?: number | null;
+  used_count?: number | null;
+  prepaid_balance?: number | null;
+  status?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 type TicketUsageRow = {
@@ -202,6 +223,10 @@ function formatDateTime(value?: string | null) {
   return d.toLocaleString("ja-JP");
 }
 
+function formatCurrency(value?: number | null) {
+  return `¥${Number(value || 0).toLocaleString()}`;
+}
+
 function formatMetric(value?: number | null, unit = "") {
   if (value === null || value === undefined) return "—";
   return `${value}${unit}`;
@@ -221,8 +246,7 @@ function normalizeCustomer(row: CustomerRow): NormalizedCustomer {
     phone: row.phone || row.phone_number || "",
     email: row.email || "",
     gender: row.gender || "",
-    age:
-      row.age !== null && row.age !== undefined ? String(row.age) : "",
+    age: row.age !== null && row.age !== undefined ? String(row.age) : "",
     birthday: row.birthday || "",
     address: row.address || "",
     goal: row.goal || row.goals || "",
@@ -232,10 +256,7 @@ function normalizeCustomer(row: CustomerRow): NormalizedCustomer {
   };
 }
 
-function calcDiff(
-  latest?: number | null,
-  previous?: number | null
-): number | null {
+function calcDiff(latest?: number | null, previous?: number | null): number | null {
   if (
     latest === null ||
     latest === undefined ||
@@ -297,9 +318,19 @@ function calcTicketComputedStatus(ticket: CustomerTicketRow) {
   return "有効";
 }
 
+function calcContractComputedStatus(contract: TicketContractRow) {
+  const baseStatus = contract.status || "";
+  const remaining = Number(contract.remaining_count || 0);
+
+  if (baseStatus === "無効") return "無効";
+  if (remaining <= 0) return "消化済み";
+  return baseStatus || "有効";
+}
+
 function ticketStatusStyle(status: string): CSSProperties {
   switch (status) {
     case "有効":
+    case "利用中":
       return {
         background: "rgba(22,163,74,0.10)",
         color: "#15803d",
@@ -380,13 +411,7 @@ function monthLabelFromKey(monthKey: string) {
   return `${y}年${Number(m)}月`;
 }
 
-function InfoItem({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
+function InfoItem({ label, value }: { label: string; value: string }) {
   return (
     <div style={infoCardStyle}>
       <div style={infoLabelStyle}>{label}</div>
@@ -395,13 +420,7 @@ function InfoItem({
   );
 }
 
-function TextBlock({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
+function TextBlock({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <div style={historyLabelStyle}>{label}</div>
@@ -425,9 +444,7 @@ function MetricCard({
     <div style={metricCardStyle}>
       <div style={metricLabelStyle}>{label}</div>
       <div style={metricValueStyle}>{value}</div>
-      <div style={{ ...metricSubStyle, color: subColor || "#64748b" }}>
-        {sub}
-      </div>
+      <div style={{ ...metricSubStyle, color: subColor || "#64748b" }}>{sub}</div>
     </div>
   );
 }
@@ -475,19 +492,12 @@ function ChartSection({
         <div style={emptyBoxStyle}>{emptyLabel}</div>
       ) : sessions.length === 1 ? (
         <div style={singleChartBoxStyle}>
-          <div style={singleChartValueStyle}>
-            {formatMetric(values[0], unit)}
-          </div>
-          <div style={singleChartDateStyle}>
-            {formatDate(sessions[0].session_date)}
-          </div>
+          <div style={singleChartValueStyle}>{formatMetric(values[0], unit)}</div>
+          <div style={singleChartDateStyle}>{formatDate(sessions[0].session_date)}</div>
         </div>
       ) : (
         <div style={chartWrapStyle}>
-          <svg
-            viewBox="0 0 560 220"
-            style={{ width: "100%", height: "auto", display: "block" }}
-          >
+          <svg viewBox="0 0 560 220" style={{ width: "100%", height: "auto", display: "block" }}>
             <defs>
               <linearGradient id={lineId} x1="0" y1="0" x2="1" y2="0">
                 <stop offset="0%" stopColor={startColor} />
@@ -541,11 +551,7 @@ function ChartSection({
                     x={x}
                     y={y - 12}
                     textAnchor="middle"
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      fill: "#334155",
-                    }}
+                    style={{ fontSize: 11, fontWeight: 800, fill: "#334155" }}
                   >
                     {value}
                     {unit}
@@ -554,11 +560,7 @@ function ChartSection({
                     x={x}
                     y={212}
                     textAnchor="middle"
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      fill: "#64748b",
-                    }}
+                    style={{ fontSize: 10, fontWeight: 700, fill: "#64748b" }}
                   >
                     {formatDate(sessions[index]?.session_date)}
                   </text>
@@ -571,7 +573,6 @@ function ChartSection({
     </section>
   );
 }
-
 export default function CustomerDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -588,6 +589,7 @@ export default function CustomerDetailPage() {
   const [sales, setSales] = useState<SaleRow[]>([]);
   const [reservations, setReservations] = useState<ReservationVisitRow[]>([]);
   const [tickets, setTickets] = useState<CustomerTicketRow[]>([]);
+  const [ticketContracts, setTicketContracts] = useState<TicketContractRow[]>([]);
   const [ticketUsages, setTicketUsages] = useState<TicketUsageRow[]>([]);
   const [counselingSheet, setCounselingSheet] =
     useState<CounselingSheetRow | null>(null);
@@ -597,6 +599,11 @@ export default function CustomerDetailPage() {
   const [ticketSaving, setTicketSaving] = useState(false);
   const [ticketError, setTicketError] = useState("");
   const [ticketSuccess, setTicketSuccess] = useState("");
+
+  const [memoEditing, setMemoEditing] = useState(false);
+  const [memoText, setMemoText] = useState("");
+  const [memoSaving, setMemoSaving] = useState(false);
+  const [memoMessage, setMemoMessage] = useState("");
 
   useEffect(() => {
     setMounted(true);
@@ -617,18 +624,17 @@ export default function CustomerDetailPage() {
 
     const loggedIn =
       localStorage.getItem("gymup_logged_in") ||
+      localStorage.getItem("gymup_staff_logged_in") ||
       localStorage.getItem("isLoggedIn");
 
     if (loggedIn !== "true") {
-      router.push("/login");
+      router.push("/login/staff");
       return;
     }
 
     if (!customerId) {
       setLoading(false);
-      setError(
-        "顧客IDが取得できませんでした。顧客一覧から開き直してください。"
-      );
+      setError("顧客IDが取得できませんでした。顧客一覧から開き直してください。");
       return;
     }
 
@@ -660,6 +666,10 @@ export default function CustomerDetailPage() {
 
       if (customerError) throw customerError;
 
+      const normalized = normalizeCustomer(customerData as CustomerRow);
+      setCustomer(normalized);
+      setMemoText(normalized.memo || "");
+
       const { data: sessionData, error: sessionError } = await supabase
         .from("training_sessions")
         .select(
@@ -673,8 +683,12 @@ export default function CustomerDetailPage() {
 
       const { data: salesData, error: salesError } = await supabase
         .from("sales")
-        .select("id, customer_id, amount, sale_date")
-        .eq("customer_id", String(customerId));
+        .select(
+          "id, reservation_id, customer_id, customer_name, amount, sale_date, menu_type, sale_type, payment_method, staff_name, store_name, memo, created_at"
+        )
+        .eq("customer_id", customerIdForQuery)
+        .order("sale_date", { ascending: false })
+        .order("created_at", { ascending: false });
 
       if (salesError) {
         console.warn("sales取得エラー:", salesError.message);
@@ -703,10 +717,20 @@ export default function CustomerDetailPage() {
         .order("created_at", { ascending: false });
 
       if (ticketFetchError) {
-        console.warn(
-          "customer_tickets取得エラー:",
-          ticketFetchError.message
-        );
+        console.warn("customer_tickets取得エラー:", ticketFetchError.message);
+      }
+
+      const { data: contractData, error: contractFetchError } = await supabase
+        .from("ticket_contracts")
+        .select(
+          "id, customer_id, ticket_name, remaining_count, used_count, prepaid_balance, status, created_at, updated_at"
+        )
+        .eq("customer_id", customerIdForQuery)
+        .order("updated_at", { ascending: false })
+        .order("created_at", { ascending: false });
+
+      if (contractFetchError) {
+        console.warn("ticket_contracts取得エラー:", contractFetchError.message);
       }
 
       const { data: usageData, error: usageFetchError } = await supabase
@@ -729,17 +753,14 @@ export default function CustomerDetailPage() {
         .maybeSingle();
 
       if (counselingError && counselingError.code !== "PGRST116") {
-        console.warn(
-          "counseling_sheets取得エラー:",
-          counselingError.message
-        );
+        console.warn("counseling_sheets取得エラー:", counselingError.message);
       }
 
-      setCustomer(normalizeCustomer(customerData as CustomerRow));
       setSessions((sessionData as TrainingSessionRow[]) || []);
       setSales((salesData as SaleRow[]) || []);
       setReservations((reservationData as ReservationVisitRow[]) || []);
       setTickets((ticketData as CustomerTicketRow[]) || []);
+      setTicketContracts((contractData as TicketContractRow[]) || []);
       setTicketUsages((usageData as TicketUsageRow[]) || []);
       setCounselingSheet((counselingData as CounselingSheetRow) || null);
     } catch (e: any) {
@@ -749,10 +770,7 @@ export default function CustomerDetailPage() {
     }
   }
 
-  function updateTicketForm<K extends keyof TicketForm>(
-    key: K,
-    value: TicketForm[K]
-  ) {
+  function updateTicketForm<K extends keyof TicketForm>(key: K, value: TicketForm[K]) {
     setTicketForm((prev) => ({ ...prev, [key]: value }));
   }
 
@@ -809,6 +827,38 @@ export default function CustomerDetailPage() {
     }
   }
 
+  async function handleSaveMemo() {
+    if (!supabase || !customer) return;
+
+    setMemoSaving(true);
+    setMemoMessage("");
+
+    try {
+      const numericCustomerId = Number(customer.id);
+      const customerIdForQuery = Number.isNaN(numericCustomerId)
+        ? customer.id
+        : numericCustomerId;
+
+      const { error: updateError } = await supabase
+        .from("customers")
+        .update({
+          memo: memoText,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", customerIdForQuery);
+
+      if (updateError) throw updateError;
+
+      setCustomer((prev) => (prev ? { ...prev, memo: memoText } : prev));
+      setMemoEditing(false);
+      setMemoMessage("メモを保存しました。");
+    } catch (e: any) {
+      setMemoMessage(e?.message || "メモの保存に失敗しました。");
+    } finally {
+      setMemoSaving(false);
+    }
+  }
+
   const latestSession = useMemo(() => {
     if (sessions.length === 0) return null;
     return sessions[sessions.length - 1];
@@ -819,30 +869,44 @@ export default function CustomerDetailPage() {
     return sessions[sessions.length - 2];
   }, [sessions]);
 
-  const weightDiff = calcDiff(
-    latestSession?.body_weight,
-    previousSession?.body_weight
-  );
-  const muscleDiff = calcDiff(
-    latestSession?.muscle_mass,
-    previousSession?.muscle_mass
-  );
+  const weightDiff = calcDiff(latestSession?.body_weight, previousSession?.body_weight);
+  const muscleDiff = calcDiff(latestSession?.muscle_mass, previousSession?.muscle_mass);
 
-  const visitCount = sessions.length;
+  const trainingCount = sessions.length;
 
   const ltv = useMemo(() => {
     return sales.reduce((sum, item) => sum + Number(item.amount || 0), 0);
   }, [sales]);
 
+  const averageSaleAmount = useMemo(() => {
+    if (sales.length === 0) return 0;
+    return Math.round(ltv / sales.length);
+  }, [ltv, sales.length]);
+
   const activeTickets = useMemo(() => {
     return tickets.filter((item) => calcTicketComputedStatus(item) === "有効");
   }, [tickets]);
 
-  const remainingTickets = useMemo(() => {
+  const activeContracts = useMemo(() => {
+    return ticketContracts.filter((item) => {
+      const status = calcContractComputedStatus(item);
+      return status === "有効" || status === "利用中";
+    });
+  }, [ticketContracts]);
+
+  const remainingLegacyTickets = useMemo(() => {
     return tickets.reduce((sum, item) => {
       return sum + Math.max(Number(item.remaining_count || 0), 0);
     }, 0);
   }, [tickets]);
+
+  const remainingContractTickets = useMemo(() => {
+    return ticketContracts.reduce((sum, item) => {
+      return sum + Math.max(Number(item.remaining_count || 0), 0);
+    }, 0);
+  }, [ticketContracts]);
+
+  const remainingTickets = remainingContractTickets > 0 ? remainingContractTickets : remainingLegacyTickets;
 
   const totalUsedTickets = useMemo(() => {
     return ticketUsages.length;
@@ -851,6 +915,14 @@ export default function CustomerDetailPage() {
   const reservationVisitCount = useMemo(() => {
     return reservations.filter((item) => !!item.date).length;
   }, [reservations]);
+
+  const latestReservation = useMemo(() => {
+    return reservations.find((item) => !!item.date) || null;
+  }, [reservations]);
+
+  const latestSale = useMemo(() => {
+    return sales.find((item) => !!item.sale_date || !!item.created_at) || null;
+  }, [sales]);
 
   const monthlyVisitCounts = useMemo<MonthlyVisitCount[]>(() => {
     const map = new Map<string, number>();
@@ -898,10 +970,12 @@ export default function CustomerDetailPage() {
   }, [currentMonthVisitCount, previousMonthVisitCount]);
 
   const recentReservations = useMemo(() => {
-    return reservations
-      .filter((item) => !!item.date)
-      .slice(0, 20);
+    return reservations.filter((item) => !!item.date).slice(0, 20);
   }, [reservations]);
+
+  const recentSales = useMemo(() => {
+    return sales.slice(0, 20);
+  }, [sales]);
 
   const firstVisitDate = useMemo(() => {
     const valid = reservations
@@ -947,13 +1021,7 @@ export default function CustomerDetailPage() {
 
   if (loading) {
     return (
-      <main
-        style={{
-          ...BG_STYLE,
-          minHeight: "100vh",
-          padding: "24px 16px 80px",
-        }}
-      >
+      <main style={{ ...BG_STYLE, minHeight: "100vh", padding: "24px 16px 80px" }}>
         <div style={{ maxWidth: 1180, margin: "0 auto" }}>
           <div style={{ ...CARD_STYLE, borderRadius: 24, padding: 24 }}>
             読み込み中...
@@ -962,8 +1030,7 @@ export default function CustomerDetailPage() {
       </main>
     );
   }
-
-  return (
+    return (
     <main
       style={{
         ...BG_STYLE,
@@ -992,8 +1059,11 @@ export default function CustomerDetailPage() {
             <div>
               <div style={eyebrowStyle}>CUSTOMER DETAIL</div>
               <h1 style={{ ...pageTitleStyle, fontSize: mobile ? 24 : 30 }}>
-                顧客詳細
+                {customer?.name || "顧客詳細"}
               </h1>
+              <div style={heroSubStyle}>
+                LTV・回数券・来店履歴・売上履歴を一画面で確認
+              </div>
             </div>
 
             <div
@@ -1073,6 +1143,54 @@ export default function CustomerDetailPage() {
         {error ? <div style={alertErrorStyle}>{error}</div> : null}
         {ticketError ? <div style={alertErrorStyle}>{ticketError}</div> : null}
         {ticketSuccess ? <div style={alertSuccessStyle}>{ticketSuccess}</div> : null}
+        {memoMessage ? <div style={alertSuccessStyle}>{memoMessage}</div> : null}
+
+        <section
+          style={{
+            ...CARD_STYLE,
+            borderRadius: 24,
+            padding: mobile ? 16 : 20,
+          }}
+        >
+          <h2 style={sectionTitleStyle}>顧客KPI</h2>
+
+          <div style={metricsGridStyle}>
+            <MetricCard
+              label="LTV"
+              value={formatCurrency(ltv)}
+              sub={`${sales.length}件の売上`}
+            />
+            <MetricCard
+              label="平均単価"
+              value={formatCurrency(averageSaleAmount)}
+              sub="売上件数ベース"
+            />
+            <MetricCard
+              label="累計来店"
+              value={`${reservationVisitCount}回`}
+              sub={firstVisitDate ? `初回: ${formatDate(firstVisitDate)}` : "来店履歴なし"}
+            />
+            <MetricCard
+              label="今月来店"
+              value={`${currentMonthVisitCount}回`}
+              sub={monthLabelFromKey(currentMonthKey)}
+            />
+            <MetricCard
+              label="回数券残"
+              value={`${remainingTickets}回`}
+              sub={
+                remainingContractTickets > 0
+                  ? `契約回数券 ${ticketContracts.length}件`
+                  : `顧客回数券 ${tickets.length}件`
+              }
+            />
+            <MetricCard
+              label="有効回数券"
+              value={`${activeContracts.length + activeTickets.length}件`}
+              sub="ticket_contracts / customer_tickets"
+            />
+          </div>
+        </section>
 
         <section
           style={{
@@ -1096,8 +1214,155 @@ export default function CustomerDetailPage() {
 
           <div style={{ display: "grid", gap: 14, marginTop: 16 }}>
             <TextBlock label="目標" value={customer?.goal || "未設定"} />
-            <TextBlock label="メモ" value={customer?.memo || "未設定"} />
             <TextBlock label="登録日" value={formatDateTime(customer?.createdAt)} />
+          </div>
+        </section>
+
+        <section
+          style={{
+            ...CARD_STYLE,
+            borderRadius: 24,
+            padding: mobile ? 16 : 20,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: mobile ? "stretch" : "center",
+              gap: 12,
+              flexWrap: "wrap",
+              flexDirection: mobile ? "column" : "row",
+              marginBottom: 16,
+            }}
+          >
+            <h2 style={sectionTitleStyle}>顧客メモ</h2>
+
+            {!memoEditing ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setMemoEditing(true);
+                  setMemoMessage("");
+                  setMemoText(customer?.memo || "");
+                }}
+                style={{
+                  ...miniButtonLinkStyle,
+                  width: mobile ? "100%" : "auto",
+                  cursor: "pointer",
+                }}
+              >
+                メモを編集
+              </button>
+            ) : null}
+          </div>
+
+          {memoEditing ? (
+            <>
+              <textarea
+                value={memoText}
+                onChange={(e) => setMemoText(e.target.value)}
+                placeholder="顧客メモを入力"
+                style={textareaStyle}
+              />
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  flexWrap: "wrap",
+                  marginTop: 12,
+                  flexDirection: mobile ? "column" : "row",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={handleSaveMemo}
+                  disabled={memoSaving}
+                  style={{
+                    ...buttonLinkStyle,
+                    ...BUTTON_PRIMARY_STYLE,
+                    border: "none",
+                    cursor: memoSaving ? "not-allowed" : "pointer",
+                    opacity: memoSaving ? 0.7 : 1,
+                    width: mobile ? "100%" : "auto",
+                  }}
+                >
+                  {memoSaving ? "保存中..." : "メモ保存"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMemoEditing(false);
+                    setMemoText(customer?.memo || "");
+                  }}
+                  style={{
+                    ...secondaryButtonStyle,
+                    width: mobile ? "100%" : "auto",
+                  }}
+                >
+                  キャンセル
+                </button>
+              </div>
+            </>
+          ) : (
+            <div style={textBlockStyle}>{customer?.memo || "未設定"}</div>
+          )}
+        </section>
+
+        <section
+          style={{
+            ...CARD_STYLE,
+            borderRadius: 24,
+            padding: mobile ? 16 : 20,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: mobile ? "stretch" : "center",
+              gap: 12,
+              flexWrap: "wrap",
+              flexDirection: mobile ? "column" : "row",
+              marginBottom: 16,
+            }}
+          >
+            <h2 style={sectionTitleStyle}>直近状況</h2>
+          </div>
+
+          <div style={metricsGridStyle}>
+            <MetricCard
+              label="最終来店"
+              value={
+                latestReservation?.date
+                  ? formatVisitDateTime(latestReservation.date, latestReservation.start_time)
+                  : "—"
+              }
+              sub={latestReservation?.menu || "予約履歴なし"}
+            />
+            <MetricCard
+              label="最終売上"
+              value={latestSale ? formatCurrency(latestSale.amount) : "—"}
+              sub={
+                latestSale
+                  ? `${formatDate(latestSale.sale_date || latestSale.created_at)} / ${
+                      latestSale.sale_type || "売上"
+                    }`
+                  : "売上履歴なし"
+              }
+            />
+            <MetricCard
+              label="回数券消化"
+              value={`${totalUsedTickets}件`}
+              sub="ticket_usages"
+            />
+            <MetricCard
+              label="トレーニング記録"
+              value={`${trainingCount}件`}
+              sub="training_sessions"
+            />
           </div>
         </section>
 
@@ -1197,9 +1462,9 @@ export default function CustomerDetailPage() {
               marginBottom: 16,
             }}
           >
-            <h2 style={sectionTitleStyle}>来店履歴（時系列）</h2>
+            <h2 style={sectionTitleStyle}>来店履歴</h2>
             <div style={{ fontSize: 13, color: "#64748b", fontWeight: 700 }}>
-              新しい順に表示
+              新しい順に20件
             </div>
           </div>
 
@@ -1210,9 +1475,7 @@ export default function CustomerDetailPage() {
               {recentReservations.map((reservation) => (
                 <article
                   key={String(reservation.id)}
-                  onClick={() =>
-                    goToReservationDetail(router, reservation.id)
-                  }
+                  onClick={() => goToReservationDetail(router, reservation.id)}
                   style={{ ...historyItemStyle, cursor: "pointer" }}
                 >
                   <div
@@ -1226,14 +1489,9 @@ export default function CustomerDetailPage() {
                   >
                     <div style={{ flex: 1, minWidth: 220 }}>
                       <div style={historyDateStyle}>
-                        {formatVisitDateTime(
-                          reservation.date,
-                          reservation.start_time
-                        )}
+                        {formatVisitDateTime(reservation.date, reservation.start_time)}
                       </div>
-                      <div style={historySubStyle}>
-                        メニュー {reservation.menu || "—"}
-                      </div>
+                      <div style={historySubStyle}>メニュー {reservation.menu || "—"}</div>
                       <div style={historySubStyle}>
                         担当 {reservation.staff_name || "—"} / 店舗{" "}
                         {reservation.store_name || "—"}
@@ -1241,9 +1499,7 @@ export default function CustomerDetailPage() {
                       <div style={historySubStyle}>
                         ステータス {reservation.reservation_status || "—"}
                       </div>
-                      <div style={historySubStyle}>
-                        予約ID {reservation.id}
-                      </div>
+                      <div style={historySubStyle}>予約ID {reservation.id}</div>
                     </div>
 
                     <div
@@ -1255,6 +1511,76 @@ export default function CustomerDetailPage() {
                     >
                       予約詳細を見る
                     </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section
+          style={{
+            ...CARD_STYLE,
+            borderRadius: 24,
+            padding: mobile ? 16 : 20,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: mobile ? "stretch" : "center",
+              gap: 12,
+              flexWrap: "wrap",
+              flexDirection: mobile ? "column" : "row",
+              marginBottom: 16,
+            }}
+          >
+            <h2 style={sectionTitleStyle}>売上履歴</h2>
+            <div style={{ fontSize: 13, color: "#64748b", fontWeight: 700 }}>
+              新しい順に20件
+            </div>
+          </div>
+
+          {recentSales.length === 0 ? (
+            <div style={emptyBoxStyle}>売上履歴はまだありません。</div>
+          ) : (
+            <div style={{ display: "grid", gap: 12 }}>
+              {recentSales.map((sale) => (
+                <article
+                  key={String(sale.id)}
+                  onClick={() => goToReservationDetail(router, sale.reservation_id)}
+                  style={{
+                    ...historyItemStyle,
+                    cursor: sale.reservation_id ? "pointer" : "default",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      flexWrap: "wrap",
+                      alignItems: "flex-start",
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 220 }}>
+                      <div style={historyDateStyle}>
+                        {formatDate(sale.sale_date || sale.created_at)}
+                      </div>
+                      <div style={historySubStyle}>
+                        区分 {sale.sale_type || "—"} / メニュー {sale.menu_type || "—"}
+                      </div>
+                      <div style={historySubStyle}>
+                        支払 {sale.payment_method || "—"} / 担当 {sale.staff_name || "—"}
+                      </div>
+                      <div style={historySubStyle}>
+                        店舗 {sale.store_name || "—"} / 予約ID {sale.reservation_id || "—"}
+                      </div>
+                      {sale.memo ? <div style={historySubStyle}>メモ {sale.memo}</div> : null}
+                    </div>
+
+                    <div style={saleAmountStyle}>{formatCurrency(sale.amount)}</div>
                   </div>
                 </article>
               ))}
@@ -1297,35 +1623,25 @@ export default function CustomerDetailPage() {
             <div style={counselingSummaryGridStyle}>
               <div style={metricCardStyle}>
                 <div style={metricLabelStyle}>職業</div>
-                <div style={metricValueSmallStyle}>
-                  {counselingSummary.occupation}
-                </div>
-                <div style={metricSubStyle}>
-                  最終更新 {counselingSummary.updatedAt}
-                </div>
+                <div style={metricValueSmallStyle}>{counselingSummary.occupation}</div>
+                <div style={metricSubStyle}>最終更新 {counselingSummary.updatedAt}</div>
               </div>
 
               <div style={metricCardStyle}>
                 <div style={metricLabelStyle}>来店目的</div>
-                <div style={metricValueSmallStyle}>
-                  {counselingSummary.purposes}
-                </div>
+                <div style={metricValueSmallStyle}>{counselingSummary.purposes}</div>
                 <div style={metricSubStyle}>visit_purposes</div>
               </div>
 
               <div style={metricCardStyle}>
                 <div style={metricLabelStyle}>主な症状</div>
-                <div style={metricValueSmallStyle}>
-                  {counselingSummary.symptoms}
-                </div>
+                <div style={metricValueSmallStyle}>{counselingSummary.symptoms}</div>
                 <div style={metricSubStyle}>symptoms</div>
               </div>
 
               <div style={metricCardStyle}>
                 <div style={metricLabelStyle}>気になる部位</div>
-                <div style={metricValueSmallStyle}>
-                  {counselingSummary.bodyAreas}
-                </div>
+                <div style={metricValueSmallStyle}>{counselingSummary.bodyAreas}</div>
                 <div style={metricSubStyle}>body_areas</div>
               </div>
 
@@ -1457,35 +1773,84 @@ export default function CustomerDetailPage() {
             padding: mobile ? 16 : 20,
           }}
         >
-          <h2 style={sectionTitleStyle}>KPI</h2>
-
-          <div style={metricsGridStyle}>
-            <MetricCard
-              label="トレーニング回数"
-              value={`${visitCount}回`}
-              sub="training_sessions件数"
-            />
-            <MetricCard
-              label="LTV"
-              value={`¥${ltv.toLocaleString()}`}
-              sub={`${sales.length}件の売上`}
-            />
-            <MetricCard
-              label="回数券残数"
-              value={`${remainingTickets}回`}
-              sub={`${tickets.length}件の回数券`}
-            />
-            <MetricCard
-              label="有効回数券"
-              value={`${activeTickets.length}件`}
-              sub="現在利用可能"
-            />
-            <MetricCard
-              label="消化履歴"
-              value={`${totalUsedTickets}件`}
-              sub="ticket_usages件数"
-            />
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: mobile ? "stretch" : "center",
+              gap: 12,
+              flexWrap: "wrap",
+              flexDirection: mobile ? "column" : "row",
+              marginBottom: 16,
+            }}
+          >
+            <h2 style={sectionTitleStyle}>契約回数券一覧</h2>
+            <div style={{ fontSize: 13, color: "#64748b", fontWeight: 700 }}>
+              ticket_contracts
+            </div>
           </div>
+
+          {ticketContracts.length === 0 ? (
+            <div style={emptyBoxStyle}>契約回数券はまだありません。</div>
+          ) : (
+            <div style={{ display: "grid", gap: 12 }}>
+              {ticketContracts.map((contract) => {
+                const remaining = Number(contract.remaining_count || 0);
+                const used = Number(contract.used_count || 0);
+                const total = remaining + used;
+                const computedStatus = calcContractComputedStatus(contract);
+
+                return (
+                  <article key={String(contract.id)} style={historyItemStyle}>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        flexWrap: "wrap",
+                        alignItems: "flex-start",
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 220 }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            flexWrap: "wrap",
+                            marginBottom: 6,
+                          }}
+                        >
+                          <div style={historyDateStyle}>
+                            {contract.ticket_name || "回数券名未設定"}
+                          </div>
+                          <span
+                            style={{
+                              ...ticketBadgeStyle,
+                              ...ticketStatusStyle(computedStatus),
+                            }}
+                          >
+                            {computedStatus}
+                          </span>
+                        </div>
+
+                        <div style={historySubStyle}>
+                          残数 {remaining} / 総数 {total}
+                        </div>
+                        <div style={historySubStyle}>使用済 {used}回</div>
+                        <div style={historySubStyle}>
+                          前受金残 {formatCurrency(contract.prepaid_balance)}
+                        </div>
+                        <div style={historySubStyle}>
+                          更新日 {formatDateTime(contract.updated_at || contract.created_at)}
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
         </section>
 
         <section
@@ -1508,12 +1873,12 @@ export default function CustomerDetailPage() {
           >
             <h2 style={sectionTitleStyle}>保有回数券一覧</h2>
             <div style={{ fontSize: 13, color: "#64748b", fontWeight: 700 }}>
-              新しい順に表示
+              customer_tickets
             </div>
           </div>
 
           {tickets.length === 0 ? (
-            <div style={emptyBoxStyle}>まだ回数券は登録されていません。</div>
+            <div style={emptyBoxStyle}>顧客回数券はまだ登録されていません。</div>
           ) : (
             <div style={{ display: "grid", gap: 12 }}>
               {tickets.map((ticket) => {
@@ -1564,9 +1929,7 @@ export default function CustomerDetailPage() {
                           購入日 {formatDate(ticket.purchase_date)} / 有効期限{" "}
                           {formatDate(ticket.expiry_date)}
                         </div>
-                        <div style={historySubStyle}>
-                          メモ {ticket.note || "—"}
-                        </div>
+                        <div style={historySubStyle}>メモ {ticket.note || "—"}</div>
                       </div>
                     </div>
                   </article>
@@ -1607,9 +1970,7 @@ export default function CustomerDetailPage() {
               {ticketUsages.map((usage) => (
                 <article
                   key={String(usage.id)}
-                  onClick={() =>
-                    goToReservationDetail(router, usage.reservation_id)
-                  }
+                  onClick={() => goToReservationDetail(router, usage.reservation_id)}
                   style={{
                     ...historyItemStyle,
                     cursor: usage.reservation_id ? "pointer" : "default",
@@ -1635,8 +1996,7 @@ export default function CustomerDetailPage() {
                         サービス種別 {usage.service_type || "—"}
                       </div>
                       <div style={historySubStyle}>
-                        残数 {usage.before_count ?? "—"} →{" "}
-                        {usage.after_count ?? "—"}
+                        残数 {usage.before_count ?? "—"} → {usage.after_count ?? "—"}
                       </div>
                       <div style={historySubStyle}>
                         予約ID{" "}
@@ -1856,6 +2216,13 @@ const pageTitleStyle: CSSProperties = {
   lineHeight: 1.2,
   color: "#0f172a",
   fontWeight: 800,
+};
+
+const heroSubStyle: CSSProperties = {
+  marginTop: 8,
+  color: "#64748b",
+  fontSize: 14,
+  fontWeight: 700,
 };
 
 const sectionTitleStyle: CSSProperties = {
@@ -2107,6 +2474,13 @@ const historySubStyle: CSSProperties = {
   color: "#475569",
   lineHeight: 1.7,
   wordBreak: "break-word",
+};
+
+const saleAmountStyle: CSSProperties = {
+  fontSize: 22,
+  fontWeight: 900,
+  color: "#0f172a",
+  whiteSpace: "nowrap",
 };
 
 const ticketBadgeStyle: CSSProperties = {
