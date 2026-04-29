@@ -948,19 +948,40 @@ export default function SalesPage() {
   const [payments, setPayments] = useState<PaymentRow[]>([createPaymentRow()]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const fetchSales = async () => {
+  try {
+    setLoading(true);
+
+    const { data, error } = await supabase
+      .from("sales")
+      .select("*")
+      .order("sale_date", { ascending: false })
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      alert(`売上取得エラー: ${error.message}`);
+      setSales([]);
+      return;
+    }
+
+    setSales(((data || []) as SupabaseSaleRow[]).map(rowToSale));
+  } catch (error) {
+    console.error("fetchSales error:", error);
+    setSales([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
-    const init = async () => {
-      const { data: c } = await supabase.from("customers").select("*");
-      const { data: s } = await supabase.from("sales").select("*");
+  const init = async () => {
+    const { data: c } = await supabase.from("customers").select("*");
+    setCustomers(c || []);
+    await fetchSales();
+  };
 
-      setCustomers(c || []);
-      setSales((s || []).map(rowToSale));
-      setLoading(false);
-    };
-
-    init();
-  }, []);
+  init();
+}, []);
     const selectedCustomer = useMemo(() => {
     return customers.find((c) => String(c.id) === String(customerId)) || null;
   }, [customers, customerId]);
