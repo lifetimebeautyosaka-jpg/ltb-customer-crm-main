@@ -352,7 +352,6 @@ function buildStretchPresets(): PricePreset[] {
 
   return presets;
 }
-
 const PRICE_PRESETS: PricePreset[] = [
   {
     id: "trial_weekday",
@@ -606,6 +605,7 @@ function createPaymentRow(): PaymentRow {
     presetId: "",
   };
 }
+
 function detectMinutesFromText(text?: string | null): 40 | 60 | 80 | 120 | null {
   const raw = String(text || "");
   const match = raw.match(/(40|60|80|120)\s*分/);
@@ -649,22 +649,6 @@ function detectPriceVersionFromText(text?: string | null): "new" | "old" | null 
   }
 
   return null;
-}
-
-function parseTicketInfo(ticketName?: string | null): ParsedTicketInfo | null {
-  if (!ticketName) return null;
-
-  const minutes = detectMinutesFromText(ticketName);
-  const version = detectPriceVersionFromText(ticketName);
-  const count = detectCountFromText(ticketName);
-
-  if (!minutes) return null;
-
-  return {
-    count,
-    minutes,
-    version,
-  };
 }
 
 function buildConsumePresetId(
@@ -785,7 +769,6 @@ function buildCategory(
   if (paymentMethod === "銀行振込") return "トレーニング銀行振込";
   return "トレーニングその他";
 }
-
 function normalizeServiceType(value?: string | null): ServiceType {
   if (value === "ストレッチ") return "ストレッチ";
   return "トレーニング";
@@ -1111,11 +1094,13 @@ async function issueCustomerTicket(params: {
 
   return inserted.id;
 }
+
 export default function SalesPage() {
   const router = useRouter();
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
+  const [windowWidth, setWindowWidth] = useState(390);
 
   const [date, setDate] = useState(todayString());
   const [customerId, setCustomerId] = useState("");
@@ -1132,6 +1117,8 @@ export default function SalesPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const isMobile = windowWidth < 760;
 
   const selectedCustomer = useMemo(() => {
     return customers.find((c) => String(c.id) === String(customerId)) || null;
@@ -1246,6 +1233,17 @@ export default function SalesPage() {
   };
 
   useEffect(() => {
+    const update = () => {
+      if (typeof window !== "undefined") setWindowWidth(window.innerWidth);
+    };
+
+    update();
+    window.addEventListener("resize", update);
+
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  useEffect(() => {
     const init = async () => {
       await fetchCustomers();
       await fetchSales();
@@ -1281,13 +1279,8 @@ export default function SalesPage() {
             next.amount = String(preset.amount);
             next.saleType = preset.accountingType || "通常売上";
 
-            if (preset.serviceType) {
-              setServiceType(preset.serviceType);
-            }
-
-            if (preset.menuName) {
-              setMenuName(preset.menuName);
-            }
+            if (preset.serviceType) setServiceType(preset.serviceType);
+            if (preset.menuName) setMenuName(preset.menuName);
 
             if (preset.accountingType === "回数券消化") {
               next.paymentMethod = "その他";
@@ -1669,63 +1662,69 @@ export default function SalesPage() {
     URL.revokeObjectURL(url);
   };
 
+  const layoutStyles = createStyles(isMobile);
+
   if (loading) {
     return (
-      <main style={styles.page}>
-        <div style={styles.card}>読み込み中...</div>
+      <main style={layoutStyles.page}>
+        <div style={layoutStyles.card}>読み込み中...</div>
       </main>
     );
   }
 
   return (
-    <main style={styles.page}>
-      <div style={styles.header}>
+    <main style={layoutStyles.page}>
+      <div style={layoutStyles.header}>
         <div>
-          <p style={styles.kicker}>GYMUP CRM</p>
-          <h1 style={styles.title}>売上管理</h1>
-          <p style={styles.lead}>
+          <p style={layoutStyles.kicker}>GYMUP CRM</p>
+          <h1 style={layoutStyles.title}>売上管理</h1>
+          <p style={layoutStyles.lead}>
             予約連動・回数券消化・上書き登録・CSV出力
           </p>
         </div>
 
-        <div style={styles.headerActions}>
-          <Link href="/" style={styles.secondaryButton}>
+        <div style={layoutStyles.headerActions}>
+          <Link href="/" style={layoutStyles.secondaryButton}>
             管理TOP
           </Link>
-          <button type="button" onClick={exportCsv} style={styles.secondaryButton}>
+          <button
+            type="button"
+            onClick={exportCsv}
+            style={layoutStyles.secondaryButton}
+          >
             CSV出力
           </button>
         </div>
       </div>
 
       {reservationId && (
-        <section style={styles.noticeCard}>
+        <section style={layoutStyles.noticeCard}>
           <strong>予約ID：{reservationId}</strong>
-          <span>現在の予約ステータス：{reservationStatus || "未取得"}</span>
+          <span>予約ステータス：{reservationStatus || "未取得"}</span>
           <span>既存売上：{existingSalesForReservation.length}件</span>
         </section>
       )}
 
-      <section style={styles.grid}>
-        <div style={styles.card}>
-          <h2 style={styles.sectionTitle}>売上登録</h2>
+      <section style={layoutStyles.grid}>
+        <div style={layoutStyles.card}>
+          <h2 style={layoutStyles.sectionTitle}>売上登録</h2>
 
-          <label style={styles.label}>
+          <label style={layoutStyles.label}>
             日付
             <input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              style={styles.input}
+              style={layoutStyles.input}
             />
           </label>
 
-          <label style={styles.label}>
+          <label style={layoutStyles.label}>
             顧客
             <select
               value={customerId}
               onChange={(e) => setCustomerId(e.target.value)}
-              style={styles.input}
+              style={layoutStyles.input}
             >
               <option value="">選択してください</option>
               {customers.map((customer) => (
@@ -1736,12 +1735,12 @@ export default function SalesPage() {
             </select>
           </label>
 
-          <label style={styles.label}>
+          <label style={layoutStyles.label}>
             サービス
             <select
               value={serviceType}
               onChange={(e) => setServiceType(e.target.value as ServiceType)}
-              style={styles.input}
+              style={layoutStyles.input}
             >
               {SERVICE_OPTIONS.map((option) => (
                 <option key={option} value={option}>
@@ -1751,62 +1750,68 @@ export default function SalesPage() {
             </select>
           </label>
 
-          <label style={styles.label}>
+          <label style={layoutStyles.label}>
             メニュー名
             <input
               value={menuName}
               onChange={(e) => setMenuName(e.target.value)}
               placeholder="例：ストレッチ60分"
-              style={styles.input}
+              style={layoutStyles.input}
             />
           </label>
 
-          <label style={styles.label}>
-            担当
-            <select
-              value={staff}
-              onChange={(e) => setStaff(e.target.value)}
-              style={styles.input}
-            >
-              {STAFF_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div style={layoutStyles.twoColumn}>
+            <label style={layoutStyles.label}>
+              担当
+              <select
+                value={staff}
+                onChange={(e) => setStaff(e.target.value)}
+                style={layoutStyles.input}
+              >
+                {STAFF_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-          <label style={styles.label}>
-            店舗
-            <select
-              value={storeName}
-              onChange={(e) => setStoreName(e.target.value)}
-              style={styles.input}
-            >
-              {STORE_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
+            <label style={layoutStyles.label}>
+              店舗
+              <select
+                value={storeName}
+                onChange={(e) => setStoreName(e.target.value)}
+                style={layoutStyles.input}
+              >
+                {STORE_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
 
-          <div style={styles.paymentBox}>
-            <div style={styles.paymentHeader}>
+          <div style={layoutStyles.paymentBox}>
+            <div style={layoutStyles.paymentHeader}>
               <strong>決済</strong>
-              <button type="button" onClick={addPaymentRow} style={styles.smallButton}>
+              <button
+                type="button"
+                onClick={addPaymentRow}
+                style={layoutStyles.smallButton}
+              >
                 ＋追加
               </button>
             </div>
 
             {payments.map((payment) => (
-              <div key={payment.id} style={styles.paymentRow}>
+              <div key={payment.id} style={layoutStyles.paymentRow}>
                 <select
                   value={payment.presetId}
                   onChange={(e) =>
                     updatePayment(payment.id, "presetId", e.target.value)
                   }
-                  style={styles.input}
+                  style={layoutStyles.input}
                 >
                   <option value="">プリセットなし</option>
                   {PRICE_PRESETS.filter((p) => p.serviceType === serviceType).map(
@@ -1827,7 +1832,7 @@ export default function SalesPage() {
                       e.target.value as AccountingType
                     )
                   }
-                  style={styles.input}
+                  style={layoutStyles.input}
                 >
                   {ACCOUNTING_OPTIONS.map((option) => (
                     <option key={option} value={option}>
@@ -1845,7 +1850,7 @@ export default function SalesPage() {
                       e.target.value as PaymentMethod
                     )
                   }
-                  style={styles.input}
+                  style={layoutStyles.input}
                   disabled={payment.saleType === "回数券消化"}
                 >
                   {PAYMENT_OPTIONS.map((option) => (
@@ -1862,13 +1867,13 @@ export default function SalesPage() {
                     updatePayment(payment.id, "amount", e.target.value)
                   }
                   placeholder="金額"
-                  style={styles.input}
+                  style={layoutStyles.input}
                 />
 
                 <button
                   type="button"
                   onClick={() => removePaymentRow(payment.id)}
-                  style={styles.deleteMiniButton}
+                  style={layoutStyles.deleteMiniButton}
                 >
                   削除
                 </button>
@@ -1876,17 +1881,17 @@ export default function SalesPage() {
             ))}
           </div>
 
-          <label style={styles.label}>
+          <label style={layoutStyles.label}>
             メモ
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={4}
-              style={styles.textarea}
+              style={layoutStyles.textarea}
             />
           </label>
 
-          <div style={styles.totalBox}>
+          <div style={layoutStyles.totalBox}>
             <span>登録合計</span>
             <strong>{formatCurrency(totalAmount)}</strong>
           </div>
@@ -1895,17 +1900,17 @@ export default function SalesPage() {
             type="button"
             onClick={handleAddSale}
             disabled={saving}
-            style={styles.primaryButton}
+            style={layoutStyles.primaryButton}
           >
             {saving ? "保存中..." : "売上を登録する"}
           </button>
         </div>
 
-        <div style={styles.card}>
-          <h2 style={styles.sectionTitle}>集計</h2>
+        <div style={layoutStyles.card}>
+          <h2 style={layoutStyles.sectionTitle}>集計</h2>
 
-          <div style={styles.summaryGrid}>
-            <div style={styles.summaryCard}>
+          <div style={layoutStyles.summaryGrid}>
+            <div style={layoutStyles.summaryCard}>
               <span>総売上</span>
               <strong>
                 {formatCurrency(
@@ -1914,7 +1919,7 @@ export default function SalesPage() {
               </strong>
             </div>
 
-            <div style={styles.summaryCard}>
+            <div style={layoutStyles.summaryCard}>
               <span>本日売上</span>
               <strong>
                 {formatCurrency(
@@ -1925,36 +1930,40 @@ export default function SalesPage() {
               </strong>
             </div>
 
-            <div style={styles.summaryCard}>
+            <div style={layoutStyles.summaryCard}>
               <span>件数</span>
               <strong>{sales.length}件</strong>
             </div>
           </div>
 
-          <h3 style={styles.subTitle}>日別集計</h3>
-          <div style={styles.tableWrap}>
-            <table style={styles.table}>
+          <h3 style={layoutStyles.subTitle}>日別集計</h3>
+          <div style={layoutStyles.tableWrap}>
+            <table style={layoutStyles.table}>
               <thead>
                 <tr>
-                  <th style={styles.th}>日付</th>
-                  <th style={styles.th}>売上</th>
-                  <th style={styles.th}>前受金</th>
-                  <th style={styles.th}>合計</th>
+                  <th style={layoutStyles.th}>日付</th>
+                  <th style={layoutStyles.th}>売上</th>
+                  <th style={layoutStyles.th}>前受金</th>
+                  <th style={layoutStyles.th}>合計</th>
                 </tr>
               </thead>
               <tbody>
                 {dailySummaryRows.map((row) => (
                   <tr key={row.date}>
-                    <td style={styles.td}>{formatDateJP(row.date)}</td>
-                    <td style={styles.td}>{formatCurrency(row.netSalesTotal)}</td>
-                    <td style={styles.td}>{formatCurrency(row.advanceTotal)}</td>
-                    <td style={styles.td}>{formatCurrency(row.grandTotal)}</td>
+                    <td style={layoutStyles.td}>{formatDateJP(row.date)}</td>
+                    <td style={layoutStyles.td}>
+                      {formatCurrency(row.netSalesTotal)}
+                    </td>
+                    <td style={layoutStyles.td}>
+                      {formatCurrency(row.advanceTotal)}
+                    </td>
+                    <td style={layoutStyles.td}>{formatCurrency(row.grandTotal)}</td>
                   </tr>
                 ))}
 
                 {dailySummaryRows.length === 0 && (
                   <tr>
-                    <td style={styles.td} colSpan={4}>
+                    <td style={layoutStyles.td} colSpan={4}>
                       集計データがありません
                     </td>
                   </tr>
@@ -1965,280 +1974,384 @@ export default function SalesPage() {
         </div>
       </section>
 
-      <section style={styles.card}>
-        <h2 style={styles.sectionTitle}>売上一覧</h2>
+      <section style={layoutStyles.card}>
+        <h2 style={layoutStyles.sectionTitle}>売上一覧</h2>
 
-        <div style={styles.tableWrap}>
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.th}>日付</th>
-                <th style={styles.th}>顧客</th>
-                <th style={styles.th}>サービス</th>
-                <th style={styles.th}>会計</th>
-                <th style={styles.th}>支払</th>
-                <th style={styles.th}>金額</th>
-                <th style={styles.th}>担当</th>
-                <th style={styles.th}>予約ID</th>
-                <th style={styles.th}>操作</th>
-              </tr>
-            </thead>
+        {isMobile ? (
+          <div style={layoutStyles.mobileSaleList}>
+            {sales.map((sale) => (
+              <div key={sale.id} style={layoutStyles.mobileSaleCard}>
+                <div style={layoutStyles.mobileSaleTop}>
+                  <div>
+                    <strong>{sale.customerName}</strong>
+                    <p style={layoutStyles.mobileSaleDate}>
+                      {formatDateJP(sale.date)} / {sale.staff}
+                    </p>
+                  </div>
+                  <strong>{formatCurrency(sale.amount)}</strong>
+                </div>
 
-            <tbody>
-              {sales.map((sale) => (
-                <tr key={sale.id}>
-                  <td style={styles.td}>{formatDateJP(sale.date)}</td>
-                  <td style={styles.td}>{sale.customerName}</td>
-                  <td style={styles.td}>{sale.serviceType}</td>
-                  <td style={styles.td}>{sale.accountingType}</td>
-                  <td style={styles.td}>{sale.paymentMethod}</td>
-                  <td style={styles.td}>{formatCurrency(sale.amount)}</td>
-                  <td style={styles.td}>{sale.staff}</td>
-                  <td style={styles.td}>{sale.reservationId || "—"}</td>
-                  <td style={styles.td}>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteSale(sale)}
-                      style={styles.deleteButton}
-                    >
-                      削除
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                <div style={layoutStyles.mobileSaleMeta}>
+                  <span>{sale.serviceType}</span>
+                  <span>{sale.accountingType}</span>
+                  <span>{sale.paymentMethod}</span>
+                  <span>予約ID：{sale.reservationId || "—"}</span>
+                </div>
 
-              {sales.length === 0 && (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteSale(sale)}
+                  style={layoutStyles.deleteButton}
+                >
+                  削除
+                </button>
+              </div>
+            ))}
+
+            {sales.length === 0 && (
+              <div style={layoutStyles.emptyBox}>売上データがありません</div>
+            )}
+          </div>
+        ) : (
+          <div style={layoutStyles.tableWrap}>
+            <table style={layoutStyles.table}>
+              <thead>
                 <tr>
-                  <td style={styles.td} colSpan={9}>
-                    売上データがありません
-                  </td>
+                  <th style={layoutStyles.th}>日付</th>
+                  <th style={layoutStyles.th}>顧客</th>
+                  <th style={layoutStyles.th}>サービス</th>
+                  <th style={layoutStyles.th}>会計</th>
+                  <th style={layoutStyles.th}>支払</th>
+                  <th style={layoutStyles.th}>金額</th>
+                  <th style={layoutStyles.th}>担当</th>
+                  <th style={layoutStyles.th}>予約ID</th>
+                  <th style={layoutStyles.th}>操作</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+
+              <tbody>
+                {sales.map((sale) => (
+                  <tr key={sale.id}>
+                    <td style={layoutStyles.td}>{formatDateJP(sale.date)}</td>
+                    <td style={layoutStyles.td}>{sale.customerName}</td>
+                    <td style={layoutStyles.td}>{sale.serviceType}</td>
+                    <td style={layoutStyles.td}>{sale.accountingType}</td>
+                    <td style={layoutStyles.td}>{sale.paymentMethod}</td>
+                    <td style={layoutStyles.td}>{formatCurrency(sale.amount)}</td>
+                    <td style={layoutStyles.td}>{sale.staff}</td>
+                    <td style={layoutStyles.td}>{sale.reservationId || "—"}</td>
+                    <td style={layoutStyles.td}>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteSale(sale)}
+                        style={layoutStyles.deleteButton}
+                      >
+                        削除
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+
+                {sales.length === 0 && (
+                  <tr>
+                    <td style={layoutStyles.td} colSpan={9}>
+                      売上データがありません
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
     </main>
   );
 }
 
-const styles: Record<string, CSSProperties> = {
-  page: {
-    minHeight: "100vh",
-    padding: "24px",
-    background:
-      "linear-gradient(135deg, #e5e7eb 0%, #d1d5db 42%, #9ca3af 100%)",
-    color: "#111827",
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-  },
-  header: {
-    maxWidth: 1280,
-    margin: "0 auto 20px",
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 16,
-    alignItems: "center",
-  },
-  kicker: {
-    margin: 0,
-    fontSize: 12,
-    letterSpacing: "0.18em",
-    color: "#6b7280",
-    fontWeight: 800,
-  },
-  title: {
-    margin: "4px 0",
-    fontSize: 32,
-    fontWeight: 900,
-  },
-  lead: {
-    margin: 0,
-    color: "#4b5563",
-    fontSize: 14,
-  },
-  headerActions: {
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-  grid: {
-    maxWidth: 1280,
-    margin: "0 auto 20px",
-    display: "grid",
-    gridTemplateColumns: "minmax(0, 1.2fr) minmax(320px, 0.8fr)",
-    gap: 20,
-  },
-  card: {
-    maxWidth: 1280,
-    margin: "0 auto 20px",
-    background: "rgba(255,255,255,0.82)",
-    border: "1px solid rgba(255,255,255,0.72)",
-    borderRadius: 24,
-    padding: 20,
-    boxShadow: "0 24px 60px rgba(15,23,42,0.12)",
-    backdropFilter: "blur(16px)",
-  },
-  noticeCard: {
-    maxWidth: 1280,
-    margin: "0 auto 20px",
-    background: "rgba(17,24,39,0.92)",
-    color: "white",
-    borderRadius: 18,
-    padding: "14px 18px",
-    display: "flex",
-    gap: 16,
-    flexWrap: "wrap",
-    alignItems: "center",
-    boxShadow: "0 16px 40px rgba(15,23,42,0.18)",
-  },
-  sectionTitle: {
-    margin: "0 0 16px",
-    fontSize: 20,
-    fontWeight: 900,
-  },
-  subTitle: {
-    margin: "20px 0 10px",
-    fontSize: 15,
-    fontWeight: 900,
-  },
-  label: {
-    display: "grid",
-    gap: 6,
-    fontSize: 13,
-    fontWeight: 800,
-    color: "#374151",
-    marginBottom: 12,
-  },
-  input: {
-    width: "100%",
-    minHeight: 42,
-    borderRadius: 14,
-    border: "1px solid #d1d5db",
-    padding: "10px 12px",
-    background: "rgba(255,255,255,0.9)",
-    fontSize: 14,
-    boxSizing: "border-box",
-  },
-  textarea: {
-    width: "100%",
-    borderRadius: 14,
-    border: "1px solid #d1d5db",
-    padding: 12,
-    background: "rgba(255,255,255,0.9)",
-    fontSize: 14,
-    boxSizing: "border-box",
-  },
-  paymentBox: {
-    border: "1px solid #e5e7eb",
-    borderRadius: 18,
-    padding: 12,
-    marginBottom: 12,
-    background: "rgba(249,250,251,0.8)",
-  },
-  paymentHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  paymentRow: {
-    display: "grid",
-    gridTemplateColumns: "1.5fr 1fr 1fr 1fr auto",
-    gap: 8,
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  totalBox: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    background: "#111827",
-    color: "white",
-    borderRadius: 16,
-    padding: "14px 16px",
-    margin: "14px 0",
-  },
-  primaryButton: {
-    width: "100%",
-    minHeight: 48,
-    border: "none",
-    borderRadius: 16,
-    background: "#111827",
-    color: "white",
-    fontWeight: 900,
-    fontSize: 15,
-    cursor: "pointer",
-  },
-  secondaryButton: {
-    minHeight: 42,
-    border: "1px solid rgba(255,255,255,0.8)",
-    borderRadius: 999,
-    background: "rgba(255,255,255,0.7)",
-    color: "#111827",
-    padding: "10px 16px",
-    fontWeight: 800,
-    textDecoration: "none",
-    cursor: "pointer",
-  },
-  smallButton: {
-    border: "none",
-    borderRadius: 999,
-    background: "#111827",
-    color: "white",
-    padding: "8px 12px",
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  deleteMiniButton: {
-    border: "none",
-    borderRadius: 12,
-    background: "#fee2e2",
-    color: "#b91c1c",
-    padding: "10px 12px",
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  deleteButton: {
-    border: "none",
-    borderRadius: 999,
-    background: "#fee2e2",
-    color: "#b91c1c",
-    padding: "8px 12px",
-    fontWeight: 800,
-    cursor: "pointer",
-  },
-  summaryGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(3, 1fr)",
-    gap: 10,
-  },
-  summaryCard: {
-    background: "rgba(255,255,255,0.72)",
-    border: "1px solid #e5e7eb",
-    borderRadius: 18,
-    padding: 14,
-    display: "grid",
-    gap: 6,
-  },
-  tableWrap: {
-    overflowX: "auto",
-  },
-  table: {
-    width: "100%",
-    borderCollapse: "separate",
-    borderSpacing: 0,
-    fontSize: 13,
-  },
-  th: {
-    textAlign: "left",
-    padding: "10px 12px",
-    background: "#f3f4f6",
-    borderBottom: "1px solid #e5e7eb",
-    whiteSpace: "nowrap",
-  },
-  td: {
-    padding: "10px 12px",
-    borderBottom: "1px solid #e5e7eb",
-    whiteSpace: "nowrap",
-  },
-};
+function createStyles(isMobile: boolean): Record<string, CSSProperties> {
+  return {
+    page: {
+      minHeight: "100vh",
+      padding: isMobile ? "14px" : "24px",
+      background:
+        "linear-gradient(135deg, #e5e7eb 0%, #d1d5db 42%, #9ca3af 100%)",
+      color: "#111827",
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      overflowX: "hidden",
+    },
+    header: {
+      maxWidth: 1280,
+      margin: "0 auto 16px",
+      display: "flex",
+      flexDirection: isMobile ? "column" : "row",
+      justifyContent: "space-between",
+      gap: 12,
+      alignItems: isMobile ? "stretch" : "center",
+    },
+    kicker: {
+      margin: 0,
+      fontSize: 12,
+      letterSpacing: "0.18em",
+      color: "#6b7280",
+      fontWeight: 800,
+    },
+    title: {
+      margin: "4px 0",
+      fontSize: isMobile ? 26 : 32,
+      fontWeight: 900,
+    },
+    lead: {
+      margin: 0,
+      color: "#4b5563",
+      fontSize: 14,
+      lineHeight: 1.5,
+    },
+    headerActions: {
+      display: "flex",
+      gap: 10,
+      flexWrap: "wrap",
+      width: isMobile ? "100%" : "auto",
+    },
+    grid: {
+      maxWidth: 1280,
+      margin: "0 auto 16px",
+      display: "grid",
+      gridTemplateColumns: isMobile
+        ? "minmax(0, 1fr)"
+        : "minmax(0, 1.2fr) minmax(320px, 0.8fr)",
+      gap: isMobile ? 14 : 20,
+    },
+    card: {
+      maxWidth: 1280,
+      width: "100%",
+      margin: "0 auto 16px",
+      background: "rgba(255,255,255,0.82)",
+      border: "1px solid rgba(255,255,255,0.72)",
+      borderRadius: isMobile ? 18 : 24,
+      padding: isMobile ? 14 : 20,
+      boxShadow: "0 24px 60px rgba(15,23,42,0.12)",
+      backdropFilter: "blur(16px)",
+      boxSizing: "border-box",
+    },
+    noticeCard: {
+      maxWidth: 1280,
+      width: "100%",
+      margin: "0 auto 16px",
+      background: "rgba(17,24,39,0.92)",
+      color: "white",
+      borderRadius: 18,
+      padding: isMobile ? "12px 14px" : "14px 18px",
+      display: "flex",
+      flexDirection: isMobile ? "column" : "row",
+      gap: isMobile ? 6 : 16,
+      alignItems: isMobile ? "flex-start" : "center",
+      boxShadow: "0 16px 40px rgba(15,23,42,0.18)",
+      boxSizing: "border-box",
+    },
+    sectionTitle: {
+      margin: "0 0 14px",
+      fontSize: isMobile ? 18 : 20,
+      fontWeight: 900,
+    },
+    subTitle: {
+      margin: "18px 0 10px",
+      fontSize: 15,
+      fontWeight: 900,
+    },
+    label: {
+      display: "grid",
+      gap: 6,
+      fontSize: 13,
+      fontWeight: 800,
+      color: "#374151",
+      marginBottom: 12,
+      minWidth: 0,
+    },
+    input: {
+      width: "100%",
+      minHeight: isMobile ? 46 : 42,
+      borderRadius: 14,
+      border: "1px solid #d1d5db",
+      padding: "10px 12px",
+      background: "rgba(255,255,255,0.9)",
+      fontSize: 16,
+      boxSizing: "border-box",
+      minWidth: 0,
+    },
+    textarea: {
+      width: "100%",
+      borderRadius: 14,
+      border: "1px solid #d1d5db",
+      padding: 12,
+      background: "rgba(255,255,255,0.9)",
+      fontSize: 16,
+      boxSizing: "border-box",
+    },
+    twoColumn: {
+      display: "grid",
+      gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+      gap: isMobile ? 0 : 12,
+    },
+    paymentBox: {
+      border: "1px solid #e5e7eb",
+      borderRadius: 18,
+      padding: isMobile ? 10 : 12,
+      marginBottom: 12,
+      background: "rgba(249,250,251,0.8)",
+      overflow: "hidden",
+    },
+    paymentHeader: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 10,
+    },
+    paymentRow: {
+      display: "grid",
+      gridTemplateColumns: isMobile ? "1fr" : "1.5fr 1fr 1fr 1fr auto",
+      gap: 8,
+      alignItems: "center",
+      marginBottom: 10,
+      paddingBottom: isMobile ? 10 : 0,
+      borderBottom: isMobile ? "1px solid #e5e7eb" : "none",
+    },
+    totalBox: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      background: "#111827",
+      color: "white",
+      borderRadius: 16,
+      padding: "14px 16px",
+      margin: "14px 0",
+    },
+    primaryButton: {
+      width: "100%",
+      minHeight: 50,
+      border: "none",
+      borderRadius: 16,
+      background: "#111827",
+      color: "white",
+      fontWeight: 900,
+      fontSize: 16,
+      cursor: "pointer",
+    },
+    secondaryButton: {
+      flex: isMobile ? 1 : undefined,
+      minHeight: 44,
+      border: "1px solid rgba(255,255,255,0.8)",
+      borderRadius: 999,
+      background: "rgba(255,255,255,0.7)",
+      color: "#111827",
+      padding: "10px 16px",
+      fontWeight: 800,
+      textDecoration: "none",
+      cursor: "pointer",
+      textAlign: "center",
+      boxSizing: "border-box",
+    },
+    smallButton: {
+      border: "none",
+      borderRadius: 999,
+      background: "#111827",
+      color: "white",
+      padding: "8px 12px",
+      fontWeight: 800,
+      cursor: "pointer",
+    },
+    deleteMiniButton: {
+      border: "none",
+      borderRadius: 12,
+      background: "#fee2e2",
+      color: "#b91c1c",
+      padding: "12px",
+      fontWeight: 800,
+      cursor: "pointer",
+      width: isMobile ? "100%" : "auto",
+    },
+    deleteButton: {
+      border: "none",
+      borderRadius: 999,
+      background: "#fee2e2",
+      color: "#b91c1c",
+      padding: "9px 14px",
+      fontWeight: 800,
+      cursor: "pointer",
+      width: isMobile ? "100%" : "auto",
+    },
+    summaryGrid: {
+      display: "grid",
+      gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
+      gap: 10,
+    },
+    summaryCard: {
+      background: "rgba(255,255,255,0.72)",
+      border: "1px solid #e5e7eb",
+      borderRadius: 18,
+      padding: 14,
+      display: "grid",
+      gap: 6,
+    },
+    tableWrap: {
+      overflowX: "auto",
+      WebkitOverflowScrolling: "touch",
+      width: "100%",
+    },
+    table: {
+      width: "100%",
+      minWidth: isMobile ? 520 : "auto",
+      borderCollapse: "separate",
+      borderSpacing: 0,
+      fontSize: 13,
+    },
+    th: {
+      textAlign: "left",
+      padding: "10px 12px",
+      background: "#f3f4f6",
+      borderBottom: "1px solid #e5e7eb",
+      whiteSpace: "nowrap",
+    },
+    td: {
+      padding: "10px 12px",
+      borderBottom: "1px solid #e5e7eb",
+      whiteSpace: "nowrap",
+    },
+    mobileSaleList: {
+      display: "grid",
+      gap: 10,
+    },
+    mobileSaleCard: {
+      background: "rgba(255,255,255,0.75)",
+      border: "1px solid #e5e7eb",
+      borderRadius: 16,
+      padding: 12,
+      display: "grid",
+      gap: 10,
+    },
+    mobileSaleTop: {
+      display: "flex",
+      justifyContent: "space-between",
+      gap: 10,
+      alignItems: "flex-start",
+    },
+    mobileSaleDate: {
+      margin: "4px 0 0",
+      fontSize: 12,
+      color: "#6b7280",
+    },
+    mobileSaleMeta: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 6,
+      fontSize: 12,
+      color: "#374151",
+    },
+    emptyBox: {
+      padding: 16,
+      textAlign: "center",
+      color: "#6b7280",
+      background: "rgba(255,255,255,0.7)",
+      borderRadius: 16,
+    },
+  };
+}
