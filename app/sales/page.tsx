@@ -352,6 +352,7 @@ function buildStretchPresets(): PricePreset[] {
 
   return presets;
 }
+
 const PRICE_PRESETS: PricePreset[] = [
   {
     id: "trial_weekday",
@@ -479,7 +480,7 @@ const PRICE_PRESETS: PricePreset[] = [
     menuName: "ボディメイク月2 マンツーマン",
     amount: 17600,
   },
-  {
+    {
     id: "body2_p",
     serviceType: "トレーニング",
     label: "ボディメイク月2 P 12,320円",
@@ -769,6 +770,7 @@ function buildCategory(
   if (paymentMethod === "銀行振込") return "トレーニング銀行振込";
   return "トレーニングその他";
 }
+
 function normalizeServiceType(value?: string | null): ServiceType {
   if (value === "ストレッチ") return "ストレッチ";
   return "トレーニング";
@@ -968,7 +970,6 @@ async function rollbackConsumedTicket(params: {
       .eq("before_count", params.beforeCount);
   }
 }
-
 async function restoreTicketUsageFromDeletedSale(params: {
   sale: Sale;
 }): Promise<void> {
@@ -1100,7 +1101,7 @@ export default function SalesPage() {
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
-  const [windowWidth, setWindowWidth] = useState(390);
+  const [windowWidth, setWindowWidth] = useState(1200);
 
   const [date, setDate] = useState(todayString());
   const [customerId, setCustomerId] = useState("");
@@ -1119,6 +1120,7 @@ export default function SalesPage() {
   const [saving, setSaving] = useState(false);
 
   const isMobile = windowWidth < 760;
+  const isTablet = windowWidth >= 760 && windowWidth < 1100;
 
   const selectedCustomer = useMemo(() => {
     return customers.find((c) => String(c.id) === String(customerId)) || null;
@@ -1130,6 +1132,26 @@ export default function SalesPage() {
 
   const dailySummaryRows = useMemo(() => {
     return buildDailySummaryRows(sales);
+  }, [sales]);
+
+  const todaySalesTotal = useMemo(() => {
+    return sales
+      .filter((sale) => sale.date === todayString())
+      .reduce((sum, sale) => sum + Number(sale.amount || 0), 0);
+  }, [sales]);
+
+  const allSalesTotal = useMemo(() => {
+    return sales.reduce((sum, sale) => sum + Number(sale.amount || 0), 0);
+  }, [sales]);
+
+  const advanceTotal = useMemo(() => {
+    return sales
+      .filter((sale) => sale.accountingType === "前受金")
+      .reduce((sum, sale) => sum + Number(sale.amount || 0), 0);
+  }, [sales]);
+
+  const ticketSalesCount = useMemo(() => {
+    return sales.filter((sale) => sale.accountingType === "回数券消化").length;
   }, [sales]);
 
   const fetchSales = async () => {
@@ -1662,543 +1684,552 @@ export default function SalesPage() {
     URL.revokeObjectURL(url);
   };
 
-  const layoutStyles = createStyles(isMobile);
+  const styles = createStyles(isMobile, isTablet);
 
   if (loading) {
     return (
-      <main style={layoutStyles.page}>
-        <div style={layoutStyles.card}>読み込み中...</div>
+      <main style={styles.page}>
+        <div style={styles.shell}>
+          <aside style={styles.sidebar}>
+            <div style={styles.sideLogo}>G</div>
+          </aside>
+          <section style={styles.mainPanel}>
+            <div style={styles.card}>読み込み中...</div>
+          </section>
+        </div>
       </main>
     );
   }
 
   return (
-    <main style={layoutStyles.page}>
-      <div style={layoutStyles.header}>
-        <div>
-          <p style={layoutStyles.kicker}>GYMUP CRM</p>
-          <h1 style={layoutStyles.title}>売上管理</h1>
-          <p style={layoutStyles.lead}>
-            予約連動・回数券消化・上書き登録・CSV出力
-          </p>
-        </div>
+    <main style={styles.page}>
+      <div style={styles.shell}>
+        {!isMobile && (
+          <aside style={styles.sidebar}>
+            <div style={styles.sideLogo}>G</div>
+            <nav style={styles.sideNav}>
+              <Link href="/" style={styles.sideItem}>⌂</Link>
+              <Link href="/reservation" style={styles.sideItem}>◎</Link>
+              <Link href="/customer" style={styles.sideItem}>☻</Link>
+              <Link href="/sales" style={styles.sideItemActive}>¥</Link>
+              <Link href="/accounting" style={styles.sideItem}>≡</Link>
+            </nav>
+            <div style={styles.sideBottom}>↩</div>
+          </aside>
+        )}
 
-        <div style={layoutStyles.headerActions}>
-          <Link href="/" style={layoutStyles.secondaryButton}>
-            管理TOP
-          </Link>
-          <button
-            type="button"
-            onClick={exportCsv}
-            style={layoutStyles.secondaryButton}
-          >
-            CSV出力
-          </button>
-        </div>
-      </div>
+        <section style={styles.mainPanel}>
+          <div style={styles.header}>
+            <div>
+              <p style={styles.kicker}>GYMUP CRM / SALES</p>
+              <h1 style={styles.title}>売上管理</h1>
+              <p style={styles.lead}>
+                予約連動・回数券消化・上書き登録・CSV出力
+              </p>
+            </div>
 
-      {reservationId && (
-        <section style={layoutStyles.noticeCard}>
-          <strong>予約ID：{reservationId}</strong>
-          <span>予約ステータス：{reservationStatus || "未取得"}</span>
-          <span>既存売上：{existingSalesForReservation.length}件</span>
-        </section>
-      )}
-
-      <section style={layoutStyles.grid}>
-        <div style={layoutStyles.card}>
-          <h2 style={layoutStyles.sectionTitle}>売上登録</h2>
-
-          <label style={layoutStyles.label}>
-            日付
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              style={layoutStyles.input}
-            />
-          </label>
-
-          <label style={layoutStyles.label}>
-            顧客
-            <select
-              value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-              style={layoutStyles.input}
-            >
-              <option value="">選択してください</option>
-              {customers.map((customer) => (
-                <option key={customer.id} value={String(customer.id)}>
-                  {customer.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label style={layoutStyles.label}>
-            サービス
-            <select
-              value={serviceType}
-              onChange={(e) => setServiceType(e.target.value as ServiceType)}
-              style={layoutStyles.input}
-            >
-              {SERVICE_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label style={layoutStyles.label}>
-            メニュー名
-            <input
-              value={menuName}
-              onChange={(e) => setMenuName(e.target.value)}
-              placeholder="例：ストレッチ60分"
-              style={layoutStyles.input}
-            />
-          </label>
-
-          <div style={layoutStyles.twoColumn}>
-            <label style={layoutStyles.label}>
-              担当
-              <select
-                value={staff}
-                onChange={(e) => setStaff(e.target.value)}
-                style={layoutStyles.input}
-              >
-                {STAFF_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label style={layoutStyles.label}>
-              店舗
-              <select
-                value={storeName}
-                onChange={(e) => setStoreName(e.target.value)}
-                style={layoutStyles.input}
-              >
-                {STORE_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div style={styles.headerActions}>
+              <Link href="/" style={styles.secondaryButton}>
+                管理TOP
+              </Link>
+              <button type="button" onClick={exportCsv} style={styles.primaryMiniButton}>
+                CSV出力
+              </button>
+            </div>
           </div>
 
-          <div style={layoutStyles.paymentBox}>
-            <div style={layoutStyles.paymentHeader}>
-              <strong>決済</strong>
-              <button
-                type="button"
-                onClick={addPaymentRow}
-                style={layoutStyles.smallButton}
-              >
-                ＋追加
+          {reservationId && (
+            <section style={styles.noticeCard}>
+              <strong>予約ID：{reservationId}</strong>
+              <span>予約ステータス：{reservationStatus || "未取得"}</span>
+              <span>既存売上：{existingSalesForReservation.length}件</span>
+            </section>
+          )}
+
+          <section style={styles.kpiGrid}>
+            <div style={styles.kpiCard}>
+              <span>All Sales</span>
+              <strong>{formatCurrency(allSalesTotal)}</strong>
+              <small>総売上</small>
+            </div>
+            <div style={styles.kpiCard}>
+              <span>Today</span>
+              <strong>{formatCurrency(todaySalesTotal)}</strong>
+              <small>本日売上</small>
+            </div>
+            <div style={styles.kpiCard}>
+              <span>Advance</span>
+              <strong>{formatCurrency(advanceTotal)}</strong>
+              <small>前受金</small>
+            </div>
+            <div style={styles.kpiCard}>
+              <span>Tickets</span>
+              <strong>{ticketSalesCount}件</strong>
+              <small>回数券消化</small>
+            </div>
+          </section>
+
+          <section style={styles.contentGrid}>
+            <div style={styles.formCard}>
+              <h2 style={styles.sectionTitle}>売上登録</h2>
+
+              <div style={styles.formGrid}>
+                <label style={styles.label}>
+                  日付
+                  <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={styles.input} />
+                </label>
+
+                <label style={styles.label}>
+                  顧客
+                  <select value={customerId} onChange={(e) => setCustomerId(e.target.value)} style={styles.input}>
+                    <option value="">選択してください</option>
+                    {customers.map((customer) => (
+                      <option key={customer.id} value={String(customer.id)}>
+                        {customer.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label style={styles.label}>
+                  サービス
+                  <select value={serviceType} onChange={(e) => setServiceType(e.target.value as ServiceType)} style={styles.input}>
+                    {SERVICE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label style={styles.label}>
+                  メニュー名
+                  <input value={menuName} onChange={(e) => setMenuName(e.target.value)} placeholder="例：ストレッチ60分" style={styles.input} />
+                </label>
+
+                <label style={styles.label}>
+                  担当
+                  <select value={staff} onChange={(e) => setStaff(e.target.value)} style={styles.input}>
+                    {STAFF_OPTIONS.map((option) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label style={styles.label}>
+                  店舗
+                  <select value={storeName} onChange={(e) => setStoreName(e.target.value)} style={styles.input}>
+                    {STORE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div style={styles.paymentBox}>
+                <div style={styles.paymentHeader}>
+                  <strong>決済</strong>
+                  <button type="button" onClick={addPaymentRow} style={styles.addButton}>
+                    ＋追加
+                  </button>
+                </div>
+
+                {payments.map((payment) => (
+                  <div key={payment.id} style={styles.paymentRow}>
+                    <select value={payment.presetId} onChange={(e) => updatePayment(payment.id, "presetId", e.target.value)} style={styles.input}>
+                      <option value="">プリセットなし</option>
+                      {PRICE_PRESETS.filter((p) => p.serviceType === serviceType).map((preset) => (
+                        <option key={preset.id} value={preset.id}>
+                          {preset.label}
+                        </option>
+                      ))}
+                    </select>
+
+                    <select value={payment.saleType} onChange={(e) => updatePayment(payment.id, "saleType", e.target.value as AccountingType)} style={styles.input}>
+                      {ACCOUNTING_OPTIONS.map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+
+                    <select value={payment.paymentMethod} onChange={(e) => updatePayment(payment.id, "paymentMethod", e.target.value as PaymentMethod)} style={styles.input} disabled={payment.saleType === "回数券消化"}>
+                      {PAYMENT_OPTIONS.map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+
+                    <input type="number" value={payment.amount} onChange={(e) => updatePayment(payment.id, "amount", e.target.value)} placeholder="金額" style={styles.input} />
+
+                    <button type="button" onClick={() => removePaymentRow(payment.id)} style={styles.deleteMiniButton}>
+                      削除
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <label style={styles.label}>
+                メモ
+                <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={4} style={styles.textarea} />
+              </label>
+
+              <div style={styles.totalBox}>
+                <span>登録合計</span>
+                <strong>{formatCurrency(totalAmount)}</strong>
+              </div>
+
+              <button type="button" onClick={handleAddSale} disabled={saving} style={styles.primaryButton}>
+                {saving ? "保存中..." : "売上を登録する"}
               </button>
             </div>
 
-            {payments.map((payment) => (
-              <div key={payment.id} style={layoutStyles.paymentRow}>
-                <select
-                  value={payment.presetId}
-                  onChange={(e) =>
-                    updatePayment(payment.id, "presetId", e.target.value)
-                  }
-                  style={layoutStyles.input}
-                >
-                  <option value="">プリセットなし</option>
-                  {PRICE_PRESETS.filter((p) => p.serviceType === serviceType).map(
-                    (preset) => (
-                      <option key={preset.id} value={preset.id}>
-                        {preset.label}
-                      </option>
-                    )
-                  )}
-                </select>
-
-                <select
-                  value={payment.saleType}
-                  onChange={(e) =>
-                    updatePayment(
-                      payment.id,
-                      "saleType",
-                      e.target.value as AccountingType
-                    )
-                  }
-                  style={layoutStyles.input}
-                >
-                  {ACCOUNTING_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={payment.paymentMethod}
-                  onChange={(e) =>
-                    updatePayment(
-                      payment.id,
-                      "paymentMethod",
-                      e.target.value as PaymentMethod
-                    )
-                  }
-                  style={layoutStyles.input}
-                  disabled={payment.saleType === "回数券消化"}
-                >
-                  {PAYMENT_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-
-                <input
-                  type="number"
-                  value={payment.amount}
-                  onChange={(e) =>
-                    updatePayment(payment.id, "amount", e.target.value)
-                  }
-                  placeholder="金額"
-                  style={layoutStyles.input}
-                />
-
-                <button
-                  type="button"
-                  onClick={() => removePaymentRow(payment.id)}
-                  style={layoutStyles.deleteMiniButton}
-                >
-                  削除
-                </button>
+            <div style={styles.sidePanelCard}>
+              <h2 style={styles.sectionTitle}>日別集計</h2>
+              <div style={styles.tableWrap}>
+                <table style={styles.table}>
+                  <thead>
+                    <tr>
+                      <th style={styles.th}>日付</th>
+                      <th style={styles.th}>売上</th>
+                      <th style={styles.th}>前受金</th>
+                      <th style={styles.th}>合計</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dailySummaryRows.map((row) => (
+                      <tr key={row.date}>
+                        <td style={styles.td}>{formatDateJP(row.date)}</td>
+                        <td style={styles.td}>{formatCurrency(row.netSalesTotal)}</td>
+                        <td style={styles.td}>{formatCurrency(row.advanceTotal)}</td>
+                        <td style={styles.td}>{formatCurrency(row.grandTotal)}</td>
+                      </tr>
+                    ))}
+                    {dailySummaryRows.length === 0 && (
+                      <tr>
+                        <td style={styles.td} colSpan={4}>集計データがありません</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
-            ))}
-          </div>
-
-          <label style={layoutStyles.label}>
-            メモ
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              rows={4}
-              style={layoutStyles.textarea}
-            />
-          </label>
-
-          <div style={layoutStyles.totalBox}>
-            <span>登録合計</span>
-            <strong>{formatCurrency(totalAmount)}</strong>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleAddSale}
-            disabled={saving}
-            style={layoutStyles.primaryButton}
-          >
-            {saving ? "保存中..." : "売上を登録する"}
-          </button>
-        </div>
-
-        <div style={layoutStyles.card}>
-          <h2 style={layoutStyles.sectionTitle}>集計</h2>
-
-          <div style={layoutStyles.summaryGrid}>
-            <div style={layoutStyles.summaryCard}>
-              <span>総売上</span>
-              <strong>
-                {formatCurrency(
-                  sales.reduce((sum, sale) => sum + Number(sale.amount || 0), 0)
-                )}
-              </strong>
             </div>
+          </section>
 
-            <div style={layoutStyles.summaryCard}>
-              <span>本日売上</span>
-              <strong>
-                {formatCurrency(
-                  sales
-                    .filter((sale) => sale.date === todayString())
-                    .reduce((sum, sale) => sum + Number(sale.amount || 0), 0)
-                )}
-              </strong>
-            </div>
+          <section style={styles.listCard}>
+            <h2 style={styles.sectionTitle}>売上一覧</h2>
 
-            <div style={layoutStyles.summaryCard}>
-              <span>件数</span>
-              <strong>{sales.length}件</strong>
-            </div>
-          </div>
-
-          <h3 style={layoutStyles.subTitle}>日別集計</h3>
-          <div style={layoutStyles.tableWrap}>
-            <table style={layoutStyles.table}>
-              <thead>
-                <tr>
-                  <th style={layoutStyles.th}>日付</th>
-                  <th style={layoutStyles.th}>売上</th>
-                  <th style={layoutStyles.th}>前受金</th>
-                  <th style={layoutStyles.th}>合計</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dailySummaryRows.map((row) => (
-                  <tr key={row.date}>
-                    <td style={layoutStyles.td}>{formatDateJP(row.date)}</td>
-                    <td style={layoutStyles.td}>
-                      {formatCurrency(row.netSalesTotal)}
-                    </td>
-                    <td style={layoutStyles.td}>
-                      {formatCurrency(row.advanceTotal)}
-                    </td>
-                    <td style={layoutStyles.td}>{formatCurrency(row.grandTotal)}</td>
-                  </tr>
-                ))}
-
-                {dailySummaryRows.length === 0 && (
-                  <tr>
-                    <td style={layoutStyles.td} colSpan={4}>
-                      集計データがありません
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <section style={layoutStyles.card}>
-        <h2 style={layoutStyles.sectionTitle}>売上一覧</h2>
-
-        {isMobile ? (
-          <div style={layoutStyles.mobileSaleList}>
-            {sales.map((sale) => (
-              <div key={sale.id} style={layoutStyles.mobileSaleCard}>
-                <div style={layoutStyles.mobileSaleTop}>
-                  <div>
-                    <strong>{sale.customerName}</strong>
-                    <p style={layoutStyles.mobileSaleDate}>
-                      {formatDateJP(sale.date)} / {sale.staff}
-                    </p>
-                  </div>
-                  <strong>{formatCurrency(sale.amount)}</strong>
-                </div>
-
-                <div style={layoutStyles.mobileSaleMeta}>
-                  <span>{sale.serviceType}</span>
-                  <span>{sale.accountingType}</span>
-                  <span>{sale.paymentMethod}</span>
-                  <span>予約ID：{sale.reservationId || "—"}</span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleDeleteSale(sale)}
-                  style={layoutStyles.deleteButton}
-                >
-                  削除
-                </button>
-              </div>
-            ))}
-
-            {sales.length === 0 && (
-              <div style={layoutStyles.emptyBox}>売上データがありません</div>
-            )}
-          </div>
-        ) : (
-          <div style={layoutStyles.tableWrap}>
-            <table style={layoutStyles.table}>
-              <thead>
-                <tr>
-                  <th style={layoutStyles.th}>日付</th>
-                  <th style={layoutStyles.th}>顧客</th>
-                  <th style={layoutStyles.th}>サービス</th>
-                  <th style={layoutStyles.th}>会計</th>
-                  <th style={layoutStyles.th}>支払</th>
-                  <th style={layoutStyles.th}>金額</th>
-                  <th style={layoutStyles.th}>担当</th>
-                  <th style={layoutStyles.th}>予約ID</th>
-                  <th style={layoutStyles.th}>操作</th>
-                </tr>
-              </thead>
-
-              <tbody>
+            {isMobile ? (
+              <div style={styles.mobileSaleList}>
                 {sales.map((sale) => (
-                  <tr key={sale.id}>
-                    <td style={layoutStyles.td}>{formatDateJP(sale.date)}</td>
-                    <td style={layoutStyles.td}>{sale.customerName}</td>
-                    <td style={layoutStyles.td}>{sale.serviceType}</td>
-                    <td style={layoutStyles.td}>{sale.accountingType}</td>
-                    <td style={layoutStyles.td}>{sale.paymentMethod}</td>
-                    <td style={layoutStyles.td}>{formatCurrency(sale.amount)}</td>
-                    <td style={layoutStyles.td}>{sale.staff}</td>
-                    <td style={layoutStyles.td}>{sale.reservationId || "—"}</td>
-                    <td style={layoutStyles.td}>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteSale(sale)}
-                        style={layoutStyles.deleteButton}
-                      >
-                        削除
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                  <div key={sale.id} style={styles.mobileSaleCard}>
+                    <div style={styles.mobileSaleTop}>
+                      <div>
+                        <strong>{sale.customerName}</strong>
+                        <p style={styles.mobileSaleDate}>
+                          {formatDateJP(sale.date)} / {sale.staff}
+                        </p>
+                      </div>
+                      <strong>{formatCurrency(sale.amount)}</strong>
+                    </div>
 
-                {sales.length === 0 && (
-                  <tr>
-                    <td style={layoutStyles.td} colSpan={9}>
-                      売上データがありません
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+                    <div style={styles.mobileSaleMeta}>
+                      <span>{sale.serviceType}</span>
+                      <span>{sale.accountingType}</span>
+                      <span>{sale.paymentMethod}</span>
+                      <span>予約ID：{sale.reservationId || "—"}</span>
+                    </div>
+
+                    <button type="button" onClick={() => handleDeleteSale(sale)} style={styles.deleteButton}>
+                      削除
+                    </button>
+                  </div>
+                ))}
+                {sales.length === 0 && <div style={styles.emptyBox}>売上データがありません</div>}
+              </div>
+            ) : (
+              <div style={styles.tableWrap}>
+                <table style={styles.table}>
+                  <thead>
+                    <tr>
+                      <th style={styles.th}>日付</th>
+                      <th style={styles.th}>顧客</th>
+                      <th style={styles.th}>サービス</th>
+                      <th style={styles.th}>会計</th>
+                      <th style={styles.th}>支払</th>
+                      <th style={styles.th}>金額</th>
+                      <th style={styles.th}>担当</th>
+                      <th style={styles.th}>予約ID</th>
+                      <th style={styles.th}>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sales.map((sale) => (
+                      <tr key={sale.id}>
+                        <td style={styles.td}>{formatDateJP(sale.date)}</td>
+                        <td style={styles.td}>{sale.customerName}</td>
+                        <td style={styles.td}>{sale.serviceType}</td>
+                        <td style={styles.td}>{sale.accountingType}</td>
+                        <td style={styles.td}>{sale.paymentMethod}</td>
+                        <td style={styles.td}>{formatCurrency(sale.amount)}</td>
+                        <td style={styles.td}>{sale.staff}</td>
+                        <td style={styles.td}>{sale.reservationId || "—"}</td>
+                        <td style={styles.td}>
+                          <button type="button" onClick={() => handleDeleteSale(sale)} style={styles.deleteButton}>
+                            削除
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {sales.length === 0 && (
+                      <tr>
+                        <td style={styles.td} colSpan={9}>売上データがありません</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </section>
+      </div>
     </main>
   );
 }
 
-function createStyles(isMobile: boolean): Record<string, CSSProperties> {
+function createStyles(isMobile: boolean, isTablet: boolean): Record<string, CSSProperties> {
+  const glass: CSSProperties = {
+    background: "rgba(22, 26, 35, 0.68)",
+    border: "1px solid rgba(255,255,255,0.09)",
+    boxShadow: "0 24px 70px rgba(0,0,0,0.34)",
+    backdropFilter: "blur(22px)",
+  };
+
   return {
     page: {
       minHeight: "100vh",
-      padding: isMobile ? "14px" : "24px",
+      padding: isMobile ? 10 : 22,
       background:
-        "linear-gradient(135deg, #e5e7eb 0%, #d1d5db 42%, #9ca3af 100%)",
-      color: "#111827",
+        "radial-gradient(circle at 15% 15%, rgba(91,141,255,0.18), transparent 28%), radial-gradient(circle at 80% 65%, rgba(255,122,89,0.12), transparent 24%), linear-gradient(135deg,#070b12 0%,#101827 45%,#060a11 100%)",
+      color: "#f8fafc",
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       overflowX: "hidden",
     },
+    shell: {
+      minHeight: isMobile ? "auto" : "calc(100vh - 44px)",
+      display: "grid",
+      gridTemplateColumns: isMobile ? "1fr" : "72px minmax(0,1fr)",
+      gap: isMobile ? 0 : 16,
+      maxWidth: 1500,
+      margin: "0 auto",
+    },
+    sidebar: {
+      ...glass,
+      borderRadius: 28,
+      padding: "14px 10px",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "space-between",
+      position: "sticky",
+      top: 22,
+      height: "calc(100vh - 44px)",
+    },
+    sideLogo: {
+      width: 42,
+      height: 42,
+      borderRadius: 14,
+      display: "grid",
+      placeItems: "center",
+      background: "linear-gradient(135deg,#ffffff,#94a3b8)",
+      color: "#111827",
+      fontWeight: 900,
+    },
+    sideNav: {
+      display: "grid",
+      gap: 14,
+    },
+    sideItem: {
+      width: 42,
+      height: 42,
+      borderRadius: 14,
+      display: "grid",
+      placeItems: "center",
+      color: "rgba(255,255,255,0.62)",
+      textDecoration: "none",
+      background: "rgba(255,255,255,0.04)",
+      border: "1px solid rgba(255,255,255,0.05)",
+    },
+    sideItemActive: {
+      width: 42,
+      height: 42,
+      borderRadius: 14,
+      display: "grid",
+      placeItems: "center",
+      color: "#fff",
+      textDecoration: "none",
+      background: "linear-gradient(135deg,#2563eb,#60a5fa)",
+      boxShadow: "0 14px 30px rgba(37,99,235,0.35)",
+    },
+    sideBottom: {
+      color: "rgba(255,255,255,0.5)",
+      fontSize: 18,
+    },
+    mainPanel: {
+      minWidth: 0,
+      ...glass,
+      borderRadius: isMobile ? 22 : 32,
+      padding: isMobile ? 14 : isTablet ? 18 : 24,
+    },
     header: {
-      maxWidth: 1280,
-      margin: "0 auto 16px",
       display: "flex",
       flexDirection: isMobile ? "column" : "row",
       justifyContent: "space-between",
-      gap: 12,
+      gap: 16,
       alignItems: isMobile ? "stretch" : "center",
+      marginBottom: 18,
     },
     kicker: {
       margin: 0,
-      fontSize: 12,
+      fontSize: 11,
       letterSpacing: "0.18em",
-      color: "#6b7280",
+      color: "rgba(255,255,255,0.45)",
       fontWeight: 800,
     },
     title: {
       margin: "4px 0",
-      fontSize: isMobile ? 26 : 32,
+      fontSize: isMobile ? 28 : 34,
       fontWeight: 900,
+      letterSpacing: "-0.04em",
     },
     lead: {
       margin: 0,
-      color: "#4b5563",
-      fontSize: 14,
-      lineHeight: 1.5,
+      color: "rgba(255,255,255,0.58)",
+      fontSize: 13,
     },
     headerActions: {
       display: "flex",
       gap: 10,
       flexWrap: "wrap",
-      width: isMobile ? "100%" : "auto",
     },
-    grid: {
-      maxWidth: 1280,
-      margin: "0 auto 16px",
-      display: "grid",
-      gridTemplateColumns: isMobile
-        ? "minmax(0, 1fr)"
-        : "minmax(0, 1.2fr) minmax(320px, 0.8fr)",
-      gap: isMobile ? 14 : 20,
+    secondaryButton: {
+      minHeight: 42,
+      borderRadius: 999,
+      background: "rgba(255,255,255,0.06)",
+      border: "1px solid rgba(255,255,255,0.09)",
+      color: "#fff",
+      padding: "10px 16px",
+      fontWeight: 800,
+      textDecoration: "none",
+      cursor: "pointer",
+      textAlign: "center",
     },
-    card: {
-      maxWidth: 1280,
-      width: "100%",
-      margin: "0 auto 16px",
-      background: "rgba(255,255,255,0.82)",
-      border: "1px solid rgba(255,255,255,0.72)",
-      borderRadius: isMobile ? 18 : 24,
-      padding: isMobile ? 14 : 20,
-      boxShadow: "0 24px 60px rgba(15,23,42,0.12)",
-      backdropFilter: "blur(16px)",
-      boxSizing: "border-box",
+    primaryMiniButton: {
+      minHeight: 42,
+      borderRadius: 999,
+      background: "linear-gradient(135deg,#2563eb,#60a5fa)",
+      border: "1px solid rgba(255,255,255,0.12)",
+      color: "#fff",
+      padding: "10px 16px",
+      fontWeight: 900,
+      cursor: "pointer",
     },
     noticeCard: {
-      maxWidth: 1280,
-      width: "100%",
-      margin: "0 auto 16px",
-      background: "rgba(17,24,39,0.92)",
-      color: "white",
       borderRadius: 18,
-      padding: isMobile ? "12px 14px" : "14px 18px",
+      padding: "12px 14px",
+      marginBottom: 16,
       display: "flex",
       flexDirection: isMobile ? "column" : "row",
-      gap: isMobile ? 6 : 16,
-      alignItems: isMobile ? "flex-start" : "center",
-      boxShadow: "0 16px 40px rgba(15,23,42,0.18)",
-      boxSizing: "border-box",
+      gap: 12,
+      background: "rgba(37,99,235,0.18)",
+      border: "1px solid rgba(96,165,250,0.24)",
+      color: "#dbeafe",
+    },
+    kpiGrid: {
+      display: "grid",
+      gridTemplateColumns: isMobile ? "1fr 1fr" : isTablet ? "repeat(2,1fr)" : "repeat(4,1fr)",
+      gap: 12,
+      marginBottom: 16,
+    },
+    kpiCard: {
+      borderRadius: 20,
+      padding: isMobile ? 14 : 18,
+      background: "rgba(255,255,255,0.07)",
+      border: "1px solid rgba(255,255,255,0.08)",
+      display: "grid",
+      gap: 6,
+    },
+    contentGrid: {
+      display: "grid",
+      gridTemplateColumns: isMobile || isTablet ? "1fr" : "minmax(0,1.35fr) minmax(380px,0.65fr)",
+      gap: 16,
+      marginBottom: 16,
+    },
+    formCard: {
+      borderRadius: 24,
+      padding: isMobile ? 14 : 18,
+      background: "rgba(255,255,255,0.06)",
+      border: "1px solid rgba(255,255,255,0.08)",
+      minWidth: 0,
+    },
+    sidePanelCard: {
+      borderRadius: 24,
+      padding: isMobile ? 14 : 18,
+      background: "rgba(255,255,255,0.055)",
+      border: "1px solid rgba(255,255,255,0.08)",
+      minWidth: 0,
+    },
+    listCard: {
+      borderRadius: 24,
+      padding: isMobile ? 14 : 18,
+      background: "rgba(255,255,255,0.055)",
+      border: "1px solid rgba(255,255,255,0.08)",
+      minWidth: 0,
     },
     sectionTitle: {
       margin: "0 0 14px",
-      fontSize: isMobile ? 18 : 20,
+      fontSize: 18,
       fontWeight: 900,
     },
-    subTitle: {
-      margin: "18px 0 10px",
-      fontSize: 15,
-      fontWeight: 900,
+    formGrid: {
+      display: "grid",
+      gridTemplateColumns: isMobile ? "1fr" : "repeat(2,minmax(0,1fr))",
+      gap: 12,
     },
     label: {
       display: "grid",
       gap: 6,
-      fontSize: 13,
+      fontSize: 12,
       fontWeight: 800,
-      color: "#374151",
+      color: "rgba(255,255,255,0.62)",
       marginBottom: 12,
       minWidth: 0,
     },
     input: {
       width: "100%",
-      minHeight: isMobile ? 46 : 42,
+      minHeight: 44,
       borderRadius: 14,
-      border: "1px solid #d1d5db",
+      border: "1px solid rgba(255,255,255,0.09)",
       padding: "10px 12px",
-      background: "rgba(255,255,255,0.9)",
+      background: "rgba(255,255,255,0.08)",
+      color: "#fff",
       fontSize: 16,
       boxSizing: "border-box",
       minWidth: 0,
+      outline: "none",
     },
     textarea: {
       width: "100%",
       borderRadius: 14,
-      border: "1px solid #d1d5db",
+      border: "1px solid rgba(255,255,255,0.09)",
       padding: 12,
-      background: "rgba(255,255,255,0.9)",
+      background: "rgba(255,255,255,0.08)",
+      color: "#fff",
       fontSize: 16,
       boxSizing: "border-box",
-    },
-    twoColumn: {
-      display: "grid",
-      gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
-      gap: isMobile ? 0 : 12,
+      outline: "none",
     },
     paymentBox: {
-      border: "1px solid #e5e7eb",
+      border: "1px solid rgba(255,255,255,0.08)",
       borderRadius: 18,
-      padding: isMobile ? 10 : 12,
+      padding: 12,
       marginBottom: 12,
-      background: "rgba(249,250,251,0.8)",
-      overflow: "hidden",
+      background: "rgba(0,0,0,0.16)",
     },
     paymentHeader: {
       display: "flex",
@@ -2208,89 +2239,51 @@ function createStyles(isMobile: boolean): Record<string, CSSProperties> {
     },
     paymentRow: {
       display: "grid",
-      gridTemplateColumns: isMobile ? "1fr" : "1.5fr 1fr 1fr 1fr auto",
+      gridTemplateColumns: isMobile ? "1fr" : "1.6fr 1fr 1fr 1fr auto",
       gap: 8,
       alignItems: "center",
       marginBottom: 10,
-      paddingBottom: isMobile ? 10 : 0,
-      borderBottom: isMobile ? "1px solid #e5e7eb" : "none",
+    },
+    addButton: {
+      border: "none",
+      borderRadius: 999,
+      background: "rgba(255,255,255,0.12)",
+      color: "#fff",
+      padding: "8px 12px",
+      fontWeight: 900,
+      cursor: "pointer",
+    },
+    deleteMiniButton: {
+      border: "none",
+      borderRadius: 12,
+      background: "rgba(239,68,68,0.18)",
+      color: "#fecaca",
+      padding: "11px 12px",
+      fontWeight: 900,
+      cursor: "pointer",
+      width: isMobile ? "100%" : "auto",
     },
     totalBox: {
       display: "flex",
       justifyContent: "space-between",
       alignItems: "center",
-      background: "#111827",
-      color: "white",
+      background: "rgba(255,255,255,0.09)",
+      border: "1px solid rgba(255,255,255,0.08)",
       borderRadius: 16,
       padding: "14px 16px",
       margin: "14px 0",
     },
     primaryButton: {
       width: "100%",
-      minHeight: 50,
+      minHeight: 52,
       border: "none",
       borderRadius: 16,
-      background: "#111827",
-      color: "white",
+      background: "linear-gradient(135deg,#2563eb,#60a5fa)",
+      color: "#fff",
       fontWeight: 900,
       fontSize: 16,
       cursor: "pointer",
-    },
-    secondaryButton: {
-      flex: isMobile ? 1 : undefined,
-      minHeight: 44,
-      border: "1px solid rgba(255,255,255,0.8)",
-      borderRadius: 999,
-      background: "rgba(255,255,255,0.7)",
-      color: "#111827",
-      padding: "10px 16px",
-      fontWeight: 800,
-      textDecoration: "none",
-      cursor: "pointer",
-      textAlign: "center",
-      boxSizing: "border-box",
-    },
-    smallButton: {
-      border: "none",
-      borderRadius: 999,
-      background: "#111827",
-      color: "white",
-      padding: "8px 12px",
-      fontWeight: 800,
-      cursor: "pointer",
-    },
-    deleteMiniButton: {
-      border: "none",
-      borderRadius: 12,
-      background: "#fee2e2",
-      color: "#b91c1c",
-      padding: "12px",
-      fontWeight: 800,
-      cursor: "pointer",
-      width: isMobile ? "100%" : "auto",
-    },
-    deleteButton: {
-      border: "none",
-      borderRadius: 999,
-      background: "#fee2e2",
-      color: "#b91c1c",
-      padding: "9px 14px",
-      fontWeight: 800,
-      cursor: "pointer",
-      width: isMobile ? "100%" : "auto",
-    },
-    summaryGrid: {
-      display: "grid",
-      gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
-      gap: 10,
-    },
-    summaryCard: {
-      background: "rgba(255,255,255,0.72)",
-      border: "1px solid #e5e7eb",
-      borderRadius: 18,
-      padding: 14,
-      display: "grid",
-      gap: 6,
+      boxShadow: "0 18px 36px rgba(37,99,235,0.34)",
     },
     tableWrap: {
       overflowX: "auto",
@@ -2299,7 +2292,7 @@ function createStyles(isMobile: boolean): Record<string, CSSProperties> {
     },
     table: {
       width: "100%",
-      minWidth: isMobile ? 520 : "auto",
+      minWidth: isMobile ? 560 : "auto",
       borderCollapse: "separate",
       borderSpacing: 0,
       fontSize: 13,
@@ -2307,22 +2300,35 @@ function createStyles(isMobile: boolean): Record<string, CSSProperties> {
     th: {
       textAlign: "left",
       padding: "10px 12px",
-      background: "#f3f4f6",
-      borderBottom: "1px solid #e5e7eb",
+      background: "rgba(255,255,255,0.07)",
+      borderBottom: "1px solid rgba(255,255,255,0.08)",
       whiteSpace: "nowrap",
+      color: "rgba(255,255,255,0.6)",
+      fontWeight: 800,
     },
     td: {
-      padding: "10px 12px",
-      borderBottom: "1px solid #e5e7eb",
+      padding: "11px 12px",
+      borderBottom: "1px solid rgba(255,255,255,0.06)",
       whiteSpace: "nowrap",
+      color: "rgba(255,255,255,0.82)",
+    },
+    deleteButton: {
+      border: "none",
+      borderRadius: 999,
+      background: "rgba(239,68,68,0.18)",
+      color: "#fecaca",
+      padding: "9px 14px",
+      fontWeight: 900,
+      cursor: "pointer",
+      width: isMobile ? "100%" : "auto",
     },
     mobileSaleList: {
       display: "grid",
       gap: 10,
     },
     mobileSaleCard: {
-      background: "rgba(255,255,255,0.75)",
-      border: "1px solid #e5e7eb",
+      background: "rgba(255,255,255,0.07)",
+      border: "1px solid rgba(255,255,255,0.08)",
       borderRadius: 16,
       padding: 12,
       display: "grid",
@@ -2337,21 +2343,27 @@ function createStyles(isMobile: boolean): Record<string, CSSProperties> {
     mobileSaleDate: {
       margin: "4px 0 0",
       fontSize: 12,
-      color: "#6b7280",
+      color: "rgba(255,255,255,0.5)",
     },
     mobileSaleMeta: {
       display: "flex",
       flexWrap: "wrap",
       gap: 6,
       fontSize: 12,
-      color: "#374151",
+      color: "rgba(255,255,255,0.64)",
     },
     emptyBox: {
       padding: 16,
       textAlign: "center",
-      color: "#6b7280",
-      background: "rgba(255,255,255,0.7)",
+      color: "rgba(255,255,255,0.55)",
+      background: "rgba(255,255,255,0.06)",
       borderRadius: 16,
+    },
+    card: {
+      borderRadius: 24,
+      padding: 18,
+      background: "rgba(255,255,255,0.06)",
+      border: "1px solid rgba(255,255,255,0.08)",
     },
   };
 }
