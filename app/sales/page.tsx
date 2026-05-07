@@ -1024,6 +1024,23 @@ async function consumeCustomerTicket(params: {
 
 export default function SalesPage() {
   const router = useRouter();
+    const [windowWidth, setWindowWidth] = useState(1200);
+
+  const isMobile = windowWidth < 760;
+  const isTablet = windowWidth >= 760 && windowWidth < 1100;
+
+  useEffect(() => {
+    const update = () => {
+      if (typeof window !== "undefined") {
+        setWindowWidth(window.innerWidth);
+      }
+    };
+
+    update();
+    window.addEventListener("resize", update);
+
+    return () => window.removeEventListener("resize", update);
+  }, []);
 
   const [date, setDate] = useState(todayString());
   const [selectedMonth, setSelectedMonth] = useState(
