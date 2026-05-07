@@ -37,6 +37,11 @@ type SaleRow = {
   amount?: number | null;
   sale_date?: string | null;
   created_at?: string | null;
+  store_name?: string | null;
+  staff_name?: string | null;
+  sale_type?: string | null;
+  payment_method?: string | null;
+  menu_type?: string | null;
 };
 
 type TicketUsageRow = {
@@ -94,6 +99,12 @@ type TodoItem = {
 type LtvCustomer = {
   customerId: string;
   customerName: string;
+  amount: number;
+  count: number;
+};
+
+type MonthlySummaryItem = {
+  name: string;
   amount: number;
   count: number;
 };
@@ -362,6 +373,7 @@ export default function DashboardPage() {
 
   const [authChecked, setAuthChecked] = useState(false);
   const [selectedDate, setSelectedDate] = useState(getTodayDateString());
+  const [selectedMonth, setSelectedMonth] = useState(getTodayDateString().slice(0, 7));
   const [loading, setLoading] = useState(true);
   const [systemStatus, setSystemStatus] = useState<SystemStatus>("OFFLINE");
   const [error, setError] = useState("");
@@ -370,6 +382,7 @@ export default function DashboardPage() {
   const [todoItems, setTodoItems] = useState<TodoItem[]>([]);
   const [lowTickets, setLowTickets] = useState<TicketContractRow[]>([]);
   const [ltvCustomers, setLtvCustomers] = useState<LtvCustomer[]>([]);
+  const [monthSalesRows, setMonthSalesRows] = useState<SaleRow[]>([]);
   const [handoverNote, setHandoverNote] = useState("");
 
   const [stats, setStats] = useState<DashboardStats>({
@@ -391,6 +404,40 @@ export default function DashboardPage() {
     () => getMonthlyChangeText(stats.monthSalesAmount, stats.prevMonthSalesAmount),
     [stats.monthSalesAmount, stats.prevMonthSalesAmount]
   );
+
+  const storeSalesSummary = useMemo<MonthlySummaryItem[]>(() => {
+    const map = new Map<string, MonthlySummaryItem>();
+
+    for (const sale of monthSalesRows) {
+      const name = trimmed(sale.store_name) || "店舗未設定";
+      const amount = Number(sale.amount || 0);
+      if (!Number.isFinite(amount)) continue;
+
+      const current = map.get(name) || { name, amount: 0, count: 0 };
+      current.amount += amount;
+      current.count += 1;
+      map.set(name, current);
+    }
+
+    return Array.from(map.values()).sort((a, b) => b.amount - a.amount);
+  }, [monthSalesRows]);
+
+  const staffSalesSummary = useMemo<MonthlySummaryItem[]>(() => {
+    const map = new Map<string, MonthlySummaryItem>();
+
+    for (const sale of monthSalesRows) {
+      const name = trimmed(sale.staff_name) || "担当未設定";
+      const amount = Number(sale.amount || 0);
+      if (!Number.isFinite(amount)) continue;
+
+      const current = map.get(name) || { name, amount: 0, count: 0 };
+      current.amount += amount;
+      current.count += 1;
+      map.set(name, current);
+    }
+
+    return Array.from(map.values()).sort((a, b) => b.amount - a.amount);
+  }, [monthSalesRows]);
 
   useEffect(() => {
     const loggedIn = localStorage.getItem(AUTH_STORAGE_KEY);
@@ -443,6 +490,7 @@ export default function DashboardPage() {
           setTodoItems([]);
           setLowTickets([]);
           setLtvCustomers([]);
+          setMonthSalesRows([]);
           setStats({
             todayReservationCount: 0,
             todaySalesAmount: null,
@@ -459,8 +507,8 @@ export default function DashboardPage() {
           return;
         }
 
-        const monthRange = getMonthRange(selectedDate);
-        const prevMonthRange = getPrevMonthRange(selectedDate);
+                const monthRange = getMonthRange(`${selectedMonth}-01`);
+        const prevMonthRange = getPrevMonthRange(`${selectedMonth}-01`);
 
         const [
           reservationsResult,
@@ -536,252 +584,28 @@ export default function DashboardPage() {
         for (const customer of customers) {
           const id = trimmed(customer.id);
           const name = getCustomerName(customer);
+
           if (id) customerMapById.set(id, customer);
 
           const normalized = normalizeName(name);
+
           if (normalized && !customerMapByName.has(normalized)) {
             customerMapByName.set(normalized, customer);
           }
         }
-
-        const reservationIds = rawReservations
-          .map((row) => Number(row.id))
-          .filter((id) => Number.isFinite(id));
-
-        const customerIds = rawReservations
-          .map((row) => Number(row.customer_id))
-          .filter((id) => Number.isFinite(id));
-
-        const [usageResult, counselingResult, contractResult] = await Promise.all([
-          reservationIds.length > 0
-            ? supabase
-                .from("ticket_usages")
-                .select("id, reservation_id")
-                .in("reservation_id", reservationIds)
-            : Promise.resolve({ data: [], error: null }),
-
-          reservationIds.length > 0
-            ? supabase
-                .from("counselings")
-                .select("id, reservation_id")
-                .in("reservation_id", reservationIds)
-            : Promise.resolve({ data: [], error: null }),
-
-          customerIds.length > 0
-            ? supabase
-                .from("ticket_contracts")
-                .select(
-                  "id, customer_id, ticket_name, remaining_count, used_count, prepaid_balance, status, created_at, updated_at"
-                )
-                .in("customer_id", customerIds)
-                .order("updated_at", { ascending: false })
-                .order("id", { ascending: false })
-            : Promise.resolve({ data: [], error: null }),
-        ]);
-
-        if (usageResult.error) throw usageResult.error;
-        if (counselingResult.error) throw counselingResult.error;
-        if (contractResult.error) throw contractResult.error;
-
-        const usageRows = ((usageResult.data || []) as TicketUsageRow[]) || [];
-        const counselingRows = ((counselingResult.data || []) as CounselingRow[]) || [];
-        const contractRows = ((contractResult.data || []) as TicketContractRow[]) || [];
-
-        const usageByReservation = new Set(
-          usageRows.map((row) => trimmed(row.reservation_id)).filter(Boolean)
-        );
-
-        const counselingByReservation = new Set(
-          counselingRows.map((row) => trimmed(row.reservation_id)).filter(Boolean)
-        );
-
-        const salesByReservation = new Set(
-          todaySales.map((row) => trimmed(row.reservation_id)).filter(Boolean)
-        );
-
-        const contractByCustomer = new Map<string, TicketContractRow[]>();
-
-        for (const contract of contractRows) {
-          const customerId = trimmed(contract.customer_id);
-          if (!customerId) continue;
-          const current = contractByCustomer.get(customerId) || [];
-          current.push(contract);
-          contractByCustomer.set(customerId, current);
-        }
-
-        const displayReservations: DashboardReservation[] = rawReservations.map((row) => {
-          let customerId = trimmed(row.customer_id);
-          const rawCustomerName = trimmed(row.customer_name);
-          let matchedCustomer: CustomerRow | undefined;
-
-          if (customerId) {
-            matchedCustomer = customerMapById.get(customerId);
-          }
-
-          if (!matchedCustomer && rawCustomerName) {
-            matchedCustomer = customerMapByName.get(normalizeName(rawCustomerName));
-            if (matchedCustomer) customerId = trimmed(matchedCustomer.id);
-          }
-
-          const menu = trimmed(row.menu) || "予約メニュー";
-          const ticketName = resolveTicketName({
-            reservationMenu: menu,
-            customerPlanType: matchedCustomer?.plan_type || null,
-          });
-
-          const customerContracts = customerId ? contractByCustomer.get(customerId) || [] : [];
-          const matchedContract =
-            customerContracts.find((contract) => {
-              const cName = trimmed(contract.ticket_name);
-              if (ticketName && cName === ticketName) return true;
-              return Number(contract.remaining_count || 0) > 0;
-            }) || null;
-
-          const reservationId = trimmed(row.id);
-          const isSold =
-            trimmed(row.reservation_status) === "売上済" ||
-            salesByReservation.has(reservationId);
-          const isTicket = isTicketMenu(menu);
-          const isTicketUsed = usageByReservation.has(reservationId);
-          const isCounseled = counselingByReservation.has(reservationId);
-
-          return {
-            id: reservationId,
-            date: trimmed(row.date),
-            time: trimmed(row.start_time).slice(0, 5) || "--:--",
-            endTime: trimmed(row.end_time).slice(0, 5),
-            customerId,
-            customerName: rawCustomerName || getCustomerName(matchedCustomer),
-            menu,
-            staffName: trimmed(row.staff_name) || "担当未設定",
-            storeName: trimmed(row.store_name),
-            memo: trimmed(row.memo),
-            visitType: getVisitType(row),
-            reservationStatus: trimmed(row.reservation_status),
-            isTicket,
-            isSold,
-            isTicketUsed,
-            isCounseled,
-            ticketName: trimmed(matchedContract?.ticket_name) || ticketName,
-            remainingCount:
-              matchedContract &&
-              matchedContract.remaining_count !== null &&
-              matchedContract.remaining_count !== undefined
-                ? Number(matchedContract.remaining_count)
-                : null,
-          };
-        });
-
-        const nextTodoItems: TodoItem[] = [];
-
-        for (const item of displayReservations) {
-          if (!item.isSold) {
-            nextTodoItems.push({
-              id: `sales-${item.id}`,
-              title: `${item.time} ${item.customerName}：売上未`,
-              sub: `${item.menu} / ${item.staffName}${item.storeName ? ` / ${item.storeName}` : ""}`,
-              href: `/reservation/detail/${item.id}`,
-              customerHref: item.customerId ? `/customer/${item.customerId}` : undefined,
-              level: "red",
-            });
-          }
-
-          if (item.isTicket && !item.isTicketUsed) {
-            nextTodoItems.push({
-              id: `ticket-${item.id}`,
-              title: `${item.time} ${item.customerName}：回数券未消化`,
-              sub: `${item.ticketName || item.menu} / 残${item.remainingCount ?? "不明"}回`,
-              href: `/reservation/detail/${item.id}`,
-              customerHref: item.customerId ? `/customer/${item.customerId}` : undefined,
-              level: "purple",
-            });
-          }
-
-          if (isNewVisit(item) && !item.isCounseled) {
-            nextTodoItems.push({
-              id: `counseling-${item.id}`,
-              title: `${item.time} ${item.customerName}：カウンセリング未`,
-              sub: `${item.menu} / 新規`,
-              href: `/reservation/detail/${item.id}`,
-              customerHref: item.customerId ? `/customer/${item.customerId}` : undefined,
-              level: "orange",
-            });
-          }
-
-          if (item.isTicket && item.remainingCount !== null && item.remainingCount <= 2) {
-            nextTodoItems.push({
-              id: `ticket-warning-${item.id}`,
-              title: `${item.customerName}：回数券残り${item.remainingCount}回`,
-              sub: `${item.ticketName || item.menu} / 更新案内候補`,
-              href: item.customerId ? `/customer/${item.customerId}` : `/reservation/detail/${item.id}`,
-              customerHref: item.customerId ? `/customer/${item.customerId}` : undefined,
-              level: item.remainingCount <= 1 ? "red" : "orange",
-            });
-          }
-        }
-
-        const ltvMap = new Map<string, LtvCustomer>();
-
-        for (const sale of allSales) {
-          const amount = Number(sale.amount || 0);
-          if (!Number.isFinite(amount) || amount <= 0) continue;
-
-          const customerId = trimmed(sale.customer_id) || `name-${trimmed(sale.customer_name)}`;
-          const customerName =
-            trimmed(sale.customer_name) ||
-            getCustomerName(customerMapById.get(trimmed(sale.customer_id))) ||
-            "顧客名未設定";
-
-          const current = ltvMap.get(customerId) || {
-            customerId,
-            customerName,
-            amount: 0,
-            count: 0,
-          };
-
-          current.amount += amount;
-          current.count += 1;
-          ltvMap.set(customerId, current);
-        }
-
-        const ltvList = Array.from(ltvMap.values())
-          .sort((a, b) => b.amount - a.amount)
-          .slice(0, 5);
-
-        if (!mounted) return;
-
-        setReservations(displayReservations);
-        setTodoItems(nextTodoItems);
-        setLowTickets(lowTicketRows);
-        setLtvCustomers(ltvList);
-        setStats({
-          todayReservationCount: displayReservations.length,
-          todaySalesAmount: calcSalesAmount(todaySales),
-          todayUnsoldCount: displayReservations.filter((item) => !item.isSold).length,
-          todayTicketPendingCount: displayReservations.filter(
-            (item) => item.isTicket && !item.isTicketUsed
-          ).length,
-          todayCounselingPendingCount: displayReservations.filter(
-            (item) => isNewVisit(item) && !item.isCounseled
-          ).length,
-          monthSalesAmount: calcSalesAmount(monthSales),
-          prevMonthSalesAmount: calcSalesAmount(prevMonthSales),
-          monthNewCustomers: Array.isArray(monthNewCustomersResult.data)
-            ? monthNewCustomersResult.data.length
-            : null,
-          customerCount: customers.length,
-          lowTicketCount: lowTicketRows.length,
-        });
         setSystemStatus("ONLINE");
       } catch (e) {
         console.error("dashboard load error:", e);
+
         if (!mounted) return;
+
         setError(extractErrorMessage(e));
         setSystemStatus("OFFLINE");
         setReservations([]);
         setTodoItems([]);
         setLowTickets([]);
         setLtvCustomers([]);
+        setMonthSalesRows([]);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -792,12 +616,14 @@ export default function DashboardPage() {
     return () => {
       mounted = false;
     };
-  }, [authChecked, selectedDate]);
-    function handleLogout() {
+  }, [authChecked, selectedDate, selectedMonth]);
+
+  function handleLogout() {
     localStorage.removeItem(AUTH_STORAGE_KEY);
     localStorage.removeItem(ROLE_STORAGE_KEY);
     localStorage.removeItem(STAFF_NAME_STORAGE_KEY);
     localStorage.removeItem("gymup_staff_logged_in");
+
     router.push("/login/staff");
   }
 
@@ -808,7 +634,9 @@ export default function DashboardPage() {
 
   function handleClearHandover() {
     const ok = window.confirm(`${selectedDateLabel} の引き継ぎメモを空にしますか？`);
+
     if (!ok) return;
+
     setHandoverNote("");
     saveHandoverNote(selectedDate, "");
   }
@@ -841,7 +669,7 @@ export default function DashboardPage() {
       accent: todoItems.length > 0 ? "red" : "green",
     },
     {
-      label: "今月売上",
+      label: "選択月売上",
       value: loading ? "..." : formatYen(stats.monthSalesAmount),
       sub: `前月比 ${monthlyChangeText}`,
       accent: monthlyChangeText.startsWith("+")
@@ -1056,7 +884,8 @@ export default function DashboardPage() {
         }
 
         .date-btn,
-        .date-input {
+        .date-input,
+        .month-input {
           min-height: 40px;
           border-radius: 13px;
           border: 1px solid rgba(255,255,255,0.08);
@@ -1069,13 +898,13 @@ export default function DashboardPage() {
           box-sizing: border-box;
         }
 
-        .date-input::-webkit-calendar-picker-indicator {
+        .date-input::-webkit-calendar-picker-indicator,
+        .month-input::-webkit-calendar-picker-indicator {
           filter: invert(1);
           opacity: 0.9;
           cursor: pointer;
         }
-
-        .stats-grid {
+                .stats-grid {
           display: grid;
           grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 12px;
@@ -1087,7 +916,7 @@ export default function DashboardPage() {
           padding: 16px;
           border: 1px solid rgba(255,255,255,0.07);
           background: rgba(255,255,255,0.035);
-          box-shadow: 0 14px 32px rgba(0,0,0,0.16);
+          box-shadow: 0 10px 30px rgba(0,0,0,0.18);
         }
 
         .stat.orange {
@@ -1131,26 +960,13 @@ export default function DashboardPage() {
           font-weight: 700;
         }
 
-        .main-grid {
-          display: grid;
-          grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.85fr);
-          gap: 18px;
-          align-items: start;
-        }
-
-        .stack {
-          display: grid;
-          gap: 18px;
-        }
-
         .panel {
           border-radius: 28px;
-          padding: 18px;
-          border: 1px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.045);
-          box-shadow: 0 18px 48px rgba(0,0,0,0.20);
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
+          padding: 22px;
+          border: 1px solid rgba(255,255,255,0.07);
+          background: rgba(255,255,255,0.035);
+          box-shadow: 0 18px 48px rgba(0,0,0,0.22);
+          margin-bottom: 18px;
         }
 
         .panel-head {
@@ -1166,6 +982,7 @@ export default function DashboardPage() {
           color: #fff;
           font-size: 18px;
           font-weight: 900;
+          letter-spacing: -0.03em;
         }
 
         .panel-sub {
@@ -1189,140 +1006,147 @@ export default function DashboardPage() {
           font-weight: 900;
         }
 
+        .main-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.85fr);
+          gap: 18px;
+          align-items: start;
+        }
+
+        .stack {
+          display: grid;
+          gap: 18px;
+        }
+
         .todo-list,
         .reservation-list,
-        .side-list {
+        .side-list,
+        .quick-links {
           display: grid;
           gap: 10px;
         }
 
         .todo-item,
         .reservation-item,
-        .side-item {
+        .side-item,
+        .quick-link {
           border-radius: 18px;
           padding: 14px;
           border: 1px solid rgba(255,255,255,0.07);
           background: rgba(255,255,255,0.032);
-          text-decoration: none;
-          color: inherit;
-          transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
         }
 
-        .todo-item:hover,
-        .reservation-item:hover,
-        .side-item:hover,
-        .quick-link:hover,
-        .topbar-link:hover,
-        .topbar-button:hover,
-        .date-btn:hover {
-          transform: translateY(-1px);
-          background: rgba(255,255,255,0.052);
-          border-color: rgba(255,255,255,0.11);
+        .todo-item.red {
+          border-color: rgba(255,80,80,0.28);
+          background: rgba(255,80,80,0.09);
         }
 
-        .todo-item {
-          display: grid;
-          grid-template-columns: 10px minmax(0, 1fr) auto;
-          gap: 12px;
+        .todo-item.orange {
+          border-color: rgba(240,138,39,0.24);
+          background: rgba(240,138,39,0.08);
+        }
+
+        .todo-item.purple {
+          border-color: rgba(168,85,247,0.24);
+          background: rgba(168,85,247,0.08);
+        }
+
+        .todo-item.green {
+          border-color: rgba(92,214,146,0.24);
+          background: rgba(92,214,146,0.08);
+        }
+
+        .todo-top,
+        .reservation-top {
+          display: flex;
           align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          flex-wrap: wrap;
         }
 
-        .todo-line {
-          width: 10px;
-          height: 42px;
-          border-radius: 999px;
-          background: #ef4444;
-        }
-
-        .todo-line.orange {
-          background: #f59e0b;
-        }
-
-        .todo-line.purple {
-          background: #a855f7;
-        }
-
-        .todo-line.green {
-          background: #22c55e;
-        }
-
-        .todo-title,
-        .reservation-name,
+        .todo-main,
+        .reservation-main,
         .side-main {
           color: #fff;
           font-size: 14px;
           font-weight: 900;
-          line-height: 1.5;
-          word-break: break-word;
         }
 
         .todo-sub,
         .reservation-sub,
-        .side-sub {
+        .side-sub,
+        .quick-link-desc {
           margin-top: 4px;
           color: rgba(255,255,255,0.55);
           font-size: 12px;
           line-height: 1.6;
           font-weight: 700;
-          word-break: break-word;
         }
 
         .todo-actions {
           display: flex;
           gap: 8px;
-          align-items: center;
           flex-wrap: wrap;
-          justify-content: flex-end;
+          margin-top: 10px;
         }
 
-        .mini-link,
-        .mini-btn {
-          min-height: 36px;
+        .todo-link {
+          min-height: 34px;
           padding: 0 12px;
-          border-radius: 12px;
+          border-radius: 999px;
           display: inline-flex;
           align-items: center;
           justify-content: center;
           text-decoration: none;
-          border: 1px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.045);
           color: #fff;
           font-size: 12px;
+          font-weight: 800;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.05);
+        }
+
+        .quick-link {
+          text-decoration: none;
+          transition: 0.2s ease;
+        }
+
+        .quick-link:hover {
+          transform: translateY(-2px);
+          border-color: rgba(240,138,39,0.26);
+        }
+
+        .quick-link-title {
+          color: #fff;
+          font-size: 14px;
           font-weight: 900;
-          cursor: pointer;
-          white-space: nowrap;
-        }
-
-        .mini-link.orange {
-          color: #ffd7ae;
-          border-color: rgba(240,138,39,0.24);
-          background: rgba(240,138,39,0.10);
-        }
-
-        .reservation-item {
-          display: grid;
-          grid-template-columns: 64px minmax(0, 1fr) auto;
-          gap: 12px;
-          align-items: center;
-          cursor: pointer;
         }
 
         .reservation-time {
-          color: #f08a27;
-          font-size: 15px;
+          min-width: 72px;
+          min-height: 34px;
+          padding: 0 12px;
+          border-radius: 999px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(240,138,39,0.12);
+          color: #ffd7ae;
+          font-size: 12px;
           font-weight: 900;
+          border: 1px solid rgba(240,138,39,0.20);
         }
 
-        .status-wrap {
+        .reservation-tags {
           display: flex;
           gap: 6px;
           flex-wrap: wrap;
-          justify-content: flex-end;
+          margin-top: 10px;
         }
 
-        .status {
+        .tag {
           min-height: 28px;
-          padding: 0 9px;
+          padding: 0 10px;
           border-radius: 999px;
           display: inline-flex;
           align-items: center;
@@ -1330,33 +1154,140 @@ export default function DashboardPage() {
           font-size: 11px;
           font-weight: 900;
           border: 1px solid rgba(255,255,255,0.08);
-          color: rgba(255,255,255,0.72);
-          background: rgba(255,255,255,0.04);
-          white-space: nowrap;
+          background: rgba(255,255,255,0.05);
+          color: #fff;
         }
 
-        .status.done {
-          color: #a7f3c6;
-          border-color: rgba(92,214,146,0.22);
-          background: rgba(92,214,146,0.09);
-        }
-
-        .status.red {
-          color: #ffb4b4;
-          border-color: rgba(255,80,80,0.24);
+        .tag.red {
+          border-color: rgba(255,80,80,0.26);
           background: rgba(255,80,80,0.10);
         }
 
-        .status.orange {
-          color: #ffd7ae;
+        .tag.orange {
           border-color: rgba(240,138,39,0.24);
           background: rgba(240,138,39,0.10);
         }
 
-        .status.purple {
-          color: #e9d5ff;
+        .tag.green {
+          border-color: rgba(92,214,146,0.24);
+          background: rgba(92,214,146,0.10);
+        }
+
+        .tag.purple {
           border-color: rgba(168,85,247,0.24);
           background: rgba(168,85,247,0.10);
+        }
+
+        .ticket-count {
+          font-size: 12px;
+          font-weight: 900;
+        }
+
+        .ticket-count.red {
+          color: #ff6f6f;
+        }
+
+        .ticket-count.orange {
+          color: #ffbd66;
+        }
+
+        .ticket-count.done {
+          color: #5cd692;
+        }
+
+        .memo-box {
+          width: 100%;
+          min-height: 160px;
+          border-radius: 20px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.04);
+          padding: 16px;
+          color: #fff;
+          resize: vertical;
+          box-sizing: border-box;
+          font-size: 14px;
+          font-weight: 600;
+          line-height: 1.8;
+          outline: none;
+        }
+
+        .memo-actions {
+          display: flex;
+          justify-content: flex-end;
+          margin-top: 12px;
+        }
+
+        .danger-btn {
+          min-height: 38px;
+          padding: 0 14px;
+          border-radius: 12px;
+          border: 1px solid rgba(255,80,80,0.26);
+          background: rgba(255,80,80,0.10);
+          color: #ffd1d1;
+          font-size: 12px;
+          font-weight: 900;
+          cursor: pointer;
+        }
+
+        .system-online {
+          color: #5cd692;
+        }
+
+        .system-offline {
+          color: #ff7a7a;
+        }
+
+        .monthly-summary-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+          margin-top: 14px;
+        }
+
+        .monthly-summary-box {
+          border-radius: 22px;
+          padding: 14px;
+          border: 1px solid rgba(255,255,255,0.07);
+          background: rgba(255,255,255,0.032);
+        }
+
+        .monthly-summary-title {
+          color: #fff;
+          font-size: 15px;
+          font-weight: 900;
+          margin-bottom: 12px;
+        }
+
+        .monthly-total-card {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-end;
+          gap: 14px;
+          flex-wrap: wrap;
+          border-radius: 22px;
+          padding: 18px;
+          border: 1px solid rgba(240,138,39,0.22);
+          background: rgba(240,138,39,0.08);
+        }
+
+        .monthly-total-label {
+          color: rgba(255,255,255,0.58);
+          font-size: 12px;
+          font-weight: 900;
+          margin-bottom: 8px;
+        }
+
+        .monthly-total-value {
+          color: #fff;
+          font-size: 34px;
+          font-weight: 900;
+          letter-spacing: -0.04em;
+        }
+
+        .monthly-total-sub {
+          color: #ffd7ae;
+          font-size: 13px;
+          font-weight: 900;
         }
 
         .empty {
@@ -1366,91 +1297,13 @@ export default function DashboardPage() {
           background: rgba(255,255,255,0.025);
           color: rgba(255,255,255,0.56);
           font-size: 13px;
-          line-height: 1.8;
-          font-weight: 700;
           text-align: center;
-        }
-
-        .quick-grid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 10px;
-        }
-
-        .quick-link {
-          min-height: 74px;
-          border-radius: 18px;
-          padding: 14px;
-          text-decoration: none;
-          color: inherit;
-          border: 1px solid rgba(255,255,255,0.07);
-          background: rgba(255,255,255,0.032);
-          transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
-        }
-
-        .quick-title {
-          color: #fff;
-          font-size: 14px;
-          font-weight: 900;
-          margin-bottom: 6px;
-        }
-
-        .quick-desc {
-          color: rgba(255,255,255,0.50);
-          font-size: 12px;
-          line-height: 1.55;
-          font-weight: 700;
-        }
-
-        .memo-area {
-          width: 100%;
-          min-height: 180px;
-          resize: vertical;
-          border-radius: 18px;
-          border: 1px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.04);
-          color: #fff;
-          padding: 14px 16px;
-          font-size: 14px;
-          line-height: 1.8;
-          outline: none;
-          box-sizing: border-box;
-        }
-
-        .memo-area::placeholder {
-          color: rgba(255,255,255,0.32);
-        }
-
-        .memo-footer {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 10px;
-          margin-top: 10px;
-          flex-wrap: wrap;
-        }
-
-        .memo-small {
-          color: rgba(255,255,255,0.44);
-          font-size: 12px;
-          font-weight: 700;
-        }
-
-        .error-box {
-          margin-bottom: 18px;
-          padding: 14px 16px;
-          border-radius: 18px;
-          background: rgba(255,80,80,0.10);
-          border: 1px solid rgba(255,80,80,0.24);
-          color: #ffb4b4;
-          font-size: 13px;
-          font-weight: 800;
-          line-height: 1.7;
         }
 
         @media (max-width: 1180px) {
           .hero-grid,
-          .main-grid {
+          .main-grid,
+          .monthly-summary-grid {
             grid-template-columns: 1fr;
           }
 
@@ -1464,16 +1317,9 @@ export default function DashboardPage() {
             padding: 14px 10px 22px;
           }
 
-          .topbar,
-          .topbar-actions {
-            flex-direction: column;
-            align-items: stretch;
-          }
-
-          .topbar-link,
-          .topbar-button {
-            width: 100%;
-            box-sizing: border-box;
+          .stats-grid,
+          .date-actions {
+            grid-template-columns: 1fr;
           }
 
           .hero,
@@ -1485,35 +1331,6 @@ export default function DashboardPage() {
           .hero-title {
             font-size: 34px;
           }
-
-          .date-actions,
-          .stats-grid,
-          .quick-grid,
-          .reservation-item,
-          .todo-item {
-            grid-template-columns: 1fr;
-          }
-
-          .todo-line {
-            width: 100%;
-            height: 6px;
-          }
-
-          .todo-actions,
-          .status-wrap {
-            justify-content: flex-start;
-          }
-
-          .mini-link,
-          .date-btn,
-          .date-input {
-            width: 100%;
-            box-sizing: border-box;
-          }
-
-          .stat-value {
-            font-size: 24px;
-          }
         }
       `}</style>
 
@@ -1522,8 +1339,12 @@ export default function DashboardPage() {
           <div className="topbar">
             <div className="brand">
               <div className="brand-mark" />
+
               <div>
-                <div className="brand-title">GYMUP CRM</div>
+                <div className="brand-title">
+                  GYMUP CRM
+                </div>
+
                 <div className="brand-sub">
                   現場・売上・回数券・顧客状態を一画面で確認
                 </div>
@@ -1534,13 +1355,20 @@ export default function DashboardPage() {
               <Link href="/reservation" className="topbar-link">
                 予約管理
               </Link>
+
               <Link href="/customer" className="topbar-link">
                 顧客管理
               </Link>
+
               <Link href="/sales" className="topbar-link">
                 売上管理
               </Link>
-              <button type="button" onClick={handleLogout} className="topbar-button">
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="topbar-button"
+              >
                 ログアウト
               </button>
             </div>
@@ -1554,6 +1382,7 @@ export default function DashboardPage() {
                   <br />
                   迷わず動かす。
                 </h1>
+
                 <p className="hero-desc">
                   売上未・回数券未消化・カウンセリング未・残回数低下をまとめて確認。
                   予約詳細と顧客ページへすぐ移動できます。
@@ -1561,39 +1390,66 @@ export default function DashboardPage() {
               </div>
 
               <div className="date-card">
-                <div className="date-label">SELECTED DATE</div>
-                <div className="date-title">{selectedDateLabel}</div>
+                <div className="date-label">
+                  DAILY CONTROL
+                </div>
+
+                <div className="date-title">
+                  {selectedDateLabel}
+                </div>
 
                 <div className="date-actions">
                   <button
                     type="button"
-                    onClick={() => setSelectedDate((prev) => shiftDateString(prev, -1))}
+                    onClick={() =>
+                      setSelectedDate((prev) =>
+                        shiftDateString(prev, -1)
+                      )
+                    }
                     className="date-btn"
                   >
                     前日
                   </button>
-                  <button type="button" onClick={goToday} className="date-btn">
-                    今日
-                  </button>
+
                   <button
                     type="button"
-                    onClick={() => setSelectedDate((prev) => shiftDateString(prev, 1))}
+                    onClick={goToday}
+                    className="date-btn"
+                  >
+                    今日
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelectedDate((prev) =>
+                        shiftDateString(prev, 1)
+                      )
+                    }
                     className="date-btn"
                   >
                     翌日
                   </button>
+
                   <input
                     type="date"
                     value={selectedDate}
-                    onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+                    onChange={(e) =>
+                      e.target.value &&
+                      setSelectedDate(e.target.value)
+                    }
                     className="date-input"
                   />
                 </div>
               </div>
             </div>
           </section>
-
-          {error ? <div className="error-box">{error}</div> : null}
+                    {error ? (
+            <div className="panel">
+              <div className="panel-title">エラー</div>
+              <div className="panel-sub">{error}</div>
+            </div>
+          ) : null}
 
           <section className="stats-grid">
             {topStats.map((item) => (
@@ -1615,6 +1471,73 @@ export default function DashboardPage() {
             ))}
           </section>
 
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <div className="panel-title">月別・店舗別 売上管理</div>
+                <div className="panel-sub">管理者用：月売上・店舗別・担当者別を確認</div>
+              </div>
+
+              <input
+                type="month"
+                value={selectedMonth}
+                onChange={(e) => e.target.value && setSelectedMonth(e.target.value)}
+                className="month-input"
+              />
+            </div>
+
+            <div className="monthly-total-card">
+              <div>
+                <div className="monthly-total-label">選択月の売上</div>
+                <div className="monthly-total-value">{formatYen(stats.monthSalesAmount)}</div>
+              </div>
+
+              <div className="monthly-total-sub">
+                前月比 {monthlyChangeText} / 売上 {monthSalesRows.length}件
+              </div>
+            </div>
+
+            <div className="monthly-summary-grid">
+              <div className="monthly-summary-box">
+                <div className="monthly-summary-title">店舗別売上</div>
+
+                {storeSalesSummary.length === 0 ? (
+                  <div className="empty">この月の店舗別売上はありません。</div>
+                ) : (
+                  <div className="side-list">
+                    {storeSalesSummary.map((item) => (
+                      <div key={item.name} className="side-item">
+                        <div className="side-main">{item.name}</div>
+                        <div className="side-sub">
+                          {formatYen(item.amount)} / {item.count}件
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="monthly-summary-box">
+                <div className="monthly-summary-title">担当者別売上</div>
+
+                {staffSalesSummary.length === 0 ? (
+                  <div className="empty">この月の担当者別売上はありません。</div>
+                ) : (
+                  <div className="side-list">
+                    {staffSalesSummary.map((item) => (
+                      <div key={item.name} className="side-item">
+                        <div className="side-main">{item.name}</div>
+                        <div className="side-sub">
+                          {formatYen(item.amount)} / {item.count}件
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+
           <div className="main-grid">
             <div className="stack">
               <section className="panel">
@@ -1625,34 +1548,33 @@ export default function DashboardPage() {
                       売上未・回数券未消化・カウンセリング未・残回数注意
                     </div>
                   </div>
-                  <div className="panel-badge">{loading ? "確認中" : `${todoItems.length}件`}</div>
+                  <div className="panel-badge">
+                    {loading ? "確認中" : `${todoItems.length}件`}
+                  </div>
                 </div>
 
                 {loading ? (
                   <div className="empty">読み込み中...</div>
                 ) : todoItems.length === 0 ? (
-                  <div className="empty">
-                    今日の未処理はありません。現場運用はきれいな状態です。
-                  </div>
+                  <div className="empty">今日の未処理はありません。</div>
                 ) : (
                   <div className="todo-list">
                     {todoItems.map((item) => (
-                      <div key={item.id} className="todo-item">
-                        <div className={`todo-line ${item.level}`} />
-
+                      <div key={item.id} className={`todo-item ${item.level}`}>
                         <div>
-                          <div className="todo-title">{item.title}</div>
+                          <div className="todo-main">{item.title}</div>
                           <div className="todo-sub">{item.sub}</div>
                         </div>
 
                         <div className="todo-actions">
                           {item.customerHref ? (
-                            <Link href={item.customerHref} className="mini-link">
-                              顧客
+                            <Link href={item.customerHref} className="todo-link">
+                              顧客を見る
                             </Link>
                           ) : null}
-                          <Link href={item.href} className="mini-link orange">
-                            詳細
+
+                          <Link href={item.href} className="todo-link">
+                            詳細へ
                           </Link>
                         </div>
                       </div>
@@ -1665,7 +1587,7 @@ export default function DashboardPage() {
                 <div className="panel-head">
                   <div>
                     <div className="panel-title">本日の予約</div>
-                    <div className="panel-sub">予約カードから予約詳細へ移動できます。</div>
+                    <div className="panel-sub">選択日の予約と処理状態を確認</div>
                   </div>
                   <div className="panel-badge">
                     {loading ? "確認中" : `${reservations.length}件`}
@@ -1682,54 +1604,50 @@ export default function DashboardPage() {
                       const remainingClass = ticketRemainingClass(item.remainingCount);
 
                       return (
-                        <div
+                        <Link
                           key={item.id}
+                          href={`/reservation/detail/${item.id}`}
                           className="reservation-item"
-                          onClick={() => router.push(`/reservation/detail/${item.id}`)}
+                          style={{ textDecoration: "none" }}
                         >
-                          <div className="reservation-time">{item.time}</div>
-
-                          <div>
-                            <div className="reservation-name">{item.customerName}</div>
-                            <div className="reservation-sub">
-                              {item.menu} / {item.staffName}
-                              {item.storeName ? ` / ${item.storeName}` : ""}
-                            </div>
-                            {item.memo ? (
-                              <div className="reservation-sub">メモ：{item.memo}</div>
-                            ) : null}
-                            {item.isTicket ? (
-                              <div className="reservation-sub">
-                                回数券：{item.ticketName || item.menu} / 残{" "}
-                                {item.remainingCount ?? "不明"}回
-                              </div>
-                            ) : null}
+                          <div className="reservation-top">
+                            <div className="reservation-time">{item.time}</div>
+                            <div className="reservation-main">{item.customerName}</div>
                           </div>
 
-                          <div className="status-wrap">
-                            <span className={`status ${item.isSold ? "done" : "red"}`}>
+                          <div className="reservation-sub">
+                            {item.menu} / {item.staffName}
+                            {item.storeName ? ` / ${item.storeName}` : ""}
+                          </div>
+
+                          {item.memo ? (
+                            <div className="reservation-sub">メモ：{item.memo}</div>
+                          ) : null}
+
+                          <div className="reservation-tags">
+                            <span className={`tag ${item.isSold ? "green" : "red"}`}>
                               {item.isSold ? "売上済" : "売上未"}
                             </span>
 
                             {item.isTicket ? (
-                              <span className={`status ${item.isTicketUsed ? "done" : "purple"}`}>
+                              <span className={`tag ${item.isTicketUsed ? "green" : "purple"}`}>
                                 {item.isTicketUsed ? "消化済" : "未消化"}
                               </span>
                             ) : null}
 
                             {isNewVisit(item) ? (
-                              <span className={`status ${item.isCounseled ? "done" : "orange"}`}>
+                              <span className={`tag ${item.isCounseled ? "green" : "orange"}`}>
                                 {item.isCounseled ? "カウンセ済" : "カウンセ未"}
                               </span>
                             ) : null}
 
                             {item.isTicket && item.remainingCount !== null ? (
-                              <span className={`status ${remainingClass}`}>
-                                残{item.remainingCount}
+                              <span className={`tag ${remainingClass}`}>
+                                残{item.remainingCount}回
                               </span>
                             ) : null}
                           </div>
-                        </div>
+                        </Link>
                       );
                     })}
                   </div>
@@ -1742,15 +1660,15 @@ export default function DashboardPage() {
                 <div className="panel-head">
                   <div>
                     <div className="panel-title">クイック導線</div>
-                    <div className="panel-sub">よく使う管理ページへすぐ移動</div>
+                    <div className="panel-sub">よく使う管理ページへ移動</div>
                   </div>
                 </div>
 
-                <div className="quick-grid">
+                <div className="quick-links">
                   {quickLinks.map((item) => (
                     <Link key={item.href} href={item.href} className="quick-link">
-                      <div className="quick-title">{item.title}</div>
-                      <div className="quick-desc">{item.desc}</div>
+                      <div className="quick-link-title">{item.title}</div>
+                      <div className="quick-link-desc">{item.desc}</div>
                     </Link>
                   ))}
                 </div>
@@ -1778,6 +1696,7 @@ export default function DashboardPage() {
                         key={String(ticket.id)}
                         href={ticket.customer_id ? `/customer/${ticket.customer_id}` : "/customer"}
                         className="side-item"
+                        style={{ textDecoration: "none" }}
                       >
                         <div className="side-main">{ticket.ticket_name || "回数券"}</div>
                         <div className="side-sub">
@@ -1814,6 +1733,7 @@ export default function DashboardPage() {
                             : `/customer/${item.customerId}`
                         }
                         className="side-item"
+                        style={{ textDecoration: "none" }}
                       >
                         <div className="side-main">
                           {index + 1}. {item.customerName}
@@ -1836,15 +1756,14 @@ export default function DashboardPage() {
                 </div>
 
                 <textarea
-                  className="memo-area"
+                  className="memo-box"
                   value={handoverNote}
                   onChange={(e) => handleHandoverChange(e.target.value)}
                   placeholder="例：◯◯様、腰痛あり。ストレッチ弱め。次回更新案内。"
                 />
 
-                <div className="memo-footer">
-                  <div className="memo-small">自動保存されます</div>
-                  <button type="button" onClick={handleClearHandover} className="mini-btn">
+                <div className="memo-actions">
+                  <button type="button" onClick={handleClearHandover} className="danger-btn">
                     クリア
                   </button>
                 </div>
@@ -1856,7 +1775,14 @@ export default function DashboardPage() {
                     <div className="panel-title">システム状態</div>
                     <div className="panel-sub">Supabase接続とデータ確認</div>
                   </div>
-                  <div className="panel-badge">{systemStatus}</div>
+
+                  <div
+                    className={`panel-badge ${
+                      systemStatus === "ONLINE" ? "system-online" : "system-offline"
+                    }`}
+                  >
+                    {systemStatus}
+                  </div>
                 </div>
 
                 <div className="side-list">
@@ -1866,6 +1792,7 @@ export default function DashboardPage() {
                       {stats.customerCount === null ? "--" : `${stats.customerCount}名`}
                     </div>
                   </div>
+
                   <div className="side-item">
                     <div className="side-main">今月新規</div>
                     <div className="side-sub">
@@ -1874,6 +1801,7 @@ export default function DashboardPage() {
                         : `${stats.monthNewCustomers}名`}
                     </div>
                   </div>
+
                   <div className="side-item">
                     <div className="side-main">前月売上</div>
                     <div className="side-sub">{formatYen(stats.prevMonthSalesAmount)}</div>
