@@ -726,6 +726,25 @@ function resolveConsumePresetFromContext(params: {
 function parseTicketIssuePresetInfo(
   preset?: PricePreset | null
 ): TicketIssuePresetInfo | null {
+  function parseTrainingTicketIssuePresetInfo(
+  preset?: PricePreset | null
+): TicketIssuePresetInfo | null {
+  if (!preset) return null;
+  if (preset.serviceType !== "トレーニング") return null;
+  if (preset.accountingType !== "前受金") return null;
+
+  const count =
+    detectCountFromText(preset.label) ||
+    detectCountFromText(preset.menuName);
+
+  if (!count) return null;
+
+  return {
+    priceVersion: "新",
+    ticketCount: count,
+    minutes: 60,
+  };
+}
   if (!preset) return null;
   if (preset.serviceType !== "ストレッチ") return null;
   if (preset.accountingType !== "前受金") return null;
