@@ -594,6 +594,78 @@ export default function DashboardPage() {
           }
         }
         setSystemStatus("ONLINE");
+                const displayReservations: DashboardReservation[] = rawReservations.map((row) => {
+          const reservationId = trimmed(row.id);
+          const customerId = trimmed(row.customer_id);
+          const customer = customerId ? customerMapById.get(customerId) : null;
+
+          const menu = trimmed(row.menu) || "メニュー未設定";
+          const isTicket = isTicketMenu(menu);
+
+          return {
+            id: reservationId,
+            date: trimmed(row.date),
+            time: trimmed(row.start_time).slice(0, 5),
+            endTime: trimmed(row.end_time).slice(0, 5),
+            customerId,
+            customerName: trimmed(row.customer_name) || getCustomerName(customer),
+            menu,
+            staffName: trimmed(row.staff_name) || "担当未設定",
+            storeName: trimmed(row.store_name) || "店舗未設定",
+            memo: trimmed(row.memo),
+            visitType: getVisitType(row),
+            reservationStatus: trimmed(row.reservation_status),
+            isTicket,
+            isSold:
+              trimmed(row.reservation_status) === "売上済" ||
+              todaySales.some((sale) => trimmed(sale.reservation_id) === reservationId),
+            isTicketUsed: false,
+            isCounseled: false,
+            ticketName: resolveTicketName({
+              reservationMenu: menu,
+              customerPlanType: customer?.plan_type || null,
+            }),
+            remainingCount: null,
+          };
+        });
+
+        const nextTodoItems: TodoItem[] = displayReservations
+          .filter((item) => !item.isSold)
+          .map((item) => ({
+            id: `unsold-${item.id}`,
+            title: `${item.time} ${item.customerName}`,
+            sub: `${item.menu} / ${item.staffName} / 売上未`,
+            href: `/reservation/detail/${item.id}`,
+            customerHref: item.customerId ? `/customer/${item.customerId}` : undefined,
+            level: "red",
+          }));
+
+        const ltvList: LtvCustomer[] = [];
+
+        setReservations(displayReservations);
+        setTodoItems(nextTodoItems);
+        setLowTickets(lowTicketRows);
+        setLtvCustomers(ltvList);
+        setMonthSalesRows(monthSales);
+
+        setStats({
+          todayReservationCount: displayReservations.length,
+          todaySalesAmount: calcSalesAmount(todaySales),
+          todayUnsoldCount: displayReservations.filter((item) => !item.isSold).length,
+          todayTicketPendingCount: displayReservations.filter(
+            (item) => item.isTicket && !item.isTicketUsed
+          ).length,
+          todayCounselingPendingCount: displayReservations.filter(
+            (item) => isNewVisit(item) && !item.isCounseled
+          ).length,
+          monthSalesAmount: calcSalesAmount(monthSales),
+          prevMonthSalesAmount: calcSalesAmount(prevMonthSales),
+          monthNewCustomers: Array.isArray(monthNewCustomersResult.data)
+            ? monthNewCustomersResult.data.length
+            : null,
+          customerCount: customers.length,
+          lowTicketCount: lowTicketRows.length,
+        });
       } catch (e) {
         console.error("dashboard load error:", e);
 
@@ -1605,11 +1677,15 @@ export default function DashboardPage() {
 
                       return (
                         <Link
-                          key={item.id}
-                          href={`/reservation/detail/${item.id}`}
-                          className="reservation-item"
-                          style={{ textDecoration: "none" }}
-                        >
+  key={item.id}
+  href={
+    item.customerId
+      ? `/customer/${item.customerId}/training`
+      : `/reservation/detail/${item.id}`
+  }
+  className="reservation-item"
+  style={{ textDecoration: "none" }}
+>
                           <div className="reservation-top">
                             <div className="reservation-time">{item.time}</div>
                             <div className="reservation-main">{item.customerName}</div>
