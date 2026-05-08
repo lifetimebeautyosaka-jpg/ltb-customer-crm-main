@@ -726,7 +726,21 @@ function resolveConsumePresetFromContext(params: {
 function parseTicketIssuePresetInfo(
   preset?: PricePreset | null
 ): TicketIssuePresetInfo | null {
-  function parseTrainingTicketIssuePresetInfo(
+  if (!preset) return null;
+  if (preset.serviceType !== "ストレッチ") return null;
+  if (preset.accountingType !== "前受金") return null;
+
+  const match = preset.id.match(/^stretch_(new|old)_(4|8|12)_(40|60|80|120)$/);
+  if (!match) return null;
+
+  return {
+    priceVersion: match[1] === "new" ? "新" : "旧",
+    ticketCount: Number(match[2]) as 4 | 8 | 12,
+    minutes: Number(match[3]) as 40 | 60 | 80 | 120,
+  };
+}
+
+function parseTrainingTicketIssuePresetInfo(
   preset?: PricePreset | null
 ): TicketIssuePresetInfo | null {
   if (!preset) return null;
@@ -743,19 +757,6 @@ function parseTicketIssuePresetInfo(
     priceVersion: "新",
     ticketCount: count,
     minutes: 60,
-  };
-}
-  if (!preset) return null;
-  if (preset.serviceType !== "ストレッチ") return null;
-  if (preset.accountingType !== "前受金") return null;
-
-  const match = preset.id.match(/^stretch_(new|old)_(4|8|12)_(40|60|80|120)$/);
-  if (!match) return null;
-
-  return {
-    priceVersion: match[1] === "new" ? "新" : "旧",
-    ticketCount: Number(match[2]) as 4 | 8 | 12,
-    minutes: Number(match[3]) as 40 | 60 | 80 | 120,
   };
 }
 
