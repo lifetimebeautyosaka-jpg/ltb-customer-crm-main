@@ -2705,14 +2705,11 @@ overflow: "hidden",
     },
 
     paymentRow: {
-  display: "grid",
-  gridTemplateColumns: isMobile ? "1fr" : "minmax(180px,1.4fr) minmax(120px,0.8fr) minmax(120px,0.8fr) minmax(110px,0.7fr) auto",
+  display: "flex",
+  flexDirection: isMobile ? "column" : "row",
   gap: 8,
   marginTop: 8,
   width: "100%",
-  maxWidth: "100%",
-  minWidth: 0,
-  overflow: "hidden",
 },
 
     deleteMiniButton: {
