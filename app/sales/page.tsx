@@ -2674,6 +2674,9 @@ function createStyles(
       border: "1px solid rgba(255,255,255,0.08)",
       background: "rgba(255,255,255,0.035)",
       padding: 12,
+      width: "100%",
+maxWidth: "100%",
+overflow: "hidden",
     },
 
     paymentHeader: {
@@ -2697,13 +2700,13 @@ function createStyles(
 
     paymentRow: {
   display: "grid",
-  gridTemplateColumns: isMobile
-    ? "1fr"
-    : "minmax(180px,1.4fr) minmax(120px,0.8fr) minmax(120px,0.8fr) minmax(110px,0.7fr) auto",
+  gridTemplateColumns: isMobile ? "1fr" : "minmax(180px,1.4fr) minmax(120px,0.8fr) minmax(120px,0.8fr) minmax(110px,0.7fr) auto",
   gap: 8,
   marginTop: 8,
   width: "100%",
+  maxWidth: "100%",
   minWidth: 0,
+  overflow: "hidden",
 },
 
     deleteMiniButton: {
