@@ -2413,13 +2413,16 @@ function createStyles(
       color: "rgba(255,255,255,0.5)",
       fontSize: 18,
     },
-
-    mainPanel: {
-      minWidth: 0,
-      ...glass,
-      borderRadius: isMobile ? 22 : 32,
-      padding: isMobile ? 14 : isTablet ? 18 : 24,
-    },
+mainPanel: {
+  minWidth: 0,
+  width: "100%",
+  maxWidth: "100%",
+  overflow: "hidden",
+  boxSizing: "border-box",
+  ...glass,
+  borderRadius: isMobile ? 22 : 32,
+  padding: isMobile ? 14 : isTablet ? 18 : 24,
+},
 
     header: {
       display: "flex",
@@ -2601,10 +2604,13 @@ function createStyles(
   width: "100%",
   minWidth: 0,
 },
-    formCard: card,
-    sidePanelCard: card,
-    listCard: card,
-    card,
+   formCard: {
+  ...card,
+  width: "100%",
+  maxWidth: "100%",
+  overflow: "hidden",
+  boxSizing: "border-box",
+},
 
     sectionTitle: {
       margin: 0,
@@ -2718,6 +2724,8 @@ overflow: "hidden",
       color: "#fecaca",
       fontWeight: 900,
       cursor: "pointer",
+      width: "100%",
+maxWidth: "100%",
     },
 
     totalBox: {
