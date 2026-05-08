@@ -2607,11 +2607,12 @@ mainPanel: {
 },
    formCard: {
   ...card,
-  width: "100%",
+  width: "auto",
   maxWidth: "100%",
+  minWidth: 0,
   overflow: "hidden",
   boxSizing: "border-box",
-  padding: isMobile ? 12 : 18,
+  padding: isMobile ? 10 : 18,
 },
     sectionTitle: {
       margin: 0,
