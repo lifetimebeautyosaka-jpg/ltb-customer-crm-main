@@ -2659,6 +2659,8 @@ mainPanel: {
   width: "100%",
   maxWidth: "100%",
   minWidth: 0,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
 },
 
     textarea: {
@@ -2675,16 +2677,17 @@ mainPanel: {
     },
 
     paymentBox: {
-      marginTop: 16,
-      borderRadius: 18,
-      border: "1px solid rgba(255,255,255,0.08)",
-      background: "rgba(255,255,255,0.035)",
-      padding: 12,
-      width: "100%",
-maxWidth: "100%",
-overflow: "hidden",
-    },
-
+  marginTop: 16,
+  borderRadius: 18,
+  border: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(255,255,255,0.035)",
+  padding: isMobile ? 10 : 12,
+  width: "100%",
+  maxWidth: "100%",
+  minWidth: 0,
+  overflow: "hidden",
+  boxSizing: "border-box",
+},
     paymentHeader: {
       display: "flex",
       justifyContent: "space-between",
