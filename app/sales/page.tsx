@@ -1471,8 +1471,33 @@ export default function SalesPage() {
 
         createdSales.push(insertedSale);
 
-        const ticketIssueInfo =
-          parseTicketIssuePresetInfo(preset);
+        const stretchTicketIssueInfo =
+  parseTicketIssuePresetInfo(preset);
+  function parseTrainingTicketIssuePresetInfo(
+  preset?: PricePreset | null
+): TicketIssuePresetInfo | null {
+  if (!preset) return null;
+  if (preset.serviceType !== "トレーニング") return null;
+  if (preset.accountingType !== "前受金") return null;
+
+  const count =
+    detectCountFromText(preset.label) ||
+    detectCountFromText(preset.menuName);
+
+  if (!count) return null;
+
+  return {
+    priceVersion: "新",
+    ticketCount: count,
+    minutes: 60,
+  };
+}
+
+const trainingTicketIssueInfo =
+  parseTrainingTicketIssuePresetInfo(preset);
+
+const ticketIssueInfo =
+  stretchTicketIssueInfo || trainingTicketIssueInfo;
 
         if (
           ticketIssueInfo &&
