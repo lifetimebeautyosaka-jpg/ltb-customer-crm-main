@@ -2591,13 +2591,16 @@ function createStyles(
     },
 
     contentGrid: {
-      display: "grid",
-      gridTemplateColumns: isMobile ? "1fr" : "minmax(0,1.2fr) minmax(320px,0.8fr)",
-      gap: 16,
-      alignItems: "start",
-      marginBottom: 16,
-    },
-
+  display: "grid",
+  gridTemplateColumns: isMobile
+    ? "1fr"
+    : "minmax(0,1.2fr) minmax(320px,0.8fr)",
+  gap: 16,
+  alignItems: "start",
+  marginBottom: 16,
+  width: "100%",
+  minWidth: 0,
+},
     formCard: card,
     sidePanelCard: card,
     listCard: card,
@@ -2619,11 +2622,15 @@ function createStyles(
     },
 
     formGrid: {
-      display: "grid",
-      gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0,1fr))",
-      gap: 12,
-      marginTop: 16,
-    },
+  display: "grid",
+  gridTemplateColumns: isMobile
+    ? "1fr"
+    : "repeat(2, minmax(0,1fr))",
+  gap: 12,
+  marginTop: 16,
+  width: "100%",
+  minWidth: 0,
+},
 
     label: {
       display: "grid",
@@ -2742,7 +2749,7 @@ function createStyles(
     table: {
       width: "100%",
       borderCollapse: "collapse",
-      minWidth: 680,
+      minWidth: isMobile ? 520 : 680,
     },
 
     th: {
