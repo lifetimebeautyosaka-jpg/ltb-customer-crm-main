@@ -1855,79 +1855,7 @@ const ticketIssueInfo =
             </div>
           </section>
 
-          <section style={styles.monthlyCard}>
-            <div style={styles.monthlyHeader}>
-              <div>
-                <h2 style={styles.sectionTitle}>月別・店舗別・担当者別 集計</h2>
-                <p style={styles.sectionLead}>
-                  月を選ぶと、店舗別・担当者別の売上が自動で切り替わります。
-                </p>
-              </div>
-
-              <input
-                type="month"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                style={styles.monthInput}
-              />
-            </div>
-
-            <div style={styles.monthlySummaryGrid}>
-              <div style={styles.summaryBox}>
-                <h3 style={styles.summaryTitle}>店舗別売上</h3>
-
-                {storeMonthlyRows.length === 0 ? (
-                  <div style={styles.emptyBox}>店舗別データがありません</div>
-                ) : (
-                  <div style={styles.summaryList}>
-                    {storeMonthlyRows.map((row) => (
-                      <div key={row.name} style={styles.summaryItem}>
-                        <div>
-                          <strong>{row.name}</strong>
-                          <p>
-                            売上 {formatCurrency(row.netSalesTotal)} / 前受金{" "}
-                            {formatCurrency(row.advanceTotal)}
-                          </p>
-                        </div>
-
-                        <div style={styles.summaryAmount}>
-                          <strong>{formatCurrency(row.grandTotal)}</strong>
-                          <small>{row.count}件</small>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div style={styles.summaryBox}>
-                <h3 style={styles.summaryTitle}>担当者別売上</h3>
-
-                {staffMonthlyRows.length === 0 ? (
-                  <div style={styles.emptyBox}>担当者別データがありません</div>
-                ) : (
-                  <div style={styles.summaryList}>
-                    {staffMonthlyRows.map((row) => (
-                      <div key={row.name} style={styles.summaryItem}>
-                        <div>
-                          <strong>{row.name}</strong>
-                          <p>
-                            売上 {formatCurrency(row.netSalesTotal)} / 前受金{" "}
-                            {formatCurrency(row.advanceTotal)}
-                          </p>
-                        </div>
-
-                        <div style={styles.summaryAmount}>
-                          <strong>{formatCurrency(row.grandTotal)}</strong>
-                          <small>{row.count}件</small>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </section>
+          
 
           {reservationId ? (
             <section style={styles.noticeCard}>
@@ -2200,6 +2128,79 @@ const ticketIssueInfo =
                     ) : null}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          </section>
+          <section style={styles.monthlyCard}>
+            <div style={styles.monthlyHeader}>
+              <div>
+                <h2 style={styles.sectionTitle}>月別・店舗別・担当者別 集計</h2>
+                <p style={styles.sectionLead}>
+                  月を選ぶと、店舗別・担当者別の売上が自動で切り替わります。
+                </p>
+              </div>
+
+              <input
+                type="month"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                style={styles.monthInput}
+              />
+            </div>
+
+            <div style={styles.monthlySummaryGrid}>
+              <div style={styles.summaryBox}>
+                <h3 style={styles.summaryTitle}>店舗別売上</h3>
+
+                {storeMonthlyRows.length === 0 ? (
+                  <div style={styles.emptyBox}>店舗別データがありません</div>
+                ) : (
+                  <div style={styles.summaryList}>
+                    {storeMonthlyRows.map((row) => (
+                      <div key={row.name} style={styles.summaryItem}>
+                        <div>
+                          <strong>{row.name}</strong>
+                          <p>
+                            売上 {formatCurrency(row.netSalesTotal)} / 前受金{" "}
+                            {formatCurrency(row.advanceTotal)}
+                          </p>
+                        </div>
+
+                        <div style={styles.summaryAmount}>
+                          <strong>{formatCurrency(row.grandTotal)}</strong>
+                          <small>{row.count}件</small>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div style={styles.summaryBox}>
+                <h3 style={styles.summaryTitle}>担当者別売上</h3>
+
+                {staffMonthlyRows.length === 0 ? (
+                  <div style={styles.emptyBox}>担当者別データがありません</div>
+                ) : (
+                  <div style={styles.summaryList}>
+                    {staffMonthlyRows.map((row) => (
+                      <div key={row.name} style={styles.summaryItem}>
+                        <div>
+                          <strong>{row.name}</strong>
+                          <p>
+                            売上 {formatCurrency(row.netSalesTotal)} / 前受金{" "}
+                            {formatCurrency(row.advanceTotal)}
+                          </p>
+                        </div>
+
+                        <div style={styles.summaryAmount}>
+                          <strong>{formatCurrency(row.grandTotal)}</strong>
+                          <small>{row.count}件</small>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </section>
