@@ -2338,7 +2338,7 @@ function createStyles(
   return {
     page: {
       minHeight: "100vh",
-      padding: isMobile ? 10 : 22,
+      padding: isMobile ? "10px 0" : 22,
       background:
         "radial-gradient(circle at 15% 15%, rgba(91,141,255,0.18), transparent 28%), radial-gradient(circle at 80% 65%, rgba(255,122,89,0.12), transparent 24%), linear-gradient(135deg,#070b12 0%,#101827 45%,#060a11 100%)",
       color: "#f8fafc",
@@ -2416,12 +2416,12 @@ function createStyles(
 mainPanel: {
   minWidth: 0,
   width: "100%",
-  maxWidth: "100%",
+  maxWidth: "100vw",
   overflow: "hidden",
   boxSizing: "border-box",
   ...glass,
-  borderRadius: isMobile ? 22 : 32,
-  padding: isMobile ? 14 : isTablet ? 18 : 24,
+  borderRadius: isMobile ? 0 : 32,
+  padding: isMobile ? 10 : isTablet ? 18 : 24,
 },
 
     header: {
@@ -2610,8 +2610,8 @@ mainPanel: {
   maxWidth: "100%",
   overflow: "hidden",
   boxSizing: "border-box",
+  padding: isMobile ? 12 : 18,
 },
-
     sectionTitle: {
       margin: 0,
       fontSize: 20,
