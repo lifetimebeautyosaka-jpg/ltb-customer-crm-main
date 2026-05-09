@@ -840,13 +840,12 @@ export default function DashboardPage() {
           gap: 12px;
         }
 
-        .brand-mark {
-          width: 42px;
-          height: 42px;
-          border-radius: 14px;
-          background: linear-gradient(135deg, #f08a27, #ffb86b);
-          box-shadow: 0 16px 34px rgba(240,138,39,0.22);
-        }
+        .brand-logo {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  display: block;
+}
 
         .brand-title {
           font-size: 18px;
