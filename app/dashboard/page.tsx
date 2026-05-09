@@ -841,8 +841,8 @@ export default function DashboardPage() {
         }
 
         .brand-logo {
-  width: 42px;
-  height: 42px;
+  width: 46px;
+  height: 46px;
   object-fit: contain;
   display: block;
 }
