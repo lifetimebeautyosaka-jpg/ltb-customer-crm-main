@@ -1410,7 +1410,11 @@ export default function DashboardPage() {
         <div className="gymup-home__container">
           <div className="topbar">
             <div className="brand">
-              <div className="brand-mark" />
+              <img
+  src="/gymup-logo.png"
+  alt="GYMUP"
+  className="brand-logo"
+/>
 
               <div>
                 <div className="brand-title">
