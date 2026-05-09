@@ -910,6 +910,35 @@ export default function ReservationDetailPage() {
                 >
                   顧客マイページへ
                 </button>
+                <button
+  type="button"
+  onClick={() => {
+    if (!reservation.customer_id) {
+      window.alert("customer_id がありません");
+      return;
+    }
+
+    router.push(`/customer/${reservation.customer_id}`);
+  }}
+  style={styles.actionGreen}
+>
+  顧客マイページへ
+</button>
+
+<button
+  type="button"
+  onClick={() => {
+    if (!reservation.customer_id) {
+      window.alert("customer_id がありません");
+      return;
+    }
+
+    router.push(`/customer/${reservation.customer_id}/training`);
+  }}
+  style={styles.actionGreen}
+>
+  トレーニング履歴へ
+</button>
 
                 {isNewVisit(reservation) ? (
                   <button
