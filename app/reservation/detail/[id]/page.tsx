@@ -923,8 +923,7 @@ export default function ReservationDetailPage() {
     router.push(`/customer/${reservation.customer_id}/training`);
   }}
   style={{
-    ...styles.actionGreen,
-    borderRadius: "999px",
+    ...styles.actionCustomer,
     background: "linear-gradient(135deg, #4f46e5, #6366f1)",
     color: "#fff",
   }}
