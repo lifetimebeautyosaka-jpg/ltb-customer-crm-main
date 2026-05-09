@@ -924,6 +924,8 @@ export default function ReservationDetailPage() {
   }}
   style={{
     ...styles.actionBase,
+    minWidth: "220px",
+    justifyContent: "center",
     background: "linear-gradient(135deg, #4f46e5, #6366f1)",
     color: "#fff",
   }}
