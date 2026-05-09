@@ -922,7 +922,11 @@ export default function ReservationDetailPage() {
 
     router.push(`/customer/${reservation.customer_id}/training`);
   }}
-  style={styles.actionGreen}
+  style={{
+    ...styles.actionBase,
+    background: "linear-gradient(135deg, #4f46e5, #6366f1)",
+    color: "#fff",
+  }}
 >
   トレーニング履歴へ
 </button>
