@@ -898,19 +898,6 @@ export default function ReservationDetailPage() {
                 </button>
 
                 <button
-                  type="button"
-                  onClick={() => {
-                    if (!reservation.customer_id) {
-                      window.alert("customer_id がありません");
-                      return;
-                    }
-                    router.push(`/customer/${reservation.customer_id}`);
-                  }}
-                  style={styles.actionCustomer}
-                >
-                  顧客マイページへ
-                </button>
-                <button
   type="button"
   onClick={() => {
     if (!reservation.customer_id) {
@@ -920,7 +907,7 @@ export default function ReservationDetailPage() {
 
     router.push(`/customer/${reservation.customer_id}`);
   }}
-  style={styles.actionGreen}
+  style={styles.actionCustomer}
 >
   顧客マイページへ
 </button>
