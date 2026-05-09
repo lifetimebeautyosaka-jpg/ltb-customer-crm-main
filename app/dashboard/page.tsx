@@ -794,26 +794,26 @@ export default function DashboardPage() {
         }
 
         .gymup-home {
-          min-height: 100vh;
-          position: relative;
-          overflow: hidden;
-          background:
-            radial-gradient(circle at top left, rgba(240,138,39,0.12) 0%, transparent 26%),
-            radial-gradient(circle at bottom right, rgba(255,255,255,0.04) 0%, transparent 24%),
-            linear-gradient(180deg, #0f1012 0%, #16181b 48%, #111214 100%);
-          color: #f5f7fa;
-          font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        }
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, rgba(95,124,255,0.14) 0%, transparent 28%),
+    radial-gradient(circle at bottom right, rgba(95,124,255,0.08) 0%, transparent 24%),
+    linear-gradient(180deg, #041126 0%, #07182f 45%, #041126 100%);
+  color: #f5f7fa;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
 
-        .gymup-home::before {
-          content: "";
-          position: absolute;
-          inset: 0;
-          background:
-            linear-gradient(120deg, rgba(240,138,39,0.06), transparent 34%),
-            linear-gradient(300deg, rgba(240,138,39,0.04), transparent 28%);
-          pointer-events: none;
-        }
+.gymup-home::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(120deg, rgba(95,124,255,0.08), transparent 34%),
+    linear-gradient(300deg, rgba(95,124,255,0.05), transparent 28%);
+  pointer-events: none;
+}
 
         .gymup-home__container {
           position: relative;
