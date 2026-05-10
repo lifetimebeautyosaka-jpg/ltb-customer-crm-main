@@ -1069,6 +1069,13 @@ export default function TrainingPage() {
               >
                 新規入力に戻す
               </button>
+              <button
+  type="button"
+  onClick={() => router.push("/dashboard")}
+  style={secondaryButtonStyle}
+>
+  ダッシュボードへ
+</button>
             </div>
           </div>
         </div>
