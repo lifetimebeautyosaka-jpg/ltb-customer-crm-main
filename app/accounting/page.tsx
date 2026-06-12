@@ -177,6 +177,29 @@ function daysUntil(dateString?: string | null) {
   return Math.floor(diff / (1000 * 60 * 60 * 24));
 }
 
+function normalizeDateString(value?: string | null) {
+  if (!value) return "";
+
+  const raw = String(value).trim();
+  const matched = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+
+  if (matched) {
+    const y = matched[1];
+    const m = matched[2].padStart(2, "0");
+    const d = matched[3].padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const y = date.getFullYear();
+  const m = `${date.getMonth() + 1}`.padStart(2, "0");
+  const d = `${date.getDate()}`.padStart(2, "0");
+
+  return `${y}-${m}-${d}`;
+}
+
 function normalizeServiceType(value?: string | null): ServiceType {
   if (value === "ストレッチ") return "ストレッチ";
   return "トレーニング";
@@ -192,10 +215,14 @@ function rowToSale(row: SupabaseSaleRow): Sale {
   const serviceType = normalizeServiceType(row.menu_type);
   const accountingType = normalizeAccountingType(row.sale_type);
   const amount = Number(row.amount || 0);
+  const normalizedDate =
+    normalizeDateString(row.sale_date) ||
+    normalizeDateString(row.created_at) ||
+    todayString();
 
   return {
     id: String(row.id),
-    date: row.sale_date || todayString(),
+    date: normalizedDate,
     customerId:
       row.customer_id === null || row.customer_id === undefined
         ? null
@@ -260,7 +287,11 @@ function buildSalesSummaryRows(
     }
 
     const amount = Number(sale.amount || 0);
-    grouped[key].total += amount;
+
+    if (sale.accountingType !== "前受金") {
+      grouped[key].total += amount;
+    }
+
     grouped[key].count += 1;
 
     if (sale.accountingType === "通常売上") grouped[key].normal += amount;
@@ -399,25 +430,43 @@ export default function AccountingPage() {
       setLoadingCustomers(false);
     }
   };
-    const fetchSales = async () => {
+
+  const fetchSales = async () => {
     try {
       setLoadingSales(true);
 
-      const { data, error } = await supabase
-        .from("sales")
-        .select(
-          "id, customer_id, customer_name, sale_date, menu_type, sale_type, payment_method, amount, staff_name, store_name, reservation_id, memo, created_at"
-        )
-        .order("sale_date", { ascending: false })
-        .order("created_at", { ascending: false });
+      const allRows: SupabaseSaleRow[] = [];
+      const pageSize = 1000;
+      let from = 0;
+      let hasMore = true;
 
-      if (error) {
-        console.warn("sales fetch error:", error.message);
-        setSales([]);
-        return;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("sales")
+          .select(
+            "id, customer_id, customer_name, sale_date, menu_type, sale_type, payment_method, amount, staff_name, store_name, reservation_id, memo, created_at"
+          )
+          .order("sale_date", { ascending: false, nullsFirst: false })
+          .order("created_at", { ascending: false })
+          .range(from, from + pageSize - 1);
+
+        if (error) {
+          console.warn("sales fetch error:", error.message);
+          setSales([]);
+          return;
+        }
+
+        const rows = (data as SupabaseSaleRow[] | null) || [];
+        allRows.push(...rows);
+
+        if (rows.length < pageSize) {
+          hasMore = false;
+        } else {
+          from += pageSize;
+        }
       }
 
-      setSales(((data as SupabaseSaleRow[] | null) || []).map(rowToSale));
+      setSales(allRows.map(rowToSale));
     } catch (error) {
       console.error("fetchSales error:", error);
       setSales([]);
@@ -561,7 +610,9 @@ export default function AccountingPage() {
 
       const amount = Number(sale.amount || 0);
 
-      grouped[month].total += amount;
+      if (sale.accountingType !== "前受金") {
+        grouped[month].total += amount;
+      }
 
       if (sale.accountingType === "通常売上") {
         grouped[month].normal += amount;
@@ -576,38 +627,18 @@ export default function AccountingPage() {
       }
     });
 
-    return Object.values(grouped).sort((a, b) =>
-      a.month < b.month ? 1 : -1
-    );
+    return Object.values(grouped).sort((a, b) => (a.month < b.month ? 1 : -1));
   }, [sales]);
 
   const selectedMonthSales = useMemo(() => {
-    return sales.filter((sale) =>
-      (sale.date || "").startsWith(selectedSalesMonth)
-    );
+    return sales.filter((sale) => (sale.date || "").startsWith(selectedSalesMonth));
   }, [sales, selectedSalesMonth]);
 
   const prevMonthSales = useMemo(() => {
     const prevMonth = getPrevMonthString(selectedSalesMonth);
 
-    return sales.filter((sale) =>
-      (sale.date || "").startsWith(prevMonth)
-    );
+    return sales.filter((sale) => (sale.date || "").startsWith(prevMonth));
   }, [sales, selectedSalesMonth]);
-
-  const selectedMonthTotal = useMemo(() => {
-    return selectedMonthSales.reduce(
-      (sum, sale) => sum + Number(sale.amount || 0),
-      0
-    );
-  }, [selectedMonthSales]);
-
-  const prevMonthTotal = useMemo(() => {
-    return prevMonthSales.reduce(
-      (sum, sale) => sum + Number(sale.amount || 0),
-      0
-    );
-  }, [prevMonthSales]);
 
   const normalSalesTotal = useMemo(() => {
     return selectedMonthSales
@@ -627,22 +658,34 @@ export default function AccountingPage() {
       .reduce((sum, sale) => sum + Number(sale.amount || 0), 0);
   }, [selectedMonthSales]);
 
+  const actualSalesTotal = useMemo(() => {
+    return normalSalesTotal + ticketSalesTotal;
+  }, [normalSalesTotal, ticketSalesTotal]);
+
+  const cashInTotal = useMemo(() => {
+    return normalSalesTotal + advanceSalesTotal;
+  }, [normalSalesTotal, advanceSalesTotal]);
+
+  const prevActualSalesTotal = useMemo(() => {
+    return prevMonthSales
+      .filter(
+        (sale) =>
+          sale.accountingType === "通常売上" ||
+          sale.accountingType === "回数券消化"
+      )
+      .reduce((sum, sale) => sum + Number(sale.amount || 0), 0);
+  }, [prevMonthSales]);
+
   const monthChangeText = useMemo(() => {
-    return calcMonthChange(selectedMonthTotal, prevMonthTotal);
-  }, [selectedMonthTotal, prevMonthTotal]);
+    return calcMonthChange(actualSalesTotal, prevActualSalesTotal);
+  }, [actualSalesTotal, prevActualSalesTotal]);
 
   const selectedMonthStoreTotals = useMemo(() => {
-    return buildSalesSummaryRows(
-      selectedMonthSales,
-      (sale) => sale.storeName
-    );
+    return buildSalesSummaryRows(selectedMonthSales, (sale) => sale.storeName);
   }, [selectedMonthSales]);
 
   const selectedMonthStaffTotals = useMemo(() => {
-    return buildSalesSummaryRows(
-      selectedMonthSales,
-      (sale) => sale.staff
-    );
+    return buildSalesSummaryRows(selectedMonthSales, (sale) => sale.staff);
   }, [selectedMonthSales]);
 
   const storeTotals = useMemo(() => {
@@ -680,18 +723,14 @@ export default function AccountingPage() {
         throw new Error("紐づく契約が見つかりません");
       }
 
-      if (
-        nextStatus === "決済済" &&
-        billing.billing_status !== "決済済"
-      ) {
+      if (nextStatus === "決済済" && billing.billing_status !== "決済済") {
         let salesId = billing.sales_id;
 
         if (!salesId) {
           const customerName =
             customerMap.get(String(billing.customer_id))?.name || "未設定";
 
-          const serviceType =
-            deriveServiceTypeFromContract(currentContract);
+          const serviceType = deriveServiceTypeFromContract(currentContract);
 
           const paymentMethodForSales =
             normalizeBillingPaymentToSales(billing.payment_method);
@@ -705,8 +744,7 @@ export default function AccountingPage() {
             payment_method: paymentMethodForSales,
             amount: Number(billing.amount || 0),
             staff_name: "月額自動",
-            store_name:
-              trimmed(currentContract.store_name) || "未設定",
+            store_name: trimmed(currentContract.store_name) || "未設定",
             reservation_id: null,
             memo: [
               "monthly_billings から自動売上作成",
@@ -719,22 +757,20 @@ export default function AccountingPage() {
               .join("\n"),
           };
 
-          const { data: insertedSale, error: saleError } =
-            await supabase
-              .from("sales")
-              .insert([salePayload])
-              .select("id")
-              .single();
+          const { data: insertedSale, error: saleError } = await supabase
+            .from("sales")
+            .insert([salePayload])
+            .select("id")
+            .single();
 
           if (saleError) {
-            throw new Error(
-              `sales 自動登録エラー: ${saleError.message}`
-            );
+            throw new Error(`sales 自動登録エラー: ${saleError.message}`);
           }
 
           salesId = insertedSale?.id ?? null;
         }
-                const nextBillingDate = nextMonthDate(
+
+        const nextBillingDate = nextMonthDate(
           billing.billing_date,
           currentContract.billing_day || 1
         );
@@ -831,29 +867,19 @@ export default function AccountingPage() {
         >
           <div style={summaryCardStyle}>
             <div style={summaryLabelStyle}>有効契約数</div>
-            <div style={summaryValueStyle}>
-              {totals.activeContracts}件
-            </div>
-            <div style={summarySubStyle}>
-              全契約 {totals.contracts}件
-            </div>
+            <div style={summaryValueStyle}>{totals.activeContracts}件</div>
+            <div style={summarySubStyle}>全契約 {totals.contracts}件</div>
           </div>
 
           <div style={summaryCardStyle}>
             <div style={summaryLabelStyle}>今月請求額</div>
-            <div style={summaryValueStyle}>
-              {formatCurrency(totals.thisMonthTotal)}
-            </div>
-            <div style={summarySubStyle}>
-              {totals.thisMonthBillings}件
-            </div>
+            <div style={summaryValueStyle}>{formatCurrency(totals.thisMonthTotal)}</div>
+            <div style={summarySubStyle}>{totals.thisMonthBillings}件</div>
           </div>
 
           <div style={summaryCardStyle}>
             <div style={summaryLabelStyle}>決済済合計</div>
-            <div style={summaryValueStyle}>
-              {formatCurrency(totals.billingPaid)}
-            </div>
+            <div style={summaryValueStyle}>{formatCurrency(totals.billingPaid)}</div>
             <div style={summarySubStyle}>
               未払い {formatCurrency(totals.billingUnpaid)}
             </div>
@@ -861,12 +887,8 @@ export default function AccountingPage() {
 
           <div style={summaryCardStyle}>
             <div style={summaryLabelStyle}>請求予定合計</div>
-            <div style={summaryValueStyle}>
-              {formatCurrency(totals.billingPlanned)}
-            </div>
-            <div style={summarySubStyle}>
-              失敗 {statusCounts.failed}件
-            </div>
+            <div style={summaryValueStyle}>{formatCurrency(totals.billingPlanned)}</div>
+            <div style={summarySubStyle}>失敗 {statusCounts.failed}件</div>
           </div>
         </div>
 
@@ -874,9 +896,7 @@ export default function AccountingPage() {
           <div style={salesAnalyticsHeaderStyle}>
             <div>
               <h2 style={sectionTitleStyle}>売上分析</h2>
-              <p style={sectionSubStyle}>
-                月別・店舗別・担当別の売上分析
-              </p>
+              <p style={sectionSubStyle}>月別・店舗別・担当別の売上分析</p>
             </div>
 
             <input
@@ -900,23 +920,19 @@ export default function AccountingPage() {
             }}
           >
             <div style={darkCardStyle}>
-              <div style={summaryLabelWhiteStyle}>総売上</div>
+              <div style={summaryLabelWhiteStyle}>実売上</div>
               <div style={summaryValueWhiteStyle}>
-                {formatCurrency(selectedMonthTotal)}
+                {formatCurrency(actualSalesTotal)}
               </div>
-              <div style={summarySubWhiteStyle}>
-                前月比 {monthChangeText}
-              </div>
+              <div style={summarySubWhiteStyle}>前月比 {monthChangeText}</div>
             </div>
 
             <div style={darkCardStyle}>
-              <div style={summaryLabelWhiteStyle}>通常売上</div>
+              <div style={summaryLabelWhiteStyle}>入金額</div>
               <div style={summaryValueWhiteStyle}>
-                {formatCurrency(normalSalesTotal)}
+                {formatCurrency(cashInTotal)}
               </div>
-              <div style={summarySubWhiteStyle}>
-                都度・通常売上
-              </div>
+              <div style={summarySubWhiteStyle}>通常売上＋前受金</div>
             </div>
 
             <div style={darkCardStyle}>
@@ -924,9 +940,7 @@ export default function AccountingPage() {
               <div style={summaryValueWhiteStyle}>
                 {formatCurrency(advanceSalesTotal)}
               </div>
-              <div style={summarySubWhiteStyle}>
-                回数券販売
-              </div>
+              <div style={summarySubWhiteStyle}>売上には含めない</div>
             </div>
 
             <div style={darkCardStyle}>
@@ -934,51 +948,39 @@ export default function AccountingPage() {
               <div style={summaryValueWhiteStyle}>
                 {formatCurrency(ticketSalesTotal)}
               </div>
-              <div style={summarySubWhiteStyle}>
-                消化売上
-              </div>
+              <div style={summarySubWhiteStyle}>消化売上</div>
             </div>
           </div>
 
           <div
             style={{
               ...summaryGridStyle,
-              gridTemplateColumns: compact
-                ? "1fr"
-                : "repeat(2, minmax(0, 1fr))",
+              gridTemplateColumns: compact ? "1fr" : "repeat(2, minmax(0, 1fr))",
             }}
           >
             <div style={tableCardStyle}>
-              <div style={tableTitleStyle}>店舗別売上</div>
+              <div style={tableTitleStyle}>店舗別実売上</div>
 
               {selectedMonthStoreTotals.length === 0 ? (
-                <div style={emptyStyle}>
-                  データがありません
-                </div>
+                <div style={emptyStyle}>データがありません</div>
               ) : (
                 <div style={rankListStyle}>
                   {selectedMonthStoreTotals.map((row) => (
                     <div key={row.name} style={rankItemStyle}>
                       <div>
-                        <div style={rankNameStyle}>
-                          {row.name}
-                        </div>
+                        <div style={rankNameStyle}>{row.name}</div>
 
                         <div style={rankSubStyle}>
-                          通常 {formatCurrency(row.normal)} /
-                          前受金 {formatCurrency(row.advance)} /
-                          消化 {formatCurrency(row.ticket)}
+                          通常 {formatCurrency(row.normal)} / 前受金{" "}
+                          {formatCurrency(row.advance)} / 消化{" "}
+                          {formatCurrency(row.ticket)}
                         </div>
                       </div>
 
                       <div style={rankAmountWrapStyle}>
-                        <div style={rankAmountStyle}>
-                          {formatCurrency(row.total)}
-                        </div>
+                        <div style={rankAmountStyle}>{formatCurrency(row.total)}</div>
 
-                        <div style={rankCountStyle}>
-                          {row.count}件
-                        </div>
+                        <div style={rankCountStyle}>{row.count}件</div>
                       </div>
                     </div>
                   ))}
@@ -987,36 +989,28 @@ export default function AccountingPage() {
             </div>
 
             <div style={tableCardStyle}>
-              <div style={tableTitleStyle}>担当者別売上</div>
+              <div style={tableTitleStyle}>担当者別実売上</div>
 
               {selectedMonthStaffTotals.length === 0 ? (
-                <div style={emptyStyle}>
-                  データがありません
-                </div>
+                <div style={emptyStyle}>データがありません</div>
               ) : (
                 <div style={rankListStyle}>
                   {selectedMonthStaffTotals.map((row) => (
                     <div key={row.name} style={rankItemStyle}>
                       <div>
-                        <div style={rankNameStyle}>
-                          {row.name}
-                        </div>
+                        <div style={rankNameStyle}>{row.name}</div>
 
                         <div style={rankSubStyle}>
-                          通常 {formatCurrency(row.normal)} /
-                          前受金 {formatCurrency(row.advance)} /
-                          消化 {formatCurrency(row.ticket)}
+                          通常 {formatCurrency(row.normal)} / 前受金{" "}
+                          {formatCurrency(row.advance)} / 消化{" "}
+                          {formatCurrency(row.ticket)}
                         </div>
                       </div>
 
                       <div style={rankAmountWrapStyle}>
-                        <div style={rankAmountStyle}>
-                          {formatCurrency(row.total)}
-                        </div>
+                        <div style={rankAmountStyle}>{formatCurrency(row.total)}</div>
 
-                        <div style={rankCountStyle}>
-                          {row.count}件
-                        </div>
+                        <div style={rankCountStyle}>{row.count}件</div>
                       </div>
                     </div>
                   ))}
@@ -1029,9 +1023,7 @@ export default function AccountingPage() {
         <div
           style={{
             ...summaryGridStyle,
-            gridTemplateColumns: compact
-              ? "1fr"
-              : "repeat(2, minmax(0, 1fr))",
+            gridTemplateColumns: compact ? "1fr" : "repeat(2, minmax(0, 1fr))",
           }}
         >
           <div style={tableCardStyle}>
@@ -1069,7 +1061,7 @@ export default function AccountingPage() {
               <thead>
                 <tr>
                   <th style={thStyle}>月</th>
-                  <th style={thStyle}>総売上</th>
+                  <th style={thStyle}>実売上</th>
                   <th style={thStyle}>通常売上</th>
                   <th style={thStyle}>前受金</th>
                   <th style={thStyle}>回数券消化</th>
@@ -1079,25 +1071,15 @@ export default function AccountingPage() {
               <tbody>
                 {monthlySalesTotals.map((row) => (
                   <tr key={row.month}>
-                    <td style={tdStyle}>
-                      {formatMonthLabel(row.month)}
-                    </td>
+                    <td style={tdStyle}>{formatMonthLabel(row.month)}</td>
 
-                    <td style={tdStyle}>
-                      {formatCurrency(row.total)}
-                    </td>
+                    <td style={tdStyle}>{formatCurrency(row.total)}</td>
 
-                    <td style={tdStyle}>
-                      {formatCurrency(row.normal)}
-                    </td>
+                    <td style={tdStyle}>{formatCurrency(row.normal)}</td>
 
-                    <td style={tdStyle}>
-                      {formatCurrency(row.advance)}
-                    </td>
+                    <td style={tdStyle}>{formatCurrency(row.advance)}</td>
 
-                    <td style={tdStyle}>
-                      {formatCurrency(row.ticket)}
-                    </td>
+                    <td style={tdStyle}>{formatCurrency(row.ticket)}</td>
                   </tr>
                 ))}
               </tbody>
