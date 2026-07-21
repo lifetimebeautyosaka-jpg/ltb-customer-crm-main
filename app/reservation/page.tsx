@@ -703,7 +703,7 @@ export default function ReservationPage() {
         .from("customers")
         .select("id, name, kana, phone, plan_type")
         .order("id", { ascending: false })
-        .limit(400);
+        .limit(3000);
 
       if (error) throw error;
 
