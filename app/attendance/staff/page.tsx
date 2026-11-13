@@ -590,20 +590,26 @@ export default function AttendanceStaffPage() {
 
   // 間違えて打刻したとき：今日の勤怠を丸ごと削除する（出勤からやり直せる）
   async function handleDeleteToday() {
-    if (!supabase || !todayRow?.id) return;
-    if (!window.confirm(`${staffName}さんの今日（${todayJst}）の打刻を削除しますか？\n出勤・退勤・休憩・メモがすべて消えます。`)) return;
+    if (!todayRow) return;
+    await handleDeleteAttendance(todayRow);
+  }
+
+  // 勤怠一覧の各行からも、間違えた日の打刻を削除できる
+  async function handleDeleteAttendance(row: AttendanceRow) {
+    if (!supabase || !row?.id) return;
+    if (!window.confirm(`${staffName}さんの${formatDateJP(row.work_date)}の打刻を削除しますか？\n出勤・退勤・休憩・メモがすべて消えます。`)) return;
 
     try {
       setSaving(true);
       setErrorMessage("");
 
-      const { error } = await supabase.from("staff_attendance").delete().eq("id", todayRow.id);
+      const { error } = await supabase.from("staff_attendance").delete().eq("id", row.id);
 
       if (error) throw new Error(error.message);
 
       await loadTodayAttendance(selectedStaffId);
       await loadMonthAttendance(selectedStaffId);
-      alert("今日の打刻を削除しました。");
+      alert("打刻を削除しました。");
     } catch (error) {
       const msg = error instanceof Error ? error.message : "打刻の削除に失敗しました。";
       setErrorMessage(msg);
@@ -981,6 +987,15 @@ export default function AttendanceStaffPage() {
                     <div style={noteLabelStyle}>メモ</div>
                     <div>{row.note || "—"}</div>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteAttendance(row)}
+                    disabled={saving}
+                    style={{ ...undoButtonStyle, color: "#dc2626", marginTop: 10, opacity: saving ? 0.55 : 1 }}
+                  >
+                    この日の打刻を削除
+                  </button>
                 </div>
               ))}
             </div>
@@ -999,6 +1014,7 @@ export default function AttendanceStaffPage() {
                     <th style={thStyle}>総勤務</th>
                     <th style={thStyle}>メモ</th>
                     <th style={thStyle}>更新日時</th>
+                    <th style={thStyle}>操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1014,6 +1030,16 @@ export default function AttendanceStaffPage() {
                       <td style={tdStyleStrong}>{minutesToText(row.total_work_minutes ?? 0)}</td>
                       <td style={tdNoteStyle}>{row.note || "—"}</td>
                       <td style={tdStyle}>{formatDateTimeJP(row.updated_at || row.created_at)}</td>
+                      <td style={tdStyle}>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteAttendance(row)}
+                          disabled={saving}
+                          style={{ ...undoButtonStyle, color: "#dc2626", minHeight: 32, opacity: saving ? 0.55 : 1 }}
+                        >
+                          削除
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
