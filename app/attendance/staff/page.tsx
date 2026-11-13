@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { CSSProperties, ReactNode, useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { logAudit } from "@/lib/audit";
 
 type AttendanceRow = {
   id: number;
@@ -580,6 +581,13 @@ export default function AttendanceStaffPage() {
 
       if (error) throw new Error(error.message);
 
+      void logAudit({
+        action: "update",
+        table: "staff_attendance",
+        recordId: todayRow.id,
+        detail: { staff: staffName, date: todayRow.work_date, undoClockOut: todayRow.clock_out },
+      });
+
       await loadTodayAttendance(selectedStaffId);
       await loadMonthAttendance(selectedStaffId);
       alert("退勤を取り消しました。");
@@ -610,6 +618,13 @@ export default function AttendanceStaffPage() {
       const { error } = await supabase.from("staff_attendance").delete().eq("id", row.id);
 
       if (error) throw new Error(error.message);
+
+      void logAudit({
+        action: "delete",
+        table: "staff_attendance",
+        recordId: row.id,
+        detail: { staff: staffName, date: row.work_date, clockIn: row.clock_in, clockOut: row.clock_out },
+      });
 
       await loadTodayAttendance(selectedStaffId);
       await loadMonthAttendance(selectedStaffId);

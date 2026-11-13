@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { logAudit } from "@/lib/audit";
 
 // 売上の一括取り込み
 // CSVを読み込む → 一覧で確認・修正・除外 → 「○件を登録」で sales に登録する。
@@ -315,6 +316,7 @@ export default function SalesImportPage() {
         }
         done += 1;
       }
+      void logAudit({ action: "import", table: "sales", detail: { count: done } });
       setMessage(`${done}件の売上を登録しました。`);
       setRows([]);
     } catch (e) {

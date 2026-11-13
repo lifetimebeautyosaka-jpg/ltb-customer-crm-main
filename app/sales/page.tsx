@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { logAudit } from "@/lib/audit";
 
 type Customer = {
   id: string | number;
@@ -1725,6 +1726,20 @@ const ticketIssueInfo =
           `売上削除エラー: ${error.message}`
         );
       }
+
+      void logAudit({
+        action: "delete",
+        table: "sales",
+        recordId: saleId,
+        detail: {
+          date: targetSale.date,
+          customer: targetSale.customerName,
+          amount: targetSale.amount,
+          saleType: targetSale.accountingType,
+          staff: targetSale.staff,
+          store: targetSale.storeName,
+        },
+      });
 
       // その予約の売上がもう残っていなければ、予約を「予約済」に戻す
       // （以前は「売上済」のまま残り、売上未の一覧から漏れていた）
