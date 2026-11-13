@@ -895,6 +895,35 @@ function buildDailySummaryRows(sales: Sale[]): DailySummaryRow[] {
   return Object.values(grouped).sort((a, b) => (a.date < b.date ? 1 : -1));
 }
 
+// Supabase は1回の select で最大1000行しか返さない（プロジェクト設定の既定値）。
+// 全件が必要な取得は、1000行ずつ .range() でページングして最後まで読み込む。
+const SUPABASE_PAGE_SIZE = 1000;
+
+async function fetchAllRows<T>(
+  buildQuery: (
+    from: number,
+    to: number
+  ) => PromiseLike<{ data: T[] | null; error: unknown }>
+): Promise<T[]> {
+  const all: T[] = [];
+
+  for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+    const { data, error } = await buildQuery(
+      from,
+      from + SUPABASE_PAGE_SIZE - 1
+    );
+
+    if (error) throw error;
+
+    const rows = data || [];
+    all.push(...rows);
+
+    if (rows.length < SUPABASE_PAGE_SIZE) break;
+  }
+
+  return all;
+}
+
 function filterSalesByMonth(sales: Sale[], selectedMonth: string) {
   if (!selectedMonth) return sales;
   return sales.filter((sale) => sale.date?.startsWith(selectedMonth));
@@ -1179,17 +1208,20 @@ export default function SalesPage() {
 
   useEffect(() => {
     async function fetchCustomers() {
-      const { data, error } = await supabase
-        .from("customers")
-        .select("id, name, phone")
-        .order("created_at", { ascending: false });
+      try {
+        const data = await fetchAllRows<Customer>((from, to) =>
+          supabase
+            .from("customers")
+            .select("id, name, phone")
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: false })
+            .range(from, to)
+        );
 
-      if (error) {
+        setCustomers(data);
+      } catch (error) {
         console.error(error);
-        return;
       }
-
-      setCustomers((data as Customer[]) || []);
     }
 
     void fetchCustomers();
@@ -1199,36 +1231,32 @@ export default function SalesPage() {
     setFetchingSales(true);
 
     try {
-      const { data, error } = await supabase
-        .from("sales")
-        .select("*")
-        .order("sale_date", { ascending: false })
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        throw error;
-      }
-
-      const rows = ((data as SupabaseSaleRow[] | null) || []).map(
-        rowToSale
+      // 1000行の上限で8月下旬より前が切れていたため、全件をページングで取得する。
+      // 並び順が同じ値で揺れるとページ境界で重複・欠落するので、最後に id を加えて順序を固定する。
+      const saleRows = await fetchAllRows<SupabaseSaleRow>((from, to) =>
+        supabase
+          .from("sales")
+          .select("*")
+          .order("sale_date", { ascending: false })
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, to)
       );
 
-      setSales(rows);
+      setSales(saleRows.map(rowToSale));
 
-      const { data: usageData, error: usageError } = await supabase
-        .from("ticket_usages")
-        .select(
-          "id, reservation_id, ticket_id, customer_id, customer_name, ticket_name, service_type, used_date, before_count, after_count"
-        )
-        .order("used_date", { ascending: false });
-
-      if (usageError) {
-        throw usageError;
-      }
-
-      setTicketUsages(
-        ((usageData as TicketUsageRow[] | null) || [])
+      const usageData = await fetchAllRows<TicketUsageRow>((from, to) =>
+        supabase
+          .from("ticket_usages")
+          .select(
+            "id, reservation_id, ticket_id, customer_id, customer_name, ticket_name, service_type, used_date, before_count, after_count"
+          )
+          .order("used_date", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, to)
       );
+
+      setTicketUsages(usageData);
     } catch (e) {
       console.error(e);
       setErrorMessage("売上取得に失敗しました。");
