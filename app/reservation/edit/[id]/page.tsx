@@ -54,8 +54,10 @@ const STORE_OPTIONS = [
   "福島",
   "福島P",
   "天満橋",
+  "天満橋Ts",
   "中崎町",
   "江坂",
+  "西梅田",
 ];
 
 const STAFF_OPTIONS = [

@@ -172,6 +172,7 @@ const STORE_OPTIONS = [
   "福島",
   "福島P",
   "天満橋",
+  "天満橋Ts",
   "中崎町",
   "江坂",
   "西梅田",
@@ -183,6 +184,7 @@ const STORE_OPTIONS_FOR_FORM = [
   "福島",
   "福島P",
   "天満橋",
+  "天満橋Ts",
   "中崎町",
   "江坂",
   "西梅田",
@@ -373,6 +375,7 @@ function getStoreColor(storeName?: string | null) {
   if (store.includes("箕面")) return "#8b5cf6";
   if (store.includes("福島P")) return "#f97316";
   if (store.includes("福島")) return "#ef4444";
+  if (store.includes("天満橋Ts")) return "#db2777";
   if (store.includes("天満橋")) return "#14b8a6";
   if (store.includes("中崎町")) return "#eab308";
   if (store.includes("江坂")) return "#10b981";
@@ -2411,7 +2414,7 @@ export default function ReservationPage() {
           </div>
 
           <div style={styles.legendBoxStore}>
-            {["江戸堀", "箕面", "福島", "福島P", "天満橋", "中崎町", "江坂"].map((name) => (
+            {["江戸堀", "箕面", "福島", "福島P", "天満橋", "天満橋Ts", "中崎町", "江坂", "西梅田"].map((name) => (
               <div key={name} style={styles.legendItem}>
                 <span style={{ ...styles.legendDot, background: getStoreColor(name) }} />
                 {name}

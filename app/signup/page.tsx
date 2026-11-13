@@ -530,8 +530,17 @@ export default function SignupPage() {
                       <option value="天満橋" className="text-black">
                         天満橋
                       </option>
+                      <option value="天満橋Ts" className="text-black">
+                        天満橋Ts
+                      </option>
                       <option value="中崎町" className="text-black">
                         中崎町
+                      </option>
+                      <option value="江坂" className="text-black">
+                        江坂
+                      </option>
+                      <option value="西梅田" className="text-black">
+                        西梅田
                       </option>
                     </select>
                   </div>

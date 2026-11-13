@@ -45,7 +45,7 @@ type SearchableCustomer = Customer & {
   subscription?: CustomerSubscriptionRow | null;
 };
 
-const STORES = ["江戸堀", "箕面", "福島", "福島P", "天満橋", "中崎町"];
+const STORES = ["江戸堀", "箕面", "福島", "福島P", "天満橋", "天満橋Ts", "中崎町", "江坂", "西梅田"];
 const STAFFS = ["山口", "入江", "池田", "石川", "羽田", "菱谷", "井上", "林", "その他"];
 const MENUS = ["ストレッチ", "トレーニング", "ペアトレ", "ヘッドスパ", "アロマ", "その他"];
 const PAYMENT_METHODS = ["現金", "カード", "銀行振込", "その他", "サブスク", "回数券"];

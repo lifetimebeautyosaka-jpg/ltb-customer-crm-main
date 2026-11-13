@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { BG, CARD, BUTTON_PRIMARY } from "../../styles/theme";
 
-const STORE_OPTIONS = ["江戸堀", "箕面", "福島", "福島P", "天満橋", "中崎町", "江坂"];
+const STORE_OPTIONS = ["江戸堀", "箕面", "福島", "福島P", "天満橋", "天満橋Ts", "中崎町", "江坂", "西梅田"];
 
 const AUTH_STORAGE_KEY = "gymup_logged_in";
 const ROLE_STORAGE_KEY = "gymup_user_role";
