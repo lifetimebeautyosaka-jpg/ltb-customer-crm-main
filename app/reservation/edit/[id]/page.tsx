@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 
 const supabase =
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
@@ -230,11 +231,13 @@ export default function ReservationEditPage() {
     }
 
     try {
-      const { data, error } = await supabase
-        .from("customers")
-        .select("id, name, kana, phone, plan_type")
-        .order("id", { ascending: false })
-        .limit(400);
+      const { data, error } = await fetchAllRows((from, to) =>
+        supabase
+          .from("customers")
+          .select("id, name, kana, phone, plan_type")
+          .order("id", { ascending: false })
+          .range(from, to)
+      );
 
       if (error) throw error;
 

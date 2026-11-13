@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 
 type ServiceType = "ストレッチ" | "トレーニング";
 type AccountingType = "通常売上" | "前受金" | "回数券消化";
@@ -360,21 +361,29 @@ export default function PayslipPage() {
       setLoading(true);
 
       const [salesRes, reservationRes] = await Promise.all([
-        supabase
-          .from("sales")
-          .select(
-            "id, customer_id, customer_name, sale_date, menu_type, sale_type, payment_method, amount, staff_name, store_name, reservation_id, memo, created_at"
-          )
-          .order("sale_date", { ascending: false })
-          .order("created_at", { ascending: false }),
+        fetchAllRows((from, to) =>
+          supabase
+            .from("sales")
+            .select(
+              "id, customer_id, customer_name, sale_date, menu_type, sale_type, payment_method, amount, staff_name, store_name, reservation_id, memo, created_at"
+            )
+            .order("sale_date", { ascending: false })
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: false })
+            .range(from, to)
+        ),
 
-        supabase
-          .from("reservations")
-          .select(
-            "id, customer_id, customer_name, date, staff_name, store_name, reservation_status, memo, created_at"
-          )
-          .order("date", { ascending: false })
-          .order("created_at", { ascending: false }),
+        fetchAllRows((from, to) =>
+          supabase
+            .from("reservations")
+            .select(
+              "id, customer_id, customer_name, date, staff_name, store_name, reservation_status, memo, created_at"
+            )
+            .order("date", { ascending: false })
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: false })
+            .range(from, to)
+        ),
       ]);
 
       if (salesRes.error) {

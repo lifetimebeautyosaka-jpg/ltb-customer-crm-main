@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 
 type ReservationRow = {
   id: string | number;
@@ -118,6 +119,7 @@ type DashboardStats = {
   todayTicketPendingCount: number;
   todayCounselingPendingCount: number;
   monthSalesAmount: number | null;
+  monthAdvanceAmount: number | null;
   prevMonthSalesAmount: number | null;
   monthNewCustomers: number | null;
   customerCount: number | null;
@@ -256,6 +258,20 @@ function calcSalesAmount(rows: SaleRow[] | null | undefined) {
   }, 0);
 }
 
+// 前受金は回数券の代金を先にもらったもので、来店時に「回数券消化」として売上に計上される。
+// 前受金まで売上に足すと同じお金を二重に数えるため、売上は前受金を除いた「純売上」で出す。
+function isAdvanceSale(row: SaleRow) {
+  return trimmed(row.sale_type) === "前受金";
+}
+
+function calcNetSalesAmount(rows: SaleRow[] | null | undefined) {
+  return calcSalesAmount((rows || []).filter((row) => !isAdvanceSale(row)));
+}
+
+function calcAdvanceAmount(rows: SaleRow[] | null | undefined) {
+  return calcSalesAmount((rows || []).filter(isAdvanceSale));
+}
+
 function getMonthlyChangeText(current: number | null, prev: number | null) {
   if (typeof current !== "number" || typeof prev !== "number") return "--";
   if (prev === 0) return current === 0 ? "±0%" : "前月なし";
@@ -392,6 +408,7 @@ export default function DashboardPage() {
     todayTicketPendingCount: 0,
     todayCounselingPendingCount: 0,
     monthSalesAmount: null,
+    monthAdvanceAmount: null,
     prevMonthSalesAmount: null,
     monthNewCustomers: null,
     customerCount: null,
@@ -409,6 +426,7 @@ export default function DashboardPage() {
     const map = new Map<string, MonthlySummaryItem>();
 
     for (const sale of monthSalesRows) {
+      if (isAdvanceSale(sale)) continue;
       const name = trimmed(sale.store_name) || "店舗未設定";
       const amount = Number(sale.amount || 0);
       if (!Number.isFinite(amount)) continue;
@@ -426,6 +444,7 @@ export default function DashboardPage() {
     const map = new Map<string, MonthlySummaryItem>();
 
     for (const sale of monthSalesRows) {
+      if (isAdvanceSale(sale)) continue;
       const name = trimmed(sale.staff_name) || "担当未設定";
       const amount = Number(sale.amount || 0);
       if (!Number.isFinite(amount)) continue;
@@ -498,6 +517,7 @@ export default function DashboardPage() {
             todayTicketPendingCount: 0,
             todayCounselingPendingCount: 0,
             monthSalesAmount: null,
+            monthAdvanceAmount: null,
             prevMonthSalesAmount: null,
             monthNewCustomers: null,
             customerCount: null,
@@ -518,7 +538,6 @@ export default function DashboardPage() {
           prevMonthSalesResult,
           monthNewCustomersResult,
           lowTicketsResult,
-          allSalesResult,
         ] = await Promise.all([
           supabase
             .from("reservations")
@@ -528,21 +547,35 @@ export default function DashboardPage() {
             .eq("date", selectedDate)
             .order("start_time", { ascending: true }),
 
-          supabase.from("customers").select("id, name, customer_name, plan_type, created_at"),
+          fetchAllRows<CustomerRow>((from, to) =>
+            supabase
+              .from("customers")
+              .select("id, name, customer_name, plan_type, created_at")
+              .order("id", { ascending: true })
+              .range(from, to)
+          ),
 
           supabase.from("sales").select("*").eq("sale_date", selectedDate),
 
-          supabase
-            .from("sales")
-            .select("*")
-            .gte("sale_date", monthRange.start)
-            .lt("sale_date", monthRange.end),
+          fetchAllRows<SaleRow>((from, to) =>
+            supabase
+              .from("sales")
+              .select("*")
+              .gte("sale_date", monthRange.start)
+              .lt("sale_date", monthRange.end)
+              .order("id", { ascending: true })
+              .range(from, to)
+          ),
 
-          supabase
-            .from("sales")
-            .select("*")
-            .gte("sale_date", prevMonthRange.start)
-            .lt("sale_date", prevMonthRange.end),
+          fetchAllRows<SaleRow>((from, to) =>
+            supabase
+              .from("sales")
+              .select("*")
+              .gte("sale_date", prevMonthRange.start)
+              .lt("sale_date", prevMonthRange.end)
+              .order("id", { ascending: true })
+              .range(from, to)
+          ),
 
           supabase
             .from("customers")
@@ -560,12 +593,6 @@ export default function DashboardPage() {
             .order("remaining_count", { ascending: true })
             .order("updated_at", { ascending: false })
             .limit(20),
-
-          supabase
-            .from("sales")
-            .select("id, customer_id, customer_name, amount, sale_date, created_at")
-            .order("sale_date", { ascending: false })
-            .limit(1000),
         ]);
 
         if (reservationsResult.error) throw reservationsResult.error;
@@ -576,7 +603,6 @@ export default function DashboardPage() {
         const monthSales = ((monthSalesResult.data || []) as SaleRow[]) || [];
         const prevMonthSales = ((prevMonthSalesResult.data || []) as SaleRow[]) || [];
         const lowTicketRows = ((lowTicketsResult.data || []) as TicketContractRow[]) || [];
-        const allSales = ((allSalesResult.data || []) as SaleRow[]) || [];
 
         const customerMapById = new Map<string, CustomerRow>();
         const customerMapByName = new Map<string, CustomerRow>();
@@ -650,7 +676,7 @@ export default function DashboardPage() {
 
         setStats({
           todayReservationCount: displayReservations.length,
-          todaySalesAmount: calcSalesAmount(todaySales),
+          todaySalesAmount: calcNetSalesAmount(todaySales),
           todayUnsoldCount: displayReservations.filter((item) => !item.isSold).length,
           todayTicketPendingCount: displayReservations.filter(
             (item) => item.isTicket && !item.isTicketUsed
@@ -658,8 +684,9 @@ export default function DashboardPage() {
           todayCounselingPendingCount: displayReservations.filter(
             (item) => isNewVisit(item) && !item.isCounseled
           ).length,
-          monthSalesAmount: calcSalesAmount(monthSales),
-          prevMonthSalesAmount: calcSalesAmount(prevMonthSales),
+          monthSalesAmount: calcNetSalesAmount(monthSales),
+          monthAdvanceAmount: calcAdvanceAmount(monthSales),
+          prevMonthSalesAmount: calcNetSalesAmount(prevMonthSales),
           monthNewCustomers: Array.isArray(monthNewCustomersResult.data)
             ? monthNewCustomersResult.data.length
             : null,
@@ -731,7 +758,7 @@ export default function DashboardPage() {
     {
       label: "今日の売上",
       value: loading ? "..." : formatYen(stats.todaySalesAmount),
-      sub: "売上登録ベース",
+      sub: "純売上（前受金を除く）",
       accent: "orange",
     },
     {
@@ -741,9 +768,9 @@ export default function DashboardPage() {
       accent: todoItems.length > 0 ? "red" : "green",
     },
     {
-      label: "選択月売上",
+      label: "選択月の純売上",
       value: loading ? "..." : formatYen(stats.monthSalesAmount),
-      sub: `前月比 ${monthlyChangeText}`,
+      sub: `前月比 ${monthlyChangeText} / 前受金 ${formatYen(stats.monthAdvanceAmount)}`,
       accent: monthlyChangeText.startsWith("+")
         ? "green"
         : monthlyChangeText.startsWith("-")
@@ -1563,12 +1590,12 @@ export default function DashboardPage() {
 
             <div className="monthly-total-card">
               <div>
-                <div className="monthly-total-label">選択月の売上</div>
+                <div className="monthly-total-label">選択月の純売上（前受金を除く）</div>
                 <div className="monthly-total-value">{formatYen(stats.monthSalesAmount)}</div>
               </div>
 
               <div className="monthly-total-sub">
-                前月比 {monthlyChangeText} / 売上 {monthSalesRows.length}件
+                前月比 {monthlyChangeText} / 前受金 {formatYen(stats.monthAdvanceAmount)} / 売上 {monthSalesRows.length}件
               </div>
             </div>
 

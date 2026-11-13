@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 
 type ContractStatus = "有効" | "停止" | "休会" | "解約";
 type BillingStatus = "請求予定" | "決済済" | "未払い" | "失敗" | "キャンセル";
@@ -411,10 +412,14 @@ export default function AccountingPage() {
   const fetchCustomers = async () => {
     try {
       setLoadingCustomers(true);
-      const { data, error } = await supabase
-        .from("customers")
-        .select("id, name, phone, email")
-        .order("name", { ascending: true });
+      const { data, error } = await fetchAllRows((from, to) =>
+        supabase
+          .from("customers")
+          .select("id, name, phone, email")
+          .order("name", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to)
+      );
 
       if (error) {
         console.warn("customers fetch error:", error.message);

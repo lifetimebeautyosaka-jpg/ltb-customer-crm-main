@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 
 type Customer = {
   id: number;
@@ -39,10 +40,13 @@ export default function TrainingSearchPage() {
         setLoading(true);
         setPageError("");
 
-        const { data, error } = await supabase
-          .from("customers")
-          .select("id, name")
-          .order("id", { ascending: true });
+        const { data, error } = await fetchAllRows((from, to) =>
+          supabase
+            .from("customers")
+            .select("id, name")
+            .order("id", { ascending: true })
+            .range(from, to)
+        );
 
         console.log("training customers data:", data);
         console.log("training customers error:", error);

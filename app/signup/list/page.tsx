@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 
 type SignupRow = {
   id: number | string;
@@ -299,10 +300,14 @@ export default function SignupListPage() {
     try {
       setCustomerLoading(true);
 
-      const { data, error } = await supabase
-        .from("customers")
-        .select("id, name, phone, email")
-        .order("name", { ascending: true });
+      const { data, error } = await fetchAllRows((from, to) =>
+        supabase
+          .from("customers")
+          .select("id, name, phone, email")
+          .order("name", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to)
+      );
 
       if (error) {
         console.warn("customers fetch error:", error.message);

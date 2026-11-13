@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 
 const supabase =
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
@@ -699,11 +700,14 @@ export default function ReservationPage() {
     }
 
     try {
-      const { data, error } = await supabase
-        .from("customers")
-        .select("id, name, kana, phone, plan_type")
-        .order("id", { ascending: false })
-        .limit(3000);
+      // .limit(3000) でも Supabase は1000行で打ち切るので、ページングで全件読む
+      const { data, error } = await fetchAllRows((from, to) =>
+        supabase
+          .from("customers")
+          .select("id, name, kana, phone, plan_type")
+          .order("id", { ascending: false })
+          .range(from, to)
+      );
 
       if (error) throw error;
 
