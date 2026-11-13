@@ -769,6 +769,17 @@ export default function TrainingPage() {
     }, 80);
   }
 
+  // 指定した種目のすぐ下に新しい行を差し込む。カテゴリは同じものを引き継ぐ
+  // （例：胸の種目の下で押すと、胸が選ばれた行が追加される）
+  function insertRowAfter(rowId: string) {
+    setSetRows((prev) => {
+      const index = prev.findIndex((row) => row.rowId === rowId);
+      if (index === -1) return [...prev, makeRow()];
+      const newRow = { ...makeRow(), category: prev[index].category };
+      return [...prev.slice(0, index + 1), newRow, ...prev.slice(index + 1)];
+    });
+  }
+
   function removeRow(rowId: string) {
     setSetRows((prev) => {
       if (prev.length === 1) return [makeRow()];
@@ -1361,13 +1372,22 @@ export default function TrainingPage() {
                   >
                     <div style={exerciseCardHeaderStyle}>
                       <div style={exerciseCardIndexStyle}>種目 {index + 1}</div>
-                      <button
-                        type="button"
-                        onClick={() => removeRow(toSafeString(row.rowId))}
-                        style={trainingDeleteButtonStyle}
-                      >
-                        削除
-                      </button>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button
+                          type="button"
+                          onClick={() => insertRowAfter(toSafeString(row.rowId))}
+                          style={addRowButtonTopStyle}
+                        >
+                          ＋ この下に追加
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeRow(toSafeString(row.rowId))}
+                          style={trainingDeleteButtonStyle}
+                        >
+                          削除
+                        </button>
+                      </div>
                     </div>
 
                     <div style={exerciseCardGridStyle}>
