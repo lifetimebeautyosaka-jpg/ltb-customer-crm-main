@@ -1872,6 +1872,10 @@ const ticketIssueInfo =
                 管理TOP
               </Link>
 
+              <Link href="/sales/import" style={styles.secondaryButton}>
+                一括取り込み
+              </Link>
+
               <button
                 type="button"
                 onClick={exportCsv}
