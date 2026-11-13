@@ -8,6 +8,7 @@ import { BG, CARD, BUTTON_PRIMARY } from "../../../styles/theme";
 
 type CustomerRow = {
   id: string | number;
+  target_weight?: number | null;
   name?: string | null;
   customer_name?: string | null;
   kana?: string | null;
@@ -150,6 +151,7 @@ type CounselingSheetRow = {
 
 type NormalizedCustomer = {
   id: string;
+  targetWeight: number | null;
   name: string;
   kana: string;
   phone: string;
@@ -241,6 +243,10 @@ function formatVisitDateTime(date?: string | null, startTime?: string | null) {
 function normalizeCustomer(row: CustomerRow): NormalizedCustomer {
   return {
     id: String(row.id),
+    targetWeight:
+      row.target_weight === null || row.target_weight === undefined || Number.isNaN(Number(row.target_weight))
+        ? null
+        : Number(row.target_weight),
     name: row.name || row.customer_name || "—",
     kana: row.kana || row.furigana || "",
     phone: row.phone || row.phone_number || "",
@@ -474,6 +480,8 @@ function ChartSection({
   startColor,
   endColor,
   emptyLabel,
+  target = null,
+  targetEditor = null,
 }: {
   title: string;
   sessions: TrainingSessionRow[];
@@ -484,7 +492,21 @@ function ChartSection({
   startColor: string;
   endColor: string;
   emptyLabel: string;
+  target?: number | null;
+  targetEditor?: React.ReactNode;
 }) {
+  // 目標値がある場合は、目標の線も入るように縦軸の範囲を決める
+  const domainValues = target !== null && target !== undefined ? [...values, target] : values;
+  const domainMin = domainValues.length ? Math.min(...domainValues) : 0;
+  const domainMax = domainValues.length ? Math.max(...domainValues) : 0;
+  const domainRange = domainMax - domainMin || 1;
+  const toY = (value: number) => 20 + (180 - ((value - domainMin) / domainRange) * 180);
+  const toX = (index: number) => (values.length <= 1 ? 280 : (index / (values.length - 1)) * 520 + 20);
+  const linePoints = values.map((v, i) => `${toX(i)},${toY(v)}`).join(" ");
+  const latest = values.length ? values[values.length - 1] : null;
+  const remaining =
+    target !== null && target !== undefined && latest !== null ? Math.round((latest - target) * 10) / 10 : null;
+
   return (
     <section style={{ ...CARD_STYLE, borderRadius: 24, padding: 20 }}>
       <div
@@ -500,8 +522,15 @@ function ChartSection({
         <h2 style={sectionTitleStyle}>{title}</h2>
         <div style={{ fontSize: 13, color: "#64748b", fontWeight: 700 }}>
           データ {sessions.length}件
+          {target !== null && target !== undefined ? (
+            <span style={{ marginLeft: 10, color: "#16a34a" }}>
+              目標 {target}{unit}
+              {remaining !== null ? (remaining > 0 ? `（あと${remaining}${unit}）` : "（達成！）") : ""}
+            </span>
+          ) : null}
         </div>
       </div>
+      {targetEditor}
 
       {sessions.length === 0 ? (
         <div style={emptyBoxStyle}>{emptyLabel}</div>
@@ -541,16 +570,21 @@ function ChartSection({
               strokeWidth="4"
               strokeLinecap="round"
               strokeLinejoin="round"
-              points={points}
-              transform="translate(20,20)"
+              points={linePoints}
             />
 
+            {target !== null && target !== undefined ? (
+              <g>
+                <line x1="20" x2="540" y1={toY(target)} y2={toY(target)} stroke="#16a34a" strokeWidth="2" strokeDasharray="6 5" />
+                <text x="536" y={toY(target) - 6} textAnchor="end" style={{ fontSize: 11, fontWeight: 800, fill: "#16a34a" }}>
+                  目標 {target}{unit}
+                </text>
+              </g>
+            ) : null}
+
             {values.map((value, index) => {
-              const min = Math.min(...values);
-              const max = Math.max(...values);
-              const range = max - min || 1;
-              const x = (index / (values.length - 1)) * 520 + 20;
-              const y = 20 + (180 - ((value - min) / range) * 180);
+              const x = toX(index);
+              const y = toY(value);
 
               return (
                 <g key={`${lineId}-${index}`}>
@@ -600,6 +634,8 @@ export default function CustomerDetailPage() {
   const [error, setError] = useState("");
 
   const [customer, setCustomer] = useState<NormalizedCustomer | null>(null);
+  const [targetWeightInput, setTargetWeightInput] = useState("");
+  const [targetWeightMessage, setTargetWeightMessage] = useState("");
   const [sessions, setSessions] = useState<TrainingSessionRow[]>([]);
   const [sales, setSales] = useState<SaleRow[]>([]);
   const [reservations, setReservations] = useState<ReservationVisitRow[]>([]);
@@ -683,6 +719,7 @@ export default function CustomerDetailPage() {
 
       const normalized = normalizeCustomer(customerData as CustomerRow);
       setCustomer(normalized);
+      setTargetWeightInput(normalized.targetWeight === null ? "" : String(normalized.targetWeight));
       setMemoText(normalized.memo || "");
 
       const { data: sessionData, error: sessionError } = await supabase
@@ -839,6 +876,31 @@ export default function CustomerDetailPage() {
       setTicketError(e?.message || "回数券の追加に失敗しました。");
     } finally {
       setTicketSaving(false);
+    }
+  }
+
+  async function handleSaveTargetWeight() {
+    if (!supabase || !customer) return;
+    const value = targetWeightInput.trim() === "" ? null : Number(targetWeightInput);
+    if (value !== null && (Number.isNaN(value) || value <= 0)) {
+      setTargetWeightMessage("目標体重は数字で入力してください。");
+      return;
+    }
+    try {
+      const numericCustomerId = Number(customer.id);
+      const { error: updateError } = await supabase
+        .from("customers")
+        .update({ target_weight: value })
+        .eq("id", Number.isNaN(numericCustomerId) ? customer.id : numericCustomerId);
+      if (updateError) throw updateError;
+      setCustomer((prev) => (prev ? { ...prev, targetWeight: value } : prev));
+      setTargetWeightMessage("目標体重を保存しました。");
+    } catch (e: any) {
+      setTargetWeightMessage(
+        e?.message?.includes("target_weight")
+          ? "データベースに目標体重の欄がまだありません（管理者に追加を依頼してください）。"
+          : e?.message || "目標体重の保存に失敗しました。"
+      );
     }
   }
 
@@ -2120,6 +2182,29 @@ export default function CustomerDetailPage() {
           startColor="#2563eb"
           endColor="#06b6d4"
           emptyLabel="体重データがまだありません。"
+          target={customer?.targetWeight ?? null}
+          targetEditor={
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#475569" }}>目標体重</span>
+              <input
+                type="number"
+                step="0.1"
+                value={targetWeightInput}
+                onChange={(e) => setTargetWeightInput(e.target.value)}
+                placeholder="例：60.0"
+                style={{ width: 100, minHeight: 34, padding: "0 8px", borderRadius: 8, border: "1px solid #cbd5e1" }}
+              />
+              <span style={{ fontSize: 13 }}>kg</span>
+              <button
+                type="button"
+                onClick={() => void handleSaveTargetWeight()}
+                style={{ minHeight: 34, padding: "0 12px", borderRadius: 8, border: "none", background: "#16a34a", color: "#fff", fontWeight: 700, cursor: "pointer" }}
+              >
+                保存
+              </button>
+              {targetWeightMessage ? <span style={{ fontSize: 12, color: "#475569" }}>{targetWeightMessage}</span> : null}
+            </div>
+          }
         />
 
         <ChartSection
