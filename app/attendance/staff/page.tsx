@@ -615,9 +615,20 @@ export default function AttendanceStaffPage() {
       setSaving(true);
       setErrorMessage("");
 
-      const { error } = await supabase.from("staff_attendance").delete().eq("id", row.id);
+      // 権限（RLS）で削除が許可されていないと、エラーにならずに0件削除で終わる。
+      // 実際に消えた行を返してもらい、0件なら失敗として知らせる。
+      const { data: deletedRows, error } = await supabase
+        .from("staff_attendance")
+        .delete()
+        .eq("id", row.id)
+        .select("id");
 
       if (error) throw new Error(error.message);
+      if (!deletedRows || deletedRows.length === 0) {
+        throw new Error(
+          "削除できませんでした。データベースで打刻の削除が許可されていない可能性があります（Supabaseの staff_attendance に削除のポリシーが必要です）。"
+        );
+      }
 
       void logAudit({
         action: "delete",
