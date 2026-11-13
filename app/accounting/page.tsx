@@ -16,6 +16,7 @@ type PaymentMethod =
   | "銀行振込"
   | "口座振替"
   | "店頭決済"
+  | "楽天ペイ"
   | "その他";
 
 type MonthlyContractRow = {

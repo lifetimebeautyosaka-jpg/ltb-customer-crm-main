@@ -241,7 +241,7 @@ const MENU_OPTIONS = [
   "その他",
 ];
 
-const PAYMENT_OPTIONS = ["現金", "カード", "銀行振込", "その他"];
+const PAYMENT_OPTIONS = ["現金", "カード", "銀行振込", "楽天ペイ", "その他"];
 const VISIT_TYPE_OPTIONS = ["新規", "再来"];
 const WEEK_LABELS = ["月", "火", "水", "木", "金", "土", "日"];
 

@@ -210,6 +210,8 @@ export default function AttendanceStaffPage() {
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthValue());
 
   const [breakMinutes, setBreakMinutes] = useState(45);
+  // 打刻の取り消し・削除は給与に関わるので管理者だけができる
+  const [isAdmin, setIsAdmin] = useState(false);
   const [note, setNote] = useState("");
   const [liveNow, setLiveNow] = useState(Date.now());
 
@@ -238,6 +240,8 @@ export default function AttendanceStaffPage() {
       window.location.href = "/login";
       return;
     }
+
+    setIsAdmin(localStorage.getItem("gymup_user_role") === "admin");
 
     const timer = window.setInterval(() => {
       setLiveNow(Date.now());
@@ -555,7 +559,7 @@ export default function AttendanceStaffPage() {
 
   // 間違えて退勤を押したとき：退勤だけを取り消して「勤務中」に戻す
   async function handleUndoClockOut() {
-    if (!supabase || !todayRow?.id || !todayRow.clock_out) return;
+    if (!isAdmin || !supabase || !todayRow?.id || !todayRow.clock_out) return;
     if (!window.confirm("今日の退勤を取り消して、勤務中に戻しますか？")) return;
 
     try {
@@ -596,7 +600,7 @@ export default function AttendanceStaffPage() {
 
   // 勤怠一覧の各行からも、間違えた日の打刻を削除できる
   async function handleDeleteAttendance(row: AttendanceRow) {
-    if (!supabase || !row?.id) return;
+    if (!isAdmin || !supabase || !row?.id) return;
     if (!window.confirm(`${staffName}さんの${formatDateJP(row.work_date)}の打刻を削除しますか？\n出勤・退勤・休憩・メモがすべて消えます。`)) return;
 
     try {
@@ -790,7 +794,13 @@ export default function AttendanceStaffPage() {
               </button>
             </div>
 
-            {todayRow?.clock_in ? (
+            {todayRow?.clock_in && !isAdmin ? (
+              <div style={{ marginTop: 12, fontSize: 12, color: "#64748b" }}>
+                打刻を間違えたときは、管理者に取り消し・削除を依頼してください。
+              </div>
+            ) : null}
+
+            {todayRow?.clock_in && isAdmin ? (
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
                 {todayRow.clock_out ? (
                   <button
@@ -988,14 +998,16 @@ export default function AttendanceStaffPage() {
                     <div>{row.note || "—"}</div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteAttendance(row)}
-                    disabled={saving}
-                    style={{ ...undoButtonStyle, color: "#dc2626", marginTop: 10, opacity: saving ? 0.55 : 1 }}
-                  >
-                    この日の打刻を削除
-                  </button>
+                  {isAdmin ? (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteAttendance(row)}
+                      disabled={saving}
+                      style={{ ...undoButtonStyle, color: "#dc2626", marginTop: 10, opacity: saving ? 0.55 : 1 }}
+                    >
+                      この日の打刻を削除
+                    </button>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -1014,7 +1026,7 @@ export default function AttendanceStaffPage() {
                     <th style={thStyle}>総勤務</th>
                     <th style={thStyle}>メモ</th>
                     <th style={thStyle}>更新日時</th>
-                    <th style={thStyle}>操作</th>
+                    {isAdmin ? <th style={thStyle}>操作</th> : null}
                   </tr>
                 </thead>
                 <tbody>
@@ -1030,7 +1042,7 @@ export default function AttendanceStaffPage() {
                       <td style={tdStyleStrong}>{minutesToText(row.total_work_minutes ?? 0)}</td>
                       <td style={tdNoteStyle}>{row.note || "—"}</td>
                       <td style={tdStyle}>{formatDateTimeJP(row.updated_at || row.created_at)}</td>
-                      <td style={tdStyle}>
+                      {isAdmin ? <td style={tdStyle}>
                         <button
                           type="button"
                           onClick={() => handleDeleteAttendance(row)}
@@ -1039,7 +1051,7 @@ export default function AttendanceStaffPage() {
                         >
                           削除
                         </button>
-                      </td>
+                      </td> : null}
                     </tr>
                   ))}
                 </tbody>

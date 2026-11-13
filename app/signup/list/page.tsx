@@ -115,7 +115,7 @@ function formatBillingMonth(date: Date) {
 
 function normalizePaymentMethodForSales(value?: string | null) {
   const v = trimmed(value);
-  if (v === "現金" || v === "カード" || v === "銀行振込" || v === "その他") {
+  if (v === "現金" || v === "カード" || v === "銀行振込" || v === "楽天ペイ" || v === "その他") {
     return v;
   }
   if (v === "クレジットカード") return "カード";

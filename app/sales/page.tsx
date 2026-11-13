@@ -13,7 +13,7 @@ type Customer = {
 
 type ServiceType = "ストレッチ" | "トレーニング";
 type AccountingType = "通常売上" | "前受金" | "回数券消化";
-type PaymentMethod = "現金" | "カード" | "銀行振込" | "その他";
+type PaymentMethod = "現金" | "カード" | "銀行振込" | "楽天ペイ" | "その他";
 
 type SaleCategory =
   | "ストレッチ現金"
@@ -187,7 +187,7 @@ const STORE_OPTIONS = [
   "未設定",
 ];
 
-const PAYMENT_OPTIONS: PaymentMethod[] = ["現金", "カード", "銀行振込", "その他"];
+const PAYMENT_OPTIONS: PaymentMethod[] = ["現金", "カード", "銀行振込", "楽天ペイ", "その他"];
 const ACCOUNTING_OPTIONS: AccountingType[] = ["通常売上", "前受金", "回数券消化"];
 const SERVICE_OPTIONS: ServiceType[] = ["ストレッチ", "トレーニング"];
 
@@ -828,6 +828,7 @@ function normalizePaymentMethod(value?: string | null): PaymentMethod {
     value === "現金" ||
     value === "カード" ||
     value === "銀行振込" ||
+    value === "楽天ペイ" ||
     value === "その他"
   ) {
     return value;
