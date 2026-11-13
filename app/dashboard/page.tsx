@@ -137,6 +137,7 @@ const quickLinks = [
   { title: "会計管理", href: "/accounting", desc: "会計区分・月次集計・前受金" },
   { title: "回数券購入", href: "/ticket-contracts", desc: "契約回数券・前受金登録" },
   { title: "勤怠管理", href: "/attendance", desc: "出勤・給与・スタッフ管理" },
+  { title: "フォロー確認", href: "/followup", desc: "回数券の期限・次回予約なし・打刻忘れ" },
   { title: "食事管理", href: "/meal", desc: "食事投稿・フィードバック" },
   { title: "アカウント", href: "/account", desc: "店舗・スタッフ・設定" },
 ];
