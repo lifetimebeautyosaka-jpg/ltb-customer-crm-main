@@ -209,7 +209,7 @@ export default function AttendanceStaffPage() {
   const [monthRows, setMonthRows] = useState<AttendanceRow[]>([]);
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthValue());
 
-  const [breakMinutes, setBreakMinutes] = useState(30);
+  const [breakMinutes, setBreakMinutes] = useState(45);
   const [note, setNote] = useState("");
   const [liveNow, setLiveNow] = useState(Date.now());
 
@@ -342,7 +342,7 @@ export default function AttendanceStaffPage() {
     const row = rows.length > 0 ? rows[0] : null;
 
     setTodayRow(row);
-    setBreakMinutes(row?.break_minutes ?? 30);
+    setBreakMinutes(row?.break_minutes ?? 45);
     setNote(row?.note ?? "");
   }
 
@@ -870,7 +870,7 @@ export default function AttendanceStaffPage() {
 
             <FieldCard label="休憩時間">
               <div style={breakButtonRowStyle}>
-                {[30, 45, 60].map((minutes) => (
+                {[45, 60].map((minutes) => (
                   <button
                     key={minutes}
                     type="button"
