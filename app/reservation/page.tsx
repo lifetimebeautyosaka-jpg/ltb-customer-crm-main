@@ -190,7 +190,7 @@ const STORE_OPTIONS_FOR_FORM = [
 
 const STAFF_OPTIONS = [
   "山口",
-  "中西",
+  "入江",
   "池田",
   "羽田",
   "石川",
@@ -354,6 +354,7 @@ function getStaffColor(staffName?: string | null) {
   const name = trimmed(staffName);
 
   if (name.includes("山口")) return "#22c55e";
+  if (name.includes("入江")) return "#a1887f";
   if (name.includes("中西")) return "#ec4899";
   if (name.includes("池田")) return "#8b5e3c";
   if (name.includes("石川")) return "#2563eb";
@@ -2401,7 +2402,7 @@ export default function ReservationPage() {
           </div>
 
           <div style={styles.legendBox}>
-            {["山口", "中西", "池田", "石川", "羽田", "菱谷", "井上", "林", "その他"].map((name) => (
+            {["山口", "入江", "池田", "石川", "羽田", "菱谷", "井上", "林", "その他"].map((name) => (
               <div key={name} style={styles.legendItem}>
                 <span style={{ ...styles.legendDot, background: getStaffColor(name) }} />
                 {name}

@@ -163,7 +163,7 @@ const supabase = createClient(
 
 const STAFF_OPTIONS = [
   "山口",
-  "中西",
+  "入江",
   "池田",
   "羽田",
   "石川",

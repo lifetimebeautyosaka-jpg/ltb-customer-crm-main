@@ -84,6 +84,7 @@ function getInitial(name?: string | null) {
 
 const STAFF_COLORS: Record<string, string> = {
   山口: "#16a34a",
+  入江: "#a1887f",
   中西: "#ec4899",
   池田: "#8b5cf6",
   石川: "#3b82f6",
