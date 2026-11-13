@@ -553,6 +553,66 @@ export default function AttendanceStaffPage() {
     }
   }
 
+  // 間違えて退勤を押したとき：退勤だけを取り消して「勤務中」に戻す
+  async function handleUndoClockOut() {
+    if (!supabase || !todayRow?.id || !todayRow.clock_out) return;
+    if (!window.confirm("今日の退勤を取り消して、勤務中に戻しますか？")) return;
+
+    try {
+      setSaving(true);
+      setErrorMessage("");
+
+      const { error } = await supabase
+        .from("staff_attendance")
+        .update({
+          clock_out: null,
+          total_work_minutes: 0,
+          overtime_minutes: 0,
+          late_night_minutes: 0,
+          regular_minutes: 0,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", todayRow.id);
+
+      if (error) throw new Error(error.message);
+
+      await loadTodayAttendance(selectedStaffId);
+      await loadMonthAttendance(selectedStaffId);
+      alert("退勤を取り消しました。");
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "退勤の取り消しに失敗しました。";
+      setErrorMessage(msg);
+      alert(msg);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // 間違えて打刻したとき：今日の勤怠を丸ごと削除する（出勤からやり直せる）
+  async function handleDeleteToday() {
+    if (!supabase || !todayRow?.id) return;
+    if (!window.confirm(`${staffName}さんの今日（${todayJst}）の打刻を削除しますか？\n出勤・退勤・休憩・メモがすべて消えます。`)) return;
+
+    try {
+      setSaving(true);
+      setErrorMessage("");
+
+      const { error } = await supabase.from("staff_attendance").delete().eq("id", todayRow.id);
+
+      if (error) throw new Error(error.message);
+
+      await loadTodayAttendance(selectedStaffId);
+      await loadMonthAttendance(selectedStaffId);
+      alert("今日の打刻を削除しました。");
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "打刻の削除に失敗しました。";
+      setErrorMessage(msg);
+      alert(msg);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleSaveMemo() {
     if (!supabase) {
       alert("Supabaseの環境変数が未設定です。");
@@ -723,6 +783,29 @@ export default function AttendanceStaffPage() {
                 退勤する
               </button>
             </div>
+
+            {todayRow?.clock_in ? (
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+                {todayRow.clock_out ? (
+                  <button
+                    type="button"
+                    onClick={handleUndoClockOut}
+                    disabled={saving}
+                    style={{ ...undoButtonStyle, opacity: saving ? 0.55 : 1 }}
+                  >
+                    退勤を取り消す
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={handleDeleteToday}
+                  disabled={saving}
+                  style={{ ...undoButtonStyle, color: "#dc2626", opacity: saving ? 0.55 : 1 }}
+                >
+                  今日の打刻を削除
+                </button>
+              </div>
+            ) : null}
           </div>
 
           <div style={heroRightStyle}>
@@ -787,27 +870,22 @@ export default function AttendanceStaffPage() {
 
             <FieldCard label="休憩時間">
               <div style={breakButtonRowStyle}>
-                <button
-                  type="button"
-                  onClick={() => setBreakMinutes(30)}
-                  style={{
-                    ...breakButtonStyle,
-                    ...(breakMinutes === 30 ? breakButtonActiveStyle : {}),
-                  }}
-                >
-                  30分
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setBreakMinutes(60)}
-                  style={{
-                    ...breakButtonStyle,
-                    ...(breakMinutes === 60 ? breakButtonActiveStyle : {}),
-                  }}
-                >
-                  60分
-                </button>
+                {[30, 45, 60].map((minutes) => (
+                  <button
+                    key={minutes}
+                    type="button"
+                    onClick={() => setBreakMinutes(minutes)}
+                    style={{
+                      ...breakButtonStyle,
+                      ...(breakMinutes === minutes ? breakButtonActiveStyle : {}),
+                    }}
+                  >
+                    {minutes}分
+                  </button>
+                ))}
+              </div>
+              <div style={{ marginTop: 8, fontSize: 12, color: "#64748b", lineHeight: 1.6 }}>
+                労働基準法：勤務が6時間を超えるときは45分以上、8時間を超えるときは60分以上の休憩が必要です。
               </div>
             </FieldCard>
           </div>
@@ -1577,3 +1655,14 @@ const responsiveStyle = `
   }
 }
 `;
+
+const undoButtonStyle: CSSProperties = {
+  minHeight: 40,
+  padding: "0 14px",
+  borderRadius: 12,
+  border: "1px solid rgba(148,163,184,0.5)",
+  background: "rgba(255,255,255,0.9)",
+  color: "#334155",
+  fontWeight: 700,
+  cursor: "pointer",
+};
