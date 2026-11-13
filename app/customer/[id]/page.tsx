@@ -281,6 +281,21 @@ function diffColor(value: number | null) {
   return "#64748b";
 }
 
+// 同じ日に何回も記録すると、グラフに同じ日の点が何個も並んで二重になっていた。
+// 日付ごとに一番新しい記録だけを残す（sessions は日付・作成日時の昇順で並んでいる前提）。
+function latestPerDate<T extends { session_date?: string | null }>(rows: T[]): T[] {
+  const map = new Map<string, T>();
+  for (const row of rows) {
+    const date = String(row.session_date || "").slice(0, 10);
+    if (!date) continue;
+    map.delete(date);
+    map.set(date, row);
+  }
+  return Array.from(map.values()).sort((a, b) =>
+    String(a.session_date).localeCompare(String(b.session_date))
+  );
+}
+
 function buildChartPoints(values: number[], width: number, height: number) {
   if (values.length === 0) return "";
   if (values.length === 1) return `${width / 2},${height / 2}`;
@@ -865,8 +880,9 @@ export default function CustomerDetailPage() {
   }, [sessions]);
 
   const previousSession = useMemo(() => {
-    if (sessions.length < 2) return null;
-    return sessions[sessions.length - 2];
+    const byDate = latestPerDate(sessions);
+    if (byDate.length < 2) return null;
+    return byDate[byDate.length - 2];
   }, [sessions]);
 
   const weightDiff = calcDiff(latestSession?.body_weight, previousSession?.body_weight);
@@ -986,20 +1002,24 @@ export default function CustomerDetailPage() {
   }, [reservations]);
 
   const weightChartSessions = useMemo(() => {
-    return sessions.filter(
-      (item) =>
-        item.body_weight !== null &&
-        item.body_weight !== undefined &&
-        item.session_date
+    return latestPerDate(
+      sessions.filter(
+        (item) =>
+          item.body_weight !== null &&
+          item.body_weight !== undefined &&
+          item.session_date
+      )
     );
   }, [sessions]);
 
   const bodyFatChartSessions = useMemo(() => {
-    return sessions.filter(
-      (item) =>
-        item.body_fat !== null &&
-        item.body_fat !== undefined &&
-        item.session_date
+    return latestPerDate(
+      sessions.filter(
+        (item) =>
+          item.body_fat !== null &&
+          item.body_fat !== undefined &&
+          item.session_date
+      )
     );
   }, [sessions]);
 
