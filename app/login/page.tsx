@@ -24,7 +24,7 @@ const LOGIN_ACCOUNTS = [
     staffName: "管理者",
   },
   {
-    loginId: "staff1",
+    loginId: "staff",
     email: "staff@test.com",
     role: "staff" as const,
     staffName: "スタッフ1",

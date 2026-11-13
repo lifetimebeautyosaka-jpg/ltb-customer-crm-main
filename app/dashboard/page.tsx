@@ -138,6 +138,7 @@ const quickLinks = [
   { title: "回数券購入", href: "/ticket-contracts", desc: "契約回数券・前受金登録" },
   { title: "勤怠管理", href: "/attendance", desc: "出勤・給与・スタッフ管理" },
   { title: "フォロー確認", href: "/followup", desc: "回数券の期限・次回予約なし・打刻忘れ" },
+  { title: "前受金の残高", href: "/tickets/balance", desc: "未使用の回数券の金額・期限切れの回数券" },
   { title: "食事管理", href: "/meal", desc: "食事投稿・フィードバック" },
   { title: "アカウント", href: "/account", desc: "店舗・スタッフ・設定" },
 ];
@@ -391,6 +392,23 @@ export default function DashboardPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [selectedDate, setSelectedDate] = useState(getTodayDateString());
   const [selectedMonth, setSelectedMonth] = useState(getTodayDateString().slice(0, 7));
+  // 月の売上目標（純売上）。この端末に保存する
+  const [monthTarget, setMonthTarget] = useState("");
+  useEffect(() => {
+    try {
+      setMonthTarget(localStorage.getItem(`gymup_month_target_${selectedMonth}`) || "");
+    } catch {
+      setMonthTarget("");
+    }
+  }, [selectedMonth]);
+  function saveMonthTarget(value: string) {
+    setMonthTarget(value);
+    try {
+      localStorage.setItem(`gymup_month_target_${selectedMonth}`, value);
+    } catch {
+      // 保存できない環境では、その場の表示だけにする
+    }
+  }
   const [loading, setLoading] = useState(true);
   const [systemStatus, setSystemStatus] = useState<SystemStatus>("OFFLINE");
   const [error, setError] = useState("");
@@ -1666,6 +1684,42 @@ export default function DashboardPage() {
                 前月比 {monthlyChangeText} / 前受金 {formatYen(stats.monthAdvanceAmount)} / 売上 {monthSalesRows.length}件
               </div>
             </div>
+
+            {(() => {
+              const today = getTodayDateString();
+              const [y, m] = selectedMonth.split("-").map(Number);
+              const daysInMonth = new Date(y, m, 0).getDate();
+              const isCurrent = today.slice(0, 7) === selectedMonth;
+              const elapsed = isCurrent ? Number(today.slice(8, 10)) : today.slice(0, 7) > selectedMonth ? daysInMonth : 0;
+              const actual = stats.monthSalesAmount || 0;
+              const forecast = elapsed > 0 ? Math.round((actual / elapsed) * daysInMonth) : null;
+              const target = Number(monthTarget || 0);
+              const rate = target > 0 ? Math.round((actual / target) * 1000) / 10 : null;
+              return (
+                <div className="monthly-total-card" style={{ marginTop: 10, flexWrap: "wrap", gap: 12 }}>
+                  <div>
+                    <div className="monthly-total-label">今月の目標（純売上）</div>
+                    <input
+                      type="number"
+                      value={monthTarget}
+                      onChange={(e) => saveMonthTarget(e.target.value)}
+                      placeholder="例：4500000"
+                      className="month-input"
+                      style={{ width: 160 }}
+                    />
+                  </div>
+                  <div className="monthly-total-sub" style={{ display: "grid", gap: 4 }}>
+                    {rate !== null ? <span>達成率 {rate}%（あと {formatYen(Math.max(0, target - actual))}）</span> : <span>目標を入れると達成率が出ます</span>}
+                    {isCurrent && forecast !== null ? (
+                      <span>
+                        このペースなら月末 {formatYen(forecast)}
+                        {target > 0 ? (forecast >= target ? "（目標達成ペース）" : `（目標まで1日あたり ${formatYen(Math.ceil((target - actual) / Math.max(1, daysInMonth - elapsed)))} 必要）`) : ""}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="monthly-summary-grid">
               <div className="monthly-summary-box">

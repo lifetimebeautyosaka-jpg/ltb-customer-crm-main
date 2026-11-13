@@ -1911,25 +1911,25 @@ const ticketIssueInfo =
 
           <section style={styles.kpiGrid}>
             <div style={styles.kpiCard}>
-              <span>Selected Month</span>
+              <span>入金合計</span>
               <strong>{formatCurrency(selectedMonthGrandTotal)}</strong>
-              <small>{formatMonthJP(selectedMonth)} 合計</small>
+              <small>{formatMonthJP(selectedMonth)}（純売上＋前受金）</small>
             </div>
 
             <div style={styles.kpiCard}>
-              <span>Net Sales</span>
+              <span>純売上（売上）</span>
               <strong>{formatCurrency(selectedMonthSalesTotal)}</strong>
               <small>通常売上＋回数券消化</small>
             </div>
 
             <div style={styles.kpiCard}>
-              <span>Advance</span>
+              <span>前受金</span>
               <strong>{formatCurrency(selectedMonthAdvanceTotal)}</strong>
-              <small>前受金</small>
+              <small>回数券の代金（来店時に売上へ）</small>
             </div>
 
             <div style={styles.kpiCard}>
-              <span>Count</span>
+              <span>件数</span>
               <strong>{monthlySales.length}件</strong>
               <small>選択月の売上件数</small>
             </div>
