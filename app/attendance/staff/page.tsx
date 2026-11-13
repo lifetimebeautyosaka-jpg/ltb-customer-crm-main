@@ -993,6 +993,12 @@ export default function AttendanceStaffPage() {
             </div>
           </div>
 
+          {!isAdmin ? (
+            <div style={{ marginBottom: 12, padding: "10px 12px", borderRadius: 10, background: "#f1f5f9", fontSize: 13, color: "#475569" }}>
+              打刻の削除・取り消しは、<strong>管理者（admin）でログイン</strong>すると表示されます。
+              {" "}<a href="/login" style={{ color: "#2563eb", fontWeight: 700 }}>管理者でログインし直す</a>
+            </div>
+          ) : null}
           {loading ? (
             <div style={loadingStyle}>読み込み中...</div>
           ) : !selectedStaffId ? (
