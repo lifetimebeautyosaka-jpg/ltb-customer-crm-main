@@ -1502,26 +1502,6 @@ export default function SalesPage() {
 
         const stretchTicketIssueInfo =
   parseTicketIssuePresetInfo(preset);
-  function parseTrainingTicketIssuePresetInfo(
-  preset?: PricePreset | null
-): TicketIssuePresetInfo | null {
-  if (!preset) return null;
-  if (preset.serviceType !== "トレーニング") return null;
-  if (preset.accountingType !== "前受金") return null;
-
-  const count =
-    detectCountFromText(preset.label) ||
-    detectCountFromText(preset.menuName);
-
-  if (!count) return null;
-
-  return {
-    priceVersion: "新",
-    ticketCount: count,
-    minutes: 60,
-  };
-}
-
 const trainingTicketIssueInfo =
   parseTrainingTicketIssuePresetInfo(preset);
 
@@ -1546,7 +1526,8 @@ const ticketIssueInfo =
                   : null,
                 customer_name: customerName,
                 ticket_name: preset?.label || menuName,
-                service_type: "ストレッチ",
+                // 以前は "ストレッチ" 固定で、トレーニングの回数券もストレッチとして発行されていた
+                service_type: preset?.serviceType || serviceType,
                 total_count:
                   ticketIssueInfo.ticketCount,
                 remaining_count:
