@@ -1203,7 +1203,7 @@ export default function SalesPage() {
       "gymup_current_staff_name"
     );
 
-    if (staffName) {
+    if (staffName && STAFF_OPTIONS.includes(staffName)) {
       setStaff(staffName);
     }
   }, [router]);

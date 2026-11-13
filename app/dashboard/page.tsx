@@ -550,7 +550,7 @@ export default function DashboardPage() {
           fetchAllRows<CustomerRow>((from, to) =>
             supabase
               .from("customers")
-              .select("id, name, customer_name, plan_type, created_at")
+              .select("id, name, plan_type, created_at")
               .order("id", { ascending: true })
               .range(from, to)
           ),
@@ -619,7 +619,36 @@ export default function DashboardPage() {
             customerMapByName.set(normalized, customer);
           }
         }
+        if (customersResult.error) {
+          console.error("customers load error:", customersResult.error);
+        }
+
         setSystemStatus("ONLINE");
+
+        // カウンセリング済み・回数券消化済みを予約IDで突き合わせる
+        // （以前は常に「未」扱いで、カウンセリング未・回数券未消化の件数が正しくなかった）
+        const reservationIds = rawReservations
+          .map((row) => row.id)
+          .filter((id) => id !== null && id !== undefined && trimmed(id) !== "");
+
+        const [counselingResult, usageResult] =
+          reservationIds.length > 0
+            ? await Promise.all([
+                supabase.from("counselings").select("reservation_id").in("reservation_id", reservationIds),
+                supabase.from("ticket_usages").select("reservation_id").in("reservation_id", reservationIds),
+              ])
+            : [{ data: [], error: null }, { data: [], error: null }];
+
+        const counseledIds = new Set(
+          ((counselingResult.data || []) as { reservation_id: unknown }[]).map((row) =>
+            trimmed(row.reservation_id)
+          )
+        );
+        const ticketUsedIds = new Set(
+          ((usageResult.data || []) as { reservation_id: unknown }[]).map((row) =>
+            trimmed(row.reservation_id)
+          )
+        );
                 const displayReservations: DashboardReservation[] = rawReservations.map((row) => {
           const reservationId = trimmed(row.id);
           const customerId = trimmed(row.customer_id);
@@ -645,8 +674,8 @@ export default function DashboardPage() {
             isSold:
               trimmed(row.reservation_status) === "売上済" ||
               todaySales.some((sale) => trimmed(sale.reservation_id) === reservationId),
-            isTicketUsed: false,
-            isCounseled: false,
+            isTicketUsed: ticketUsedIds.has(reservationId),
+            isCounseled: counseledIds.has(reservationId),
             ticketName: resolveTicketName({
               reservationMenu: menu,
               customerPlanType: customer?.plan_type || null,
@@ -666,7 +695,45 @@ export default function DashboardPage() {
             level: "red",
           }));
 
-        const ltvList: LtvCustomer[] = [];
+        for (const item of displayReservations) {
+          if (!isNewVisit(item) || item.isCounseled) continue;
+          nextTodoItems.push({
+            id: `counseling-${item.id}`,
+            title: `${item.time} ${item.customerName}`,
+            sub: `${item.menu} / ${item.staffName} / カウンセリング未`,
+            href: `/reservation/detail/${item.id}`,
+            customerHref: item.customerId ? `/customer/${item.customerId}` : undefined,
+            level: "purple",
+          });
+        }
+
+        // LTV（これまでの純売上の累計）上位5名。前受金は二重計上になるので除く
+        const ltvSalesResult = await fetchAllRows<SaleRow>((from, to) =>
+          supabase
+            .from("sales")
+            .select("id, customer_id, customer_name, amount, sale_type")
+            .order("id", { ascending: true })
+            .range(from, to)
+        );
+        const ltvMap = new Map<string, LtvCustomer>();
+        for (const sale of ltvSalesResult.data) {
+          if (isAdvanceSale(sale)) continue;
+          const amount = Number(sale.amount || 0);
+          if (!Number.isFinite(amount)) continue;
+          const customerId = trimmed(sale.customer_id);
+          const customerName =
+            trimmed(sale.customer_name) ||
+            (customerId ? getCustomerName(customerMapById.get(customerId)) : "") ||
+            "名前未設定";
+          const key = customerId || `name-${normalizeName(customerName)}`;
+          const current = ltvMap.get(key) || { customerId: key, customerName, amount: 0, count: 0 };
+          current.amount += amount;
+          current.count += 1;
+          ltvMap.set(key, current);
+        }
+        const ltvList: LtvCustomer[] = Array.from(ltvMap.values())
+          .sort((a, b) => b.amount - a.amount)
+          .slice(0, 5);
 
         setReservations(displayReservations);
         setTodoItems(nextTodoItems);
