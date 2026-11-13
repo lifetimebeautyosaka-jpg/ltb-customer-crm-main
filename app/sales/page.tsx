@@ -1443,6 +1443,37 @@ export default function SalesPage() {
         throw new Error("金額を入力してください。");
       }
 
+      // 回数券消化は、売上を登録する「前に」使える回数券があるか確認する。
+      // 以前は売上を登録した後で確認していたため、エラーが出ても売上だけ残り、
+      // 登録し直すと二重計上になっていた。
+      const consumeCount = validRows.filter(
+        (row) => row.saleType === "回数券消化"
+      ).length;
+
+      if (consumeCount > 0 && customerId) {
+        const { data: ticketRows, error: ticketCheckError } = await supabase
+          .from("customer_tickets")
+          .select("remaining_count")
+          .eq("customer_id", Number(customerId))
+          .eq("service_type", serviceType)
+          .gt("remaining_count", 0);
+
+        if (ticketCheckError) {
+          throw new Error(`回数券確認エラー: ${ticketCheckError.message}`);
+        }
+
+        const remainingTotal = ((ticketRows as { remaining_count: number | null }[] | null) || [])
+          .reduce((sum, row) => sum + Number(row.remaining_count || 0), 0);
+
+        if (remainingTotal < consumeCount) {
+          throw new Error(
+            remainingTotal === 0
+              ? `使用可能な${serviceType}の回数券が見つかりません。売上は登録していません。`
+              : `${serviceType}の回数券の残りが${remainingTotal}回しかありません（消化${consumeCount}回）。売上は登録していません。`
+          );
+        }
+      }
+
       const createdSales: Sale[] = [];
 
       for (const row of validRows) {
@@ -1692,6 +1723,23 @@ const ticketIssueInfo =
         throw new Error(
           `売上削除エラー: ${error.message}`
         );
+      }
+
+      // その予約の売上がもう残っていなければ、予約を「予約済」に戻す
+      // （以前は「売上済」のまま残り、売上未の一覧から漏れていた）
+      if (targetSale.reservationId) {
+        const { count: remainingSalesCount } = await supabase
+          .from("sales")
+          .select("id", { count: "exact", head: true })
+          .eq("reservation_id", targetSale.reservationId);
+
+        if (!remainingSalesCount) {
+          await supabase
+            .from("reservations")
+            .update({ reservation_status: "予約済" })
+            .eq("id", targetSale.reservationId)
+            .eq("reservation_status", "売上済");
+        }
       }
 
       setSales((prev) =>
