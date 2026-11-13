@@ -21,12 +21,20 @@ const menuCards = [
       "全スタッフの勤怠、月別集計、残業・深夜時間、給与概算を確認できます。",
   },
   {
-    title: "給与明細",
-    sub: "スタッフ別の給与概算確認",
-    href: "/attendance/admin/payslip",
-    stat: "PAYSLIP",
+    title: "給与明細・今月の自分",
+    sub: "打刻と売上から自動計算",
+    href: "/attendance/salary",
+    stat: "SALARY",
     description:
-      "対象月・対象スタッフごとの給与明細を確認できます。",
+      "打刻と売上から、給与明細（管理者）と今月の勤務・インセンティブ見込み（スタッフ）を表示します。印刷・PDF保存もできます。",
+  },
+  {
+    title: "売上分析（旧給与明細）",
+    sub: "スタッフ別の売上・予約の集計",
+    href: "/attendance/admin/payslip",
+    stat: "ANALYSIS",
+    description:
+      "スタッフ別の売上・予約・指名などの集計を確認できます。",
   },
   {
     title: "賃金台帳",
