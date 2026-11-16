@@ -955,14 +955,26 @@ export default function CustomerDetailPage() {
 
   const trainingCount = sessions.length;
 
+  // LTV ＝ 純売上（通常売上＋回数券消化）。前受金は消化と二重になるので除く
+  const netSales = useMemo(
+    () => sales.filter((item) => !String(item.sale_type || "").includes("前受")),
+    [sales]
+  );
+
   const ltv = useMemo(() => {
-    return sales.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    return netSales.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  }, [netSales]);
+
+  const paidTotal = useMemo(() => {
+    return sales
+      .filter((item) => !String(item.sale_type || "").includes("消化"))
+      .reduce((sum, item) => sum + Number(item.amount || 0), 0);
   }, [sales]);
 
   const averageSaleAmount = useMemo(() => {
-    if (sales.length === 0) return 0;
-    return Math.round(ltv / sales.length);
-  }, [ltv, sales.length]);
+    if (netSales.length === 0) return 0;
+    return Math.round(ltv / netSales.length);
+  }, [ltv, netSales.length]);
 
   const activeTickets = useMemo(() => {
     return tickets.filter((item) => calcTicketComputedStatus(item) === "有効");
@@ -1243,12 +1255,12 @@ export default function CustomerDetailPage() {
             <MetricCard
               label="LTV"
               value={formatCurrency(ltv)}
-              sub={`${sales.length}件の売上`}
+              sub={`純売上 ${netSales.length}件 / 支払額 ${formatCurrency(paidTotal)}`}
             />
             <MetricCard
               label="平均単価"
               value={formatCurrency(averageSaleAmount)}
-              sub="売上件数ベース"
+              sub="1回あたり（前受金を除く）"
             />
             <MetricCard
               label="累計来店"

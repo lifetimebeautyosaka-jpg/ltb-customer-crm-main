@@ -140,6 +140,7 @@ const quickLinks = [
   { title: "フォロー確認", href: "/followup", desc: "回数券の期限・次回予約なし・打刻忘れ" },
   { title: "前受金の残高", href: "/tickets/balance", desc: "未使用の回数券の金額・期限切れの回数券" },
   { title: "リピート率", href: "/repeat-rate", desc: "新規の2回目来店率（スタッフ・店舗・流入元別）" },
+  { title: "LTVランキング", href: "/ltv", desc: "お客様ごとの累計売上・離脱注意" },
   { title: "食事管理", href: "/meal", desc: "食事投稿・フィードバック" },
   { title: "アカウント", href: "/account", desc: "店舗・スタッフ・設定" },
 ];
@@ -1943,8 +1944,9 @@ export default function DashboardPage() {
                 <div className="panel-head">
                   <div>
                     <div className="panel-title">LTV上位顧客</div>
-                    <div className="panel-sub">売上累計上位5名</div>
+                    <div className="panel-sub">純売上の累計 上位5名</div>
                   </div>
+                  <Link href="/ltv" style={{ fontSize: 13, fontWeight: 700 }}>ランキングを見る →</Link>
                 </div>
 
                 {loading ? (

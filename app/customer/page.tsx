@@ -9,6 +9,7 @@ import {
 } from "@/lib/acquisitionChannels";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import { BG, CARD, BUTTON_PRIMARY } from "../../styles/theme";
 
 const STORE_OPTIONS = ["江戸堀", "箕面", "福島", "福島P", "天満橋", "天満橋Ts", "中崎町", "江坂", "西梅田"];
@@ -280,14 +281,38 @@ export default function CustomerPage() {
       setLoading(true);
       setErrorMessage("");
 
-      const { data, error } = await supabase
-        .from("customers")
-        .select("*")
-        .order("id", { ascending: true });
+      const client = supabase;
+      const [{ data, error }, salesRes] = await Promise.all([
+        fetchAllRows<any>((from, to) =>
+          client.from("customers").select("*").order("id", { ascending: true }).range(from, to)
+        ),
+        fetchAllRows<{ customer_id: number | string | null; amount: number | null; sale_type: string | null }>(
+          (from, to) =>
+            client
+              .from("sales")
+              .select("customer_id, amount, sale_type")
+              .order("id", { ascending: true })
+              .range(from, to)
+        ),
+      ]);
 
       if (error) throw error;
+      if (salesRes.error) throw salesRes.error;
 
-      setCustomers(((data || []) as Customer[]).map(normalizeCustomer));
+      // LTV ＝ これまでの純売上（通常売上＋回数券消化）。前受金は消化と二重になるので除く
+      const ltvMap = new Map<string, number>();
+      for (const sale of salesRes.data) {
+        if (!sale.customer_id || String(sale.sale_type || "").includes("前受")) continue;
+        const key = String(sale.customer_id);
+        ltvMap.set(key, (ltvMap.get(key) || 0) + Number(sale.amount || 0));
+      }
+
+      setCustomers(
+        ((data || []) as Customer[]).map((row) => {
+          const c = normalizeCustomer(row);
+          return { ...c, ltv: ltvMap.get(String(c.id)) ?? 0 };
+        })
+      );
     } catch (error: any) {
       console.error(error);
       setErrorMessage(error?.message || "顧客一覧の取得に失敗しました。");
@@ -818,10 +843,10 @@ export default function CustomerPage() {
                 label="LTV"
                 input={
                   <input
-                    value={String(form.ltv || "")}
-                    onChange={(e) => handleChange("ltv", e.target.value)}
-                    placeholder="例 120000"
-                    style={styles.input}
+                    value={editingId ? yen(form.ltv) : "売上から自動計算"}
+                    readOnly
+                    title="売上（通常売上＋回数券消化）から自動で計算します"
+                    style={{ ...styles.input, background: "#f1f5f9", color: "#64748b" }}
                   />
                 }
               />
