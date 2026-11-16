@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { logAudit } from "@/lib/audit";
+import { serviceTypeFromMenu } from "@/lib/serviceCategory";
 
 type Customer = {
   id: string | number;
@@ -12,7 +13,7 @@ type Customer = {
   phone?: string | null;
 };
 
-type ServiceType = "ストレッチ" | "トレーニング";
+type ServiceType = "ストレッチ" | "トレーニング" | "ウェットヘッドスパ" | "ドライヘッドスパ" | "オイルマッサージ" | "足ツボ";
 type AccountingType = "通常売上" | "前受金" | "回数券消化";
 type PaymentMethod = "現金" | "カード" | "銀行振込" | "楽天ペイ" | "その他";
 
@@ -190,7 +191,7 @@ const STORE_OPTIONS = [
 
 const PAYMENT_OPTIONS: PaymentMethod[] = ["現金", "カード", "銀行振込", "楽天ペイ", "その他"];
 const ACCOUNTING_OPTIONS: AccountingType[] = ["通常売上", "前受金", "回数券消化"];
-const SERVICE_OPTIONS: ServiceType[] = ["ストレッチ", "トレーニング"];
+const SERVICE_OPTIONS: ServiceType[] = ["ストレッチ", "トレーニング", "ウェットヘッドスパ", "ドライヘッドスパ", "オイルマッサージ", "足ツボ"];
 
 const STRETCH_NEW_TICKET_SALES: Record<
   4 | 8 | 12,
@@ -607,9 +608,7 @@ function getQueryParam(name: string) {
 }
 
 function detectServiceTypeFromMenu(menu?: string | null): ServiceType {
-  const text = String(menu || "");
-  if (text.includes("ストレッチ")) return "ストレッチ";
-  return "トレーニング";
+  return serviceTypeFromMenu(menu);
 }
 
 function toCsvValue(value: string | number) {
@@ -789,18 +788,19 @@ function buildCategory(
   paymentMethod: PaymentMethod
 ): SaleCategory {
   if (accountingType === "前受金") {
-    return serviceType === "ストレッチ"
+    return serviceType !== "トレーニング"
       ? "ストレッチ前受金"
       : "トレーニング前受金";
   }
 
   if (accountingType === "回数券消化") {
-    return serviceType === "ストレッチ"
+    return serviceType !== "トレーニング"
       ? "ストレッチ回数券消化"
       : "トレーニング回数券消化";
   }
 
-  if (serviceType === "ストレッチ") {
+  // リラクゼーション（ストレッチ・ヘッドスパなど）は会計区分上「ストレッチ」側にまとめる
+  if (serviceType !== "トレーニング") {
     if (paymentMethod === "現金") return "ストレッチ現金";
     if (paymentMethod === "カード") return "ストレッチカード";
     if (paymentMethod === "銀行振込") return "ストレッチ銀行振込";
@@ -814,7 +814,8 @@ function buildCategory(
 }
 
 function normalizeServiceType(value?: string | null): ServiceType {
-  if (value === "ストレッチ") return "ストレッチ";
+  const v = (value || "").trim();
+  if (SERVICE_OPTIONS.includes(v as ServiceType)) return v as ServiceType;
   return "トレーニング";
 }
 
@@ -855,7 +856,7 @@ function rowToSale(row: SupabaseSaleRow): Sale {
     customerName: row.customer_name || "未設定",
     menuName:
       matchedMenuName ||
-      (serviceType === "ストレッチ" ? "ストレッチ" : "トレーニング"),
+      serviceType,
     staff: row.staff_name || "未設定",
     storeName: row.store_name || "未設定",
     serviceType,
@@ -1490,9 +1491,7 @@ export default function SalesPage() {
         const menuName =
           preset?.menuName ||
           note.match(/メニュー名:\s*(.+)/)?.[1] ||
-          (serviceType === "ストレッチ"
-            ? "ストレッチ"
-            : "トレーニング");
+          serviceType;
 
         const category = buildCategory(
           serviceType,
@@ -1893,6 +1892,10 @@ const ticketIssueInfo =
 
               <Link href="/sales/stores" style={styles.secondaryButton}>
                 店舗別集計
+              </Link>
+
+              <Link href="/sales/analysis" style={styles.secondaryButton}>
+                サービス別の推移
               </Link>
 
               <Link href="/sales/freee" style={styles.secondaryButton}>

@@ -205,6 +205,10 @@ const STAFF_OPTIONS = [
 const MENU_OPTIONS = [
   "ストレッチ",
   "トレーニング",
+  "ウェットヘッドスパ",
+  "ドライヘッドスパ",
+  "オイルマッサージ",
+  "足ツボ",
   "40分4回_旧",
   "40分8回_旧",
   "40分12回_旧",
@@ -454,6 +458,9 @@ function isTicketMenu(menu?: string | null) {
 
 function detectServiceTypeFromReservationMenu(menu?: string | null) {
   const text = trimmed(menu);
+  for (const type of ["ウェットヘッドスパ", "ドライヘッドスパ", "オイルマッサージ", "足ツボ"]) {
+    if (text.includes(type)) return type;
+  }
   if (
     text.includes("40分") ||
     text.includes("60分") ||

@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { classifyService } from "@/lib/serviceCategory";
 
 // 店舗別の月次集計
 // 売上 ＝ 通常売上 ＋ 回数券消化（施術した分）。前受金（回数券の販売）は参考として別の列に出す
 // 新規 ＝ その月の予約のうち、来店区分が「新規」（または初回フラグあり）でキャンセル以外のもの
 
-type SaleRow = { sale_type: string | null; amount: number | null; store_name: string | null; menu_type: string | null };
+type SaleRow = { sale_type: string | null; amount: number | null; store_name: string | null; menu_type: string | null; customer_name: string | null; memo: string | null };
 type ReservationRow = {
   store_name: string | null;
   visit_type: string | null;
@@ -63,7 +64,7 @@ export default function StoreSummaryPage() {
         fetchAllRows<SaleRow>((from, to) =>
           supabase
             .from("sales")
-            .select("sale_type, amount, store_name, menu_type")
+            .select("sale_type, amount, store_name, menu_type, customer_name, memo")
             .gte("sale_date", start)
             .lt("sale_date", end)
             .order("id", { ascending: true })
@@ -107,8 +108,9 @@ export default function StoreSummaryPage() {
       else {
         row.net += amount;
         row.count += 1;
-        if ((s.menu_type || "").trim() === "トレーニング") row.training += amount;
-        else row.stretch += amount;
+        const type = classifyService({ menuType: s.menu_type, storeName: s.store_name, text: `${s.memo || ""} ${s.customer_name || ""}` });
+        if (type === "トレーニング") row.training += amount;
+        else row.stretch += amount; // リラクゼーション（ストレッチ・ヘッドスパ・オイルマッサージ・足ツボ）
       }
     }
 
@@ -144,7 +146,10 @@ export default function StoreSummaryPage() {
             <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>STORE SUMMARY</div>
             <h1 style={{ margin: "4px 0 0", fontSize: 24 }}>店舗別の売上・新規</h1>
           </div>
-          <Link href="/sales" style={linkStyle}>売上管理へ</Link>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Link href="/sales/analysis" style={linkStyle}>サービス別の推移</Link>
+            <Link href="/sales" style={linkStyle}>売上管理へ</Link>
+          </div>
         </div>
 
         <section style={cardStyle}>
@@ -159,13 +164,13 @@ export default function StoreSummaryPage() {
           <section style={cardStyle}>
             <div style={{ display: "grid", gap: 6 }}>
               <div style={{ fontSize: 13, fontWeight: 700 }}>
-                全店舗：トレーニング {pct(total.training, total.net)}（{yen(total.training)}） ／ ストレッチ（施術） {pct(total.stretch, total.net)}（{yen(total.stretch)}）
+                全店舗：トレーニング {pct(total.training, total.net)}（{yen(total.training)}） ／ リラクゼーション {pct(total.stretch, total.net)}（{yen(total.stretch)}）
               </div>
               <div style={{ display: "flex", height: 14, borderRadius: 7, overflow: "hidden", background: "#e2e8f0" }}>
                 <div style={{ width: total.net > 0 ? `${(total.training / total.net) * 100}%` : 0, background: "#f97316" }} title="トレーニング" />
-                <div style={{ width: total.net > 0 ? `${(total.stretch / total.net) * 100}%` : 0, background: "#2563eb" }} title="ストレッチ（施術）" />
+                <div style={{ width: total.net > 0 ? `${(total.stretch / total.net) * 100}%` : 0, background: "#2563eb" }} title="リラクゼーション" />
               </div>
-              <div style={{ fontSize: 11, color: "#64748b" }}>オレンジ：トレーニング ／ 青：ストレッチ（施術）</div>
+              <div style={{ fontSize: 11, color: "#64748b" }}>オレンジ：トレーニング ／ 青：リラクゼーション（ストレッチ・ヘッドスパ・オイルマッサージ・足ツボ）</div>
             </div>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
@@ -175,7 +180,7 @@ export default function StoreSummaryPage() {
                     <th style={thRight}>売上（施術分）</th>
                     <th style={thRight}>売上の割合</th>
                     <th style={thRight}>トレーニング</th>
-                    <th style={thRight}>ストレッチ（施術）</th>
+                    <th style={thRight}>リラクゼーション</th>
                     <th style={thRight}>件数</th>
                     <th style={thRight}>新規</th>
                     <th style={thRight}>前受金（参考）</th>
