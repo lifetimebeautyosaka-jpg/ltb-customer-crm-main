@@ -76,3 +76,13 @@ export function serviceTypeFromMenu(menu?: string | null, storeName?: string | n
   if (text.includes("ストレッチ") || /\d+分\d+回/.test(text)) return "ストレッチ";
   return "トレーニング";
 }
+
+// 細分化した6種類の色（構成比のグラフ用）
+export const SERVICE_COLORS: Record<ServiceTypeName, string> = {
+  トレーニング: "#f97316",
+  ストレッチ: "#2563eb",
+  ウェットヘッドスパ: "#db2777",
+  ドライヘッドスパ: "#f9a8d4",
+  オイルマッサージ: "#16a34a",
+  足ツボ: "#a16207",
+};

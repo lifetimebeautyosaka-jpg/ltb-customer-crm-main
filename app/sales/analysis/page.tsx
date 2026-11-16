@@ -5,12 +5,16 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { supabase } from "@/lib/supabase";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import {
-  CATEGORY_COLORS,
-  CHART_CATEGORIES,
+  SERVICE_COLORS,
+  SERVICE_TYPES,
   classifyService,
-  toChartCategory,
-  type ChartCategory,
+  type ServiceTypeName,
 } from "@/lib/serviceCategory";
+
+// グラフ・表は細分化した6種類で出す
+const CHART_CATEGORIES = SERVICE_TYPES;
+const CATEGORY_COLORS = SERVICE_COLORS;
+type ChartCategory = ServiceTypeName;
 
 // サービス別の売上推移
 // 売上 ＝ 通常売上＋回数券消化（前受金は含めない）
@@ -59,6 +63,8 @@ function growth(current: number, prev: number) {
 export default function ServiceAnalysisPage() {
   const months = useMemo(() => lastMonths(MONTHS_SHOWN), []);
   const [store, setStore] = useState("すべて");
+  // 金額で見るか、構成比（その月の合計を100%）で見るか
+  const [mode, setMode] = useState<"amount" | "share">("share");
   const [sales, setSales] = useState<SaleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -98,7 +104,7 @@ export default function ServiceAnalysisPage() {
         storeName: s.store_name,
         text: `${s.memo || ""} ${s.customer_name || ""}`,
       });
-      row[toChartCategory(type)] += Number(s.amount || 0);
+      row[type] += Number(s.amount || 0);
     }
     return months.map((m) => {
       const row = data.get(m)!;
@@ -108,7 +114,35 @@ export default function ServiceAnalysisPage() {
     });
   }, [sales, store, months]);
 
+  // 施術時間別の内訳（先月）：メモの「○分」から読み取る
+  const minutesBreakdown = useMemo(() => {
+    const target = months[months.length - 2];
+    const map = new Map<string, { type: ServiceTypeName; minutes: string; count: number; amount: number }>();
+    for (const s of sales) {
+      if ((s.sale_type || "").trim() === "前受金") continue;
+      if (store !== "すべて" && (s.store_name || "").trim() !== store) continue;
+      if ((s.sale_date || "").slice(0, 7) !== target) continue;
+      const text = `${s.memo || ""} ${s.customer_name || ""}`;
+      if (text.includes("指名料") || text.includes("延長")) continue;
+      const type = classifyService({ menuType: s.menu_type, storeName: s.store_name, text });
+      const minutes = text.match(/(30|40|45|50|60|70|80|90|100|120|150|180)\s*分/)?.[1];
+      const label = minutes ? `${minutes}分` : "時間不明";
+      const key = `${type}-${label}`;
+      const row = map.get(key) || { type, minutes: label, count: 0, amount: 0 };
+      row.count += 1;
+      row.amount += Number(s.amount || 0);
+      map.set(key, row);
+    }
+    return {
+      month: target,
+      rows: Array.from(map.values()).sort(
+        (a, b) => SERVICE_TYPES.indexOf(a.type) - SERVICE_TYPES.indexOf(b.type) || b.amount - a.amount
+      ),
+    };
+  }, [sales, store, months]);
+
   const maxTotal = Math.max(1, ...table.map((t) => t.total));
+  const scaleOf = (t: { total: number }) => (mode === "share" ? (t.total || 1) : maxTotal);
   const current = table[table.length - 1];
   const prev = table[table.length - 2];
   // 今月は途中なので、比較は「先月」と「先々月」で行う
@@ -152,7 +186,15 @@ export default function ServiceAnalysisPage() {
         {loading ? <div style={cardStyle}>読み込み中...</div> : (
           <>
             <section style={cardStyle}>
-              <h2 style={titleStyle}>月別の売上（{store === "すべて" ? "全店舗" : store}）</h2>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                <h2 style={titleStyle}>
+                  {mode === "share" ? "サービスの構成比" : "月別の売上"}（{store === "すべて" ? "全店舗" : store}）
+                </h2>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button type="button" onClick={() => setMode("share")} style={{ ...chipStyle, ...(mode === "share" ? chipActiveStyle : {}) }}>構成比（%）</button>
+                  <button type="button" onClick={() => setMode("amount")} style={{ ...chipStyle, ...(mode === "amount" ? chipActiveStyle : {}) }}>金額</button>
+                </div>
+              </div>
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12 }}>
                 {CHART_CATEGORIES.map((c) => (
                   <span key={c} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -167,7 +209,9 @@ export default function ServiceAnalysisPage() {
                   return (
                     <g key={r}>
                       <line x1={left} x2={W - 10} y1={y} y2={y} stroke="#e2e8f0" />
-                      <text x={left - 6} y={y + 4} textAnchor="end" fontSize="11" fill="#64748b">{man(maxTotal * r)}</text>
+                      <text x={left - 6} y={y + 4} textAnchor="end" fontSize="11" fill="#64748b">
+                        {mode === "share" ? `${Math.round(r * 100)}%` : man(maxTotal * r)}
+                      </text>
                     </g>
                   );
                 })}
@@ -178,15 +222,22 @@ export default function ServiceAnalysisPage() {
                   return (
                     <g key={t.month}>
                       {CHART_CATEGORIES.map((c) => {
-                        const h = (t.row[c] / maxTotal) * plotH;
+                        const h = (t.row[c] / scaleOf(t)) * plotH;
                         y -= h;
                         return h > 0 ? (
-                          <rect key={c} x={x} y={y} width={w} height={h} fill={CATEGORY_COLORS[c]}>
-                            <title>{`${t.month} ${c}：${yen(t.row[c])}（${pct(t.row[c], t.total)}）`}</title>
-                          </rect>
+                          <g key={c}>
+                            <rect x={x} y={y} width={w} height={h} fill={CATEGORY_COLORS[c]}>
+                              <title>{`${t.month} ${c}：${yen(t.row[c])}（${pct(t.row[c], t.total)}）`}</title>
+                            </rect>
+                            {mode === "share" && h >= 14 ? (
+                              <text x={x + w / 2} y={y + h / 2 + 4} textAnchor="middle" fontSize="10" fill="#fff" fontWeight="700">
+                                {Math.round((t.row[c] / (t.total || 1)) * 100)}%
+                              </text>
+                            ) : null}
+                          </g>
                         ) : null;
                       })}
-                      <text x={x + w / 2} y={top + plotH - (t.total / maxTotal) * plotH - 5} textAnchor="middle" fontSize="10" fill="#0f172a">
+                      <text x={x + w / 2} y={(mode === "share" ? top : top + plotH - (t.total / maxTotal) * plotH) - 5} textAnchor="middle" fontSize="10" fill="#0f172a">
                         {t.total ? man(t.total) : ""}
                       </text>
                       <text x={x + w / 2} y={H - 18} textAnchor="middle" fontSize="11" fill="#475569">
@@ -197,6 +248,51 @@ export default function ServiceAnalysisPage() {
                 })}
               </svg>
               <div style={noteStyle}>棒にマウスを乗せると金額が出ます。今月（{Number(current.month.slice(5))}月）は途中までの数字です。</div>
+            </section>
+
+            <section style={cardStyle}>
+              <h2 style={titleStyle}>サービスごとの構成比の推移</h2>
+              <div style={{ overflowX: "auto" }}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={thStyle}>月</th>
+                      {CHART_CATEGORIES.map((c) => (
+                        <th key={c} style={thRight}>
+                          <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: CATEGORY_COLORS[c], marginRight: 4 }} />
+                          {c}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...table].reverse().map((t, i, arr) => {
+                      const before = arr[i + 1];
+                      return (
+                        <tr key={t.month}>
+                          <td style={tdStyle}>{Number(t.month.slice(5))}月</td>
+                          {CHART_CATEGORIES.map((c) => {
+                            const share = t.total ? (t.row[c] / t.total) * 100 : 0;
+                            const prevShare = before && before.total ? (before.row[c] / before.total) * 100 : null;
+                            const diff = prevShare === null ? null : share - prevShare;
+                            return (
+                              <td key={c} style={tdRight}>
+                                {t.total ? `${share.toFixed(1)}%` : "—"}
+                                {diff !== null && t.total && Math.abs(diff) >= 0.1 ? (
+                                  <div style={{ fontSize: 11, color: diff > 0 ? "#16a34a" : "#dc2626" }}>
+                                    {diff > 0 ? "▲" : "▼"}{Math.abs(diff).toFixed(1)}pt
+                                  </div>
+                                ) : null}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div style={noteStyle}>▲▼は前の月からの構成比の増減（ポイント）です。構成比が上がり続けているサービスが「伸びているサービス」です。</div>
             </section>
 
             <section style={cardStyle}>
@@ -266,6 +362,42 @@ export default function ServiceAnalysisPage() {
                 </div>
               </section>
             ) : null}
+
+            <section style={cardStyle}>
+              <h2 style={titleStyle}>施術の時間別（{Number(minutesBreakdown.month.slice(5))}月）</h2>
+              {minutesBreakdown.rows.length === 0 ? (
+                <div style={noteStyle}>データがありません。</div>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table style={tableStyle}>
+                    <thead>
+                      <tr>
+                        <th style={thStyle}>サービス</th>
+                        <th style={thStyle}>時間</th>
+                        <th style={thRight}>件数</th>
+                        <th style={thRight}>売上</th>
+                        <th style={thRight}>1件あたり</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {minutesBreakdown.rows.map((r) => (
+                        <tr key={`${r.type}-${r.minutes}`}>
+                          <td style={tdStyle}>
+                            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: CATEGORY_COLORS[r.type], marginRight: 6 }} />
+                            {r.type}
+                          </td>
+                          <td style={tdStyle}>{r.minutes}</td>
+                          <td style={tdRight}>{r.count}件</td>
+                          <td style={tdRight}>{yen(r.amount)}</td>
+                          <td style={tdRight}>{yen(r.amount / r.count)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div style={noteStyle}>時間は売上のメモ（メニュー名）にある「○分」から読み取っています。「時間不明」は、メモに時間が書かれていない売上です。</div>
+            </section>
 
             <div style={noteStyle}>
               売上 ＝ 通常売上＋回数券消化（前受金は含めません）。サービスは売上登録の「サービス」で分けます。
