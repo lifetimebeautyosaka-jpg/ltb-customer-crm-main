@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import BottomNav from "@/components/BottomNav";
 
 type ReservationRow = {
   id: string | number;
@@ -122,6 +123,9 @@ type DashboardStats = {
   monthSalesAmount: number | null;
   monthAdvanceAmount: number | null;
   prevMonthSalesAmount: number | null;
+  // 前月同日比用：今月1日〜今日 と 前月1日〜同じ日
+  monthToDateAmount: number | null;
+  prevMonthSameDayAmount: number | null;
   monthNewCustomers: number | null;
   customerCount: number | null;
   lowTicketCount: number;
@@ -376,14 +380,6 @@ function isNewVisit(row: DashboardReservation) {
   return row.visitType === "新規";
 }
 
-function ticketRemainingClass(value: number | null) {
-  if (value === null) return "";
-  if (value <= 0) return "zero";
-  if (value === 1) return "red";
-  if (value <= 3) return "orange";
-  return "done";
-}
-
 function getCustomerName(row?: CustomerRow | null) {
   if (!row) return "名前未設定";
   return trimmed(row.name) || trimmed(row.customer_name) || "名前未設定";
@@ -432,6 +428,8 @@ export default function DashboardPage() {
     monthSalesAmount: null,
     monthAdvanceAmount: null,
     prevMonthSalesAmount: null,
+    monthToDateAmount: null,
+    prevMonthSameDayAmount: null,
     monthNewCustomers: null,
     customerCount: null,
     lowTicketCount: 0,
@@ -439,9 +437,10 @@ export default function DashboardPage() {
 
   const selectedDateLabel = useMemo(() => formatDateLabel(selectedDate), [selectedDate]);
 
+  // 前月同日比（今月1日〜今日 と 前月1日〜同じ日）
   const monthlyChangeText = useMemo(
-    () => getMonthlyChangeText(stats.monthSalesAmount, stats.prevMonthSalesAmount),
-    [stats.monthSalesAmount, stats.prevMonthSalesAmount]
+    () => getMonthlyChangeText(stats.monthToDateAmount, stats.prevMonthSameDayAmount),
+    [stats.monthToDateAmount, stats.prevMonthSameDayAmount]
   );
 
   const storeSalesSummary = useMemo<MonthlySummaryItem[]>(() => {
@@ -541,6 +540,8 @@ export default function DashboardPage() {
             monthSalesAmount: null,
             monthAdvanceAmount: null,
             prevMonthSalesAmount: null,
+            monthToDateAmount: null,
+            prevMonthSameDayAmount: null,
             monthNewCustomers: null,
             customerCount: null,
             lowTicketCount: 0,
@@ -711,7 +712,7 @@ export default function DashboardPage() {
           .map((item) => ({
             id: `unsold-${item.id}`,
             title: `${item.time} ${item.customerName}`,
-            sub: `${item.menu} / ${item.staffName} / 売上未`,
+            sub: `${item.menu} / ${item.staffName} / 売上未入力`,
             href: `/reservation/detail/${item.id}`,
             customerHref: item.customerId ? `/customer/${item.customerId}` : undefined,
             level: "red",
@@ -722,7 +723,7 @@ export default function DashboardPage() {
           nextTodoItems.push({
             id: `counseling-${item.id}`,
             title: `${item.time} ${item.customerName}`,
-            sub: `${item.menu} / ${item.staffName} / カウンセリング未`,
+            sub: `${item.menu} / ${item.staffName} / カウンセリング未入力`,
             href: `/reservation/detail/${item.id}`,
             customerHref: item.customerId ? `/customer/${item.customerId}` : undefined,
             level: "purple",
@@ -775,6 +776,12 @@ export default function DashboardPage() {
         setLtvCustomers(ltvList);
         setMonthSalesRows(monthSales);
 
+        // 前月同日比：選んだ月が今月なら「1日〜今日」どうし、過去の月なら1か月どうしで比べる
+        const todayString = getTodayDateString();
+        const cutoffDay = todayString.slice(0, 7) === selectedMonth ? Number(todayString.slice(8, 10)) : 31;
+        const upToCutoff = (rows: SaleRow[]) =>
+          rows.filter((row) => Number(trimmed(row.sale_date).slice(8, 10) || 0) <= cutoffDay);
+
         setStats({
           todayReservationCount: displayReservations.length,
           todaySalesAmount: calcNetSalesAmount(todaySales),
@@ -788,6 +795,8 @@ export default function DashboardPage() {
           monthSalesAmount: calcNetSalesAmount(monthSales),
           monthAdvanceAmount: calcAdvanceAmount(monthSales),
           prevMonthSalesAmount: calcNetSalesAmount(prevMonthSales),
+          monthToDateAmount: calcNetSalesAmount(upToCutoff(monthSales)),
+          prevMonthSameDayAmount: calcNetSalesAmount(upToCutoff(prevMonthSales)),
           monthNewCustomers: Array.isArray(monthNewCustomersResult.data)
             ? monthNewCustomersResult.data.length
             : null,
@@ -846,1216 +855,645 @@ export default function DashboardPage() {
   }
 
   if (!authChecked) {
-    return <main className="gymup-loading">認証を確認中...</main>;
+    return (
+      <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--gu-bg)", color: "var(--gu-sub)", fontSize: 14 }}>
+        認証を確認中...
+      </main>
+    );
   }
 
-  const topStats = [
-    {
-      label: "今日の予約",
-      value: loading ? "..." : String(stats.todayReservationCount),
-      sub: selectedDate,
-      accent: "",
-    },
-    {
-      label: "今日の売上",
-      value: loading ? "..." : formatYen(stats.todaySalesAmount),
-      sub: "純売上（前受金を除く）",
-      accent: "orange",
-    },
-    {
-      label: "今日やること",
-      value: loading ? "..." : String(todoItems.length),
-      sub: "未処理・確認事項",
-      accent: todoItems.length > 0 ? "red" : "green",
-    },
-    {
-      label: "選択月の純売上",
-      value: loading ? "..." : formatYen(stats.monthSalesAmount),
-      sub: `前月比 ${monthlyChangeText} / 前受金 ${formatYen(stats.monthAdvanceAmount)}`,
-      accent: monthlyChangeText.startsWith("+")
-        ? "green"
-        : monthlyChangeText.startsWith("-")
-        ? "red"
-        : "",
-    },
-  ];
+  // ---- 表示用の値 ----
+  const WEEKDAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+  const selectedDateObj = new Date(`${selectedDate}T00:00:00`);
+  const headerDate = Number.isNaN(selectedDateObj.getTime())
+    ? selectedDate
+    : `${selectedDate.replace(/-/g, ".")} ${WEEKDAYS[selectedDateObj.getDay()]}`;
+  const isTodaySelected = selectedDate === getTodayDateString();
+  const selectedMonthNumber = Number(selectedMonth.slice(5, 7));
+  const isCurrentMonth = getTodayDateString().slice(0, 7) === selectedMonth;
 
-  const subStats = [
-    {
-      label: "売上未",
-      value: String(stats.todayUnsoldCount),
-      sub: "今日の予約",
-      accent: stats.todayUnsoldCount > 0 ? "red" : "green",
-    },
-    {
-      label: "回数券未消化",
-      value: String(stats.todayTicketPendingCount),
-      sub: "今日の回数券予約",
-      accent: stats.todayTicketPendingCount > 0 ? "purple" : "green",
-    },
-    {
-      label: "カウンセリング未",
-      value: String(stats.todayCounselingPendingCount),
-      sub: "新規予約",
-      accent: stats.todayCounselingPendingCount > 0 ? "orange" : "green",
-    },
-    {
-      label: "低残回数",
-      value: String(stats.lowTicketCount),
-      sub: "残3回以下",
-      accent: stats.lowTicketCount > 0 ? "orange" : "green",
-    },
-  ];
+  const monthActual = stats.monthSalesAmount || 0;
+  const monthTargetNumber = Number(monthTarget || 0);
+  const monthRate = monthTargetNumber > 0 ? monthActual / monthTargetNumber : null;
+  const RING_LENGTH = 2 * Math.PI * 44;
+  const ringOffset = RING_LENGTH * (1 - Math.min(1, Math.max(0, monthRate ?? 0)));
+
+  const unsoldItems = todoItems.filter((item) => item.id.startsWith("unsold-"));
+  const counselingItems = todoItems.filter((item) => item.id.startsWith("counseling-"));
+  const todayTaskCount = unsoldItems.length + counselingItems.length + stats.todayTicketPendingCount;
+
+  const taskRows: { key: string; label: string; count: number; items?: TodoItem[]; href?: string }[] = [
+    { key: "unsold", label: "売上未入力", count: unsoldItems.length, items: unsoldItems },
+    { key: "counseling", label: "カウンセリング未入力", count: counselingItems.length, items: counselingItems },
+    { key: "ticket", label: "回数券の消化が未入力", count: stats.todayTicketPendingCount, href: "#reservations" },
+    { key: "low", label: "回数券の残りわずか（残3回以下）", count: stats.lowTicketCount, href: "#low-tickets" },
+  ].filter((row) => row.count > 0);
+
+  const daysInSelectedMonth = (() => {
+    const [y, m] = selectedMonth.split("-").map(Number);
+    return new Date(y, m, 0).getDate();
+  })();
+  const elapsedDays = isCurrentMonth
+    ? Number(getTodayDateString().slice(8, 10))
+    : getTodayDateString().slice(0, 7) > selectedMonth
+    ? daysInSelectedMonth
+    : 0;
+  const forecast = elapsedDays > 0 ? Math.round((monthActual / elapsedDays) * daysInSelectedMonth) : null;
 
   return (
     <>
       <style>{`
-        .gymup-loading {
+        .gu-home {
           min-height: 100vh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: #0f1012;
-          color: #ffffff;
-          font-size: 14px;
-          font-weight: 800;
+          background: var(--gu-bg);
+          color: var(--gu-ink);
+          font-family: var(--gu-font-body);
+          padding-bottom: calc(120px + env(safe-area-inset-bottom));
         }
-
-        .gymup-home {
-  min-height: 100vh;
-  position: relative;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at top left, rgba(95,124,255,0.14) 0%, transparent 28%),
-    radial-gradient(circle at bottom right, rgba(95,124,255,0.08) 0%, transparent 24%),
-    linear-gradient(180deg, #041126 0%, #07182f 45%, #041126 100%);
-  color: #f5f7fa;
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
-
-.gymup-home::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(120deg, rgba(95,124,255,0.08), transparent 34%),
-    linear-gradient(300deg, rgba(95,124,255,0.05), transparent 28%);
-  pointer-events: none;
-}
-
-        .gymup-home__container {
-          position: relative;
-          z-index: 1;
-          width: 100%;
-          max-width: 1500px;
+        .gu-home * { box-sizing: border-box; }
+        .gu-home a { color: inherit; }
+        .gu-container {
+          max-width: 560px;
           margin: 0 auto;
-          padding: 24px 18px 28px;
-          box-sizing: border-box;
         }
-
-        .topbar {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 14px;
-          margin-bottom: 18px;
-          flex-wrap: wrap;
-        }
-
-        .brand {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .brand-logo {
-  width: 54px;
-  height: 54px;
-  object-fit: contain;
-  display: block;
-}
-
-        .brand-title {
-          font-size: 18px;
-          font-weight: 900;
-          letter-spacing: 0.04em;
-          color: #fff;
-        }
-
-        .brand-sub {
-          margin-top: 3px;
-          font-size: 12px;
-          color: rgba(255,255,255,0.52);
-          font-weight: 700;
-        }
-
-        .topbar-actions {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          flex-wrap: wrap;
-        }
-
-        .topbar-link,
-        .topbar-button {
-          min-height: 40px;
-          padding: 0 14px;
-          border-radius: 13px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          text-decoration: none;
-          color: #f5f7fa;
-          font-size: 13px;
-          font-weight: 800;
-          border: 1px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.045);
-          cursor: pointer;
-        }
-
-        .topbar-button {
-          color: #ffd7ae;
-          border-color: rgba(240,138,39,0.24);
-          background: rgba(240,138,39,0.10);
-        }
-
-        .hero {
-          border: 1px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.045);
-          box-shadow: 0 18px 48px rgba(0,0,0,0.24);
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
-          border-radius: 30px;
-          padding: 24px;
-          margin-bottom: 18px;
-        }
-
-        .hero-grid {
-          display: grid;
-          grid-template-columns: minmax(0, 1.1fr) minmax(340px, 0.9fr);
-          gap: 20px;
-          align-items: stretch;
-        }
-
-        .hero-title {
+        .gu-num { font-family: var(--gu-font-num); font-variant-numeric: tabular-nums; }
+        .gu-heading {
           margin: 0;
-          color: #fff;
-          font-size: clamp(34px, 4.4vw, 58px);
-          line-height: 1.05;
-          letter-spacing: -0.05em;
-          font-weight: 900;
-        }
-
-        .hero-desc {
-          margin: 14px 0 0;
-          max-width: 720px;
-          color: rgba(255,255,255,0.64);
-          font-size: 15px;
-          line-height: 1.9;
-          font-weight: 600;
-        }
-
-        .date-card {
-          border-radius: 24px;
-          padding: 18px;
-          border: 1px solid rgba(255,255,255,0.07);
-          background: rgba(255,255,255,0.035);
-        }
-
-        .date-label {
-          color: #f08a27;
-          font-size: 13px;
-          font-weight: 900;
-          margin-bottom: 12px;
-        }
-
-        .date-title {
-          color: #fff;
-          font-size: 22px;
-          font-weight: 900;
-          margin-bottom: 14px;
-        }
-
-        .date-actions {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 8px;
-        }
-
-        .date-btn,
-        .date-input,
-        .month-input {
-          min-height: 40px;
-          border-radius: 13px;
-          border: 1px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.045);
-          color: #fff;
-          font-weight: 800;
-          font-size: 13px;
-          cursor: pointer;
-          padding: 0 10px;
-          box-sizing: border-box;
-        }
-
-        .date-input::-webkit-calendar-picker-indicator,
-        .month-input::-webkit-calendar-picker-indicator {
-          filter: invert(1);
-          opacity: 0.9;
-          cursor: pointer;
-        }
-                .stats-grid {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 12px;
-          margin-bottom: 18px;
-        }
-
-        .stat {
-          border-radius: 22px;
-          padding: 16px;
-          border: 1px solid rgba(255,255,255,0.07);
-          background: rgba(255,255,255,0.035);
-          box-shadow: 0 10px 30px rgba(0,0,0,0.18);
-        }
-
-        .stat.orange {
-          border-color: rgba(240,138,39,0.22);
-          background: rgba(240,138,39,0.08);
-        }
-
-        .stat.red {
-          border-color: rgba(255,80,80,0.26);
-          background: rgba(255,80,80,0.09);
-        }
-
-        .stat.green {
-          border-color: rgba(92,214,146,0.22);
-          background: rgba(92,214,146,0.08);
-        }
-
-        .stat.purple {
-          border-color: rgba(168,85,247,0.24);
-          background: rgba(168,85,247,0.09);
-        }
-
-        .stat-label {
-          font-size: 12px;
-          color: rgba(255,255,255,0.52);
-          font-weight: 800;
-          margin-bottom: 8px;
-        }
-
-        .stat-value {
-          color: #fff;
-          font-size: 28px;
-          font-weight: 900;
-          letter-spacing: -0.03em;
-        }
-
-        .stat-sub {
-          margin-top: 8px;
-          color: rgba(255,255,255,0.48);
-          font-size: 12px;
+          font-family: var(--gu-font-heading);
           font-weight: 700;
+          font-size: 18px;
+          letter-spacing: 0.02em;
         }
+        .gu-label { font-size: 12px; color: var(--gu-sub); letter-spacing: 0.12em; }
+        .gu-sub { font-size: 12px; color: var(--gu-sub); }
 
-        .panel {
-          border-radius: 28px;
-          padding: 22px;
-          border: 1px solid rgba(255,255,255,0.07);
-          background: rgba(255,255,255,0.035);
-          box-shadow: 0 18px 48px rgba(0,0,0,0.22);
-          margin-bottom: 18px;
-        }
-
-        .panel-head {
+        .gu-header {
+          padding: 28px 24px 8px;
           display: flex;
           align-items: flex-start;
           justify-content: space-between;
           gap: 12px;
-          flex-wrap: wrap;
-          margin-bottom: 16px;
         }
-
-        .panel-title {
-          color: #fff;
-          font-size: 18px;
-          font-weight: 900;
-          letter-spacing: -0.03em;
-        }
-
-        .panel-sub {
-          margin-top: 5px;
-          color: rgba(255,255,255,0.50);
-          font-size: 13px;
-          font-weight: 700;
-        }
-
-        .panel-badge {
-          min-height: 32px;
-          padding: 0 12px;
-          border-radius: 999px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          color: #ffd7ae;
-          border: 1px solid rgba(240,138,39,0.22);
-          background: rgba(240,138,39,0.10);
-          font-size: 12px;
-          font-weight: 900;
-        }
-
-        .main-grid {
-          display: grid;
-          grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.85fr);
-          gap: 18px;
-          align-items: start;
-        }
-
-        .stack {
-          display: grid;
-          gap: 18px;
-        }
-
-        .todo-list,
-        .reservation-list,
-        .side-list,
-        .quick-links {
-          display: grid;
-          gap: 10px;
-        }
-
-        .todo-item,
-        .reservation-item,
-        .side-item,
-        .quick-link {
-          border-radius: 18px;
-          padding: 14px;
-          border: 1px solid rgba(255,255,255,0.07);
-          background: rgba(255,255,255,0.032);
-        }
-
-        .todo-item.red {
-          border-color: rgba(255,80,80,0.28);
-          background: rgba(255,80,80,0.09);
-        }
-
-        .todo-item.orange {
-          border-color: rgba(240,138,39,0.24);
-          background: rgba(240,138,39,0.08);
-        }
-
-        .todo-item.purple {
-          border-color: rgba(168,85,247,0.24);
-          background: rgba(168,85,247,0.08);
-        }
-
-        .todo-item.green {
-          border-color: rgba(92,214,146,0.24);
-          background: rgba(92,214,146,0.08);
-        }
-
-        .todo-top,
-        .reservation-top {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 10px;
-          flex-wrap: wrap;
-        }
-
-        .todo-main,
-        .reservation-main,
-        .side-main {
-          color: #fff;
-          font-size: 14px;
-          font-weight: 900;
-        }
-
-        .todo-sub,
-        .reservation-sub,
-        .side-sub,
-        .quick-link-desc {
-          margin-top: 4px;
-          color: rgba(255,255,255,0.55);
-          font-size: 12px;
-          line-height: 1.6;
-          font-weight: 700;
-        }
-
-        .todo-actions {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-          margin-top: 10px;
-        }
-
-        .todo-link {
-          min-height: 34px;
-          padding: 0 12px;
-          border-radius: 999px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          text-decoration: none;
-          color: #fff;
-          font-size: 12px;
-          font-weight: 800;
-          border: 1px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.05);
-        }
-
-        .quick-link {
-          text-decoration: none;
-          transition: 0.2s ease;
-        }
-
-        .quick-link:hover {
-          transform: translateY(-2px);
-          border-color: rgba(240,138,39,0.26);
-        }
-
-        .quick-link-title {
-          color: #fff;
-          font-size: 14px;
-          font-weight: 900;
-        }
-
-        .reservation-time {
-          min-width: 72px;
-          min-height: 34px;
-          padding: 0 12px;
-          border-radius: 999px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          background: rgba(240,138,39,0.12);
-          color: #ffd7ae;
-          font-size: 12px;
-          font-weight: 900;
-          border: 1px solid rgba(240,138,39,0.20);
-        }
-
-        .reservation-tags {
-          display: flex;
-          gap: 6px;
-          flex-wrap: wrap;
-          margin-top: 10px;
-        }
-
-        .tag {
-          min-height: 28px;
-          padding: 0 10px;
-          border-radius: 999px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 11px;
-          font-weight: 900;
-          border: 1px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.05);
-          color: #fff;
-        }
-
-        .tag.red {
-          border-color: rgba(255,80,80,0.26);
-          background: rgba(255,80,80,0.10);
-        }
-
-        .tag.orange {
-          border-color: rgba(240,138,39,0.24);
-          background: rgba(240,138,39,0.10);
-        }
-
-        .tag.green {
-          border-color: rgba(92,214,146,0.24);
-          background: rgba(92,214,146,0.10);
-        }
-
-        .tag.purple {
-          border-color: rgba(168,85,247,0.24);
-          background: rgba(168,85,247,0.10);
-        }
-
-        .ticket-count {
-          font-size: 12px;
-          font-weight: 900;
-        }
-
-        .ticket-count.red {
-          color: #ff6f6f;
-        }
-
-        .ticket-count.orange {
-          color: #ffbd66;
-        }
-
-        .ticket-count.done {
-          color: #5cd692;
-        }
-
-        .memo-box {
-          width: 100%;
-          min-height: 160px;
-          border-radius: 20px;
-          border: 1px solid rgba(255,255,255,0.08);
-          background: rgba(255,255,255,0.04);
-          padding: 16px;
-          color: #fff;
-          resize: vertical;
-          box-sizing: border-box;
-          font-size: 14px;
+        .gu-logo {
+          font-family: var(--gu-font-logo);
           font-weight: 600;
-          line-height: 1.8;
-          outline: none;
+          font-size: 22px;
+          letter-spacing: 0.24em;
+        }
+        .gu-icon-btn {
+          width: 44px;
+          height: 44px;
+          border-radius: 22px;
+          border: 1px solid var(--gu-line);
+          background: var(--gu-card);
+          color: var(--gu-ink);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          position: relative;
+          flex-shrink: 0;
+        }
+        .gu-icon-btn .badge {
+          position: absolute;
+          top: 9px;
+          right: 10px;
+          width: 8px;
+          height: 8px;
+          border-radius: 4px;
+          background: var(--gu-gold);
         }
 
-        .memo-actions {
+        .gu-daybar {
+          margin: 12px 24px 0;
           display: flex;
-          justify-content: flex-end;
-          margin-top: 12px;
+          align-items: center;
+          gap: 6px;
         }
-
-        .danger-btn {
-          min-height: 38px;
+        .gu-daybar button, .gu-daybar input {
+          height: 40px;
+          border-radius: 999px;
+          border: 1px solid var(--gu-line);
+          background: var(--gu-card);
+          color: var(--gu-ink);
+          font-size: 13px;
+          font-family: var(--gu-font-body);
           padding: 0 14px;
-          border-radius: 12px;
-          border: 1px solid rgba(255,80,80,0.26);
-          background: rgba(255,80,80,0.10);
-          color: #ffd1d1;
-          font-size: 12px;
-          font-weight: 900;
           cursor: pointer;
         }
+        .gu-daybar button.on { background: var(--gu-ink); color: var(--gu-bg); border-color: var(--gu-ink); }
+        .gu-daybar input { flex: 1; min-width: 0; padding: 0 12px; font-family: var(--gu-font-num); }
 
-        .system-online {
-          color: #5cd692;
-        }
+        .gu-today { padding: 28px 24px 24px; display: flex; flex-direction: column; gap: 8px; }
+        .gu-today-amount { font-size: 60px; font-weight: 600; line-height: 1; letter-spacing: -0.02em; }
 
-        .system-offline {
-          color: #ff7a7a;
-        }
+        .gu-rule { margin: 0 24px; height: 1px; background: var(--gu-line); }
 
-        .monthly-summary-grid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 12px;
-          margin-top: 14px;
-        }
+        .gu-month { padding: 24px; display: flex; align-items: center; gap: 20px; }
+        .gu-month-info { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+        .gu-month-amount { font-size: 30px; font-weight: 600; line-height: 1.05; }
+        .gu-change { font-size: 12px; color: var(--gu-gold-text); font-weight: 500; }
 
-        .monthly-summary-box {
-          border-radius: 22px;
-          padding: 14px;
-          border: 1px solid rgba(255,255,255,0.07);
-          background: rgba(255,255,255,0.032);
-        }
-
-        .monthly-summary-title {
-          color: #fff;
-          font-size: 15px;
-          font-weight: 900;
-          margin-bottom: 12px;
-        }
-
-        .monthly-total-card {
+        .gu-tasks {
+          margin: 0 24px 28px;
+          border-radius: 20px;
+          background: var(--gu-ink);
+          color: var(--gu-bg);
+          padding: 20px;
           display: flex;
+          flex-direction: column;
+        }
+        .gu-tasks-head { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 12px; }
+        .gu-tasks-count { font-size: 14px; color: var(--gu-gold-on-ink); }
+        .gu-task-row {
+          min-height: 48px;
+          display: flex;
+          align-items: center;
           justify-content: space-between;
-          align-items: flex-end;
-          gap: 14px;
-          flex-wrap: wrap;
-          border-radius: 22px;
+          gap: 12px;
+          border-top: 1px solid rgba(247, 245, 240, 0.16);
+          color: var(--gu-bg);
+          text-decoration: none;
+          background: none;
+          border-left: 0; border-right: 0; border-bottom: 0;
+          width: 100%;
+          padding: 0;
+          font-family: var(--gu-font-body);
+          font-size: 14px;
+          cursor: pointer;
+          text-align: left;
+        }
+        .gu-tasks summary::-webkit-details-marker { display: none; }
+        .gu-task-row .right { font-size: 13px; color: #D3CEC3; white-space: nowrap; }
+        .gu-task-items { display: flex; flex-direction: column; gap: 2px; padding: 4px 0 10px 12px; }
+        .gu-task-item {
+          display: flex; align-items: center; justify-content: space-between; gap: 10px;
+          min-height: 44px; color: var(--gu-bg); text-decoration: none; font-size: 13px;
+          border-top: 1px dashed rgba(247, 245, 240, 0.12);
+        }
+        .gu-task-item .meta { font-size: 11px; color: #A9A49A; }
+        .gu-task-item .go { color: var(--gu-gold-on-ink); font-size: 12px; white-space: nowrap; }
+        .gu-tasks-empty { font-size: 13px; color: #D3CEC3; border-top: 1px solid rgba(247, 245, 240, 0.16); padding-top: 14px; }
+
+        .gu-section { padding: 0 24px; margin-bottom: 32px; }
+        .gu-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 8px; }
+        .gu-section-head a, .gu-link { font-size: 13px; color: var(--gu-gold-text); text-decoration: none; }
+
+        .gu-resv {
+          min-height: 64px;
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          padding: 12px 0;
+          border-bottom: 1px solid var(--gu-line);
+          text-decoration: none;
+          color: var(--gu-ink);
+        }
+        .gu-resv-time { width: 52px; flex-shrink: 0; font-size: 14px; font-weight: 500; color: var(--gu-sub); }
+        .gu-resv-main { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+        .gu-resv-name { font-size: 15px; font-weight: 500; }
+        .gu-resv-menu { font-size: 12px; color: var(--gu-sub); overflow: hidden; text-overflow: ellipsis; }
+        .gu-tags { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: 46%; }
+        .gu-tag {
+          font-size: 11px;
+          color: var(--gu-gold-text);
+          border: 1px solid var(--gu-tag-border);
+          border-radius: 999px;
+          padding: 3px 9px;
+          white-space: nowrap;
+        }
+        .gu-tag.done { color: var(--gu-sub); border-color: var(--gu-line); }
+        .gu-tag.alert { color: var(--gu-card); background: var(--gu-gold); border-color: var(--gu-gold); }
+
+        .gu-card {
+          background: var(--gu-card);
+          border: 1px solid var(--gu-line);
+          border-radius: 20px;
           padding: 18px;
-          border: 1px solid rgba(240,138,39,0.22);
-          background: rgba(240,138,39,0.08);
         }
-
-        .monthly-total-label {
-          color: rgba(255,255,255,0.58);
-          font-size: 12px;
-          font-weight: 900;
-          margin-bottom: 8px;
+        .gu-list-row {
+          display: flex; align-items: center; justify-content: space-between; gap: 12px;
+          min-height: 44px; padding: 8px 0; border-bottom: 1px solid var(--gu-line);
+          text-decoration: none; color: var(--gu-ink); font-size: 14px;
         }
-
-        .monthly-total-value {
-          color: #fff;
-          font-size: 34px;
-          font-weight: 900;
-          letter-spacing: -0.04em;
+        .gu-list-row:last-child { border-bottom: 0; }
+        .gu-list-row .val { font-size: 13px; color: var(--gu-sub); text-align: right; }
+        .gu-empty { font-size: 13px; color: var(--gu-sub); padding: 12px 0; }
+        .gu-field {
+          height: 40px; border-radius: 12px; border: 1px solid var(--gu-line); background: var(--gu-card);
+          color: var(--gu-ink); padding: 0 12px; font-size: 14px; font-family: var(--gu-font-num);
         }
-
-        .monthly-total-sub {
-          color: #ffd7ae;
-          font-size: 13px;
-          font-weight: 900;
+        .gu-menu { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+        .gu-menu a {
+          display: flex; flex-direction: column; gap: 4px; padding: 14px; min-height: 72px;
+          border-radius: 16px; border: 1px solid var(--gu-line); background: var(--gu-card);
+          text-decoration: none; color: var(--gu-ink);
         }
-
-        .empty {
-          padding: 22px 16px;
-          border-radius: 18px;
-          border: 1px dashed rgba(255,255,255,0.10);
-          background: rgba(255,255,255,0.025);
-          color: rgba(255,255,255,0.56);
-          font-size: 13px;
-          text-align: center;
+        .gu-menu .t { font-size: 14px; font-weight: 700; }
+        .gu-menu .d { font-size: 11px; color: var(--gu-sub); line-height: 1.5; }
+        .gu-btn {
+          height: 44px; padding: 0 18px; border-radius: 999px; border: 1px solid var(--gu-line);
+          background: var(--gu-card); color: var(--gu-ink); font-size: 13px; font-family: var(--gu-font-body); cursor: pointer;
         }
-
-        @media (max-width: 1180px) {
-          .hero-grid,
-          .main-grid,
-          .monthly-summary-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .stats-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
+        .gu-memo {
+          width: 100%; min-height: 110px; border-radius: 14px; border: 1px solid var(--gu-line);
+          background: var(--gu-card); color: var(--gu-ink); padding: 12px; font-size: 14px;
+          font-family: var(--gu-font-body); resize: vertical;
         }
+        .gu-error {
+          margin: 12px 24px 0; padding: 12px 14px; border-radius: 14px;
+          border: 1px solid #E3C2BB; background: #FBF1EE; color: #8A2E21; font-size: 13px;
+        }
+        .gu-two { display: grid; grid-template-columns: 1fr; gap: 16px; }
 
-        @media (max-width: 760px) {
-          .gymup-home__container {
-            padding: 14px 10px 22px;
-          }
-
-          .stats-grid,
-          .date-actions {
-            grid-template-columns: 1fr;
-          }
-
-          .hero,
-          .panel {
-            border-radius: 22px;
-            padding: 15px;
-          }
-
-          .hero-title {
-            font-size: 34px;
-          }
+        @media (min-width: 1024px) {
+          .gu-container { max-width: 1120px; display: grid; grid-template-columns: 560px minmax(0, 1fr); column-gap: 40px; }
+          .gu-col-side { padding-top: 96px; }
+          .gu-two { grid-template-columns: 1fr 1fr; }
         }
       `}</style>
 
-      <main className="gymup-home">
-        <div className="gymup-home__container">
-          <div className="topbar">
-            <div className="brand">
-              <img
-  src="/gymup-logo.png"
-  alt="GYMUP"
-  className="brand-logo"
-/>
-
-              <div>
-                <div className="brand-title">
-                  GYMUP CRM
-                </div>
-
-                <div className="brand-sub">
-                  現場・売上・回数券・顧客状態を一画面で確認
-                </div>
+      <main className="gu-home">
+        <div className="gu-container">
+          <div className="gu-col-main">
+            <header className="gu-header">
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span className="gu-logo">GYMUP</span>
+                <span className="gu-sub" style={{ letterSpacing: "0.08em" }}>
+                  <span className="gu-num">{headerDate}</span> ・ 全店舗
+                </span>
               </div>
-            </div>
-
-            <div className="topbar-actions">
-              <Link href="/reservation" className="topbar-link">
-                予約管理
+              <Link href="/followup" className="gu-icon-btn" aria-label="フォロー確認（お知らせ）">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+                  <path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                  <path d="M10 21h4" />
+                </svg>
+                {stats.lowTicketCount > 0 ? <span className="badge" aria-hidden="true" /> : null}
               </Link>
+            </header>
 
-              <Link href="/customer" className="topbar-link">
-                顧客管理
-              </Link>
-
-              <Link href="/sales" className="topbar-link">
-                売上管理
-              </Link>
-
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="topbar-button"
-              >
-                ログアウト
+            <div className="gu-daybar">
+              <button type="button" onClick={() => setSelectedDate((prev) => shiftDateString(prev, -1))}>
+                ‹ 前日
               </button>
-            </div>
-          </div>
-
-          <section className="hero">
-            <div className="hero-grid">
-              <div>
-                <h1 className="hero-title">
-                  今日の現場を、
-                  <br />
-                  迷わず動かす。
-                </h1>
-
-                <p className="hero-desc">
-                  売上未・回数券未消化・カウンセリング未・残回数低下をまとめて確認。
-                  予約詳細と顧客ページへすぐ移動できます。
-                </p>
-              </div>
-
-              <div className="date-card">
-                <div className="date-label">
-                  DAILY CONTROL
-                </div>
-
-                <div className="date-title">
-                  {selectedDateLabel}
-                </div>
-
-                <div className="date-actions">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSelectedDate((prev) =>
-                        shiftDateString(prev, -1)
-                      )
-                    }
-                    className="date-btn"
-                  >
-                    前日
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={goToday}
-                    className="date-btn"
-                  >
-                    今日
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSelectedDate((prev) =>
-                        shiftDateString(prev, 1)
-                      )
-                    }
-                    className="date-btn"
-                  >
-                    翌日
-                  </button>
-
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) =>
-                      e.target.value &&
-                      setSelectedDate(e.target.value)
-                    }
-                    className="date-input"
-                  />
-                </div>
-              </div>
-            </div>
-          </section>
-                    {error ? (
-            <div className="panel">
-              <div className="panel-title">エラー</div>
-              <div className="panel-sub">{error}</div>
-            </div>
-          ) : null}
-
-          <section className="stats-grid">
-            {topStats.map((item) => (
-              <div key={item.label} className={`stat ${item.accent || ""}`}>
-                <div className="stat-label">{item.label}</div>
-                <div className="stat-value">{item.value}</div>
-                <div className="stat-sub">{item.sub}</div>
-              </div>
-            ))}
-          </section>
-
-          <section className="stats-grid">
-            {subStats.map((item) => (
-              <div key={item.label} className={`stat ${item.accent || ""}`}>
-                <div className="stat-label">{item.label}</div>
-                <div className="stat-value">{loading ? "..." : item.value}</div>
-                <div className="stat-sub">{item.sub}</div>
-              </div>
-            ))}
-          </section>
-
-          <section className="panel">
-            <div className="panel-head">
-              <div>
-                <div className="panel-title">月別・店舗別 売上管理</div>
-                <div className="panel-sub">管理者用：月売上・店舗別・担当者別を確認</div>
-              </div>
-
+              <button type="button" onClick={goToday} className={isTodaySelected ? "on" : ""}>
+                今日
+              </button>
+              <button type="button" onClick={() => setSelectedDate((prev) => shiftDateString(prev, 1))}>
+                翌日 ›
+              </button>
               <input
-                type="month"
-                value={selectedMonth}
-                onChange={(e) => e.target.value && setSelectedMonth(e.target.value)}
-                className="month-input"
+                type="date"
+                aria-label="日付を選ぶ"
+                value={selectedDate}
+                onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
               />
             </div>
 
-            <div className="monthly-total-card">
-              <div>
-                <div className="monthly-total-label">選択月の純売上（前受金を除く）</div>
-                <div className="monthly-total-value">{formatYen(stats.monthSalesAmount)}</div>
+            {error ? <div className="gu-error">読み込みエラー：{error}</div> : null}
+
+            <section className="gu-today">
+              <span className="gu-label">{isTodaySelected ? "TODAY'S SALES" : `${selectedDateLabel} の売上`}</span>
+              <span className="gu-today-amount gu-num">{loading ? "…" : formatYen(stats.todaySalesAmount)}</span>
+              <span className="gu-sub">
+                純売上（前受金除く）・予約 <span className="gu-num">{loading ? "…" : stats.todayReservationCount}</span>件
+              </span>
+            </section>
+
+            <div className="gu-rule" />
+
+            <section className="gu-month">
+              <svg width="104" height="104" viewBox="0 0 104 104" role="img" aria-label={monthRate !== null ? `月間目標の達成率 ${Math.round(monthRate * 100)}%` : "月間目標は未設定"}>
+                <circle cx="52" cy="52" r="44" fill="none" stroke="var(--gu-track)" strokeWidth="6" />
+                {monthRate !== null ? (
+                  <circle
+                    cx="52"
+                    cy="52"
+                    r="44"
+                    fill="none"
+                    stroke="var(--gu-gold)"
+                    strokeWidth="6"
+                    strokeLinecap="round"
+                    strokeDasharray={RING_LENGTH}
+                    strokeDashoffset={ringOffset}
+                    transform="rotate(-90 52 52)"
+                  />
+                ) : null}
+                <text x="52" y="52" textAnchor="middle" fontFamily="var(--gu-font-num)" fontSize="18" fontWeight="600" fill="var(--gu-ink)">
+                  {monthRate !== null ? `${Math.round(monthRate * 100)}%` : "—"}
+                </text>
+                <text x="52" y="69" textAnchor="middle" fontSize="10" fill="var(--gu-sub)">
+                  {monthRate !== null ? "月間目標" : "目標未設定"}
+                </text>
+              </svg>
+              <div className="gu-month-info">
+                <span className="gu-sub">{selectedMonthNumber}月の純売上</span>
+                <span className="gu-month-amount gu-num">{loading ? "…" : formatYen(stats.monthSalesAmount)}</span>
+                <span className="gu-sub">
+                  前受金 <span className="gu-num">{formatYen(stats.monthAdvanceAmount)}</span>
+                </span>
+                <span className="gu-change">
+                  {isCurrentMonth ? "前月同日比" : "前月比"} <span className="gu-num">{loading ? "…" : monthlyChangeText}</span>
+                </span>
               </div>
+            </section>
 
-              <div className="monthly-total-sub">
-                前月比 {monthlyChangeText} / 前受金 {formatYen(stats.monthAdvanceAmount)} / 売上 {monthSalesRows.length}件
+            <section className="gu-tasks" aria-labelledby="gu-tasks-title">
+              <div className="gu-tasks-head">
+                <h2 id="gu-tasks-title" className="gu-heading">今日やること</h2>
+                <span className="gu-tasks-count">
+                  <span className="gu-num">{loading ? "…" : todayTaskCount}</span> 件
+                </span>
               </div>
-            </div>
-
-            {(() => {
-              const today = getTodayDateString();
-              const [y, m] = selectedMonth.split("-").map(Number);
-              const daysInMonth = new Date(y, m, 0).getDate();
-              const isCurrent = today.slice(0, 7) === selectedMonth;
-              const elapsed = isCurrent ? Number(today.slice(8, 10)) : today.slice(0, 7) > selectedMonth ? daysInMonth : 0;
-              const actual = stats.monthSalesAmount || 0;
-              const forecast = elapsed > 0 ? Math.round((actual / elapsed) * daysInMonth) : null;
-              const target = Number(monthTarget || 0);
-              const rate = target > 0 ? Math.round((actual / target) * 1000) / 10 : null;
-              return (
-                <div className="monthly-total-card" style={{ marginTop: 10, flexWrap: "wrap", gap: 12 }}>
-                  <div>
-                    <div className="monthly-total-label">今月の目標（純売上）</div>
-                    <input
-                      type="number"
-                      value={monthTarget}
-                      onChange={(e) => saveMonthTarget(e.target.value)}
-                      placeholder="例：4500000"
-                      className="month-input"
-                      style={{ width: 160 }}
-                    />
-                  </div>
-                  <div className="monthly-total-sub" style={{ display: "grid", gap: 4 }}>
-                    {rate !== null ? <span>達成率 {rate}%（あと {formatYen(Math.max(0, target - actual))}）</span> : <span>目標を入れると達成率が出ます</span>}
-                    {isCurrent && forecast !== null ? (
-                      <span>
-                        このペースなら月末 {formatYen(forecast)}
-                        {target > 0 ? (forecast >= target ? "（目標達成ペース）" : `（目標まで1日あたり ${formatYen(Math.ceil((target - actual) / Math.max(1, daysInMonth - elapsed)))} 必要）`) : ""}
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })()}
-
-            <div className="monthly-summary-grid">
-              <div className="monthly-summary-box">
-                <div className="monthly-summary-title">店舗別売上</div>
-
-                {storeSalesSummary.length === 0 ? (
-                  <div className="empty">この月の店舗別売上はありません。</div>
-                ) : (
-                  <div className="side-list">
-                    {storeSalesSummary.map((item) => (
-                      <div key={item.name} className="side-item">
-                        <div className="side-main">{item.name}</div>
-                        <div className="side-sub">
-                          {formatYen(item.amount)} / {item.count}件
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="monthly-summary-box">
-                <div className="monthly-summary-title">担当者別売上</div>
-
-                {staffSalesSummary.length === 0 ? (
-                  <div className="empty">この月の担当者別売上はありません。</div>
-                ) : (
-                  <div className="side-list">
-                    {staffSalesSummary.map((item) => (
-                      <div key={item.name} className="side-item">
-                        <div className="side-main">{item.name}</div>
-                        <div className="side-sub">
-                          {formatYen(item.amount)} / {item.count}件
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </section>
-
-          <div className="main-grid">
-            <div className="stack">
-              <section className="panel">
-                <div className="panel-head">
-                  <div>
-                    <div className="panel-title">今日やることリスト</div>
-                    <div className="panel-sub">
-                      売上未・回数券未消化・カウンセリング未・残回数注意
-                    </div>
-                  </div>
-                  <div className="panel-badge">
-                    {loading ? "確認中" : `${todoItems.length}件`}
-                  </div>
-                </div>
-
-                {loading ? (
-                  <div className="empty">読み込み中...</div>
-                ) : todoItems.length === 0 ? (
-                  <div className="empty">今日の未処理はありません。</div>
-                ) : (
-                  <div className="todo-list">
-                    {todoItems.map((item) => (
-                      <div key={item.id} className={`todo-item ${item.level}`}>
-                        <div>
-                          <div className="todo-main">{item.title}</div>
-                          <div className="todo-sub">{item.sub}</div>
-                        </div>
-
-                        <div className="todo-actions">
-                          {item.customerHref ? (
-                            <Link href={item.customerHref} className="todo-link">
-                              顧客を見る
-                            </Link>
-                          ) : null}
-
-                          <Link href={item.href} className="todo-link">
-                            詳細へ
-                          </Link>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-
-              <section className="panel">
-                <div className="panel-head">
-                  <div>
-                    <div className="panel-title">本日の予約</div>
-                    <div className="panel-sub">選択日の予約と処理状態を確認</div>
-                  </div>
-                  <div className="panel-badge">
-                    {loading ? "確認中" : `${reservations.length}件`}
-                  </div>
-                </div>
-
-                {loading ? (
-                  <div className="empty">読み込み中...</div>
-                ) : reservations.length === 0 ? (
-                  <div className="empty">この日の予約はありません。</div>
-                ) : (
-                  <div className="reservation-list">
-                    {reservations.map((item) => {
-                      const remainingClass = ticketRemainingClass(item.remainingCount);
-
-                      return (
-                        <Link
-  key={item.id}
-  href={
-    item.customerId
-      ? `/customer/${item.customerId}/training`
-      : `/reservation/detail/${item.id}`
-  }
-  className="reservation-item"
-  style={{ textDecoration: "none" }}
->
-                          <div className="reservation-top">
-                            <div className="reservation-time">{item.time}</div>
-                            <div className="reservation-main">{item.customerName}</div>
-                          </div>
-
-                          <div className="reservation-sub">
-                            {item.menu} / {item.staffName}
-                            {item.storeName ? ` / ${item.storeName}` : ""}
-                          </div>
-
-                          {item.memo ? (
-                            <div className="reservation-sub">メモ：{item.memo}</div>
-                          ) : null}
-
-                          <div className="reservation-tags">
-                            <span className={`tag ${item.isSold ? "green" : "red"}`}>
-                              {item.isSold ? "売上済" : "売上未"}
+              {loading ? (
+                <div className="gu-tasks-empty">確認中…</div>
+              ) : taskRows.length === 0 ? (
+                <div className="gu-tasks-empty">未処理はありません。</div>
+              ) : (
+                taskRows.map((row) =>
+                  row.items ? (
+                    <details key={row.key}>
+                      <summary className="gu-task-row" style={{ listStyle: "none" }}>
+                        <span>{row.label}</span>
+                        <span className="right">
+                          <span className="gu-num">{row.count}</span>件 ▾
+                        </span>
+                      </summary>
+                      <div className="gu-task-items">
+                        {row.items.map((item) => (
+                          <Link key={item.id} href={item.href} className="gu-task-item">
+                            <span>
+                              <span className="gu-num">{item.title}</span>
+                              <br />
+                              <span className="meta">{item.sub}</span>
                             </span>
+                            <span className="go">開く →</span>
+                          </Link>
+                        ))}
+                      </div>
+                    </details>
+                  ) : (
+                    <a key={row.key} href={row.href} className="gu-task-row">
+                      <span>{row.label}</span>
+                      <span className="right">
+                        <span className="gu-num">{row.count}</span>件 →
+                      </span>
+                    </a>
+                  )
+                )
+              )}
+            </section>
 
-                            {item.isTicket ? (
-                              <span className={`tag ${item.isTicketUsed ? "green" : "purple"}`}>
-                                {item.isTicketUsed ? "消化済" : "未消化"}
-                              </span>
-                            ) : null}
-
-                            {isNewVisit(item) ? (
-                              <span className={`tag ${item.isCounseled ? "green" : "orange"}`}>
-                                {item.isCounseled ? "カウンセ済" : "カウンセ未"}
-                              </span>
-                            ) : null}
-
-                            {item.isTicket && item.remainingCount !== null ? (
-                              <span className={`tag ${remainingClass}`}>
-                                残{item.remainingCount}回
-                              </span>
-                            ) : null}
-                          </div>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
-              </section>
-            </div>
-
-            <aside className="stack">
-              <section className="panel">
-                <div className="panel-head">
-                  <div>
-                    <div className="panel-title">クイック導線</div>
-                    <div className="panel-sub">よく使う管理ページへ移動</div>
-                  </div>
-                </div>
-
-                <div className="quick-links">
-                  {quickLinks.map((item) => (
-                    <Link key={item.href} href={item.href} className="quick-link">
-                      <div className="quick-link-title">{item.title}</div>
-                      <div className="quick-link-desc">{item.desc}</div>
-                    </Link>
-                  ))}
-                </div>
-              </section>
-
-              <section className="panel">
-                <div className="panel-head">
-                  <div>
-                    <div className="panel-title">回数券 残数注意</div>
-                    <div className="panel-sub">残3回以下の契約回数券</div>
-                  </div>
-                  <div className="panel-badge">
-                    {loading ? "確認中" : `${lowTickets.length}件`}
-                  </div>
-                </div>
-
-                {loading ? (
-                  <div className="empty">読み込み中...</div>
-                ) : lowTickets.length === 0 ? (
-                  <div className="empty">残数注意の回数券はありません。</div>
-                ) : (
-                  <div className="side-list">
-                    {lowTickets.map((ticket) => (
-                      <Link
-                        key={String(ticket.id)}
-                        href={ticket.customer_id ? `/customer/${ticket.customer_id}` : "/customer"}
-                        className="side-item"
-                        style={{ textDecoration: "none" }}
-                      >
-                        <div className="side-main">{ticket.ticket_name || "回数券"}</div>
-                        <div className="side-sub">
-                          顧客ID {ticket.customer_id || "—"} / 残
-                          {Number(ticket.remaining_count || 0)}回 / 使用
-                          {Number(ticket.used_count || 0)}回
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </section>
-
-              <section className="panel">
-                <div className="panel-head">
-                  <div>
-                    <div className="panel-title">LTV上位顧客</div>
-                    <div className="panel-sub">純売上の累計 上位10名</div>
-                  </div>
-                  <Link href="/ltv" style={{ fontSize: 13, fontWeight: 700 }}>ランキングを見る →</Link>
-                </div>
-
-                {loading ? (
-                  <div className="empty">読み込み中...</div>
-                ) : ltvCustomers.length === 0 ? (
-                  <div className="empty">売上データがまだありません。</div>
-                ) : (
-                  <div className="side-list">
-                    {ltvCustomers.map((item, index) => (
-                      <Link
-                        key={item.customerId}
-                        href={
-                          item.customerId.startsWith("name-")
-                            ? `/customer?keyword=${encodeURIComponent(item.customerName)}`
-                            : `/customer/${item.customerId}`
-                        }
-                        className="side-item"
-                        style={{ textDecoration: "none" }}
-                      >
-                        <div className="side-main">
-                          {index + 1}. {item.customerName}
-                        </div>
-                        <div className="side-sub">
-                          LTV {formatYen(item.amount)} / メイン担当 {item.mainStaff || "—"} / {item.count}件
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </section>
-
-              <section className="panel">
-                <div className="panel-head">
-                  <div>
-                    <div className="panel-title">引き継ぎメモ</div>
-                    <div className="panel-sub">{selectedDateLabel} の共有事項</div>
-                  </div>
-                </div>
-
-                <textarea
-                  className="memo-box"
-                  value={handoverNote}
-                  onChange={(e) => handleHandoverChange(e.target.value)}
-                  placeholder="例：◯◯様、腰痛あり。ストレッチ弱め。次回更新案内。"
-                />
-
-                <div className="memo-actions">
-                  <button type="button" onClick={handleClearHandover} className="danger-btn">
-                    クリア
-                  </button>
-                </div>
-              </section>
-
-              <section className="panel">
-                <div className="panel-head">
-                  <div>
-                    <div className="panel-title">システム状態</div>
-                    <div className="panel-sub">Supabase接続とデータ確認</div>
-                  </div>
-
-                  <div
-                    className={`panel-badge ${
-                      systemStatus === "ONLINE" ? "system-online" : "system-offline"
-                    }`}
+            <section className="gu-section" id="reservations">
+              <div className="gu-section-head">
+                <h2 className="gu-heading">{isTodaySelected ? "本日のご予約" : `${selectedDateLabel} のご予約`}</h2>
+                <Link href="/reservation">一覧へ</Link>
+              </div>
+              {loading ? (
+                <div className="gu-empty">読み込み中…</div>
+              ) : reservations.length === 0 ? (
+                <div className="gu-empty">この日の予約はありません。</div>
+              ) : (
+                reservations.map((item) => (
+                  <Link
+                    key={item.id}
+                    href={item.customerId ? `/customer/${item.customerId}/training` : `/reservation/detail/${item.id}`}
+                    className="gu-resv"
                   >
-                    {systemStatus}
-                  </div>
+                    <span className="gu-resv-time gu-num">{item.time || "--:--"}</span>
+                    <span className="gu-resv-main">
+                      <span className="gu-resv-name">{item.customerName} 様</span>
+                      <span className="gu-resv-menu">
+                        {item.menu} ・ {item.staffName}
+                        {item.storeName ? ` ・ ${item.storeName}` : ""}
+                      </span>
+                      {item.memo ? <span className="gu-resv-menu">メモ：{item.memo}</span> : null}
+                    </span>
+                    <span className="gu-tags">
+                      <span className={`gu-tag ${item.isSold ? "done" : "alert"}`}>{item.isSold ? "売上済" : "売上未入力"}</span>
+                      {item.isTicket ? (
+                        <span className={`gu-tag ${item.isTicketUsed ? "done" : ""}`}>
+                          {item.isTicketUsed ? "回数券 消化済" : "回数券 消化未入力"}
+                        </span>
+                      ) : null}
+                      {item.isTicket && item.remainingCount !== null ? (
+                        <span className="gu-tag">回数券 残{item.remainingCount}回</span>
+                      ) : null}
+                      {isNewVisit(item) ? (
+                        <span className={`gu-tag ${item.isCounseled ? "done" : ""}`}>
+                          {item.isCounseled ? "初回・カウンセリング済" : "初回"}
+                        </span>
+                      ) : null}
+                    </span>
+                  </Link>
+                ))
+              )}
+            </section>
+          </div>
+
+          <div className="gu-col-side">
+            <section className="gu-section">
+              <div className="gu-section-head">
+                <h2 className="gu-heading">今月の売上</h2>
+                <input
+                  type="month"
+                  aria-label="月を選ぶ"
+                  className="gu-field"
+                  value={selectedMonth}
+                  onChange={(e) => e.target.value && setSelectedMonth(e.target.value)}
+                />
+              </div>
+              <div className="gu-card" style={{ display: "grid", gap: 14 }}>
+                <label style={{ display: "grid", gap: 6 }}>
+                  <span className="gu-sub">{selectedMonthNumber}月の目標（純売上）</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    className="gu-field"
+                    value={monthTarget}
+                    onChange={(e) => saveMonthTarget(e.target.value)}
+                    placeholder="例：4500000"
+                  />
+                </label>
+                <div className="gu-sub" style={{ display: "grid", gap: 4, lineHeight: 1.7 }}>
+                  {monthRate !== null ? (
+                    <span>
+                      達成率 <span className="gu-num">{Math.round(monthRate * 1000) / 10}%</span>（あと{" "}
+                      <span className="gu-num">{formatYen(Math.max(0, monthTargetNumber - monthActual))}</span>）
+                    </span>
+                  ) : (
+                    <span>目標を入れると、上の円グラフに達成率が出ます。</span>
+                  )}
+                  {isCurrentMonth && forecast !== null ? (
+                    <span>
+                      このペースなら月末 <span className="gu-num">{formatYen(forecast)}</span>
+                      {monthTargetNumber > 0
+                        ? forecast >= monthTargetNumber
+                          ? "（目標達成ペース）"
+                          : `（目標まで1日あたり ${formatYen(
+                              Math.ceil((monthTargetNumber - monthActual) / Math.max(1, daysInSelectedMonth - elapsedDays))
+                            )} 必要）`
+                        : ""}
+                    </span>
+                  ) : null}
+                  <span>
+                    売上 <span className="gu-num">{monthSalesRows.length}</span>件 ・ 前月の1か月分{" "}
+                    <span className="gu-num">{formatYen(stats.prevMonthSalesAmount)}</span>
+                  </span>
                 </div>
-
-                <div className="side-list">
-                  <div className="side-item">
-                    <div className="side-main">会員数</div>
-                    <div className="side-sub">
-                      {stats.customerCount === null ? "--" : `${stats.customerCount}名`}
-                    </div>
-                  </div>
-
-                  <div className="side-item">
-                    <div className="side-main">今月新規</div>
-                    <div className="side-sub">
-                      {stats.monthNewCustomers === null
-                        ? "--"
-                        : `${stats.monthNewCustomers}名`}
-                    </div>
-                  </div>
-
-                  <div className="side-item">
-                    <div className="side-main">前月売上</div>
-                    <div className="side-sub">{formatYen(stats.prevMonthSalesAmount)}</div>
-                  </div>
+              </div>
+              <div className="gu-two" style={{ marginTop: 16 }}>
+                <div className="gu-card">
+                  <div className="gu-sub" style={{ marginBottom: 4 }}>店舗別</div>
+                  {storeSalesSummary.length === 0 ? (
+                    <div className="gu-empty">この月の売上はありません。</div>
+                  ) : (
+                    storeSalesSummary.map((item) => (
+                      <div key={item.name} className="gu-list-row">
+                        <span>{item.name}</span>
+                        <span className="val gu-num">
+                          {formatYen(item.amount)} / {item.count}件
+                        </span>
+                      </div>
+                    ))
+                  )}
                 </div>
-              </section>
-            </aside>
+                <div className="gu-card">
+                  <div className="gu-sub" style={{ marginBottom: 4 }}>担当者別</div>
+                  {staffSalesSummary.length === 0 ? (
+                    <div className="gu-empty">この月の売上はありません。</div>
+                  ) : (
+                    staffSalesSummary.map((item) => (
+                      <div key={item.name} className="gu-list-row">
+                        <span>{item.name}</span>
+                        <span className="val gu-num">
+                          {formatYen(item.amount)} / {item.count}件
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </section>
+
+            <section className="gu-section" id="low-tickets">
+              <div className="gu-section-head">
+                <h2 className="gu-heading">回数券の残りわずか</h2>
+                <span className="gu-sub">残3回以下 <span className="gu-num">{lowTickets.length}</span>件</span>
+              </div>
+              <div className="gu-card">
+                {loading ? (
+                  <div className="gu-empty">読み込み中…</div>
+                ) : lowTickets.length === 0 ? (
+                  <div className="gu-empty">残りわずかの回数券はありません。</div>
+                ) : (
+                  lowTickets.map((ticket) => (
+                    <Link
+                      key={String(ticket.id)}
+                      href={ticket.customer_id ? `/customer/${ticket.customer_id}` : "/customer"}
+                      className="gu-list-row"
+                    >
+                      <span>{ticket.ticket_name || "回数券"}</span>
+                      <span className="val gu-num">
+                        残{Number(ticket.remaining_count || 0)}回 / 使用{Number(ticket.used_count || 0)}回
+                      </span>
+                    </Link>
+                  ))
+                )}
+              </div>
+            </section>
+
+            <section className="gu-section">
+              <div className="gu-section-head">
+                <h2 className="gu-heading">LTV上位のお客様</h2>
+                <Link href="/ltv">ランキングへ</Link>
+              </div>
+              <div className="gu-card">
+                {loading ? (
+                  <div className="gu-empty">読み込み中…</div>
+                ) : ltvCustomers.length === 0 ? (
+                  <div className="gu-empty">売上データがまだありません。</div>
+                ) : (
+                  ltvCustomers.map((item, index) => (
+                    <Link
+                      key={item.customerId}
+                      href={
+                        item.customerId.startsWith("name-")
+                          ? `/customer?keyword=${encodeURIComponent(item.customerName)}`
+                          : `/customer/${item.customerId}`
+                      }
+                      className="gu-list-row"
+                    >
+                      <span>
+                        <span className="gu-num" style={{ color: "var(--gu-gold-text)", marginRight: 8 }}>{index + 1}</span>
+                        {item.customerName}
+                      </span>
+                      <span className="val">
+                        <span className="gu-num">{formatYen(item.amount)}</span>
+                        <br />
+                        メイン担当 {item.mainStaff || "—"}
+                      </span>
+                    </Link>
+                  ))
+                )}
+              </div>
+            </section>
+
+            <section className="gu-section">
+              <div className="gu-section-head">
+                <h2 className="gu-heading">引き継ぎメモ</h2>
+                <span className="gu-sub">{selectedDateLabel}</span>
+              </div>
+              <textarea
+                className="gu-memo"
+                aria-label="引き継ぎメモ"
+                value={handoverNote}
+                onChange={(e) => handleHandoverChange(e.target.value)}
+                placeholder="例：◯◯様、腰痛あり。ストレッチ弱め。次回更新案内。"
+              />
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+                <button type="button" className="gu-btn" onClick={handleClearHandover}>
+                  メモを消す
+                </button>
+              </div>
+            </section>
+
+            <section className="gu-section" id="menu">
+              <div className="gu-section-head">
+                <h2 className="gu-heading">メニュー</h2>
+              </div>
+              <nav className="gu-menu" aria-label="すべてのメニュー">
+                {quickLinks.map((item) => (
+                  <Link key={item.href} href={item.href}>
+                    <span className="t">{item.title}</span>
+                    <span className="d">{item.desc}</span>
+                  </Link>
+                ))}
+              </nav>
+              <div className="gu-card" style={{ marginTop: 16 }}>
+                <div className="gu-list-row">
+                  <span>会員数</span>
+                  <span className="val gu-num">{stats.customerCount === null ? "--" : `${stats.customerCount}名`}</span>
+                </div>
+                <div className="gu-list-row">
+                  <span>{selectedMonthNumber}月の新規登録</span>
+                  <span className="val gu-num">{stats.monthNewCustomers === null ? "--" : `${stats.monthNewCustomers}名`}</span>
+                </div>
+                <div className="gu-list-row">
+                  <span>データ接続</span>
+                  <span className="val">{systemStatus === "ONLINE" ? "正常" : "接続できていません"}</span>
+                </div>
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+                <button type="button" className="gu-btn" onClick={handleLogout}>
+                  ログアウト
+                </button>
+              </div>
+            </section>
           </div>
         </div>
       </main>
+
+      <BottomNav />
     </>
   );
 }

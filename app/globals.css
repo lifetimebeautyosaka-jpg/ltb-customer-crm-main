@@ -1,28 +1,37 @@
 @import "tailwindcss";
 
+/* ジムアップCRM 共通テーマ（案B ライト・高級感）。styles/theme.ts と同じ値 */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --gu-bg: #F7F5F0;
+  --gu-ink: #15171C;
+  --gu-sub: #5B5E66;
+  --gu-line: #DCD6CA;
+  --gu-gold: #B08133;
+  --gu-gold-text: #8A6220;
+  --gu-gold-on-ink: #E2C48C;
+  --gu-tag-border: #CDB68A;
+  --gu-card: #FFFFFF;
+  --gu-track: #E8E2D6;
+  --gu-font-logo: var(--font-cormorant), "Times New Roman", serif;
+  --gu-font-heading: var(--font-shippori), "Hiragino Mincho ProN", "Yu Mincho", serif;
+  --gu-font-body: var(--font-noto-sans-jp), "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  /* 数字は見やすさのため、今までと同じ字体のまま */
+  --gu-font-num: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  --background: var(--gu-bg);
+  --foreground: var(--gu-ink);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: var(--gu-font-body);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--gu-font-body);
 }
 * {
   box-sizing: border-box;
