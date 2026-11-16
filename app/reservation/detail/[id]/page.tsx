@@ -215,13 +215,13 @@ function getStaffColor(staffName?: string | null) {
   if (name.includes("入江")) return "#a1887f";
   if (name.includes("中西")) return "#ec4899";
   if (name.includes("池田")) return "#8b5e3c";
-  if (name.includes("石川")) return "#2563eb";
+  if (name.includes("石川")) return "#8A6220";
   if (name.includes("羽田")) return "#ef4444";
   if (name.includes("菱谷")) return "#eab308";
-  if (name.includes("井上")) return "#111827";
-  if (name.includes("林")) return "#111827";
+  if (name.includes("井上")) return "#15171C";
+  if (name.includes("林")) return "#15171C";
 
-  return "#9ca3af";
+  return "#8E8A82";
 }
 
 function getStoreColor(storeName?: string | null) {
@@ -235,7 +235,7 @@ function getStoreColor(storeName?: string | null) {
   if (store.includes("天満橋")) return "#14b8a6";
   if (store.includes("中崎町")) return "#eab308";
   if (store.includes("江坂")) return "#10b981";
-  return "#6b7280";
+  return "#5B5E66";
 }
 
 function buildSalesHref(item: ReservationRow) {
@@ -883,7 +883,7 @@ export default function ReservationDetailPage() {
                   pendingFlags.counselingPending ||
                   pendingFlags.ticketPending
                     ? "2px solid #ef4444"
-                    : "1px solid #e2e8f0",
+                    : "1px solid #DCD6CA",
               }}
             >
               <div style={styles.sectionHeader}>
@@ -1107,7 +1107,7 @@ export default function ReservationDetailPage() {
               style={{
                 ...styles.card,
                 border:
-                  pendingFlags.salesPending ? "2px solid #ef4444" : "1px solid #e2e8f0",
+                  pendingFlags.salesPending ? "2px solid #ef4444" : "1px solid #DCD6CA",
               }}
             >
               <div style={styles.sectionHeader}>
@@ -1165,7 +1165,7 @@ export default function ReservationDetailPage() {
               style={{
                 ...styles.card,
                 border:
-                  pendingFlags.counselingPending ? "2px solid #f59e0b" : "1px solid #e2e8f0",
+                  pendingFlags.counselingPending ? "2px solid #f59e0b" : "1px solid #DCD6CA",
               }}
             >
               <div style={styles.sectionHeader}>
@@ -1212,7 +1212,7 @@ export default function ReservationDetailPage() {
               style={{
                 ...styles.card,
                 border:
-                  pendingFlags.ticketPending ? "2px solid #7c3aed" : "1px solid #e2e8f0",
+                  pendingFlags.ticketPending ? "2px solid #7c3aed" : "1px solid #DCD6CA",
               }}
             >
               <div style={styles.sectionHeader}>
@@ -1391,7 +1391,7 @@ export default function ReservationDetailPage() {
 const styles: Record<string, CSSProperties> = {
   page: {
     minHeight: "100vh",
-    background: "linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)",
+    background: "linear-gradient(180deg, #FBFAF7 0%, #F3ECDD 100%)",
     padding: "18px 12px 40px",
   },
   wrap: {
@@ -1406,7 +1406,7 @@ const styles: Record<string, CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.75)",
     borderRadius: 24,
     padding: 18,
-    boxShadow: "0 12px 30px rgba(15,23,42,0.08)",
+    boxShadow: "0 12px 30px rgba(21,23,28,0.08)",
   },
   heroTop: {
     display: "flex",
@@ -1417,7 +1417,7 @@ const styles: Record<string, CSSProperties> = {
   },
   eyebrow: {
     fontSize: 12,
-    color: "#64748b",
+    color: "#5B5E66",
     fontWeight: 800,
     letterSpacing: "0.08em",
     marginBottom: 6,
@@ -1426,12 +1426,12 @@ const styles: Record<string, CSSProperties> = {
     margin: 0,
     fontSize: 30,
     lineHeight: 1.1,
-    color: "#0f172a",
+    color: "#15171C",
     fontWeight: 900,
   },
   subTitle: {
     marginTop: 8,
-    color: "#475569",
+    color: "#5B5E66",
     fontSize: 14,
     fontWeight: 700,
   },
@@ -1442,7 +1442,7 @@ const styles: Record<string, CSSProperties> = {
   },
   darkBtn: {
     border: "none",
-    background: "#111827",
+    background: "#15171C",
     color: "#fff",
     borderRadius: 14,
     padding: "10px 14px",
@@ -1451,9 +1451,9 @@ const styles: Record<string, CSSProperties> = {
     cursor: "pointer",
   },
   subBtn: {
-    border: "1px solid #e2e8f0",
+    border: "1px solid #DCD6CA",
     background: "#fff",
-    color: "#334155",
+    color: "#3A3D45",
     borderRadius: 14,
     padding: "10px 14px",
     fontSize: 13,
@@ -1466,7 +1466,7 @@ const styles: Record<string, CSSProperties> = {
     justifyContent: "center",
     textDecoration: "none",
     border: "none",
-    background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+    background: "linear-gradient(135deg, #8A6220, #6E4E19)",
     color: "#fff",
     borderRadius: 14,
     padding: "10px 14px",
@@ -1479,7 +1479,7 @@ const styles: Record<string, CSSProperties> = {
     justifyContent: "center",
     textDecoration: "none",
     border: "none",
-    background: "linear-gradient(135deg, #111827, #374151)",
+    background: "linear-gradient(135deg, #15171C, #3A3D45)",
     color: "#fff",
     borderRadius: 14,
     padding: "10px 14px",
@@ -1522,12 +1522,12 @@ const styles: Record<string, CSSProperties> = {
     background: "#fff",
     borderRadius: 18,
     padding: 14,
-    boxShadow: "0 8px 22px rgba(15,23,42,0.06)",
-    border: "1px solid #e2e8f0",
+    boxShadow: "0 8px 22px rgba(21,23,28,0.06)",
+    border: "1px solid #DCD6CA",
   },
   statusLabel: {
     fontSize: 11,
-    color: "#64748b",
+    color: "#5B5E66",
     fontWeight: 800,
     marginBottom: 8,
   },
@@ -1557,8 +1557,8 @@ const styles: Record<string, CSSProperties> = {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    background: "#dbeafe",
-    color: "#1d4ed8",
+    background: "#EADFC6",
+    color: "#6E4E19",
     borderRadius: 999,
     padding: "8px 12px",
     fontSize: 13,
@@ -1601,8 +1601,8 @@ const styles: Record<string, CSSProperties> = {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    background: "#f1f5f9",
-    color: "#475569",
+    background: "#F1EDE5",
+    color: "#5B5E66",
     borderRadius: 999,
     padding: "8px 12px",
     fontSize: 13,
@@ -1612,7 +1612,7 @@ const styles: Record<string, CSSProperties> = {
     background: "#fff",
     borderRadius: 22,
     padding: 16,
-    boxShadow: "0 10px 26px rgba(15,23,42,0.06)",
+    boxShadow: "0 10px 26px rgba(21,23,28,0.06)",
   },
   sectionHeader: {
     display: "flex",
@@ -1626,7 +1626,7 @@ const styles: Record<string, CSSProperties> = {
     margin: 0,
     fontSize: 22,
     fontWeight: 900,
-    color: "#0f172a",
+    color: "#15171C",
   },
   actionGrid: {
     display: "flex",
@@ -1635,7 +1635,7 @@ const styles: Record<string, CSSProperties> = {
   },
   actionBlue: {
     border: "none",
-    background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+    background: "linear-gradient(135deg, #8A6220, #6E4E19)",
     color: "#fff",
     borderRadius: 14,
     padding: "11px 16px",
@@ -1645,7 +1645,7 @@ const styles: Record<string, CSSProperties> = {
   },
   actionCustomer: {
     border: "none",
-    background: "linear-gradient(135deg, #111827, #374151)",
+    background: "linear-gradient(135deg, #15171C, #3A3D45)",
     color: "#fff",
     borderRadius: 14,
     padding: "11px 16px",
@@ -1664,9 +1664,9 @@ const styles: Record<string, CSSProperties> = {
     cursor: "pointer",
   },
   actionDisabled: {
-    border: "1px solid #e2e8f0",
-    background: "#f8fafc",
-    color: "#94a3b8",
+    border: "1px solid #DCD6CA",
+    background: "#FBFAF7",
+    color: "#8E8A82",
     borderRadius: 14,
     padding: "11px 16px",
     fontWeight: 900,
@@ -1699,14 +1699,14 @@ const styles: Record<string, CSSProperties> = {
     background: "#fff",
     borderRadius: 22,
     padding: 16,
-    boxShadow: "0 10px 26px rgba(15,23,42,0.06)",
-    border: "1px solid #e2e8f0",
+    boxShadow: "0 10px 26px rgba(21,23,28,0.06)",
+    border: "1px solid #DCD6CA",
   },
   emptyBox: {
-    background: "#f8fafc",
+    background: "#FBFAF7",
     borderRadius: 16,
     padding: "18px 14px",
-    color: "#64748b",
+    color: "#5B5E66",
     fontWeight: 700,
     fontSize: 13,
     textAlign: "center",
@@ -1717,7 +1717,7 @@ const styles: Record<string, CSSProperties> = {
     gap: 12,
   },
   infoItem: {
-    background: "#f8fafc",
+    background: "#FBFAF7",
     borderRadius: 14,
     padding: 12,
     display: "grid",
@@ -1725,12 +1725,12 @@ const styles: Record<string, CSSProperties> = {
   },
   infoLabel: {
     fontSize: 11,
-    color: "#64748b",
+    color: "#5B5E66",
     fontWeight: 800,
   },
   infoValue: {
     fontSize: 14,
-    color: "#111827",
+    color: "#15171C",
     fontWeight: 800,
     lineHeight: 1.6,
   },
@@ -1796,19 +1796,19 @@ const styles: Record<string, CSSProperties> = {
   },
   memoBox: {
     marginTop: 14,
-    background: "#f8fafc",
+    background: "#FBFAF7",
     borderRadius: 14,
     padding: 14,
   },
   memoTitle: {
     fontSize: 12,
-    color: "#64748b",
+    color: "#5B5E66",
     fontWeight: 900,
     marginBottom: 8,
   },
   memoText: {
     fontSize: 13,
-    color: "#334155",
+    color: "#3A3D45",
     lineHeight: 1.8,
     whiteSpace: "pre-wrap",
     fontWeight: 700,
@@ -1818,10 +1818,10 @@ const styles: Record<string, CSSProperties> = {
     gap: 10,
   },
   listCard: {
-    background: "#f8fafc",
+    background: "#FBFAF7",
     borderRadius: 16,
     padding: 14,
-    border: "1px solid #e2e8f0",
+    border: "1px solid #DCD6CA",
   },
   listTop: {
     display: "flex",
@@ -1832,18 +1832,18 @@ const styles: Record<string, CSSProperties> = {
   },
   listMain: {
     fontSize: 18,
-    color: "#111827",
+    color: "#15171C",
     fontWeight: 900,
     marginBottom: 4,
   },
   listSub: {
     fontSize: 12,
-    color: "#64748b",
+    color: "#5B5E66",
     fontWeight: 700,
   },
   amountText: {
     fontSize: 20,
-    color: "#111827",
+    color: "#15171C",
     fontWeight: 900,
   },
   usageCountText: {
@@ -1859,8 +1859,8 @@ const styles: Record<string, CSSProperties> = {
   },
   metaChip: {
     background: "#fff",
-    border: "1px solid #e2e8f0",
-    color: "#334155",
+    border: "1px solid #DCD6CA",
+    color: "#3A3D45",
     padding: "7px 10px",
     borderRadius: 999,
     fontSize: 12,
@@ -1871,7 +1871,7 @@ const styles: Record<string, CSSProperties> = {
     background: "#fff",
     borderRadius: 12,
     padding: "10px 12px",
-    color: "#334155",
+    color: "#3A3D45",
     fontSize: 12,
     lineHeight: 1.7,
     whiteSpace: "pre-wrap",
@@ -1879,7 +1879,7 @@ const styles: Record<string, CSSProperties> = {
   },
   inlineBlueBtn: {
     border: "none",
-    background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+    background: "linear-gradient(135deg, #8A6220, #6E4E19)",
     color: "#fff",
     borderRadius: 12,
     padding: "10px 12px",
@@ -1914,7 +1914,7 @@ const styles: Record<string, CSSProperties> = {
     marginBottom: 14,
   },
   ticketSummaryItem: {
-    background: "#f8fafc",
+    background: "#FBFAF7",
     borderRadius: 14,
     padding: 12,
     display: "grid",
@@ -1922,17 +1922,17 @@ const styles: Record<string, CSSProperties> = {
   },
   ticketSummaryLabel: {
     fontSize: 11,
-    color: "#64748b",
+    color: "#5B5E66",
     fontWeight: 800,
   },
   ticketSummaryValue: {
     fontSize: 14,
-    color: "#111827",
+    color: "#15171C",
     fontWeight: 900,
   },
   subSectionTitle: {
     fontSize: 14,
-    color: "#111827",
+    color: "#15171C",
     fontWeight: 900,
     marginBottom: 10,
     marginTop: 6,

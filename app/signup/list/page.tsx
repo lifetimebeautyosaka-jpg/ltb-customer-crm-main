@@ -644,9 +644,9 @@ export default function SignupListPage() {
   const pageStyle: CSSProperties = {
     minHeight: "100vh",
     background:
-      "linear-gradient(135deg, #f7f7f8 0%, #eceef1 45%, #e7eaef 100%)",
+      "linear-gradient(135deg, #FBFAF7 0%, #F1EDE5 45%, #F1EDE5 100%)",
     padding: mobile ? "16px" : "24px",
-    color: "#111827",
+    color: "#15171C",
   };
 
   const innerStyle: CSSProperties = {
@@ -661,7 +661,7 @@ export default function SignupListPage() {
     border: "1px solid rgba(255,255,255,0.9)",
     borderRadius: "24px",
     padding: mobile ? "16px" : "20px",
-    boxShadow: "0 12px 40px rgba(15, 23, 42, 0.08)",
+    boxShadow: "0 12px 40px rgba(21,23,28, 0.08)",
     backdropFilter: "blur(12px)",
   };
 
@@ -683,7 +683,7 @@ export default function SignupListPage() {
   const subTextStyle: CSSProperties = {
     margin: "6px 0 0",
     fontSize: "14px",
-    color: "#6b7280",
+    color: "#5B5E66",
   };
 
   const linkButtonStyle: CSSProperties = {
@@ -695,9 +695,9 @@ export default function SignupListPage() {
     textDecoration: "none",
     fontWeight: 700,
     fontSize: "14px",
-    border: "1px solid #d1d5db",
+    border: "1px solid #CFC8BA",
     background: "#fff",
-    color: "#111827",
+    color: "#15171C",
   };
 
   const primaryButtonStyle: CSSProperties = {
@@ -707,7 +707,7 @@ export default function SignupListPage() {
     padding: "11px 16px",
     borderRadius: "14px",
     border: "none",
-    background: "linear-gradient(135deg, #111827 0%, #374151 100%)",
+    background: "linear-gradient(135deg, #15171C 0%, #3A3D45 100%)",
     color: "#fff",
     fontWeight: 800,
     fontSize: "14px",
@@ -717,8 +717,8 @@ export default function SignupListPage() {
   const secondaryButtonStyle: CSSProperties = {
     ...primaryButtonStyle,
     background: "#fff",
-    color: "#111827",
-    border: "1px solid #d1d5db",
+    color: "#15171C",
+    border: "1px solid #CFC8BA",
   };
 
   const successButtonStyle: CSSProperties = {
@@ -739,7 +739,7 @@ export default function SignupListPage() {
   const inputStyle: CSSProperties = {
     width: "100%",
     borderRadius: "14px",
-    border: "1px solid #d1d5db",
+    border: "1px solid #CFC8BA",
     padding: "12px 14px",
     fontSize: "14px",
     outline: "none",
@@ -758,14 +758,14 @@ export default function SignupListPage() {
   const statCardStyle: CSSProperties = {
     borderRadius: "20px",
     padding: "16px",
-    background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-    border: "1px solid #e5e7eb",
-    boxShadow: "0 6px 18px rgba(15, 23, 42, 0.05)",
+    background: "linear-gradient(135deg, #ffffff 0%, #FBFAF7 100%)",
+    border: "1px solid #DCD6CA",
+    boxShadow: "0 6px 18px rgba(21,23,28, 0.05)",
   };
 
   const statLabelStyle: CSSProperties = {
     fontSize: "12px",
-    color: "#6b7280",
+    color: "#5B5E66",
     fontWeight: 700,
     marginBottom: "8px",
   };
@@ -779,7 +779,7 @@ export default function SignupListPage() {
     width: "100%",
     overflowX: "auto",
     borderRadius: "18px",
-    border: "1px solid #e5e7eb",
+    border: "1px solid #DCD6CA",
     background: "#fff",
   };
 
@@ -794,19 +794,19 @@ export default function SignupListPage() {
     textAlign: "left",
     padding: "13px 14px",
     fontWeight: 800,
-    color: "#374151",
-    background: "#f9fafb",
-    borderBottom: "1px solid #e5e7eb",
+    color: "#3A3D45",
+    background: "#FBFAF7",
+    borderBottom: "1px solid #DCD6CA",
     whiteSpace: "nowrap",
   };
 
   const tdStyle: CSSProperties = {
     padding: "13px 14px",
-    borderBottom: "1px solid #f1f5f9",
+    borderBottom: "1px solid #F1EDE5",
     verticalAlign: "top",
   };
 
-  const pillStyle = (bg: string, color = "#111827"): CSSProperties => ({
+  const pillStyle = (bg: string, color = "#15171C"): CSSProperties => ({
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
@@ -959,7 +959,7 @@ export default function SignupListPage() {
                         <td style={tdStyle}>{trimmed(signup.store_name) || "—"}</td>
                         <td style={tdStyle}>
                           <div>{trimmed(signup.plan_name) || "—"}</div>
-                          <div style={{ marginTop: "6px", color: "#6b7280", fontSize: "12px" }}>
+                          <div style={{ marginTop: "6px", color: "#5B5E66", fontSize: "12px" }}>
                             {trimmed(signup.visit_style) || "—"}
                           </div>
                         </td>
@@ -973,7 +973,7 @@ export default function SignupListPage() {
                           {signup.is_new_customer === true ? (
                             <span style={pillStyle("#ede9fe", "#6d28d9")}>新規</span>
                           ) : signup.is_new_customer === false ? (
-                            <span style={pillStyle("#f3f4f6", "#374151")}>既存</span>
+                            <span style={pillStyle("#F1EDE5", "#3A3D45")}>既存</span>
                           ) : (
                             "—"
                           )}
@@ -999,15 +999,15 @@ export default function SignupListPage() {
                                 style={pillStyle(
                                   existingContract.contract_status === "有効"
                                     ? "#dcfce7"
-                                    : "#f3f4f6",
+                                    : "#F1EDE5",
                                   existingContract.contract_status === "有効"
                                     ? "#166534"
-                                    : "#374151"
+                                    : "#3A3D45"
                                 )}
                               >
                                 {existingContract.contract_status}
                               </span>
-                              <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                              <div style={{ fontSize: "12px", color: "#5B5E66" }}>
                                 次回: {existingContract.next_billing_date || "—"}
                               </div>
                             </div>

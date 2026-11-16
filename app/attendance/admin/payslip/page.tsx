@@ -1074,7 +1074,7 @@ export default function PayslipPage() {
 
   const pageStyle: CSSProperties = {
     minHeight: "100vh",
-    background: "linear-gradient(180deg, #050816 0%, #0b1120 45%, #111827 100%)",
+    background: "#F7F5F0",
     padding: mobile ? "12px 10px 40px" : "24px 18px 60px",
   };
 
@@ -1086,8 +1086,8 @@ export default function PayslipPage() {
   };
 
   const cardStyle: CSSProperties = {
-    background: "rgba(15,23,42,0.86)",
-    border: "1px solid rgba(148,163,184,0.18)",
+    background: "#FFFFFF",
+    border: "1px solid #DCD6CA",
     borderRadius: mobile ? "18px" : "22px",
     boxShadow: "0 18px 50px rgba(0,0,0,0.28)",
     padding: mobile ? "14px" : "20px",
@@ -1104,7 +1104,7 @@ export default function PayslipPage() {
 
   const titleStyle: CSSProperties = {
     margin: 0,
-    color: "#f8fafc",
+    color: "#15171C",
     fontSize: mobile ? "24px" : "36px",
     fontWeight: 900,
     letterSpacing: "0.02em",
@@ -1113,7 +1113,7 @@ export default function PayslipPage() {
 
   const subStyle: CSSProperties = {
     marginTop: "8px",
-    color: "#94a3b8",
+    color: "#8E8A82",
     fontSize: mobile ? "13px" : "14px",
     lineHeight: 1.7,
   };
@@ -1134,9 +1134,9 @@ export default function PayslipPage() {
     padding: "0 14px",
     borderRadius: "12px",
     fontWeight: 800,
-    border: "1px solid rgba(148,163,184,0.25)",
-    color: "#e5e7eb",
-    background: "rgba(15,23,42,0.7)",
+    border: "1px solid #DCD6CA",
+    color: "#15171C",
+    background: "#FFFFFF",
     width: mobile ? "100%" : "auto",
   };
 
@@ -1146,20 +1146,20 @@ export default function PayslipPage() {
     height: "42px",
     padding: "0 16px",
     fontWeight: 900,
-    color: "#111827",
+    color: "#15171C",
     background: "linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)",
     cursor: "pointer",
     width: mobile ? "100%" : "auto",
   };
 
   const softButtonStyle: CSSProperties = {
-    border: "1px solid rgba(148,163,184,0.22)",
+    border: "1px solid #DCD6CA",
     borderRadius: "12px",
     minHeight: "42px",
     padding: "10px 16px",
     fontWeight: 800,
-    color: "#e5e7eb",
-    background: "rgba(15,23,42,0.7)",
+    color: "#15171C",
+    background: "#FFFFFF",
     cursor: "pointer",
     width: mobile ? "100%" : "auto",
   };
@@ -1172,7 +1172,7 @@ export default function PayslipPage() {
 
   const labelStyle: CSSProperties = {
     display: "block",
-    color: "#cbd5e1",
+    color: "#3A3D45",
     fontWeight: 800,
     fontSize: "13px",
     marginBottom: "8px",
@@ -1182,9 +1182,9 @@ export default function PayslipPage() {
     width: "100%",
     height: "46px",
     borderRadius: "12px",
-    border: "1px solid rgba(148,163,184,0.22)",
-    background: "rgba(2,6,23,0.7)",
-    color: "#f8fafc",
+    border: "1px solid #DCD6CA",
+    background: "#FFFFFF",
+    color: "#15171C",
     padding: "0 14px",
     fontSize: "14px",
     outline: "none",
@@ -1199,15 +1199,13 @@ export default function PayslipPage() {
   };
 
   const getTabStyle = (active: boolean): CSSProperties => ({
-    border: active ? "none" : "1px solid rgba(148,163,184,0.22)",
+    border: active ? "none" : "1px solid #DCD6CA",
     borderRadius: "999px",
     minHeight: "40px",
     padding: "8px 16px",
     fontWeight: 900,
-    color: active ? "#111827" : "#e5e7eb",
-    background: active
-      ? "linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)"
-      : "rgba(15,23,42,0.7)",
+    color: active ? "#F7F5F0" : "#5B5E66",
+    background: active ? "#15171C" : "#FFFFFF",
     cursor: "pointer",
     width: mobile ? "calc(50% - 5px)" : "auto",
   });
@@ -1235,19 +1233,19 @@ export default function PayslipPage() {
   const statCardStyle: CSSProperties = {
     borderRadius: "18px",
     padding: mobile ? "14px" : "18px",
-    background: "linear-gradient(180deg, rgba(15,23,42,0.92) 0%, rgba(30,41,59,0.82) 100%)",
-    border: "1px solid rgba(148,163,184,0.18)",
+    background: "#FFFFFF",
+    border: "1px solid #DCD6CA",
   };
 
   const statLabelStyle: CSSProperties = {
-    color: "#94a3b8",
+    color: "#8E8A82",
     fontSize: "12px",
     fontWeight: 700,
     marginBottom: "10px",
   };
 
   const statValueStyle: CSSProperties = {
-    color: "#f8fafc",
+    color: "#15171C",
     fontSize: mobile ? "20px" : "28px",
     fontWeight: 900,
     lineHeight: 1.1,
@@ -1255,21 +1253,21 @@ export default function PayslipPage() {
 
   const statSubStyle: CSSProperties = {
     marginTop: "8px",
-    color: "#cbd5e1",
+    color: "#3A3D45",
     fontSize: "12px",
     lineHeight: 1.5,
   };
 
   const sectionTitleStyle: CSSProperties = {
     margin: 0,
-    color: "#f8fafc",
+    color: "#15171C",
     fontSize: mobile ? "18px" : "24px",
     fontWeight: 900,
   };
 
   const sectionSubStyle: CSSProperties = {
     marginTop: "6px",
-    color: "#94a3b8",
+    color: "#8E8A82",
     fontSize: mobile ? "12px" : "13px",
     lineHeight: 1.6,
   };
@@ -1277,7 +1275,7 @@ export default function PayslipPage() {
   const tableWrapStyle: CSSProperties = {
     overflowX: "auto",
     borderRadius: "18px",
-    border: "1px solid rgba(148,163,184,0.16)",
+    border: "1px solid #DCD6CA",
     marginTop: "14px",
   };
 
@@ -1285,36 +1283,36 @@ export default function PayslipPage() {
     width: "100%",
     borderCollapse: "collapse",
     minWidth: "1780px",
-    background: "rgba(2,6,23,0.58)",
+    background: "#FFFFFF",
   };
 
   const pairTableStyle: CSSProperties = {
     width: "100%",
     borderCollapse: "collapse",
     minWidth: "1380px",
-    background: "rgba(2,6,23,0.58)",
+    background: "#FFFFFF",
   };
 
   const thStyle: CSSProperties = {
     textAlign: "left",
     padding: "14px 14px",
     fontSize: "12px",
-    color: "#cbd5e1",
+    color: "#3A3D45",
     fontWeight: 900,
-    background: "rgba(30,41,59,0.85)",
-    borderBottom: "1px solid rgba(148,163,184,0.15)",
+    background: "#FFFFFF",
+    borderBottom: "1px solid #DCD6CA",
     whiteSpace: "nowrap",
   };
 
   const tdStyle: CSSProperties = {
     padding: "14px 14px",
-    color: "#f8fafc",
+    color: "#15171C",
     fontSize: "13px",
-    borderBottom: "1px solid rgba(148,163,184,0.10)",
+    borderBottom: "1px solid #DCD6CA",
     verticalAlign: "top",
   };
 
-  const badgeStyle = (bg: string, color = "#111827"): CSSProperties => ({
+  const badgeStyle = (bg: string, color = "#15171C"): CSSProperties => ({
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
@@ -1331,8 +1329,8 @@ export default function PayslipPage() {
   const mobileCardStyle: CSSProperties = {
     display: "grid",
     gap: "10px",
-    background: "rgba(2,6,23,0.55)",
-    border: "1px solid rgba(148,163,184,0.14)",
+    background: "#FFFFFF",
+    border: "1px solid #DCD6CA",
     borderRadius: "16px",
     padding: "14px",
   };
@@ -1345,7 +1343,7 @@ export default function PayslipPage() {
   };
 
   const mobileCardTitleStyle: CSSProperties = {
-    color: "#f8fafc",
+    color: "#15171C",
     fontWeight: 900,
     fontSize: "15px",
     lineHeight: 1.4,
@@ -1363,13 +1361,13 @@ export default function PayslipPage() {
   };
 
   const mobileMetaLabelStyle: CSSProperties = {
-    color: "#94a3b8",
+    color: "#8E8A82",
     fontSize: "11px",
     fontWeight: 700,
   };
 
   const mobileMetaValueStyle: CSSProperties = {
-    color: "#f8fafc",
+    color: "#15171C",
     fontSize: "13px",
     fontWeight: 800,
     wordBreak: "break-word",
@@ -1784,7 +1782,7 @@ export default function PayslipPage() {
                             ) : isChangedStatus(pair.toReservation.status) ? (
                               <span style={badgeStyle("#fcd34d")}>{pair.toReservation.status}</span>
                             ) : (
-                              <span style={badgeStyle("#cbd5e1")}>{pair.toReservation.status}</span>
+                              <span style={badgeStyle("#CFC8BA")}>{pair.toReservation.status}</span>
                             )
                           ) : (
                             "—"
@@ -1827,7 +1825,7 @@ export default function PayslipPage() {
                       background:
                         selectedStaff !== "全スタッフ" && selectedStaff === row.staff
                           ? "rgba(245,158,11,0.12)"
-                          : "rgba(2,6,23,0.55)",
+                          : "#FFFFFF",
                     }}
                   >
                     <div style={mobileCardHeaderStyle}>
@@ -1964,7 +1962,7 @@ export default function PayslipPage() {
                       {row.kind === "sale" ? (
                         <span style={badgeStyle("#86efac")}>売上</span>
                       ) : (
-                        <span style={badgeStyle("#93c5fd")}>予約</span>
+                        <span style={badgeStyle("#CDB68A")}>予約</span>
                       )}
                     </div>
 
@@ -2008,7 +2006,7 @@ export default function PayslipPage() {
                     </div>
 
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                      {row.isNew ? <span style={badgeStyle("#bfdbfe")}>新規</span> : null}
+                      {row.isNew ? <span style={badgeStyle("#E2C48C")}>新規</span> : null}
                       {row.isRepeat ? <span style={badgeStyle("#fde68a")}>前受金リピート</span> : null}
                       {row.isChanged ? <span style={badgeStyle("#fcd34d")}>変更</span> : null}
                     </div>
@@ -2063,7 +2061,7 @@ export default function PayslipPage() {
                           {row.kind === "sale" ? (
                             <span style={badgeStyle("#86efac")}>売上</span>
                           ) : (
-                            <span style={badgeStyle("#93c5fd")}>予約</span>
+                            <span style={badgeStyle("#CDB68A")}>予約</span>
                           )}
                         </td>
                         <td style={tdStyle}>{formatDateJP(row.date)}</td>
@@ -2079,7 +2077,7 @@ export default function PayslipPage() {
                             ) : isCompletedStatus(row.reservationStatus) ? (
                               <span style={badgeStyle("#86efac")}>{row.reservationStatus}</span>
                             ) : (
-                              <span style={badgeStyle("#cbd5e1")}>{row.reservationStatus}</span>
+                              <span style={badgeStyle("#CFC8BA")}>{row.reservationStatus}</span>
                             )
                           ) : (
                             "—"
@@ -2105,14 +2103,14 @@ export default function PayslipPage() {
                         <td
                           style={{
                             ...tdStyle,
-                            color: row.nominationFee > 0 ? "#fbbf24" : "#f8fafc",
+                            color: row.nominationFee > 0 ? "#fbbf24" : "#FBFAF7",
                             fontWeight: 900,
                           }}
                         >
                           {row.nominationFee > 0 ? formatCurrency(row.nominationFee) : "—"}
                         </td>
                         <td style={tdStyle}>
-                          {row.isNew ? <span style={badgeStyle("#bfdbfe")}>新規</span> : "—"}
+                          {row.isNew ? <span style={badgeStyle("#E2C48C")}>新規</span> : "—"}
                         </td>
                         <td style={tdStyle}>
                           {row.isRepeat ? <span style={badgeStyle("#fde68a")}>あり</span> : "—"}

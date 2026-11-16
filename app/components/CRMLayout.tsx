@@ -32,7 +32,7 @@ export default function CRMLayout({ title, children }: Props) {
   if (!mounted) {
     return (
       <div className="min-h-screen bg-[linear-gradient(180deg,#eef2f7_0%,#e5ebf3_100%)] px-4 py-6">
-        <div className="mx-auto max-w-[1200px] rounded-[24px] border border-white/70 bg-white/70 p-6 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-md">
+        <div className="mx-auto max-w-[1200px] rounded-[24px] border border-white/70 bg-white/70 p-6 shadow-[0_10px_30px_rgba(21,23,28,0.08)] backdrop-blur-md">
           <p className="text-sm text-slate-500">読み込み中...</p>
         </div>
       </div>
@@ -55,7 +55,7 @@ export default function CRMLayout({ title, children }: Props) {
       <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 px-3 py-3 sm:px-4 sm:py-4 lg:flex-row lg:items-start lg:gap-6 lg:px-6">
         {/* サイドメニュー */}
         <aside className="w-full min-w-0 lg:sticky lg:top-4 lg:w-[280px] lg:min-w-[280px]">
-          <div className="rounded-[28px] border border-white/70 bg-white/70 p-4 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-md">
+          <div className="rounded-[28px] border border-white/70 bg-white/70 p-4 shadow-[0_10px_30px_rgba(21,23,28,0.08)] backdrop-blur-md">
             <div className="mb-4 flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-inner">
                 <img

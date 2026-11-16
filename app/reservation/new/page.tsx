@@ -117,7 +117,7 @@ function ReservationNewPageFallback() {
       style={{
         minHeight: "100vh",
         background:
-          "linear-gradient(135deg, #f8f8f8 0%, #efefef 45%, #f9f9f9 100%)",
+          "linear-gradient(135deg, #FBFAF7 0%, #F1EDE5 45%, #FBFAF7 100%)",
         padding: "20px",
       }}
     >
@@ -370,7 +370,7 @@ function ReservationNewPageInner() {
       style={{
         minHeight: "100vh",
         background:
-          "linear-gradient(135deg, #f8f8f8 0%, #efefef 45%, #f9f9f9 100%)",
+          "linear-gradient(135deg, #FBFAF7 0%, #F1EDE5 45%, #FBFAF7 100%)",
         padding: "20px",
       }}
     >
@@ -506,11 +506,11 @@ function ReservationNewPageInner() {
                       style={{
                         ...toggleBtnStyle,
                         background:
-                          active ? (type === "新規" ? "#2563eb" : "#4b5563") : "#fff",
+                          active ? (type === "新規" ? "#8A6220" : "#3A3D45") : "#fff",
                         color: active ? "#fff" : "#111",
                         border: active
                           ? "1px solid transparent"
-                          : "1px solid #d1d5db",
+                          : "1px solid #CFC8BA",
                       }}
                     >
                       {type}
@@ -709,7 +709,7 @@ function ReservationNewPageInner() {
                     marginTop: 14,
                     fontSize: 13,
                     fontWeight: 700,
-                    color: "#475569",
+                    color: "#5B5E66",
                     lineHeight: 1.6,
                   }}
                 >
@@ -794,9 +794,9 @@ function badgeStyleByTone(tone: "green" | "red" | "gray" | "orange") {
       };
     default:
       return {
-        background: "rgba(100,116,139,0.12)",
-        color: "#475569",
-        border: "1px solid rgba(100,116,139,0.18)",
+        background: "rgba(91,94,102,0.12)",
+        color: "#5B5E66",
+        border: "1px solid rgba(91,94,102,0.18)",
       };
   }
 }
@@ -819,7 +819,7 @@ const sectionTitleStyle: React.CSSProperties = {
 const sectionMiniTitleStyle: React.CSSProperties = {
   fontSize: 16,
   fontWeight: 800,
-  color: "#111827",
+  color: "#15171C",
 };
 
 const gridStyle: React.CSSProperties = {
@@ -833,14 +833,14 @@ const labelStyle: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 700,
   marginBottom: 8,
-  color: "#374151",
+  color: "#3A3D45",
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "12px 14px",
   borderRadius: 14,
-  border: "1px solid #d1d5db",
+  border: "1px solid #CFC8BA",
   background: "#fff",
   fontSize: 14,
   outline: "none",
@@ -852,10 +852,10 @@ const readonlyBoxStyle: React.CSSProperties = {
   minHeight: 46,
   padding: "12px 14px",
   borderRadius: 14,
-  border: "1px solid #d1d5db",
-  background: "#f9fafb",
+  border: "1px solid #CFC8BA",
+  background: "#FBFAF7",
   fontSize: 14,
-  color: "#111827",
+  color: "#15171C",
   fontWeight: 700,
   display: "flex",
   alignItems: "center",
@@ -876,7 +876,7 @@ const topBtnStyle: React.CSSProperties = {
   justifyContent: "center",
   padding: "10px 14px",
   borderRadius: 14,
-  background: "#111827",
+  background: "#15171C",
   color: "#fff",
   textDecoration: "none",
   fontWeight: 700,
@@ -888,8 +888,8 @@ const cancelBtnStyle: React.CSSProperties = {
   justifyContent: "center",
   padding: "12px 18px",
   borderRadius: 14,
-  background: "#e5e7eb",
-  color: "#111827",
+  background: "#DCD6CA",
+  color: "#15171C",
   textDecoration: "none",
   fontWeight: 700,
 };
@@ -897,7 +897,7 @@ const cancelBtnStyle: React.CSSProperties = {
 const saveBtnStyle: React.CSSProperties = {
   padding: "12px 20px",
   borderRadius: 14,
-  background: "linear-gradient(135deg, #111827 0%, #374151 100%)",
+  background: "linear-gradient(135deg, #15171C 0%, #3A3D45 100%)",
   color: "#fff",
   border: "none",
   fontWeight: 800,
@@ -907,7 +907,7 @@ const saveBtnStyle: React.CSSProperties = {
 const searchResultWrapStyle: React.CSSProperties = {
   marginTop: 10,
   borderRadius: 18,
-  border: "1px solid #e5e7eb",
+  border: "1px solid #DCD6CA",
   background: "#fff",
   boxShadow: "0 10px 30px rgba(0,0,0,0.06)",
   maxHeight: 360,
@@ -920,37 +920,37 @@ const searchItemButtonStyle: React.CSSProperties = {
   background: "#fff",
   padding: "14px 16px",
   cursor: "pointer",
-  borderBottom: "1px solid #f1f5f9",
+  borderBottom: "1px solid #F1EDE5",
 };
 
 const searchNameStyle: React.CSSProperties = {
   fontSize: 15,
   fontWeight: 800,
-  color: "#111827",
+  color: "#15171C",
 };
 
 const searchSubStyle: React.CSSProperties = {
   fontSize: 13,
-  color: "#475569",
+  color: "#5B5E66",
   lineHeight: 1.5,
 };
 
 const searchEmptyStyle: React.CSSProperties = {
   padding: "16px",
   fontSize: 14,
-  color: "#64748b",
+  color: "#5B5E66",
 };
 
 const subscriptionCardStyle: React.CSSProperties = {
   borderRadius: 18,
-  background: "rgba(248,250,252,0.95)",
-  border: "1px solid #e2e8f0",
+  background: "rgba(251,250,247,0.95)",
+  border: "1px solid #DCD6CA",
   padding: 16,
 };
 
 const subscriptionEmptyStyle: React.CSSProperties = {
   fontSize: 14,
-  color: "#64748b",
+  color: "#5B5E66",
   lineHeight: 1.7,
 };
 
@@ -963,21 +963,21 @@ const subscriptionGridStyle: React.CSSProperties = {
 const infoBoxStyle: React.CSSProperties = {
   borderRadius: 14,
   background: "#fff",
-  border: "1px solid #e5e7eb",
+  border: "1px solid #DCD6CA",
   padding: "12px 14px",
 };
 
 const infoBoxLabelStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 700,
-  color: "#64748b",
+  color: "#5B5E66",
   marginBottom: 6,
 };
 
 const infoBoxValueStyle: React.CSSProperties = {
   fontSize: 14,
   fontWeight: 800,
-  color: "#111827",
+  color: "#15171C",
   lineHeight: 1.5,
 };
 

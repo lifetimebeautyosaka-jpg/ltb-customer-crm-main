@@ -143,7 +143,7 @@ export default function SalaryPage() {
       <div style={{ maxWidth: 900, margin: "0 auto", display: "grid", gap: 16 }}>
         <div className="no-print" style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
           <div>
-            <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>SALARY</div>
+            <div style={{ fontSize: 12, color: "#5B5E66", fontWeight: 700 }}>SALARY</div>
             <h1 style={{ margin: "4px 0 0", fontSize: 24 }}>{isAdmin ? "給与明細" : "今月の自分"}</h1>
           </div>
           <Link href="/attendance" style={linkStyle}>勤怠管理へ</Link>
@@ -198,7 +198,7 @@ export default function SalaryPage() {
             ) : null}
 
             <section className="payslip" style={cardStyle}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid #0f172a", paddingBottom: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderBottom: "2px solid #15171C", paddingBottom: 8 }}>
                 <h2 style={{ margin: 0, fontSize: 22 }}>{isAdmin ? "給与明細書" : "今月の勤務とインセンティブ"}（{Number(month.slice(5))}月分）</h2>
                 <div style={{ textAlign: "right", fontSize: 13 }}>
                   {isAdmin ? <div>（支払日 {payDay(month)}）</div> : null}
@@ -237,7 +237,7 @@ export default function SalaryPage() {
                     <Row label="源泉所得税" value={yen(tax)} />
                     <Row label="控除合計" value={yen(deductions)} strong />
                   </Block>
-                  <div style={{ display: "flex", justifyContent: "space-between", padding: "12px 4px", borderTop: "2px solid #0f172a", fontSize: 18, fontWeight: 800 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "12px 4px", borderTop: "2px solid #15171C", fontSize: 18, fontWeight: 800 }}>
                     <span>差引支給額</span>
                     <span>{yen(net)}</span>
                   </div>
@@ -268,27 +268,27 @@ export default function SalaryPage() {
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ marginTop: 14 }}>
-      <div style={{ fontSize: 12, fontWeight: 800, color: "#64748b", marginBottom: 6 }}>{title}</div>
-      <div style={{ border: "1px solid #cbd5e1", borderRadius: 8, overflow: "hidden" }}>{children}</div>
+      <div style={{ fontSize: 12, fontWeight: 800, color: "#5B5E66", marginBottom: 6 }}>{title}</div>
+      <div style={{ border: "1px solid #CFC8BA", borderRadius: 8, overflow: "hidden" }}>{children}</div>
     </div>
   );
 }
 
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", borderBottom: "1px solid #e2e8f0", fontWeight: strong ? 800 : 500, fontSize: 14 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", borderBottom: "1px solid #DCD6CA", fontWeight: strong ? 800 : 500, fontSize: 14 }}>
       <span>{label}</span>
       <span>{value}</span>
     </div>
   );
 }
 
-const pageStyle: CSSProperties = { minHeight: "100vh", padding: "24px 16px 80px", background: "#f1f5f9", color: "#0f172a" };
-const cardStyle: CSSProperties = { background: "#fff", borderRadius: 16, padding: 18, boxShadow: "0 8px 24px rgba(15,23,42,0.06)" };
-const fieldStyle: CSSProperties = { display: "grid", gap: 6, fontSize: 12, fontWeight: 700, color: "#475569" };
-const inputStyle: CSSProperties = { minHeight: 40, padding: "0 10px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 14 };
-const noteStyle: CSSProperties = { marginTop: 10, fontSize: 12, color: "#64748b" };
+const pageStyle: CSSProperties = { minHeight: "100vh", padding: "24px 16px 80px", background: "#F7F5F0", color: "#15171C" };
+const cardStyle: CSSProperties = { background: "#fff", borderRadius: 16, padding: 18, boxShadow: "0 8px 24px rgba(21,23,28,0.06)" };
+const fieldStyle: CSSProperties = { display: "grid", gap: 6, fontSize: 12, fontWeight: 700, color: "#5B5E66" };
+const inputStyle: CSSProperties = { minHeight: 40, padding: "0 10px", borderRadius: 10, border: "1px solid #CFC8BA", fontSize: 14 };
+const noteStyle: CSSProperties = { marginTop: 10, fontSize: 12, color: "#5B5E66" };
 const warnStyle: CSSProperties = { padding: 12, borderRadius: 12, background: "#fef3c7", color: "#92400e", fontSize: 13, display: "grid", gap: 4 };
 const errorStyle: CSSProperties = { padding: 12, borderRadius: 12, background: "#fee2e2", color: "#991b1b" };
-const linkStyle: CSSProperties = { padding: "8px 14px", borderRadius: 12, background: "#0f172a", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700 };
-const printButtonStyle: CSSProperties = { minHeight: 46, borderRadius: 12, border: "none", background: "#0f172a", color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer" };
+const linkStyle: CSSProperties = { padding: "8px 14px", borderRadius: 12, background: "#15171C", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700 };
+const printButtonStyle: CSSProperties = { minHeight: 46, borderRadius: 12, border: "none", background: "#15171C", color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer" };

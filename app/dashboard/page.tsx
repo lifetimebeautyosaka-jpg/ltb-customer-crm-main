@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { fetchAllRows } from "@/lib/fetchAllRows";
-import BottomNav from "@/components/BottomNav";
 
 type ReservationRow = {
   id: string | number;
@@ -908,7 +907,7 @@ export default function DashboardPage() {
           background: var(--gu-bg);
           color: var(--gu-ink);
           font-family: var(--gu-font-body);
-          padding-bottom: calc(120px + env(safe-area-inset-bottom));
+          padding-bottom: 16px;
         }
         .gu-home * { box-sizing: border-box; }
         .gu-home a { color: inherit; }
@@ -1506,8 +1505,6 @@ export default function DashboardPage() {
           </div>
         </div>
       </main>
-
-      <BottomNav />
     </>
   );
 }

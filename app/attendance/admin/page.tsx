@@ -648,11 +648,11 @@ export default function AttendanceAdminPage() {
                               ...staffActiveBadgeStyle,
                               background: isActive
                                 ? "rgba(16,185,129,0.12)"
-                                : "rgba(148,163,184,0.16)",
-                              color: isActive ? "#059669" : "#475569",
+                                : "rgba(142,138,130,0.16)",
+                              color: isActive ? "#059669" : "#5B5E66",
                               borderColor: isActive
                                 ? "rgba(16,185,129,0.18)"
-                                : "rgba(148,163,184,0.25)",
+                                : "rgba(142,138,130,0.25)",
                             }}
                           >
                             {isActive ? "有効" : "無効"}
@@ -942,7 +942,7 @@ function MetricCard({
   return (
     <div style={metricCardStyle} className="attendance-metric-card">
       <div style={metricLabelStyle}>{label}</div>
-      <div style={{ ...metricValueStyle, color: accent ? "#2563eb" : "#0f172a" }}>{value}</div>
+      <div style={{ ...metricValueStyle, color: accent ? "#8A6220" : "#15171C" }}>{value}</div>
     </div>
   );
 }
@@ -982,7 +982,7 @@ const pageStyle: CSSProperties = {
   position: "relative",
   overflow: "hidden",
   background:
-    "linear-gradient(135deg, #eef4ff 0%, #f8fbff 30%, #f3f7ff 65%, #eef2ff 100%)",
+    "#F7F5F0",
   padding: "24px 16px 60px",
 };
 
@@ -994,7 +994,7 @@ const bgGlowTop: CSSProperties = {
   width: 520,
   height: 280,
   background:
-    "radial-gradient(circle, rgba(147,197,253,0.25) 0%, rgba(147,197,253,0.05) 40%, transparent 70%)",
+    "radial-gradient(circle, rgba(205,182,138,0.25) 0%, rgba(205,182,138,0.05) 40%, transparent 70%)",
   pointerEvents: "none",
   filter: "blur(14px)",
 };
@@ -1020,7 +1020,7 @@ const bgGlowRight: CSSProperties = {
   height: 360,
   borderRadius: "50%",
   background:
-    "radial-gradient(circle, rgba(203,213,225,0.25) 0%, rgba(203,213,225,0) 70%)",
+    "radial-gradient(circle, rgba(207,200,186,0.25) 0%, rgba(207,200,186,0) 70%)",
   pointerEvents: "none",
   filter: "blur(20px)",
 };
@@ -1028,7 +1028,7 @@ const bgGlowRight: CSSProperties = {
 const noiseStyle: CSSProperties = {
   position: "absolute",
   inset: 0,
-  backgroundImage: "radial-gradient(rgba(15,23,42,0.03) 1px, transparent 1px)",
+  backgroundImage: "radial-gradient(rgba(21,23,28,0.03) 1px, transparent 1px)",
   backgroundSize: "16px 16px",
   opacity: 0.2,
   pointerEvents: "none",
@@ -1054,7 +1054,7 @@ const topBarStyle: CSSProperties = {
 const backLinkStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
-  color: "rgba(30,41,59,0.78)",
+  color: "rgba(42,44,51,0.78)",
   textDecoration: "none",
   fontSize: 14,
   fontWeight: 600,
@@ -1064,7 +1064,7 @@ const backLinkStyle: CSSProperties = {
 const eyebrowStyle: CSSProperties = {
   fontSize: 11,
   letterSpacing: "0.24em",
-  color: "rgba(30,41,59,0.42)",
+  color: "rgba(42,44,51,0.42)",
   fontWeight: 700,
 };
 
@@ -1078,7 +1078,7 @@ const heroCardStyle: CSSProperties = {
   backdropFilter: "blur(10px)",
   WebkitBackdropFilter: "blur(10px)",
   border: "1px solid rgba(255,255,255,0.75)",
-  boxShadow: "0 18px 40px rgba(148,163,184,0.14)",
+  boxShadow: "0 18px 40px rgba(142,138,130,0.14)",
 };
 
 const heroLeftStyle: CSSProperties = {
@@ -1106,13 +1106,13 @@ const heroActionCardStyle: CSSProperties = {
   minHeight: 280,
   display: "flex",
   flexDirection: "column",
-  boxShadow: "0 14px 34px rgba(148,163,184,0.12)",
+  boxShadow: "0 14px 34px rgba(142,138,130,0.12)",
 };
 
 const heroActionLabelStyle: CSSProperties = {
   fontSize: 13,
   fontWeight: 700,
-  color: "rgba(30,41,59,0.52)",
+  color: "rgba(42,44,51,0.52)",
   marginBottom: 16,
 };
 
@@ -1126,7 +1126,7 @@ const heroActionButtonWrapStyle: CSSProperties = {
 const miniLabelStyle: CSSProperties = {
   fontSize: 11,
   letterSpacing: "0.24em",
-  color: "rgba(30,41,59,0.48)",
+  color: "rgba(42,44,51,0.48)",
   marginBottom: 10,
   fontWeight: 700,
 };
@@ -1135,7 +1135,7 @@ const titleStyle: CSSProperties = {
   margin: 0,
   fontSize: "clamp(32px, 5vw, 54px)",
   lineHeight: 1.05,
-  color: "#0f172a",
+  color: "#15171C",
   fontWeight: 800,
   letterSpacing: "-0.03em",
 };
@@ -1144,7 +1144,7 @@ const descStyle: CSSProperties = {
   margin: "16px 0 0",
   fontSize: 15,
   lineHeight: 1.9,
-  color: "rgba(15,23,42,0.68)",
+  color: "rgba(21,23,28,0.68)",
 };
 
 const secondaryLinkButtonStyle: CSSProperties = {
@@ -1155,8 +1155,8 @@ const secondaryLinkButtonStyle: CSSProperties = {
   padding: "0 18px",
   borderRadius: 14,
   background: "rgba(255,255,255,0.82)",
-  border: "1px solid rgba(203,213,225,0.95)",
-  color: "#0f172a",
+  border: "1px solid rgba(207,200,186,0.95)",
+  color: "#15171C",
   textDecoration: "none",
   fontWeight: 700,
   fontSize: 14,
@@ -1166,21 +1166,21 @@ const primaryButtonStyle: CSSProperties = {
   minHeight: 50,
   border: "none",
   borderRadius: 16,
-  background: "linear-gradient(135deg, #2563eb, #60a5fa)",
+  background: "linear-gradient(135deg, #8A6220, #CDB68A)",
   color: "#ffffff",
   fontWeight: 800,
   fontSize: 14,
   cursor: "pointer",
   padding: "0 18px",
-  boxShadow: "0 12px 28px rgba(37,99,235,0.22)",
+  boxShadow: "0 12px 28px rgba(176,129,51,0.22)",
 };
 
 const secondaryButtonStyle: CSSProperties = {
   minHeight: 50,
-  border: "1px solid rgba(203,213,225,0.95)",
+  border: "1px solid rgba(207,200,186,0.95)",
   borderRadius: 16,
   background: "rgba(255,255,255,0.84)",
-  color: "#0f172a",
+  color: "#15171C",
   fontWeight: 700,
   fontSize: 14,
   cursor: "pointer",
@@ -1213,7 +1213,7 @@ const panelStyle: CSSProperties = {
   backdropFilter: "blur(10px)",
   WebkitBackdropFilter: "blur(10px)",
   border: "1px solid rgba(255,255,255,0.76)",
-  boxShadow: "0 14px 34px rgba(148,163,184,0.12)",
+  boxShadow: "0 14px 34px rgba(142,138,130,0.12)",
 };
 
 const sectionHeaderStyle: CSSProperties = {
@@ -1228,7 +1228,7 @@ const sectionHeaderStyle: CSSProperties = {
 const sectionMiniStyle: CSSProperties = {
   fontSize: 11,
   letterSpacing: "0.22em",
-  color: "rgba(30,41,59,0.42)",
+  color: "rgba(42,44,51,0.42)",
   marginBottom: 6,
   fontWeight: 700,
 };
@@ -1236,7 +1236,7 @@ const sectionMiniStyle: CSSProperties = {
 const sectionTitleStyle: CSSProperties = {
   margin: 0,
   fontSize: 22,
-  color: "#0f172a",
+  color: "#15171C",
   fontWeight: 800,
 };
 
@@ -1251,12 +1251,12 @@ const fieldCardStyle: CSSProperties = {
   padding: 16,
   background: "rgba(255,255,255,0.72)",
   border: "1px solid rgba(255,255,255,0.88)",
-  boxShadow: "0 10px 25px rgba(148,163,184,0.12)",
+  boxShadow: "0 10px 25px rgba(142,138,130,0.12)",
 };
 
 const fieldLabelStyle: CSSProperties = {
   fontSize: 13,
-  color: "rgba(15,23,42,0.78)",
+  color: "rgba(21,23,28,0.78)",
   marginBottom: 8,
   fontWeight: 700,
 };
@@ -1265,9 +1265,9 @@ const inputStyle: CSSProperties = {
   width: "100%",
   height: 48,
   borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.9)",
+  border: "1px solid rgba(207,200,186,0.9)",
   background: "rgba(255,255,255,0.82)",
-  color: "#0f172a",
+  color: "#15171C",
   padding: "0 14px",
   outline: "none",
   fontSize: 14,
@@ -1289,13 +1289,13 @@ const metricGridStyle4: CSSProperties = {
 const metricCardStyle: CSSProperties = {
   borderRadius: 20,
   background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(226,232,240,0.95)",
+  border: "1px solid rgba(220,214,202,0.95)",
   padding: 16,
 };
 
 const metricLabelStyle: CSSProperties = {
   fontSize: 12,
-  color: "rgba(15,23,42,0.46)",
+  color: "rgba(21,23,28,0.46)",
   marginBottom: 8,
   fontWeight: 700,
 };
@@ -1303,7 +1303,7 @@ const metricLabelStyle: CSSProperties = {
 const metricValueStyle: CSSProperties = {
   fontSize: 24,
   fontWeight: 800,
-  color: "#0f172a",
+  color: "#15171C",
   lineHeight: 1.2,
   letterSpacing: "-0.02em",
 };
@@ -1316,8 +1316,8 @@ const emptyBoxStyle: CSSProperties = {
   textAlign: "center",
   borderRadius: 20,
   background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(226,232,240,0.95)",
-  color: "rgba(15,23,42,0.54)",
+  border: "1px solid rgba(220,214,202,0.95)",
+  color: "rgba(21,23,28,0.54)",
   fontSize: 14,
   padding: 20,
 };
@@ -1340,7 +1340,7 @@ const staffMasterAddRightStyle: CSSProperties = {
 const staffMasterCardStyle: CSSProperties = {
   borderRadius: 20,
   background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(226,232,240,0.95)",
+  border: "1px solid rgba(220,214,202,0.95)",
   padding: 16,
 };
 
@@ -1378,9 +1378,9 @@ const staffMasterIdStyle: CSSProperties = {
   minHeight: 28,
   padding: "0 10px",
   borderRadius: 999,
-  background: "rgba(37,99,235,0.08)",
-  border: "1px solid rgba(37,99,235,0.14)",
-  color: "#2563eb",
+  background: "rgba(176,129,51,0.08)",
+  border: "1px solid rgba(176,129,51,0.14)",
+  color: "#8A6220",
   fontSize: 12,
   fontWeight: 800,
 };
@@ -1399,18 +1399,18 @@ const staffActiveBadgeStyle: CSSProperties = {
 const staffMasterNameStyle: CSSProperties = {
   fontSize: 22,
   fontWeight: 800,
-  color: "#0f172a",
+  color: "#15171C",
 };
 
 const staffMasterMetaStyle: CSSProperties = {
   fontSize: 13,
-  color: "#64748b",
+  color: "#5B5E66",
 };
 
 const staffSummaryCardStyle: CSSProperties = {
   borderRadius: 20,
   background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(226,232,240,0.95)",
+  border: "1px solid rgba(220,214,202,0.95)",
   padding: 16,
 };
 
@@ -1426,13 +1426,13 @@ const staffSummaryTopStyle: CSSProperties = {
 const staffSummaryNameStyle: CSSProperties = {
   fontSize: 18,
   fontWeight: 800,
-  color: "#0f172a",
+  color: "#15171C",
 };
 
 const staffSummaryPayStyle: CSSProperties = {
   fontSize: 20,
   fontWeight: 800,
-  color: "#2563eb",
+  color: "#8A6220",
 };
 
 const staffSummaryGridStyle: CSSProperties = {
@@ -1443,21 +1443,21 @@ const staffSummaryGridStyle: CSSProperties = {
 
 const miniInfoCardStyle: CSSProperties = {
   borderRadius: 16,
-  background: "rgba(248,250,252,0.92)",
-  border: "1px solid rgba(226,232,240,0.95)",
+  background: "rgba(251,250,247,0.92)",
+  border: "1px solid rgba(220,214,202,0.95)",
   padding: 12,
 };
 
 const miniInfoLabelStyle: CSSProperties = {
   fontSize: 11,
-  color: "rgba(15,23,42,0.46)",
+  color: "rgba(21,23,28,0.46)",
   marginBottom: 6,
 };
 
 const miniInfoValueStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 700,
-  color: "#0f172a",
+  color: "#15171C",
   lineHeight: 1.5,
 };
 
@@ -1465,7 +1465,7 @@ const tableWrapStyle: CSSProperties = {
   width: "100%",
   overflowX: "auto",
   borderRadius: 20,
-  border: "1px solid rgba(226,232,240,0.95)",
+  border: "1px solid rgba(220,214,202,0.95)",
   background: "rgba(255,255,255,0.72)",
 };
 
@@ -1480,17 +1480,17 @@ const thStyle: CSSProperties = {
   textAlign: "left",
   fontSize: 12,
   fontWeight: 800,
-  color: "rgba(15,23,42,0.56)",
-  borderBottom: "1px solid rgba(226,232,240,0.95)",
-  background: "rgba(248,250,252,0.95)",
+  color: "rgba(21,23,28,0.56)",
+  borderBottom: "1px solid rgba(220,214,202,0.95)",
+  background: "rgba(251,250,247,0.95)",
   whiteSpace: "nowrap",
 };
 
 const tdStyle: CSSProperties = {
   padding: "12px 10px",
   fontSize: 13,
-  color: "#0f172a",
-  borderBottom: "1px solid rgba(226,232,240,0.7)",
+  color: "#15171C",
+  borderBottom: "1px solid rgba(220,214,202,0.7)",
   verticalAlign: "top",
   whiteSpace: "nowrap",
 };
@@ -1498,7 +1498,7 @@ const tdStyle: CSSProperties = {
 const tdStyleStrong: CSSProperties = {
   ...tdStyle,
   fontWeight: 800,
-  color: "#2563eb",
+  color: "#8A6220",
 };
 
 const tdNoteStyle: CSSProperties = {
@@ -1506,26 +1506,26 @@ const tdNoteStyle: CSSProperties = {
   minWidth: 180,
   whiteSpace: "normal",
   lineHeight: 1.6,
-  color: "#475569",
+  color: "#5B5E66",
 };
 
 const recordCardStyle: CSSProperties = {
   borderRadius: 20,
   background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(226,232,240,0.95)",
+  border: "1px solid rgba(220,214,202,0.95)",
   padding: 16,
 };
 
 const recordDateStyle: CSSProperties = {
   fontSize: 14,
-  color: "rgba(15,23,42,0.56)",
+  color: "rgba(21,23,28,0.56)",
   marginBottom: 6,
 };
 
 const recordNameStyle: CSSProperties = {
   fontSize: 18,
   fontWeight: 800,
-  color: "#0f172a",
+  color: "#15171C",
   marginBottom: 12,
 };
 
@@ -1538,24 +1538,24 @@ const recordInfoGridStyle: CSSProperties = {
 const noteBoxStyle: CSSProperties = {
   marginTop: 12,
   borderRadius: 16,
-  background: "rgba(248,250,252,0.92)",
-  border: "1px solid rgba(226,232,240,0.95)",
+  background: "rgba(251,250,247,0.92)",
+  border: "1px solid rgba(220,214,202,0.95)",
   padding: 12,
   fontSize: 13,
-  color: "#334155",
+  color: "#3A3D45",
   lineHeight: 1.6,
 };
 
 const noteLabelStyle: CSSProperties = {
   fontSize: 11,
-  color: "rgba(15,23,42,0.46)",
+  color: "rgba(21,23,28,0.46)",
   marginBottom: 6,
   fontWeight: 700,
 };
 
 const loadingStyle: CSSProperties = {
   textAlign: "center",
-  color: "rgba(15,23,42,0.56)",
+  color: "rgba(21,23,28,0.56)",
   fontSize: 14,
   padding: "16px 0",
 };

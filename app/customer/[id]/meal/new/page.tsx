@@ -118,7 +118,7 @@ export default function CustomerMealNewPage() {
       style={{
         minHeight: "100vh",
         background:
-          "linear-gradient(135deg, #f7f7f8 0%, #ececef 45%, #dfe3e8 100%)",
+          "linear-gradient(135deg, #FBFAF7 0%, #F1EDE5 45%, #DCD6CA 100%)",
         padding: "24px",
         fontFamily: "system-ui, sans-serif",
       }}
@@ -133,7 +133,7 @@ export default function CustomerMealNewPage() {
             borderRadius: "28px",
             padding: "28px",
             boxShadow:
-              "0 20px 60px rgba(15, 23, 42, 0.10), inset 0 1px 0 rgba(255,255,255,0.92)",
+              "0 20px 60px rgba(21,23,28, 0.10), inset 0 1px 0 rgba(255,255,255,0.92)",
           }}
         >
           <div
@@ -151,7 +151,7 @@ export default function CustomerMealNewPage() {
                   fontSize: "13px",
                   fontWeight: 700,
                   letterSpacing: "0.14em",
-                  color: "#6b7280",
+                  color: "#5B5E66",
                   marginBottom: "10px",
                 }}
               >
@@ -163,7 +163,7 @@ export default function CustomerMealNewPage() {
                   margin: 0,
                   fontSize: "34px",
                   fontWeight: 800,
-                  color: "#111827",
+                  color: "#15171C",
                   lineHeight: 1.15,
                 }}
               >
@@ -174,7 +174,7 @@ export default function CustomerMealNewPage() {
                 style={{
                   margin: "10px 0 0 0",
                   fontSize: "15px",
-                  color: "#4b5563",
+                  color: "#3A3D45",
                   lineHeight: 1.8,
                 }}
               >
@@ -222,7 +222,7 @@ export default function CustomerMealNewPage() {
                 style={{
                   borderRadius: "18px",
                   overflow: "hidden",
-                  border: "1px solid rgba(226,232,240,1)",
+                  border: "1px solid rgba(220,214,202,1)",
                   background: "#fff",
                 }}
               >
@@ -296,7 +296,7 @@ const cardStyle: React.CSSProperties = {
   borderRadius: "24px",
   padding: "24px",
   boxShadow:
-    "0 16px 44px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.92)",
+    "0 16px 44px rgba(21,23,28, 0.08), inset 0 1px 0 rgba(255,255,255,0.92)",
 };
 
 const labelStyle: React.CSSProperties = {
@@ -304,17 +304,17 @@ const labelStyle: React.CSSProperties = {
   marginBottom: "8px",
   fontSize: "13px",
   fontWeight: 700,
-  color: "#374151",
+  color: "#3A3D45",
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "13px 14px",
   borderRadius: "14px",
-  border: "1px solid rgba(203,213,225,0.9)",
+  border: "1px solid rgba(207,200,186,0.9)",
   background: "rgba(255,255,255,0.88)",
   fontSize: "15px",
-  color: "#111827",
+  color: "#15171C",
   outline: "none",
   boxSizing: "border-box",
 };
@@ -331,8 +331,8 @@ const subButtonStyle: React.CSSProperties = {
   borderRadius: "14px",
   padding: "11px 16px",
   background: "rgba(255,255,255,0.85)",
-  border: "1px solid rgba(203,213,225,0.95)",
-  color: "#111827",
+  border: "1px solid rgba(207,200,186,0.95)",
+  color: "#15171C",
   fontWeight: 700,
   textAlign: "center",
 };
@@ -341,8 +341,8 @@ const subButtonStyleButton: React.CSSProperties = {
   borderRadius: "14px",
   padding: "12px 16px",
   background: "rgba(255,255,255,0.85)",
-  border: "1px solid rgba(203,213,225,0.95)",
-  color: "#111827",
+  border: "1px solid rgba(207,200,186,0.95)",
+  color: "#15171C",
   fontWeight: 700,
   textAlign: "center",
   cursor: "pointer",
@@ -351,7 +351,7 @@ const subButtonStyleButton: React.CSSProperties = {
 const mainButtonStyle: React.CSSProperties = {
   borderRadius: "14px",
   padding: "12px 16px",
-  background: "#111827",
+  background: "#15171C",
   border: "none",
   color: "#ffffff",
   fontWeight: 700,

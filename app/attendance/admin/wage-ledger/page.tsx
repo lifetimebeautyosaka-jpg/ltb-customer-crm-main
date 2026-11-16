@@ -542,7 +542,7 @@ function MiniInfo({
 const pageStyle: CSSProperties = {
   minHeight: "100vh",
   background:
-    "linear-gradient(135deg, #eef4ff 0%, #f8fbff 30%, #f3f7ff 65%, #eef2ff 100%)",
+    "#F7F5F0",
   position: "relative",
   overflow: "hidden",
 };
@@ -555,7 +555,7 @@ const bgGlowA: CSSProperties = {
   height: 420,
   borderRadius: "50%",
   background:
-    "radial-gradient(circle, rgba(147,197,253,0.22) 0%, rgba(147,197,253,0) 72%)",
+    "radial-gradient(circle, rgba(205,182,138,0.22) 0%, rgba(205,182,138,0) 72%)",
   pointerEvents: "none",
 };
 
@@ -592,7 +592,7 @@ const topRowStyle: CSSProperties = {
 const backLinkStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
-  color: "rgba(30,41,59,0.78)",
+  color: "rgba(42,44,51,0.78)",
   textDecoration: "none",
   fontSize: 14,
   fontWeight: 600,
@@ -601,7 +601,7 @@ const backLinkStyle: CSSProperties = {
 const eyebrowStyle: CSSProperties = {
   fontSize: 11,
   letterSpacing: "0.24em",
-  color: "rgba(30,41,59,0.42)",
+  color: "rgba(42,44,51,0.42)",
 };
 
 const heroCardStyle: CSSProperties = {
@@ -614,7 +614,7 @@ const heroCardStyle: CSSProperties = {
   border: "1px solid rgba(255,255,255,0.75)",
   borderRadius: 28,
   padding: "24px 22px",
-  boxShadow: "0 18px 40px rgba(148,163,184,0.14)",
+  boxShadow: "0 18px 40px rgba(142,138,130,0.14)",
   backdropFilter: "blur(10px)",
 };
 
@@ -626,7 +626,7 @@ const heroLeftStyle: CSSProperties = {
 const miniLabelStyle: CSSProperties = {
   fontSize: 11,
   letterSpacing: "0.24em",
-  color: "rgba(30,41,59,0.48)",
+  color: "rgba(42,44,51,0.48)",
   marginBottom: 8,
 };
 
@@ -634,7 +634,7 @@ const titleStyle: CSSProperties = {
   margin: 0,
   fontSize: "clamp(28px, 4vw, 42px)",
   lineHeight: 1.1,
-  color: "#0f172a",
+  color: "#15171C",
   fontWeight: 800,
 };
 
@@ -642,16 +642,16 @@ const descStyle: CSSProperties = {
   margin: "12px 0 0",
   fontSize: 14,
   lineHeight: 1.8,
-  color: "rgba(15,23,42,0.68)",
+  color: "rgba(21,23,28,0.68)",
 };
 
 const topActionButtonStyle: CSSProperties = {
   minHeight: 44,
   padding: "10px 16px",
   borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.95)",
+  border: "1px solid rgba(207,200,186,0.95)",
   background: "rgba(255,255,255,0.84)",
-  color: "#0f172a",
+  color: "#15171C",
   fontWeight: 700,
   fontSize: 14,
   cursor: "pointer",
@@ -676,13 +676,13 @@ const filterCardStyle: CSSProperties = {
   border: "1px solid rgba(255,255,255,0.76)",
   borderRadius: 22,
   padding: 16,
-  boxShadow: "0 14px 34px rgba(148,163,184,0.12)",
+  boxShadow: "0 14px 34px rgba(142,138,130,0.12)",
   backdropFilter: "blur(10px)",
 };
 
 const labelStyle: CSSProperties = {
   fontSize: 13,
-  color: "rgba(15,23,42,0.78)",
+  color: "rgba(21,23,28,0.78)",
   marginBottom: 8,
 };
 
@@ -690,9 +690,9 @@ const inputStyle: CSSProperties = {
   width: "100%",
   height: 48,
   borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.9)",
+  border: "1px solid rgba(207,200,186,0.9)",
   background: "rgba(255,255,255,0.82)",
-  color: "#0f172a",
+  color: "#15171C",
   padding: "0 14px",
   outline: "none",
   fontSize: 14,
@@ -707,20 +707,20 @@ const summaryGridLargeStyle: CSSProperties = {
 const metricCardStyle: CSSProperties = {
   borderRadius: 20,
   background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(226,232,240,0.95)",
+  border: "1px solid rgba(220,214,202,0.95)",
   padding: 16,
 };
 
 const metricLabelStyle: CSSProperties = {
   fontSize: 12,
-  color: "rgba(15,23,42,0.46)",
+  color: "rgba(21,23,28,0.46)",
   marginBottom: 8,
 };
 
 const metricValueStyle: CSSProperties = {
   fontSize: 24,
   fontWeight: 800,
-  color: "#0f172a",
+  color: "#15171C",
   lineHeight: 1.2,
 };
 
@@ -729,7 +729,7 @@ const panelStyle: CSSProperties = {
   border: "1px solid rgba(255,255,255,0.76)",
   borderRadius: 26,
   padding: 20,
-  boxShadow: "0 14px 34px rgba(148,163,184,0.12)",
+  boxShadow: "0 14px 34px rgba(142,138,130,0.12)",
   backdropFilter: "blur(10px)",
 };
 
@@ -745,14 +745,14 @@ const panelHeaderStyle: CSSProperties = {
 const panelMiniStyle: CSSProperties = {
   fontSize: 11,
   letterSpacing: "0.22em",
-  color: "rgba(30,41,59,0.42)",
+  color: "rgba(42,44,51,0.42)",
   marginBottom: 6,
 };
 
 const panelTitleStyle: CSSProperties = {
   margin: 0,
   fontSize: 22,
-  color: "#0f172a",
+  color: "#15171C",
   fontWeight: 700,
 };
 
@@ -764,29 +764,29 @@ const emptyBoxStyle: CSSProperties = {
   textAlign: "center",
   borderRadius: 20,
   background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(226,232,240,0.95)",
-  color: "rgba(15,23,42,0.54)",
+  border: "1px solid rgba(220,214,202,0.95)",
+  color: "rgba(21,23,28,0.54)",
   fontSize: 14,
   padding: 20,
 };
 
 const miniInfoCardStyle: CSSProperties = {
   borderRadius: 16,
-  background: "rgba(248,250,252,0.92)",
-  border: "1px solid rgba(226,232,240,0.95)",
+  background: "rgba(251,250,247,0.92)",
+  border: "1px solid rgba(220,214,202,0.95)",
   padding: 12,
 };
 
 const miniInfoLabelStyle: CSSProperties = {
   fontSize: 11,
-  color: "rgba(15,23,42,0.46)",
+  color: "rgba(21,23,28,0.46)",
   marginBottom: 6,
 };
 
 const miniInfoValueStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 700,
-  color: "#0f172a",
+  color: "#15171C",
   lineHeight: 1.5,
 };
 
@@ -794,7 +794,7 @@ const tableWrapStyle: CSSProperties = {
   width: "100%",
   overflowX: "auto",
   borderRadius: 20,
-  border: "1px solid rgba(226,232,240,0.95)",
+  border: "1px solid rgba(220,214,202,0.95)",
   background: "rgba(255,255,255,0.72)",
 };
 
@@ -809,17 +809,17 @@ const thStyle: CSSProperties = {
   textAlign: "left",
   fontSize: 12,
   fontWeight: 800,
-  color: "rgba(15,23,42,0.56)",
-  borderBottom: "1px solid rgba(226,232,240,0.95)",
-  background: "rgba(248,250,252,0.95)",
+  color: "rgba(21,23,28,0.56)",
+  borderBottom: "1px solid rgba(220,214,202,0.95)",
+  background: "rgba(251,250,247,0.95)",
   whiteSpace: "nowrap",
 };
 
 const tdStyle: CSSProperties = {
   padding: "12px 10px",
   fontSize: 13,
-  color: "#0f172a",
-  borderBottom: "1px solid rgba(226,232,240,0.7)",
+  color: "#15171C",
+  borderBottom: "1px solid rgba(220,214,202,0.7)",
   verticalAlign: "top",
   whiteSpace: "nowrap",
 };
@@ -832,26 +832,26 @@ const tdStyleStrong: CSSProperties = {
 const tdStyleStrongBlue: CSSProperties = {
   ...tdStyle,
   fontWeight: 900,
-  color: "#2563eb",
+  color: "#8A6220",
 };
 
 const recordCardStyle: CSSProperties = {
   borderRadius: 20,
   background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(226,232,240,0.95)",
+  border: "1px solid rgba(220,214,202,0.95)",
   padding: 16,
 };
 
 const recordDateStyle: CSSProperties = {
   fontSize: 18,
   fontWeight: 800,
-  color: "#0f172a",
+  color: "#15171C",
   marginBottom: 4,
 };
 
 const recordSubStyle: CSSProperties = {
   fontSize: 13,
-  color: "rgba(15,23,42,0.56)",
+  color: "rgba(21,23,28,0.56)",
   marginBottom: 12,
 };
 
@@ -863,7 +863,7 @@ const recordInfoGridStyle: CSSProperties = {
 
 const loadingStyle: CSSProperties = {
   textAlign: "center",
-  color: "rgba(15,23,42,0.56)",
+  color: "rgba(21,23,28,0.56)",
   fontSize: 14,
   padding: "16px 0",
 };

@@ -160,7 +160,7 @@ export default function AccountPage() {
       style={{
         minHeight: "100vh",
         background:
-          "linear-gradient(135deg, #f7f7f8 0%, #ececef 45%, #e5e7eb 100%)",
+          "linear-gradient(135deg, #FBFAF7 0%, #F1EDE5 45%, #DCD6CA 100%)",
         padding: "24px",
         fontFamily: "system-ui, sans-serif",
       }}
@@ -182,7 +182,7 @@ export default function AccountPage() {
                 margin: 0,
                 fontSize: "30px",
                 fontWeight: 800,
-                color: "#111827",
+                color: "#15171C",
               }}
             >
               アカウント
@@ -190,7 +190,7 @@ export default function AccountPage() {
             <p
               style={{
                 marginTop: "8px",
-                color: "#6b7280",
+                color: "#5B5E66",
                 fontSize: "14px",
               }}
             >
@@ -333,7 +333,7 @@ const homeButtonStyle: React.CSSProperties = {
   textDecoration: "none",
   padding: "11px 16px",
   borderRadius: "12px",
-  background: "#111827",
+  background: "#15171C",
   color: "#ffffff",
   fontWeight: 700,
 };
@@ -345,14 +345,14 @@ const cardStyle: React.CSSProperties = {
   border: "1px solid rgba(255,255,255,0.65)",
   borderRadius: "24px",
   padding: "28px",
-  boxShadow: "0 12px 30px rgba(15, 23, 42, 0.08)",
+  boxShadow: "0 12px 30px rgba(21,23,28, 0.08)",
 };
 
 const sectionTitleStyle: React.CSSProperties = {
   margin: "0 0 20px 0",
   fontSize: "22px",
   fontWeight: 700,
-  color: "#111827",
+  color: "#15171C",
 };
 
 const formGridStyle: React.CSSProperties = {
@@ -365,7 +365,7 @@ const labelStyle: React.CSSProperties = {
   display: "block",
   fontSize: "14px",
   fontWeight: 600,
-  color: "#374151",
+  color: "#3A3D45",
   marginBottom: "8px",
 };
 
@@ -373,10 +373,10 @@ const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "13px 14px",
   borderRadius: "14px",
-  border: "1px solid rgba(203,213,225,0.9)",
+  border: "1px solid rgba(207,200,186,0.9)",
   background: "rgba(255,255,255,0.88)",
   fontSize: "15px",
-  color: "#111827",
+  color: "#15171C",
   outline: "none",
   boxSizing: "border-box",
 };
@@ -385,7 +385,7 @@ const saveButtonStyle: React.CSSProperties = {
   border: "none",
   borderRadius: "14px",
   padding: "13px 20px",
-  background: "#111827",
+  background: "#15171C",
   color: "#ffffff",
   fontWeight: 700,
   fontSize: "15px",
@@ -399,20 +399,20 @@ const infoListStyle: React.CSSProperties = {
 
 const infoItemStyle: React.CSSProperties = {
   background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(226,232,240,0.95)",
+  border: "1px solid rgba(220,214,202,0.95)",
   borderRadius: "16px",
   padding: "14px",
 };
 
 const infoLabelStyle: React.CSSProperties = {
   fontSize: "12px",
-  color: "#6b7280",
+  color: "#5B5E66",
   marginBottom: "6px",
 };
 
 const infoValueStyle: React.CSSProperties = {
   fontSize: "15px",
-  color: "#111827",
+  color: "#15171C",
   fontWeight: 700,
 };
 

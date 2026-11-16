@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, Noto_Sans_JP, Shippori_Mincho } from "next/font/google";
 import "./globals.css";
+import BottomNav from "@/components/BottomNav";
 
 // ロゴ用
 const cormorant = Cormorant_Garamond({
@@ -48,7 +49,10 @@ export default function RootLayout({
       translate="no"
       className={`${cormorant.variable} ${shippori.variable} ${notoSansJp.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        <BottomNav />
+      </body>
     </html>
   );
 }

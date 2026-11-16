@@ -78,7 +78,7 @@ export default function RepeatRatePage() {
       <div style={{ maxWidth: 1100, margin: "0 auto", display: "grid", gap: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
           <div>
-            <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>REPEAT RATE</div>
+            <div style={{ fontSize: 12, color: "#5B5E66", fontWeight: 700 }}>REPEAT RATE</div>
             <h1 style={{ margin: "4px 0 0", fontSize: 24 }}>リピート率</h1>
           </div>
           <Link href="/dashboard" style={linkStyle}>ダッシュボードへ</Link>
@@ -104,7 +104,7 @@ export default function RepeatRatePage() {
                 setTo(initial.to);
                 void load(initial.from, initial.to);
               }}
-              style={{ ...buttonStyle, background: "#e2e8f0", color: "#0f172a" }}
+              style={{ ...buttonStyle, background: "#DCD6CA", color: "#15171C" }}
             >
               初期値に戻す
             </button>
@@ -143,14 +143,14 @@ export default function RepeatRatePage() {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div style={cardStyle}>
-      <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 12, color: "#5B5E66", fontWeight: 700 }}>{label}</div>
       <div style={{ fontSize: 24, fontWeight: 800, marginTop: 6 }}>{value}</div>
     </div>
   );
 }
 
 function RateTable({ rows }: { rows: RepeatRow[] }) {
-  if (rows.length === 0) return <div style={{ padding: 12, color: "#64748b", fontSize: 14 }}>該当なし</div>;
+  if (rows.length === 0) return <div style={{ padding: 12, color: "#5B5E66", fontSize: 14 }}>該当なし</div>;
   return (
     <div style={{ overflowX: "auto", marginTop: 8 }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
@@ -171,8 +171,8 @@ function RateTable({ rows }: { rows: RepeatRow[] }) {
                 <td style={tdStyle}>{num(r.repeat_customers)}人</td>
                 <td style={{ ...tdStyle, minWidth: 160 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ flex: 1, height: 8, background: "#e2e8f0", borderRadius: 4, overflow: "hidden" }}>
-                      <div style={{ width: `${Math.min(100, rate)}%`, height: "100%", background: "#2563eb" }} />
+                    <div style={{ flex: 1, height: 8, background: "#DCD6CA", borderRadius: 4, overflow: "hidden" }}>
+                      <div style={{ width: `${Math.min(100, rate)}%`, height: "100%", background: "#8A6220" }} />
                     </div>
                     <span style={{ fontWeight: 700, width: 52, textAlign: "right" }}>{rate.toFixed(1)}%</span>
                   </div>
@@ -187,14 +187,14 @@ function RateTable({ rows }: { rows: RepeatRow[] }) {
   );
 }
 
-const pageStyle: CSSProperties = { minHeight: "100vh", padding: "24px 16px 80px", background: "#f1f5f9", color: "#0f172a" };
-const cardStyle: CSSProperties = { background: "#fff", borderRadius: 16, padding: 18, boxShadow: "0 8px 24px rgba(15,23,42,0.06)" };
+const pageStyle: CSSProperties = { minHeight: "100vh", padding: "24px 16px 80px", background: "#F7F5F0", color: "#15171C" };
+const cardStyle: CSSProperties = { background: "#fff", borderRadius: 16, padding: 18, boxShadow: "0 8px 24px rgba(21,23,28,0.06)" };
 const titleStyle: CSSProperties = { margin: "0 0 6px", fontSize: 17 };
-const noteStyle: CSSProperties = { fontSize: 12, color: "#64748b", lineHeight: 1.6 };
+const noteStyle: CSSProperties = { fontSize: 12, color: "#5B5E66", lineHeight: 1.6 };
 const errorStyle: CSSProperties = { padding: 12, borderRadius: 12, background: "#fee2e2", color: "#991b1b" };
-const linkStyle: CSSProperties = { padding: "8px 14px", borderRadius: 12, background: "#0f172a", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700 };
-const labelStyle: CSSProperties = { display: "grid", gap: 4, fontSize: 12, fontWeight: 700, color: "#475569" };
-const inputStyle: CSSProperties = { padding: "8px 10px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 14 };
-const buttonStyle: CSSProperties = { padding: "9px 16px", borderRadius: 10, border: "none", background: "#2563eb", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" };
-const thStyle: CSSProperties = { textAlign: "left", padding: "8px 6px", borderBottom: "2px solid #e2e8f0", whiteSpace: "nowrap" };
-const tdStyle: CSSProperties = { padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" };
+const linkStyle: CSSProperties = { padding: "8px 14px", borderRadius: 12, background: "#15171C", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700 };
+const labelStyle: CSSProperties = { display: "grid", gap: 4, fontSize: 12, fontWeight: 700, color: "#5B5E66" };
+const inputStyle: CSSProperties = { padding: "8px 10px", borderRadius: 10, border: "1px solid #CFC8BA", fontSize: 14 };
+const buttonStyle: CSSProperties = { padding: "9px 16px", borderRadius: 10, border: "none", background: "#8A6220", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" };
+const thStyle: CSSProperties = { textAlign: "left", padding: "8px 6px", borderBottom: "2px solid #DCD6CA", whiteSpace: "nowrap" };
+const tdStyle: CSSProperties = { padding: "8px 6px", borderBottom: "1px solid #DCD6CA", whiteSpace: "nowrap" };

@@ -534,7 +534,7 @@ function BodyTapMap({
                   : "2px solid rgba(180,83,9,0.30)",
                 boxShadow: active
                   ? "0 0 0 6px rgba(239,68,68,0.14)"
-                  : "0 6px 16px rgba(15,23,42,0.08)",
+                  : "0 6px 16px rgba(21,23,28,0.08)",
               }}
             />
           );
@@ -1387,12 +1387,12 @@ const pageTitleStyle: CSSProperties = {
   margin: 0,
   fontSize: 30,
   fontWeight: 900,
-  color: "#0f172a",
+  color: "#15171C",
 };
 
 const pageSubStyle: CSSProperties = {
   margin: "10px 0 0",
-  color: "#64748b",
+  color: "#5B5E66",
   fontSize: 14,
   lineHeight: 1.8,
 };
@@ -1422,7 +1422,7 @@ const customerPillStyle: CSSProperties = {
 const sectionTitleStyle: CSSProperties = {
   margin: 0,
   fontSize: 22,
-  color: "#0f172a",
+  color: "#15171C",
   fontWeight: 800,
 };
 
@@ -1441,8 +1441,8 @@ const countBadgeStyle: CSSProperties = {
   minHeight: 36,
   borderRadius: 9999,
   background: "rgba(255,255,255,0.9)",
-  border: "1px solid rgba(226,232,240,0.95)",
-  color: "#334155",
+  border: "1px solid rgba(220,214,202,0.95)",
+  color: "#3A3D45",
   padding: "0 14px",
   fontSize: 12,
   fontWeight: 800,
@@ -1450,7 +1450,7 @@ const countBadgeStyle: CSSProperties = {
 
 const labelStyle: CSSProperties = {
   fontSize: 13,
-  color: "#475569",
+  color: "#5B5E66",
   fontWeight: 700,
   marginBottom: 8,
 };
@@ -1459,9 +1459,9 @@ const inputStyle: CSSProperties = {
   width: "100%",
   height: 48,
   borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.9)",
+  border: "1px solid rgba(207,200,186,0.9)",
   background: "rgba(255,255,255,0.95)",
-  color: "#0f172a",
+  color: "#15171C",
   padding: "0 14px",
   outline: "none",
   fontSize: 14,
@@ -1471,9 +1471,9 @@ const inputStyle: CSSProperties = {
 const textareaStyle: CSSProperties = {
   width: "100%",
   borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.9)",
+  border: "1px solid rgba(207,200,186,0.9)",
   background: "rgba(255,255,255,0.95)",
-  color: "#0f172a",
+  color: "#15171C",
   padding: "12px 14px",
   outline: "none",
   fontSize: 14,
@@ -1485,9 +1485,9 @@ const secondaryButtonStyle: CSSProperties = {
   minWidth: 150,
   height: 46,
   borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.95)",
+  border: "1px solid rgba(207,200,186,0.95)",
   background: "rgba(255,255,255,0.92)",
-  color: "#334155",
+  color: "#3A3D45",
   fontWeight: 700,
   fontSize: 14,
   cursor: "pointer",
@@ -1530,9 +1530,9 @@ const chipStyle: CSSProperties = {
   minHeight: 40,
   borderRadius: 9999,
   padding: "0 16px",
-  border: "1px solid rgba(226,232,240,0.95)",
+  border: "1px solid rgba(220,214,202,0.95)",
   background: "rgba(255,255,255,0.92)",
-  color: "#334155",
+  color: "#3A3D45",
   fontSize: 13,
   fontWeight: 700,
   cursor: "pointer",
@@ -1584,9 +1584,9 @@ const bodySwitchStyle: CSSProperties = {
   minWidth: 64,
   height: 34,
   borderRadius: 9999,
-  border: "1px solid rgba(226,232,240,0.95)",
+  border: "1px solid rgba(220,214,202,0.95)",
   background: "rgba(255,255,255,0.96)",
-  color: "#475569",
+  color: "#5B5E66",
   fontSize: 12,
   fontWeight: 800,
   cursor: "pointer",
@@ -1654,8 +1654,8 @@ const bodyEmptyStyle: CSSProperties = {
   padding: "0 14px",
   borderRadius: 14,
   background: "rgba(255,255,255,0.82)",
-  border: "1px solid rgba(226,232,240,0.95)",
-  color: "#64748b",
+  border: "1px solid rgba(220,214,202,0.95)",
+  color: "#5B5E66",
   fontSize: 13,
   fontWeight: 700,
   marginBottom: 14,

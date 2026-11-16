@@ -196,7 +196,7 @@ export default function StaffTimecardPage() {
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-[linear-gradient(135deg,#e5e7eb_0%,#d1d5db_42%,#9ca3af_100%)]">
+    <div className="min-h-screen relative overflow-hidden bg-[#F7F5F0]">
       <div className="absolute inset-0 bg-white/20 backdrop-blur-[2px]" />
       <div
         className="absolute inset-0 opacity-[0.08]"
@@ -207,7 +207,7 @@ export default function StaffTimecardPage() {
       />
 
       <div className="relative z-10 max-w-5xl mx-auto px-4 py-8">
-        <div className="mb-8 rounded-[28px] border border-white/40 bg-white/20 backdrop-blur-xl shadow-[0_20px_60px_rgba(15,23,42,0.16)] p-6 md:p-8">
+        <div className="mb-8 rounded-[28px] border border-white/40 bg-white/20 backdrop-blur-xl shadow-[0_20px_60px_rgba(21,23,28,0.16)] p-6 md:p-8">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
             <div>
               <p className="text-xs tracking-[0.25em] text-gray-700/80 font-semibold">
@@ -231,7 +231,7 @@ export default function StaffTimecardPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div className="rounded-[28px] border border-white/40 bg-white/20 backdrop-blur-xl shadow-[0_20px_60px_rgba(15,23,42,0.16)] p-6">
+          <div className="rounded-[28px] border border-white/40 bg-white/20 backdrop-blur-xl shadow-[0_20px_60px_rgba(21,23,28,0.16)] p-6">
             <h2 className="text-xl font-bold text-gray-900 mb-4">本日の打刻</h2>
 
             <div className="space-y-3 text-sm text-gray-700">
@@ -276,7 +276,7 @@ export default function StaffTimecardPage() {
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-white/40 bg-white/20 backdrop-blur-xl shadow-[0_20px_60px_rgba(15,23,42,0.16)] p-6">
+          <div className="rounded-[28px] border border-white/40 bg-white/20 backdrop-blur-xl shadow-[0_20px_60px_rgba(21,23,28,0.16)] p-6">
             <h2 className="text-xl font-bold text-gray-900 mb-4">休憩入力</h2>
 
             <label className="block text-sm text-gray-700 mb-2">
@@ -305,7 +305,7 @@ export default function StaffTimecardPage() {
           </div>
         </div>
 
-        <div className="rounded-[28px] border border-white/40 bg-white/20 backdrop-blur-xl shadow-[0_20px_60px_rgba(15,23,42,0.16)] p-6">
+        <div className="rounded-[28px] border border-white/40 bg-white/20 backdrop-blur-xl shadow-[0_20px_60px_rgba(21,23,28,0.16)] p-6">
           <h2 className="text-xl font-bold text-gray-900 mb-4">打刻履歴</h2>
 
           <div className="space-y-3">

@@ -90,19 +90,19 @@ const supabase =
 const BG_STYLE: CSSProperties = {
   minHeight: "100vh",
   background:
-    "linear-gradient(135deg, #f7f7f8 0%, #eceef1 45%, #e7eaef 100%)",
+    "linear-gradient(135deg, #FBFAF7 0%, #F1EDE5 45%, #F1EDE5 100%)",
 };
 
 const CARD_STYLE: CSSProperties = {
   background: "rgba(255,255,255,0.78)",
   border: "1px solid rgba(255,255,255,0.65)",
-  boxShadow: "0 18px 50px rgba(15,23,42,0.08)",
+  boxShadow: "0 18px 50px rgba(21,23,28,0.08)",
   backdropFilter: "blur(16px)",
   WebkitBackdropFilter: "blur(16px)",
 };
 
 const BUTTON_PRIMARY_STYLE: CSSProperties = {
-  background: "linear-gradient(135deg, #111827 0%, #374151 100%)",
+  background: "linear-gradient(135deg, #15171C 0%, #3A3D45 100%)",
   color: "#ffffff",
   boxShadow: "0 10px 24px rgba(17,24,39,0.22)",
 };
@@ -554,7 +554,7 @@ export default function CustomerSubscriptionPage() {
       style={{
         ...BG_STYLE,
         padding: mobile ? "16px 12px 72px" : "24px 16px 80px",
-        color: "#111827",
+        color: "#15171C",
       }}
     >
       <div style={{ maxWidth: 1180, margin: "0 auto", display: "grid", gap: 18 }}>
@@ -1062,28 +1062,28 @@ const eyebrowStyle: CSSProperties = {
   fontSize: 12,
   fontWeight: 800,
   letterSpacing: "0.12em",
-  color: "#64748b",
+  color: "#5B5E66",
   marginBottom: 4,
 };
 
 const pageTitleStyle: CSSProperties = {
   margin: 0,
   lineHeight: 1.2,
-  color: "#0f172a",
+  color: "#15171C",
   fontWeight: 800,
 };
 
 const subTitleStyle: CSSProperties = {
   marginTop: 8,
   fontSize: 14,
-  color: "#475569",
+  color: "#5B5E66",
   fontWeight: 600,
 };
 
 const sectionTitleStyle: CSSProperties = {
   margin: "0 0 16px 0",
   fontSize: 20,
-  color: "#0f172a",
+  color: "#15171C",
   fontWeight: 800,
 };
 
@@ -1102,9 +1102,9 @@ const buttonLinkStyle: CSSProperties = {
 const secondaryButtonStyle: CSSProperties = {
   minHeight: 44,
   borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.95)",
+  border: "1px solid rgba(207,200,186,0.95)",
   background: "rgba(255,255,255,0.92)",
-  color: "#334155",
+  color: "#3A3D45",
   fontWeight: 700,
   fontSize: 14,
   cursor: "pointer",
@@ -1135,8 +1135,8 @@ const alertNoticeStyle: CSSProperties = {
   padding: "14px 16px",
   borderRadius: 16,
   background: "rgba(239,246,255,0.98)",
-  border: "1px solid rgba(59,130,246,0.2)",
-  color: "#1d4ed8",
+  border: "1px solid rgba(176,129,51,0.2)",
+  color: "#6E4E19",
   fontSize: 14,
   fontWeight: 700,
 };
@@ -1163,13 +1163,13 @@ const infoCardStyle: CSSProperties = {
   padding: "14px 16px",
   borderRadius: 16,
   background: "rgba(255,255,255,0.82)",
-  border: "1px solid rgba(226,232,240,0.95)",
+  border: "1px solid rgba(220,214,202,0.95)",
 };
 
 const infoLabelStyle: CSSProperties = {
   fontSize: 12,
   fontWeight: 800,
-  color: "#64748b",
+  color: "#5B5E66",
   marginBottom: 6,
   letterSpacing: "0.04em",
 };
@@ -1177,7 +1177,7 @@ const infoLabelStyle: CSSProperties = {
 const infoValueStyle: CSSProperties = {
   fontSize: 15,
   fontWeight: 700,
-  color: "#0f172a",
+  color: "#15171C",
   lineHeight: 1.6,
   wordBreak: "break-word",
 };
@@ -1186,14 +1186,14 @@ const metricCardStyle: CSSProperties = {
   padding: "16px 16px 14px",
   borderRadius: 18,
   background: "rgba(255,255,255,0.82)",
-  border: "1px solid rgba(226,232,240,0.95)",
-  boxShadow: "0 8px 24px rgba(15,23,42,0.04)",
+  border: "1px solid rgba(220,214,202,0.95)",
+  boxShadow: "0 8px 24px rgba(21,23,28,0.04)",
 };
 
 const metricLabelStyle: CSSProperties = {
   fontSize: 12,
   fontWeight: 800,
-  color: "#64748b",
+  color: "#5B5E66",
   marginBottom: 8,
   letterSpacing: "0.05em",
 };
@@ -1201,7 +1201,7 @@ const metricLabelStyle: CSSProperties = {
 const metricValueStyle: CSSProperties = {
   fontSize: 26,
   fontWeight: 900,
-  color: "#0f172a",
+  color: "#15171C",
   lineHeight: 1.15,
   marginBottom: 8,
   wordBreak: "break-word",
@@ -1210,14 +1210,14 @@ const metricValueStyle: CSSProperties = {
 const metricSubStyle: CSSProperties = {
   fontSize: 13,
   fontWeight: 700,
-  color: "#64748b",
+  color: "#5B5E66",
   lineHeight: 1.5,
 };
 
 const labelStyle: CSSProperties = {
   fontSize: 13,
   fontWeight: 800,
-  color: "#64748b",
+  color: "#5B5E66",
   marginBottom: 8,
 };
 
@@ -1225,9 +1225,9 @@ const inputStyle: CSSProperties = {
   width: "100%",
   height: 46,
   borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.9)",
+  border: "1px solid rgba(207,200,186,0.9)",
   background: "rgba(255,255,255,0.95)",
-  color: "#0f172a",
+  color: "#15171C",
   padding: "0 14px",
   outline: "none",
   fontSize: 14,
@@ -1238,9 +1238,9 @@ const textareaStyle: CSSProperties = {
   width: "100%",
   minHeight: 120,
   borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.9)",
+  border: "1px solid rgba(207,200,186,0.9)",
   background: "rgba(255,255,255,0.95)",
-  color: "#0f172a",
+  color: "#15171C",
   padding: "12px 14px",
   outline: "none",
   fontSize: 14,
@@ -1252,9 +1252,9 @@ const readonlyBoxStyle: CSSProperties = {
   width: "100%",
   minHeight: 46,
   borderRadius: 14,
-  border: "1px solid rgba(226,232,240,0.95)",
-  background: "rgba(248,250,252,0.95)",
-  color: "#0f172a",
+  border: "1px solid rgba(220,214,202,0.95)",
+  background: "rgba(251,250,247,0.95)",
+  color: "#15171C",
   padding: "12px 14px",
   fontSize: 14,
   fontWeight: 800,
@@ -1267,10 +1267,10 @@ const textBlockStyle: CSSProperties = {
   padding: "14px 16px",
   borderRadius: 16,
   background: "rgba(255,255,255,0.82)",
-  border: "1px solid rgba(226,232,240,0.95)",
+  border: "1px solid rgba(220,214,202,0.95)",
   fontSize: 14,
   lineHeight: 1.8,
-  color: "#334155",
+  color: "#3A3D45",
   whiteSpace: "pre-wrap",
   wordBreak: "break-word",
 };
@@ -1285,14 +1285,14 @@ const progressWrapStyle: CSSProperties = {
 const progressLabelStyle: CSSProperties = {
   fontSize: 13,
   fontWeight: 800,
-  color: "#475569",
+  color: "#5B5E66",
 };
 
 const progressBarBgStyle: CSSProperties = {
   width: "100%",
   height: 12,
   borderRadius: 999,
-  background: "rgba(226,232,240,0.95)",
+  background: "rgba(220,214,202,0.95)",
   overflow: "hidden",
 };
 
@@ -1300,12 +1300,12 @@ const progressBarFillStyle: CSSProperties = {
   height: "100%",
   borderRadius: 999,
   background:
-    "linear-gradient(90deg, rgba(59,130,246,1) 0%, rgba(16,185,129,1) 100%)",
+    "linear-gradient(90deg, rgba(176,129,51,1) 0%, rgba(16,185,129,1) 100%)",
 };
 
 const progressValueStyle: CSSProperties = {
   fontSize: 13,
   fontWeight: 800,
-  color: "#0f172a",
+  color: "#15171C",
   textAlign: "right",
 };

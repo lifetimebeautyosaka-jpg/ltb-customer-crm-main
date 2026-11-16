@@ -284,10 +284,10 @@ function diffLabel(value: number | null, unit = "") {
 }
 
 function diffColor(value: number | null) {
-  if (value === null) return "#64748b";
+  if (value === null) return "#5B5E66";
   if (value > 0) return "#dc2626";
   if (value < 0) return "#16a34a";
-  return "#64748b";
+  return "#5B5E66";
 }
 
 // 同じ日に何回も記録すると、グラフに同じ日の点が何個も並んで二重になっていた。
@@ -368,9 +368,9 @@ function ticketStatusStyle(status: string): CSSProperties {
       };
     case "消化済み":
       return {
-        background: "rgba(59,130,246,0.10)",
-        color: "#1d4ed8",
-        border: "1px solid rgba(59,130,246,0.18)",
+        background: "rgba(176,129,51,0.10)",
+        color: "#6E4E19",
+        border: "1px solid rgba(176,129,51,0.18)",
       };
     default:
       return {
@@ -468,7 +468,7 @@ function MetricCard({
     <div style={metricCardStyle}>
       <div style={metricLabelStyle}>{label}</div>
       <div style={metricValueStyle}>{value}</div>
-      <div style={{ ...metricSubStyle, color: subColor || "#64748b" }}>{sub}</div>
+      <div style={{ ...metricSubStyle, color: subColor || "#5B5E66" }}>{sub}</div>
     </div>
   );
 }
@@ -523,7 +523,7 @@ function ChartSection({
         }}
       >
         <h2 style={sectionTitleStyle}>{title}</h2>
-        <div style={{ fontSize: 13, color: "#64748b", fontWeight: 700 }}>
+        <div style={{ fontSize: 13, color: "#5B5E66", fontWeight: 700 }}>
           データ {sessions.length}件
           {target !== null && target !== undefined ? (
             <span style={{ marginLeft: 10, color: "#16a34a" }}>
@@ -561,7 +561,7 @@ function ChartSection({
                   y1={y}
                   x2="540"
                   y2={y}
-                  stroke="rgba(203,213,225,0.6)"
+                  stroke="rgba(207,200,186,0.6)"
                   strokeWidth="1"
                 />
               );
@@ -603,7 +603,7 @@ function ChartSection({
                     x={x}
                     y={y - 12}
                     textAnchor="middle"
-                    style={{ fontSize: 11, fontWeight: 800, fill: "#334155" }}
+                    style={{ fontSize: 11, fontWeight: 800, fill: "#3A3D45" }}
                   >
                     {value}
                     {unit}
@@ -612,7 +612,7 @@ function ChartSection({
                     x={x}
                     y={212}
                     textAnchor="middle"
-                    style={{ fontSize: 10, fontWeight: 700, fill: "#64748b" }}
+                    style={{ fontSize: 10, fontWeight: 700, fill: "#5B5E66" }}
                   >
                     {formatDate(sessions[index]?.session_date)}
                   </text>
@@ -1483,7 +1483,7 @@ export default function CustomerDetailPage() {
             }}
           >
             <h2 style={sectionTitleStyle}>来店実績</h2>
-            <div style={{ fontSize: 13, color: "#64748b", fontWeight: 700 }}>
+            <div style={{ fontSize: 13, color: "#5B5E66", fontWeight: 700 }}>
               reservations ベースで集計
             </div>
           </div>
@@ -1514,7 +1514,7 @@ export default function CustomerDetailPage() {
                   ? "#16a34a"
                   : visitMonthDiff < 0
                   ? "#dc2626"
-                  : "#64748b"
+                  : "#5B5E66"
               }
             />
             <MetricCard
@@ -1561,7 +1561,7 @@ export default function CustomerDetailPage() {
             }}
           >
             <h2 style={sectionTitleStyle}>来店履歴</h2>
-            <div style={{ fontSize: 13, color: "#64748b", fontWeight: 700 }}>
+            <div style={{ fontSize: 13, color: "#5B5E66", fontWeight: 700 }}>
               新しい順に20件
             </div>
           </div>
@@ -1635,7 +1635,7 @@ export default function CustomerDetailPage() {
             }}
           >
             <h2 style={sectionTitleStyle}>売上履歴</h2>
-            <div style={{ fontSize: 13, color: "#64748b", fontWeight: 700 }}>
+            <div style={{ fontSize: 13, color: "#5B5E66", fontWeight: 700 }}>
               新しい順に20件
             </div>
           </div>
@@ -1883,7 +1883,7 @@ export default function CustomerDetailPage() {
             }}
           >
             <h2 style={sectionTitleStyle}>契約回数券一覧</h2>
-            <div style={{ fontSize: 13, color: "#64748b", fontWeight: 700 }}>
+            <div style={{ fontSize: 13, color: "#5B5E66", fontWeight: 700 }}>
               ticket_contracts
             </div>
           </div>
@@ -1970,7 +1970,7 @@ export default function CustomerDetailPage() {
             }}
           >
             <h2 style={sectionTitleStyle}>保有回数券一覧</h2>
-            <div style={{ fontSize: 13, color: "#64748b", fontWeight: 700 }}>
+            <div style={{ fontSize: 13, color: "#5B5E66", fontWeight: 700 }}>
               customer_tickets
             </div>
           </div>
@@ -2056,7 +2056,7 @@ export default function CustomerDetailPage() {
             }}
           >
             <h2 style={sectionTitleStyle}>回数券消化履歴</h2>
-            <div style={{ fontSize: 13, color: "#64748b", fontWeight: 700 }}>
+            <div style={{ fontSize: 13, color: "#5B5E66", fontWeight: 700 }}>
               新しい順に表示
             </div>
           </div>
@@ -2195,20 +2195,20 @@ export default function CustomerDetailPage() {
           points={weightChartPoints}
           unit="kg"
           lineId="weightLine"
-          startColor="#2563eb"
+          startColor="#8A6220"
           endColor="#06b6d4"
           emptyLabel="体重データがまだありません。"
           target={customer?.targetWeight ?? null}
           targetEditor={
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#475569" }}>目標体重</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#5B5E66" }}>目標体重</span>
               <input
                 type="number"
                 step="0.1"
                 value={targetWeightInput}
                 onChange={(e) => setTargetWeightInput(e.target.value)}
                 placeholder="例：60.0"
-                style={{ width: 100, minHeight: 34, padding: "0 8px", borderRadius: 8, border: "1px solid #cbd5e1" }}
+                style={{ width: 100, minHeight: 34, padding: "0 8px", borderRadius: 8, border: "1px solid #CFC8BA" }}
               />
               <span style={{ fontSize: 13 }}>kg</span>
               <button
@@ -2218,7 +2218,7 @@ export default function CustomerDetailPage() {
               >
                 保存
               </button>
-              {targetWeightMessage ? <span style={{ fontSize: 12, color: "#475569" }}>{targetWeightMessage}</span> : null}
+              {targetWeightMessage ? <span style={{ fontSize: 12, color: "#5B5E66" }}>{targetWeightMessage}</span> : null}
             </div>
           }
         />
@@ -2254,7 +2254,7 @@ export default function CustomerDetailPage() {
             }}
           >
             <h2 style={sectionTitleStyle}>トレーニング履歴サマリー</h2>
-            <div style={{ fontSize: 13, color: "#64748b", fontWeight: 700 }}>
+            <div style={{ fontSize: 13, color: "#5B5E66", fontWeight: 700 }}>
               新しい順に表示
             </div>
           </div>
@@ -2328,20 +2328,20 @@ const eyebrowStyle: CSSProperties = {
   fontSize: 12,
   fontWeight: 800,
   letterSpacing: "0.12em",
-  color: "#64748b",
+  color: "#5B5E66",
   marginBottom: 4,
 };
 
 const pageTitleStyle: CSSProperties = {
   margin: 0,
   lineHeight: 1.2,
-  color: "#0f172a",
+  color: "#15171C",
   fontWeight: 800,
 };
 
 const heroSubStyle: CSSProperties = {
   marginTop: 8,
-  color: "#64748b",
+  color: "#5B5E66",
   fontSize: 14,
   fontWeight: 700,
 };
@@ -2349,14 +2349,14 @@ const heroSubStyle: CSSProperties = {
 const sectionTitleStyle: CSSProperties = {
   margin: "0 0 16px 0",
   fontSize: 20,
-  color: "#0f172a",
+  color: "#15171C",
   fontWeight: 800,
 };
 
 const subSectionTitleStyle: CSSProperties = {
   margin: "0 0 12px 0",
   fontSize: 16,
-  color: "#0f172a",
+  color: "#15171C",
   fontWeight: 800,
 };
 
@@ -2379,9 +2379,9 @@ const miniButtonLinkStyle: CSSProperties = {
   minHeight: 40,
   padding: "10px 14px",
   borderRadius: 12,
-  border: "1px solid rgba(203,213,225,0.95)",
+  border: "1px solid rgba(207,200,186,0.95)",
   background: "rgba(255,255,255,0.92)",
-  color: "#334155",
+  color: "#3A3D45",
   textDecoration: "none",
   fontWeight: 700,
   fontSize: 13,
@@ -2390,9 +2390,9 @@ const miniButtonLinkStyle: CSSProperties = {
 const secondaryButtonStyle: CSSProperties = {
   minHeight: 44,
   borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.95)",
+  border: "1px solid rgba(207,200,186,0.95)",
   background: "rgba(255,255,255,0.92)",
-  color: "#334155",
+  color: "#3A3D45",
   fontWeight: 700,
   fontSize: 14,
   cursor: "pointer",
@@ -2403,9 +2403,9 @@ const inputStyle: CSSProperties = {
   width: "100%",
   height: 46,
   borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.9)",
+  border: "1px solid rgba(207,200,186,0.9)",
   background: "rgba(255,255,255,0.95)",
-  color: "#0f172a",
+  color: "#15171C",
   padding: "0 14px",
   outline: "none",
   fontSize: 14,
@@ -2416,9 +2416,9 @@ const textareaStyle: CSSProperties = {
   width: "100%",
   minHeight: 110,
   borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.9)",
+  border: "1px solid rgba(207,200,186,0.9)",
   background: "rgba(255,255,255,0.95)",
-  color: "#0f172a",
+  color: "#15171C",
   padding: "12px 14px",
   outline: "none",
   fontSize: 14,
@@ -2456,13 +2456,13 @@ const infoCardStyle: CSSProperties = {
   padding: "14px 16px",
   borderRadius: 16,
   background: "rgba(255,255,255,0.82)",
-  border: "1px solid rgba(226,232,240,0.95)",
+  border: "1px solid rgba(220,214,202,0.95)",
 };
 
 const infoLabelStyle: CSSProperties = {
   fontSize: 12,
   fontWeight: 800,
-  color: "#64748b",
+  color: "#5B5E66",
   marginBottom: 6,
   letterSpacing: "0.04em",
 };
@@ -2470,7 +2470,7 @@ const infoLabelStyle: CSSProperties = {
 const infoValueStyle: CSSProperties = {
   fontSize: 15,
   fontWeight: 700,
-  color: "#0f172a",
+  color: "#15171C",
   lineHeight: 1.6,
   wordBreak: "break-word",
 };
@@ -2491,14 +2491,14 @@ const metricCardStyle: CSSProperties = {
   padding: "16px 16px 14px",
   borderRadius: 18,
   background: "rgba(255,255,255,0.82)",
-  border: "1px solid rgba(226,232,240,0.95)",
-  boxShadow: "0 8px 24px rgba(15,23,42,0.04)",
+  border: "1px solid rgba(220,214,202,0.95)",
+  boxShadow: "0 8px 24px rgba(21,23,28,0.04)",
 };
 
 const metricLabelStyle: CSSProperties = {
   fontSize: 12,
   fontWeight: 800,
-  color: "#64748b",
+  color: "#5B5E66",
   marginBottom: 8,
   letterSpacing: "0.05em",
 };
@@ -2506,7 +2506,7 @@ const metricLabelStyle: CSSProperties = {
 const metricValueStyle: CSSProperties = {
   fontSize: 26,
   fontWeight: 900,
-  color: "#0f172a",
+  color: "#15171C",
   lineHeight: 1.1,
   marginBottom: 8,
 };
@@ -2514,7 +2514,7 @@ const metricValueStyle: CSSProperties = {
 const metricValueSmallStyle: CSSProperties = {
   fontSize: 16,
   fontWeight: 800,
-  color: "#0f172a",
+  color: "#15171C",
   lineHeight: 1.5,
   marginBottom: 8,
   wordBreak: "break-word",
@@ -2523,12 +2523,12 @@ const metricValueSmallStyle: CSSProperties = {
 const metricSubStyle: CSSProperties = {
   fontSize: 13,
   fontWeight: 700,
-  color: "#64748b",
+  color: "#5B5E66",
 };
 
 const counselingNoteStyle: CSSProperties = {
   fontSize: 14,
-  color: "#334155",
+  color: "#3A3D45",
   lineHeight: 1.8,
   whiteSpace: "pre-wrap",
   wordBreak: "break-word",
@@ -2537,7 +2537,7 @@ const counselingNoteStyle: CSSProperties = {
 const historyLabelStyle: CSSProperties = {
   fontSize: 13,
   fontWeight: 800,
-  color: "#64748b",
+  color: "#5B5E66",
   marginBottom: 8,
 };
 
@@ -2545,10 +2545,10 @@ const textBlockStyle: CSSProperties = {
   padding: "14px 16px",
   borderRadius: 16,
   background: "rgba(255,255,255,0.82)",
-  border: "1px solid rgba(226,232,240,0.95)",
+  border: "1px solid rgba(220,214,202,0.95)",
   fontSize: 14,
   lineHeight: 1.8,
-  color: "#334155",
+  color: "#3A3D45",
   whiteSpace: "pre-wrap",
   wordBreak: "break-word",
 };
@@ -2562,14 +2562,14 @@ const ticketFormGridStyle: CSSProperties = {
 const emptyBoxStyle: CSSProperties = {
   minHeight: 110,
   borderRadius: 16,
-  border: "1px dashed rgba(203,213,225,0.9)",
+  border: "1px dashed rgba(207,200,186,0.9)",
   background: "rgba(255,255,255,0.5)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   textAlign: "center",
   padding: 20,
-  color: "#64748b",
+  color: "#5B5E66",
   fontSize: 14,
   fontWeight: 700,
 };
@@ -2578,21 +2578,21 @@ const historyItemStyle: CSSProperties = {
   padding: "16px",
   borderRadius: 18,
   background: "rgba(255,255,255,0.86)",
-  border: "1px solid rgba(226,232,240,0.95)",
-  boxShadow: "0 8px 24px rgba(15,23,42,0.04)",
+  border: "1px solid rgba(220,214,202,0.95)",
+  boxShadow: "0 8px 24px rgba(21,23,28,0.04)",
 };
 
 const historyDateStyle: CSSProperties = {
   fontSize: 16,
   fontWeight: 800,
-  color: "#0f172a",
+  color: "#15171C",
   marginBottom: 6,
   wordBreak: "break-word",
 };
 
 const historySubStyle: CSSProperties = {
   fontSize: 14,
-  color: "#475569",
+  color: "#5B5E66",
   lineHeight: 1.7,
   wordBreak: "break-word",
 };
@@ -2600,7 +2600,7 @@ const historySubStyle: CSSProperties = {
 const saleAmountStyle: CSSProperties = {
   fontSize: 22,
   fontWeight: 900,
-  color: "#0f172a",
+  color: "#15171C",
   whiteSpace: "nowrap",
 };
 
@@ -2622,19 +2622,19 @@ const monthRowStyle: CSSProperties = {
   padding: "14px 16px",
   borderRadius: 16,
   background: "rgba(255,255,255,0.82)",
-  border: "1px solid rgba(226,232,240,0.95)",
+  border: "1px solid rgba(220,214,202,0.95)",
 };
 
 const monthRowLabelStyle: CSSProperties = {
   fontSize: 15,
   fontWeight: 800,
-  color: "#0f172a",
+  color: "#15171C",
 };
 
 const monthRowValueStyle: CSSProperties = {
   fontSize: 18,
   fontWeight: 900,
-  color: "#2563eb",
+  color: "#8A6220",
 };
 
 const chartWrapStyle: CSSProperties = {
@@ -2642,7 +2642,7 @@ const chartWrapStyle: CSSProperties = {
   overflowX: "auto",
   borderRadius: 18,
   background: "rgba(255,255,255,0.86)",
-  border: "1px solid rgba(226,232,240,0.95)",
+  border: "1px solid rgba(220,214,202,0.95)",
   padding: 10,
 };
 
@@ -2650,7 +2650,7 @@ const singleChartBoxStyle: CSSProperties = {
   minHeight: 180,
   borderRadius: 18,
   background: "rgba(255,255,255,0.86)",
-  border: "1px solid rgba(226,232,240,0.95)",
+  border: "1px solid rgba(220,214,202,0.95)",
   display: "flex",
   flexDirection: "column",
   alignItems: "center",
@@ -2662,7 +2662,7 @@ const singleChartBoxStyle: CSSProperties = {
 const singleChartValueStyle: CSSProperties = {
   fontSize: 34,
   fontWeight: 900,
-  color: "#0f172a",
+  color: "#15171C",
   lineHeight: 1.1,
 };
 
@@ -2670,5 +2670,5 @@ const singleChartDateStyle: CSSProperties = {
   marginTop: 10,
   fontSize: 14,
   fontWeight: 700,
-  color: "#64748b",
+  color: "#5B5E66",
 };

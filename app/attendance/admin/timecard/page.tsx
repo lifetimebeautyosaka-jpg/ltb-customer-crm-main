@@ -674,7 +674,7 @@ export default function AttendanceAdminTimecardPage() {
 const pageStyle: CSSProperties = {
   minHeight: "100vh",
   background:
-    "linear-gradient(135deg, #eef4ff 0%, #f8fbff 30%, #f3f7ff 65%, #eef2ff 100%)",
+    "#F7F5F0",
   position: "relative",
   overflow: "hidden",
 };
@@ -687,7 +687,7 @@ const bgGlowA: CSSProperties = {
   height: 420,
   borderRadius: "50%",
   background:
-    "radial-gradient(circle, rgba(147,197,253,0.22) 0%, rgba(147,197,253,0) 72%)",
+    "radial-gradient(circle, rgba(205,182,138,0.22) 0%, rgba(205,182,138,0) 72%)",
   pointerEvents: "none",
 };
 
@@ -723,7 +723,7 @@ const topRowStyle: CSSProperties = {
 const backLinkStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
-  color: "rgba(30,41,59,0.78)",
+  color: "rgba(42,44,51,0.78)",
   textDecoration: "none",
   fontSize: 14,
   fontWeight: 600,
@@ -732,7 +732,7 @@ const backLinkStyle: CSSProperties = {
 const eyebrowStyle: CSSProperties = {
   fontSize: 11,
   letterSpacing: "0.24em",
-  color: "rgba(30,41,59,0.42)",
+  color: "rgba(42,44,51,0.42)",
 };
 
 const heroCardStyle: CSSProperties = {
@@ -746,7 +746,7 @@ const heroCardStyle: CSSProperties = {
   borderRadius: 28,
   padding: "24px 22px",
   marginBottom: 20,
-  boxShadow: "0 18px 40px rgba(148,163,184,0.14)",
+  boxShadow: "0 18px 40px rgba(142,138,130,0.14)",
   backdropFilter: "blur(10px)",
 };
 
@@ -764,7 +764,7 @@ const heroRightStyle: CSSProperties = {
 const miniLabelStyle: CSSProperties = {
   fontSize: 11,
   letterSpacing: "0.24em",
-  color: "rgba(30,41,59,0.48)",
+  color: "rgba(42,44,51,0.48)",
   marginBottom: 8,
 };
 
@@ -772,7 +772,7 @@ const titleStyle: CSSProperties = {
   margin: 0,
   fontSize: "clamp(28px, 4vw, 42px)",
   lineHeight: 1.1,
-  color: "#0f172a",
+  color: "#15171C",
   fontWeight: 800,
 };
 
@@ -780,7 +780,7 @@ const descStyle: CSSProperties = {
   margin: "12px 0 0",
   fontSize: 14,
   lineHeight: 1.8,
-  color: "rgba(15,23,42,0.68)",
+  color: "rgba(21,23,28,0.68)",
 };
 
 const errorBoxStyle: CSSProperties = {
@@ -798,7 +798,7 @@ const filterCardStyle: CSSProperties = {
   border: "1px solid rgba(255,255,255,0.76)",
   borderRadius: 26,
   padding: 20,
-  boxShadow: "0 14px 34px rgba(148,163,184,0.12)",
+  boxShadow: "0 14px 34px rgba(142,138,130,0.12)",
   backdropFilter: "blur(10px)",
   marginBottom: 18,
 };
@@ -820,20 +820,20 @@ const summaryGridStyle: CSSProperties = {
 const metricCardStyle: CSSProperties = {
   borderRadius: 20,
   background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(226,232,240,0.95)",
+  border: "1px solid rgba(220,214,202,0.95)",
   padding: "18px 16px",
-  boxShadow: "0 10px 24px rgba(148,163,184,0.10)",
+  boxShadow: "0 10px 24px rgba(142,138,130,0.10)",
 };
 
 const metricLabelStyle: CSSProperties = {
   fontSize: 12,
-  color: "rgba(15,23,42,0.46)",
+  color: "rgba(21,23,28,0.46)",
   marginBottom: 8,
 };
 
 const metricValueStyle: CSSProperties = {
   fontSize: 28,
-  color: "#0f172a",
+  color: "#15171C",
   fontWeight: 800,
   letterSpacing: "-0.03em",
 };
@@ -843,7 +843,7 @@ const panelStyle: CSSProperties = {
   border: "1px solid rgba(255,255,255,0.76)",
   borderRadius: 26,
   padding: 20,
-  boxShadow: "0 14px 34px rgba(148,163,184,0.12)",
+  boxShadow: "0 14px 34px rgba(142,138,130,0.12)",
   backdropFilter: "blur(10px)",
 };
 
@@ -857,14 +857,14 @@ const panelHeaderStyle: CSSProperties = {
 const panelMiniStyle: CSSProperties = {
   fontSize: 11,
   letterSpacing: "0.22em",
-  color: "rgba(30,41,59,0.42)",
+  color: "rgba(42,44,51,0.42)",
   marginBottom: 6,
 };
 
 const panelTitleStyle: CSSProperties = {
   margin: 0,
   fontSize: 22,
-  color: "#0f172a",
+  color: "#15171C",
   fontWeight: 700,
 };
 
@@ -876,16 +876,16 @@ const fieldGroupStyle: CSSProperties = {
 
 const labelStyle: CSSProperties = {
   fontSize: 13,
-  color: "rgba(15,23,42,0.78)",
+  color: "rgba(21,23,28,0.78)",
 };
 
 const inputStyle: CSSProperties = {
   width: "100%",
   height: 48,
   borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.9)",
+  border: "1px solid rgba(207,200,186,0.9)",
   background: "rgba(255,255,255,0.82)",
-  color: "#0f172a",
+  color: "#15171C",
   padding: "0 14px",
   outline: "none",
   fontSize: 14,
@@ -894,9 +894,9 @@ const inputStyle: CSSProperties = {
 const textareaStyle: CSSProperties = {
   width: "100%",
   borderRadius: 14,
-  border: "1px solid rgba(203,213,225,0.9)",
+  border: "1px solid rgba(207,200,186,0.9)",
   background: "rgba(255,255,255,0.82)",
-  color: "#0f172a",
+  color: "#15171C",
   padding: "12px 14px",
   outline: "none",
   fontSize: 14,
@@ -908,12 +908,12 @@ const primaryButtonStyle: CSSProperties = {
   height: 48,
   border: "none",
   borderRadius: 16,
-  background: "linear-gradient(135deg, #ffffff, #eaf1ff)",
-  color: "#0f172a",
+  background: "linear-gradient(135deg, #ffffff, #F3ECDD)",
+  color: "#15171C",
   fontWeight: 700,
   fontSize: 14,
   cursor: "pointer",
-  boxShadow: "0 10px 24px rgba(148,163,184,0.15)",
+  boxShadow: "0 10px 24px rgba(142,138,130,0.15)",
   padding: "0 16px",
 };
 
@@ -922,22 +922,22 @@ const primaryButtonSmallStyle: CSSProperties = {
   height: 44,
   border: "none",
   borderRadius: 14,
-  background: "linear-gradient(135deg, #ffffff, #eaf1ff)",
-  color: "#0f172a",
+  background: "linear-gradient(135deg, #ffffff, #F3ECDD)",
+  color: "#15171C",
   fontWeight: 700,
   fontSize: 14,
   cursor: "pointer",
-  boxShadow: "0 10px 24px rgba(148,163,184,0.15)",
+  boxShadow: "0 10px 24px rgba(142,138,130,0.15)",
   padding: "0 16px",
 };
 
 const secondaryButtonStyle: CSSProperties = {
   minWidth: 120,
   height: 48,
-  border: "1px solid rgba(203,213,225,0.95)",
+  border: "1px solid rgba(207,200,186,0.95)",
   borderRadius: 16,
   background: "rgba(255,255,255,0.84)",
-  color: "#0f172a",
+  color: "#15171C",
   fontWeight: 700,
   fontSize: 14,
   cursor: "pointer",
@@ -960,8 +960,8 @@ const thStyle: CSSProperties = {
   textAlign: "left",
   padding: "14px 12px",
   fontSize: 12,
-  color: "rgba(15,23,42,0.56)",
-  borderBottom: "1px solid rgba(226,232,240,0.95)",
+  color: "rgba(21,23,28,0.56)",
+  borderBottom: "1px solid rgba(220,214,202,0.95)",
   background: "rgba(255,255,255,0.55)",
   position: "sticky",
   top: 0,
@@ -972,8 +972,8 @@ const thStyle: CSSProperties = {
 const tdStyle: CSSProperties = {
   padding: "14px 12px",
   fontSize: 13,
-  color: "#0f172a",
-  borderBottom: "1px solid rgba(226,232,240,0.82)",
+  color: "#15171C",
+  borderBottom: "1px solid rgba(220,214,202,0.82)",
   whiteSpace: "nowrap",
   verticalAlign: "top",
 };
@@ -988,15 +988,15 @@ const tdStyleNote: CSSProperties = {
   minWidth: 180,
   whiteSpace: "normal",
   lineHeight: 1.6,
-  color: "rgba(15,23,42,0.78)",
+  color: "rgba(21,23,28,0.78)",
 };
 
 const editButtonStyle: CSSProperties = {
   height: 36,
-  border: "1px solid rgba(203,213,225,0.95)",
+  border: "1px solid rgba(207,200,186,0.95)",
   borderRadius: 12,
   background: "rgba(255,255,255,0.9)",
-  color: "#0f172a",
+  color: "#15171C",
   fontWeight: 700,
   fontSize: 13,
   cursor: "pointer",
@@ -1006,19 +1006,19 @@ const editButtonStyle: CSSProperties = {
 const loadingStyle: CSSProperties = {
   padding: "18px 0",
   fontSize: 14,
-  color: "rgba(15,23,42,0.62)",
+  color: "rgba(21,23,28,0.62)",
 };
 
 const emptyStyle: CSSProperties = {
   padding: "18px 0",
   fontSize: 14,
-  color: "rgba(15,23,42,0.62)",
+  color: "rgba(21,23,28,0.62)",
 };
 
 const modalOverlayStyle: CSSProperties = {
   position: "fixed",
   inset: 0,
-  background: "rgba(15,23,42,0.22)",
+  background: "rgba(21,23,28,0.22)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -1033,7 +1033,7 @@ const modalCardStyle: CSSProperties = {
   border: "1px solid rgba(255,255,255,0.85)",
   borderRadius: 24,
   padding: 22,
-  boxShadow: "0 24px 60px rgba(15,23,42,0.16)",
+  boxShadow: "0 24px 60px rgba(21,23,28,0.16)",
 };
 
 const modalHeaderStyle: CSSProperties = {
@@ -1047,7 +1047,7 @@ const modalHeaderStyle: CSSProperties = {
 const modalTitleStyle: CSSProperties = {
   margin: 0,
   fontSize: 22,
-  color: "#0f172a",
+  color: "#15171C",
   fontWeight: 800,
 };
 
@@ -1055,9 +1055,9 @@ const closeButtonStyle: CSSProperties = {
   width: 40,
   height: 40,
   borderRadius: 9999,
-  border: "1px solid rgba(203,213,225,0.95)",
+  border: "1px solid rgba(207,200,186,0.95)",
   background: "#ffffff",
-  color: "#0f172a",
+  color: "#15171C",
   fontSize: 16,
   cursor: "pointer",
 };

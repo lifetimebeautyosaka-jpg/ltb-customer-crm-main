@@ -216,7 +216,7 @@ export default function ServiceAnalysisPage() {
       <div style={{ maxWidth: 1000, margin: "0 auto", display: "grid", gap: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
           <div>
-            <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>SERVICE ANALYSIS</div>
+            <div style={{ fontSize: 12, color: "#5B5E66", fontWeight: 700 }}>SERVICE ANALYSIS</div>
             <h1 style={{ margin: "4px 0 0", fontSize: 24 }}>サービス別の売上推移</h1>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -264,7 +264,7 @@ export default function ServiceAnalysisPage() {
                 <div style={statStyle}>
                   <div style={statLabel}>平均単価（来店1回あたり）</div>
                   <div style={statValue}>{yearly.visitCount ? yen(yearly.unit) : "—"}</div>
-                  <div style={{ fontSize: 11, color: "#64748b" }}>来店 {yearly.visitCount.toLocaleString("ja-JP")}件</div>
+                  <div style={{ fontSize: 11, color: "#5B5E66" }}>来店 {yearly.visitCount.toLocaleString("ja-JP")}件</div>
                 </div>
                 <div style={statStyle}>
                   <div style={statLabel}>前年の同じ期間との比較</div>
@@ -278,11 +278,11 @@ export default function ServiceAnalysisPage() {
                   const h = (v / max) * 130;
                   return (
                     <g key={i}>
-                      <rect x={i * bw + bw * 0.2} y={150 - h} width={bw * 0.6} height={h} fill="#0f172a" opacity={0.8}>
+                      <rect x={i * bw + bw * 0.2} y={150 - h} width={bw * 0.6} height={h} fill="#15171C" opacity={0.8}>
                         <title>{`${i + 1}月：${yen(v)}`}</title>
                       </rect>
-                      <text x={i * bw + bw / 2} y={150 - h - 4} textAnchor="middle" fontSize="10" fill="#0f172a">{v ? man(v) : ""}</text>
-                      <text x={i * bw + bw / 2} y={168} textAnchor="middle" fontSize="11" fill="#475569">{i + 1}月</text>
+                      <text x={i * bw + bw / 2} y={150 - h - 4} textAnchor="middle" fontSize="10" fill="#15171C">{v ? man(v) : ""}</text>
+                      <text x={i * bw + bw / 2} y={168} textAnchor="middle" fontSize="11" fill="#5B5E66">{i + 1}月</text>
                     </g>
                   );
                 })}
@@ -350,8 +350,8 @@ export default function ServiceAnalysisPage() {
                   const y = top + plotH * (1 - r);
                   return (
                     <g key={r}>
-                      <line x1={left} x2={W - 10} y1={y} y2={y} stroke="#e2e8f0" />
-                      <text x={left - 6} y={y + 4} textAnchor="end" fontSize="11" fill="#64748b">
+                      <line x1={left} x2={W - 10} y1={y} y2={y} stroke="#DCD6CA" />
+                      <text x={left - 6} y={y + 4} textAnchor="end" fontSize="11" fill="#5B5E66">
                         {mode === "share" ? `${Math.round(r * 100)}%` : man(maxTotal * r)}
                       </text>
                     </g>
@@ -379,10 +379,10 @@ export default function ServiceAnalysisPage() {
                           </g>
                         ) : null;
                       })}
-                      <text x={x + w / 2} y={(mode === "share" ? top : top + plotH - (t.total / maxTotal) * plotH) - 5} textAnchor="middle" fontSize="10" fill="#0f172a">
+                      <text x={x + w / 2} y={(mode === "share" ? top : top + plotH - (t.total / maxTotal) * plotH) - 5} textAnchor="middle" fontSize="10" fill="#15171C">
                         {t.total ? man(t.total) : ""}
                       </text>
-                      <text x={x + w / 2} y={H - 18} textAnchor="middle" fontSize="11" fill="#475569">
+                      <text x={x + w / 2} y={H - 18} textAnchor="middle" fontSize="11" fill="#5B5E66">
                         {Number(t.month.slice(5))}月
                       </text>
                     </g>
@@ -556,19 +556,19 @@ export default function ServiceAnalysisPage() {
   );
 }
 
-const pageStyle: CSSProperties = { minHeight: "100vh", padding: "24px 16px 80px", background: "#f1f5f9", color: "#0f172a" };
-const cardStyle: CSSProperties = { background: "#fff", borderRadius: 16, padding: 18, boxShadow: "0 8px 24px rgba(15,23,42,0.06)", display: "grid", gap: 10 };
+const pageStyle: CSSProperties = { minHeight: "100vh", padding: "24px 16px 80px", background: "#F7F5F0", color: "#15171C" };
+const cardStyle: CSSProperties = { background: "#fff", borderRadius: 16, padding: 18, boxShadow: "0 8px 24px rgba(21,23,28,0.06)", display: "grid", gap: 10 };
 const titleStyle: CSSProperties = { margin: 0, fontSize: 17 };
-const noteStyle: CSSProperties = { fontSize: 12, color: "#64748b", lineHeight: 1.7 };
+const noteStyle: CSSProperties = { fontSize: 12, color: "#5B5E66", lineHeight: 1.7 };
 const errorStyle: CSSProperties = { padding: 12, borderRadius: 12, background: "#fee2e2", color: "#991b1b" };
-const linkStyle: CSSProperties = { padding: "8px 14px", borderRadius: 12, background: "#0f172a", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700 };
-const chipStyle: CSSProperties = { padding: "6px 12px", borderRadius: 999, border: "1px solid #cbd5e1", background: "#fff", fontSize: 13, cursor: "pointer" };
-const chipActiveStyle: CSSProperties = { background: "#0f172a", color: "#fff", borderColor: "#0f172a" };
+const linkStyle: CSSProperties = { padding: "8px 14px", borderRadius: 12, background: "#15171C", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700 };
+const chipStyle: CSSProperties = { padding: "6px 12px", borderRadius: 999, border: "1px solid #CFC8BA", background: "#fff", fontSize: 13, cursor: "pointer" };
+const chipActiveStyle: CSSProperties = { background: "#15171C", color: "#fff", borderColor: "#15171C" };
 const tableStyle: CSSProperties = { width: "100%", borderCollapse: "collapse", fontSize: 14 };
-const thStyle: CSSProperties = { textAlign: "left", padding: "8px 6px", borderBottom: "2px solid #e2e8f0", whiteSpace: "nowrap" };
+const thStyle: CSSProperties = { textAlign: "left", padding: "8px 6px", borderBottom: "2px solid #DCD6CA", whiteSpace: "nowrap" };
 const thRight: CSSProperties = { ...thStyle, textAlign: "right" };
-const tdStyle: CSSProperties = { padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" };
+const tdStyle: CSSProperties = { padding: "8px 6px", borderBottom: "1px solid #DCD6CA", whiteSpace: "nowrap" };
 const tdRight: CSSProperties = { ...tdStyle, textAlign: "right" };
-const statStyle: CSSProperties = { padding: 12, borderRadius: 12, background: "#f8fafc", display: "grid", gap: 4 };
-const statLabel: CSSProperties = { fontSize: 12, color: "#64748b", fontWeight: 700 };
+const statStyle: CSSProperties = { padding: 12, borderRadius: 12, background: "#FBFAF7", display: "grid", gap: 4 };
+const statLabel: CSSProperties = { fontSize: 12, color: "#5B5E66", fontWeight: 700 };
 const statValue: CSSProperties = { fontSize: 22, fontWeight: 800 };

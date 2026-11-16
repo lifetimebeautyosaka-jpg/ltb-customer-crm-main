@@ -12,12 +12,21 @@ const ITEMS = [
   { label: "その他", href: "/dashboard#menu", match: ["/attendance", "/followup", "/account", "/meal"] },
 ];
 
+// ログイン画面やお客様向けの画面では出さない
+const HIDDEN_PREFIXES = ["/login", "/signup", "/register", "/mypage", "/shop", "/cart", "/checkout", "/orders", "/subscription"];
+
 export default function BottomNav() {
   const pathname = usePathname() || "";
+  if (pathname === "/" || HIDDEN_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+    // ただし /signup/list はスタッフ用なので出す
+    if (!pathname.startsWith("/signup/list")) return null;
+  }
 
   return (
     <>
       <style>{`
+        .gu-bottom-spacer { height: calc(104px + env(safe-area-inset-bottom)); flex-shrink: 0; }
+        @media print { .gu-bottom-nav, .gu-bottom-spacer { display: none; } }
         .gu-bottom-nav {
           position: fixed;
           left: 50%;
@@ -59,6 +68,7 @@ export default function BottomNav() {
           background: var(--gu-gold-on-ink);
         }
       `}</style>
+      <div className="gu-bottom-spacer" aria-hidden="true" />
       <nav className="gu-bottom-nav" aria-label="メインメニュー">
         {ITEMS.map((item) => {
           const active = item.match.some((m) => pathname === m || pathname.startsWith(`${m}/`));

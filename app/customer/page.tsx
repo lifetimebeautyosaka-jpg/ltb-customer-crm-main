@@ -858,7 +858,7 @@ export default function CustomerPage() {
                     value={editingId ? yen(form.ltv) : "売上から自動計算"}
                     readOnly
                     title="売上（通常売上＋回数券消化）から自動で計算します"
-                    style={{ ...styles.input, background: "#f1f5f9", color: "#64748b" }}
+                    style={{ ...styles.input, background: "#F1EDE5", color: "#5B5E66" }}
                   />
                 }
               />
@@ -1134,7 +1134,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     width: "340px",
     height: "340px",
     borderRadius: "999px",
-    background: "rgba(203,213,225,0.35)",
+    background: "rgba(207,200,186,0.35)",
     filter: "blur(75px)",
     pointerEvents: "none",
   },
@@ -1151,7 +1151,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     alignItems: "center",
     justifyContent: "center",
     textDecoration: "none",
-    color: "#64748b",
+    color: "#5B5E66",
     fontSize: 14,
     fontWeight: 700,
     minHeight: 44,
@@ -1163,32 +1163,32 @@ const styles: { [key: string]: React.CSSProperties } = {
   topWhiteButton: {
     border: "1px solid rgba(255,255,255,0.95)",
     background: "rgba(255,255,255,0.82)",
-    color: "#334155",
+    color: "#3A3D45",
     borderRadius: 14,
     minHeight: 44,
     padding: "0 16px",
     fontWeight: 700,
     cursor: "pointer",
     boxShadow:
-      "0 10px 24px rgba(15,23,42,0.05), inset 0 1px 0 rgba(255,255,255,0.98)",
+      "0 10px 24px rgba(21,23,28,0.05), inset 0 1px 0 rgba(255,255,255,0.98)",
   },
   eyebrow: {
     fontSize: 11,
     letterSpacing: "0.22em",
-    color: "#94a3b8",
+    color: "#8E8A82",
     fontWeight: 700,
     marginBottom: 8,
   },
   pageTitle: {
     margin: 0,
     lineHeight: 1.3,
-    color: "#0f172a",
+    color: "#15171C",
     fontWeight: 900,
   },
   pageSub: {
     marginTop: 10,
     marginBottom: 0,
-    color: "#64748b",
+    color: "#5B5E66",
     fontSize: 14,
   },
   successBox: {
@@ -1217,17 +1217,17 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: 18,
     padding: "16px",
     boxShadow:
-      "0 14px 30px rgba(15,23,42,0.04), inset 0 1px 0 rgba(255,255,255,0.98)",
+      "0 14px 30px rgba(21,23,28,0.04), inset 0 1px 0 rgba(255,255,255,0.98)",
   },
   summaryLabel: {
     fontSize: 12,
-    color: "#94a3b8",
+    color: "#8E8A82",
     fontWeight: 800,
     marginBottom: 8,
   },
   summaryValue: {
     fontSize: 24,
-    color: "#0f172a",
+    color: "#15171C",
     fontWeight: 900,
     lineHeight: 1.15,
     wordBreak: "break-word",
@@ -1240,7 +1240,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   sectionTitle: {
     margin: 0,
     fontSize: 20,
-    color: "#0f172a",
+    color: "#15171C",
     fontWeight: 800,
   },
   editingBadge: {
@@ -1249,25 +1249,25 @@ const styles: { [key: string]: React.CSSProperties } = {
     alignItems: "center",
     borderRadius: 9999,
     padding: "0 12px",
-    background: "rgba(59,130,246,0.08)",
-    border: "1px solid rgba(59,130,246,0.18)",
-    color: "#1d4ed8",
+    background: "rgba(176,129,51,0.08)",
+    border: "1px solid rgba(176,129,51,0.18)",
+    color: "#6E4E19",
     fontSize: 12,
     fontWeight: 800,
   },
   label: {
     fontSize: 13,
     fontWeight: 700,
-    color: "#64748b",
+    color: "#5B5E66",
     marginBottom: 6,
   },
   input: {
     width: "100%",
     height: 44,
     borderRadius: 12,
-    border: "1px solid rgba(226,232,240,0.9)",
+    border: "1px solid rgba(220,214,202,0.9)",
     background: "rgba(255,255,255,0.88)",
-    color: "#0f172a",
+    color: "#15171C",
     padding: "0 12px",
     fontSize: 14,
     outline: "none",
@@ -1276,9 +1276,9 @@ const styles: { [key: string]: React.CSSProperties } = {
   textarea: {
     width: "100%",
     borderRadius: 12,
-    border: "1px solid rgba(226,232,240,0.9)",
+    border: "1px solid rgba(220,214,202,0.9)",
     background: "rgba(255,255,255,0.88)",
-    color: "#0f172a",
+    color: "#15171C",
     padding: 12,
     fontSize: 14,
     outline: "none",
@@ -1297,13 +1297,13 @@ const styles: { [key: string]: React.CSSProperties } = {
   whiteButton: {
     border: "1px solid rgba(255,255,255,0.95)",
     background: "rgba(255,255,255,0.82)",
-    color: "#334155",
+    color: "#3A3D45",
     borderRadius: 14,
     padding: "14px 22px",
     fontWeight: 700,
     cursor: "pointer",
     boxShadow:
-      "0 10px 24px rgba(15,23,42,0.05), inset 0 1px 0 rgba(255,255,255,0.98)",
+      "0 10px 24px rgba(21,23,28,0.05), inset 0 1px 0 rgba(255,255,255,0.98)",
   },
   customerList: {
     display: "grid",
@@ -1315,7 +1315,7 @@ const styles: { [key: string]: React.CSSProperties } = {
     background: "rgba(255,255,255,0.68)",
     padding: 16,
     boxShadow:
-      "0 14px 30px rgba(15,23,42,0.04), inset 0 1px 0 rgba(255,255,255,0.98)",
+      "0 14px 30px rgba(21,23,28,0.04), inset 0 1px 0 rgba(255,255,255,0.98)",
   },
   customerTop: {
     display: "flex",
@@ -1326,14 +1326,14 @@ const styles: { [key: string]: React.CSSProperties } = {
   customerName: {
     fontSize: 18,
     fontWeight: 800,
-    color: "#0f172a",
+    color: "#15171C",
     lineHeight: 1.3,
     wordBreak: "break-word",
   },
   customerMeta: {
     marginTop: 4,
     fontSize: 13,
-    color: "#64748b",
+    color: "#5B5E66",
     lineHeight: 1.6,
     wordBreak: "break-word",
   },
@@ -1350,9 +1350,9 @@ const styles: { [key: string]: React.CSSProperties } = {
     alignItems: "center",
   },
   editButton: {
-    border: "1px solid rgba(59,130,246,0.18)",
-    background: "rgba(59,130,246,0.08)",
-    color: "#1d4ed8",
+    border: "1px solid rgba(176,129,51,0.18)",
+    background: "rgba(176,129,51,0.08)",
+    color: "#6E4E19",
     borderRadius: 12,
     padding: "10px 12px",
     fontWeight: 700,
@@ -1378,27 +1378,27 @@ const styles: { [key: string]: React.CSSProperties } = {
     borderRadius: 12,
     padding: 12,
     boxShadow:
-      "0 10px 24px rgba(15,23,42,0.04), inset 0 1px 0 rgba(255,255,255,0.98)",
+      "0 10px 24px rgba(21,23,28,0.04), inset 0 1px 0 rgba(255,255,255,0.98)",
   },
   infoLabel: {
     fontSize: 12,
-    color: "#94a3b8",
+    color: "#8E8A82",
     fontWeight: 700,
     marginBottom: 4,
   },
   infoValue: {
     fontSize: 15,
-    color: "#0f172a",
+    color: "#15171C",
     fontWeight: 700,
     lineHeight: 1.5,
     wordBreak: "break-word",
   },
   mutedBox: {
-    color: "#64748b",
+    color: "#5B5E66",
     fontSize: 14,
     minHeight: 110,
     borderRadius: 16,
-    border: "1px dashed rgba(203,213,225,0.9)",
+    border: "1px dashed rgba(207,200,186,0.9)",
     background: "rgba(255,255,255,0.5)",
     display: "flex",
     alignItems: "center",

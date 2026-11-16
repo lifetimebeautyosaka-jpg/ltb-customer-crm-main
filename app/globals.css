@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* 数字と金額の記号だけに使う字体（端末に入っている字体を使う） */
+@font-face {
+  font-family: "GU Digits";
+  src: local("Helvetica Neue"), local("HelveticaNeue"), local("Segoe UI"), local("Arial"), local("Roboto");
+  unicode-range: U+0025, U+002B-002E, U+0030-003A, U+00A5, U+FFE5;
+}
+
 /* ジムアップCRM 共通テーマ（案B ライト・高級感）。styles/theme.ts と同じ値 */
 :root {
   --gu-bg: #F7F5F0;
@@ -14,7 +21,8 @@
   --gu-track: #E8E2D6;
   --gu-font-logo: var(--font-cormorant), "Times New Roman", serif;
   --gu-font-heading: var(--font-shippori), "Hiragino Mincho ProN", "Yu Mincho", serif;
-  --gu-font-body: var(--font-noto-sans-jp), "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  /* 本文は Noto Sans JP。ただし数字・記号だけは今までの字体（GU Digits）で表示する */
+  --gu-font-body: "GU Digits", var(--font-noto-sans-jp), "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
   /* 数字は見やすさのため、今までと同じ字体のまま */
   --gu-font-num: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
@@ -32,6 +40,16 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--gu-font-body);
+}
+
+/* 見出しは明朝（Shippori Mincho） */
+h1, h2, h3 {
+  font-family: var(--gu-font-heading);
+}
+
+/* 入力欄・ボタンも本文と同じ字体に */
+input, select, textarea, button {
+  font-family: inherit;
 }
 * {
   box-sizing: border-box;

@@ -114,7 +114,7 @@ export default function TicketBalancePage() {
       <div style={{ maxWidth: 1100, margin: "0 auto", display: "grid", gap: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
           <div>
-            <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>ADVANCE BALANCE</div>
+            <div style={{ fontSize: 12, color: "#5B5E66", fontWeight: 700 }}>ADVANCE BALANCE</div>
             <h1 style={{ margin: "4px 0 0", fontSize: 24 }}>前受金の残高・期限切れの回数券</h1>
           </div>
           <Link href="/dashboard" style={linkStyle}>ダッシュボードへ</Link>
@@ -149,15 +149,15 @@ export default function TicketBalancePage() {
 function Stat({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
     <div style={cardStyle}>
-      <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 12, color: "#5B5E66", fontWeight: 700 }}>{label}</div>
       <div style={{ fontSize: 24, fontWeight: 800, margin: "6px 0" }}>{value}</div>
-      <div style={{ fontSize: 12, color: "#64748b" }}>{sub}</div>
+      <div style={{ fontSize: 12, color: "#5B5E66" }}>{sub}</div>
     </div>
   );
 }
 
 function TicketTable({ rows }: { rows: Computed[] }) {
-  if (rows.length === 0) return <div style={{ padding: 12, color: "#64748b", fontSize: 14 }}>該当なし</div>;
+  if (rows.length === 0) return <div style={{ padding: 12, color: "#5B5E66", fontSize: 14 }}>該当なし</div>;
   return (
     <div style={{ overflowX: "auto", marginTop: 10 }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -184,11 +184,11 @@ function TicketTable({ rows }: { rows: Computed[] }) {
   );
 }
 
-const pageStyle: CSSProperties = { minHeight: "100vh", padding: "24px 16px 80px", background: "#f1f5f9", color: "#0f172a" };
-const cardStyle: CSSProperties = { background: "#fff", borderRadius: 16, padding: 18, boxShadow: "0 8px 24px rgba(15,23,42,0.06)" };
+const pageStyle: CSSProperties = { minHeight: "100vh", padding: "24px 16px 80px", background: "#F7F5F0", color: "#15171C" };
+const cardStyle: CSSProperties = { background: "#fff", borderRadius: 16, padding: 18, boxShadow: "0 8px 24px rgba(21,23,28,0.06)" };
 const titleStyle: CSSProperties = { margin: "0 0 6px", fontSize: 17 };
-const noteStyle: CSSProperties = { fontSize: 12, color: "#64748b" };
+const noteStyle: CSSProperties = { fontSize: 12, color: "#5B5E66" };
 const errorStyle: CSSProperties = { padding: 12, borderRadius: 12, background: "#fee2e2", color: "#991b1b" };
-const linkStyle: CSSProperties = { padding: "8px 14px", borderRadius: 12, background: "#0f172a", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700 };
-const thStyle: CSSProperties = { textAlign: "left", padding: "8px 6px", borderBottom: "2px solid #e2e8f0", whiteSpace: "nowrap" };
-const tdStyle: CSSProperties = { padding: "8px 6px", borderBottom: "1px solid #e2e8f0" };
+const linkStyle: CSSProperties = { padding: "8px 14px", borderRadius: 12, background: "#15171C", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700 };
+const thStyle: CSSProperties = { textAlign: "left", padding: "8px 6px", borderBottom: "2px solid #DCD6CA", whiteSpace: "nowrap" };
+const tdStyle: CSSProperties = { padding: "8px 6px", borderBottom: "1px solid #DCD6CA" };

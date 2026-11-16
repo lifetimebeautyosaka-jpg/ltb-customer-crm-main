@@ -149,7 +149,7 @@ export default function StoreSummaryPage() {
       <div style={{ maxWidth: 1000, margin: "0 auto", display: "grid", gap: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
           <div>
-            <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>STORE SUMMARY</div>
+            <div style={{ fontSize: 12, color: "#5B5E66", fontWeight: 700 }}>STORE SUMMARY</div>
             <h1 style={{ margin: "4px 0 0", fontSize: 24 }}>店舗別の売上・新規</h1>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -159,7 +159,7 @@ export default function StoreSummaryPage() {
         </div>
 
         <section style={cardStyle}>
-          <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 700, color: "#475569", width: 180 }}>
+          <label style={{ display: "grid", gap: 6, fontSize: 12, fontWeight: 700, color: "#5B5E66", width: 180 }}>
             <span>月</span>
             <input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} style={inputStyle} />
           </label>
@@ -172,11 +172,11 @@ export default function StoreSummaryPage() {
               <div style={{ fontSize: 13, fontWeight: 700 }}>
                 全店舗：トレーニング {pct(total.training, total.net)}（{yen(total.training)}） ／ リラクゼーション {pct(total.stretch, total.net)}（{yen(total.stretch)}）
               </div>
-              <div style={{ display: "flex", height: 14, borderRadius: 7, overflow: "hidden", background: "#e2e8f0" }}>
+              <div style={{ display: "flex", height: 14, borderRadius: 7, overflow: "hidden", background: "#DCD6CA" }}>
                 <div style={{ width: total.net > 0 ? `${(total.training / total.net) * 100}%` : 0, background: "#f97316" }} title="トレーニング" />
-                <div style={{ width: total.net > 0 ? `${(total.stretch / total.net) * 100}%` : 0, background: "#2563eb" }} title="リラクゼーション" />
+                <div style={{ width: total.net > 0 ? `${(total.stretch / total.net) * 100}%` : 0, background: "#8A6220" }} title="リラクゼーション" />
               </div>
-              <div style={{ fontSize: 11, color: "#64748b" }}>オレンジ：トレーニング ／ 青：リラクゼーション（ストレッチ・ヘッドスパ・オイルマッサージ・足ツボ）</div>
+              <div style={{ fontSize: 11, color: "#5B5E66" }}>オレンジ：トレーニング ／ 青：リラクゼーション（ストレッチ・ヘッドスパ・オイルマッサージ・足ツボ）</div>
             </div>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
@@ -202,8 +202,8 @@ export default function StoreSummaryPage() {
                         <td style={tdRight}>{yen(v.net)}</td>
                         <td style={tdRight}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "flex-end" }}>
-                            <div style={{ width: 80, height: 8, background: "#e2e8f0", borderRadius: 4, overflow: "hidden" }}>
-                              <div style={{ width: `${share}%`, height: "100%", background: "#2563eb" }} />
+                            <div style={{ width: 80, height: 8, background: "#DCD6CA", borderRadius: 4, overflow: "hidden" }}>
+                              <div style={{ width: `${share}%`, height: "100%", background: "#8A6220" }} />
                             </div>
                             <span style={{ minWidth: 48 }}>{share.toFixed(1)}%</span>
                           </div>
@@ -213,11 +213,11 @@ export default function StoreSummaryPage() {
                         <td style={tdRight}>{v.count}件</td>
                         <td style={tdRight}>{v.count ? yen(v.net / v.count) : "—"}</td>
                         <td style={tdRight}>{v.newCount}人</td>
-                        <td style={{ ...tdRight, color: "#64748b" }}>{yen(v.advance)}</td>
+                        <td style={{ ...tdRight, color: "#5B5E66" }}>{yen(v.advance)}</td>
                       </tr>
                     );
                   })}
-                  <tr style={{ background: "#f8fafc" }}>
+                  <tr style={{ background: "#FBFAF7" }}>
                     <td style={{ ...tdStyle, fontWeight: 800 }}>全店舗の合計</td>
                     <td style={{ ...tdRight, fontWeight: 800 }}>{yen(total.net)}</td>
                     <td style={{ ...tdRight, fontWeight: 800 }}>100%</td>
@@ -226,7 +226,7 @@ export default function StoreSummaryPage() {
                     <td style={{ ...tdRight, fontWeight: 800 }}>{total.count}件</td>
                     <td style={{ ...tdRight, fontWeight: 800 }}>{total.count ? yen(total.net / total.count) : "—"}</td>
                     <td style={{ ...tdRight, fontWeight: 800 }}>{total.newCount}人</td>
-                    <td style={{ ...tdRight, fontWeight: 800, color: "#64748b" }}>{yen(total.advance)}</td>
+                    <td style={{ ...tdRight, fontWeight: 800, color: "#5B5E66" }}>{yen(total.advance)}</td>
                   </tr>
                 </tbody>
               </table>
@@ -242,14 +242,14 @@ export default function StoreSummaryPage() {
   );
 }
 
-const pageStyle: CSSProperties = { minHeight: "100vh", padding: "24px 16px 80px", background: "#f1f5f9", color: "#0f172a" };
-const cardStyle: CSSProperties = { background: "#fff", borderRadius: 16, padding: 18, boxShadow: "0 8px 24px rgba(15,23,42,0.06)", display: "grid", gap: 10 };
-const inputStyle: CSSProperties = { minHeight: 40, padding: "0 10px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 14 };
-const noteStyle: CSSProperties = { fontSize: 12, color: "#64748b", lineHeight: 1.7 };
+const pageStyle: CSSProperties = { minHeight: "100vh", padding: "24px 16px 80px", background: "#F7F5F0", color: "#15171C" };
+const cardStyle: CSSProperties = { background: "#fff", borderRadius: 16, padding: 18, boxShadow: "0 8px 24px rgba(21,23,28,0.06)", display: "grid", gap: 10 };
+const inputStyle: CSSProperties = { minHeight: 40, padding: "0 10px", borderRadius: 10, border: "1px solid #CFC8BA", fontSize: 14 };
+const noteStyle: CSSProperties = { fontSize: 12, color: "#5B5E66", lineHeight: 1.7 };
 const errorStyle: CSSProperties = { padding: 12, borderRadius: 12, background: "#fee2e2", color: "#991b1b" };
-const linkStyle: CSSProperties = { padding: "8px 14px", borderRadius: 12, background: "#0f172a", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700 };
-const thStyle: CSSProperties = { textAlign: "left", padding: "8px 6px", borderBottom: "2px solid #e2e8f0", whiteSpace: "nowrap" };
+const linkStyle: CSSProperties = { padding: "8px 14px", borderRadius: 12, background: "#15171C", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700 };
+const thStyle: CSSProperties = { textAlign: "left", padding: "8px 6px", borderBottom: "2px solid #DCD6CA", whiteSpace: "nowrap" };
 const thRight: CSSProperties = { ...thStyle, textAlign: "right" };
-const tdStyle: CSSProperties = { padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" };
+const tdStyle: CSSProperties = { padding: "8px 6px", borderBottom: "1px solid #DCD6CA", whiteSpace: "nowrap" };
 const tdRight: CSSProperties = { ...tdStyle, textAlign: "right" };
-const subStyle: CSSProperties = { fontSize: 11, color: "#64748b", fontWeight: 500 };
+const subStyle: CSSProperties = { fontSize: 11, color: "#5B5E66", fontWeight: 500 };

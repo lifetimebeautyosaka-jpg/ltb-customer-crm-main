@@ -1100,7 +1100,7 @@ export default function AccountingPage() {
 const pageStyle: CSSProperties = {
   minHeight: "100vh",
   background:
-    "linear-gradient(135deg,#f8fafc 0%,#eef2ff 50%,#e2e8f0 100%)",
+    "#F7F5F0",
   padding: "24px",
 };
 
@@ -1122,13 +1122,13 @@ const titleStyle: CSSProperties = {
   margin: 0,
   fontSize: "34px",
   fontWeight: 800,
-  color: "#0f172a",
+  color: "#15171C",
 };
 
 const subtitleStyle: CSSProperties = {
   marginTop: "8px",
   fontSize: "14px",
-  color: "#64748b",
+  color: "#5B5E66",
 };
 
 const headerButtonWrapStyle: CSSProperties = {
@@ -1140,7 +1140,7 @@ const headerButtonStyle: CSSProperties = {
   textDecoration: "none",
   padding: "12px 18px",
   borderRadius: "14px",
-  background: "#0f172a",
+  background: "#15171C",
   color: "#fff",
   fontWeight: 700,
 };
@@ -1153,14 +1153,14 @@ const summaryGridStyle: CSSProperties = {
 
 const summaryCardStyle: CSSProperties = {
   background: "rgba(255,255,255,0.75)",
-  border: "1px solid rgba(226,232,240,0.95)",
+  border: "1px solid rgba(220,214,202,0.95)",
   borderRadius: "24px",
   padding: "22px",
 };
 
 const summaryLabelStyle: CSSProperties = {
   fontSize: "13px",
-  color: "#64748b",
+  color: "#5B5E66",
   marginBottom: "8px",
   fontWeight: 700,
 };
@@ -1168,18 +1168,18 @@ const summaryLabelStyle: CSSProperties = {
 const summaryValueStyle: CSSProperties = {
   fontSize: "32px",
   fontWeight: 800,
-  color: "#0f172a",
+  color: "#15171C",
 };
 
 const summarySubStyle: CSSProperties = {
   marginTop: "8px",
   fontSize: "13px",
-  color: "#64748b",
+  color: "#5B5E66",
 };
 
 const salesAnalyticsCardStyle: CSSProperties = {
   background: "rgba(255,255,255,0.72)",
-  border: "1px solid rgba(226,232,240,0.95)",
+  border: "1px solid rgba(220,214,202,0.95)",
   borderRadius: "28px",
   padding: "24px",
   marginBottom: "24px",
@@ -1198,25 +1198,25 @@ const sectionTitleStyle: CSSProperties = {
   margin: 0,
   fontSize: "24px",
   fontWeight: 800,
-  color: "#0f172a",
+  color: "#15171C",
 };
 
 const sectionSubStyle: CSSProperties = {
   marginTop: "8px",
   fontSize: "14px",
-  color: "#64748b",
+  color: "#5B5E66",
 };
 
 const inputStyle: CSSProperties = {
   padding: "12px 14px",
   borderRadius: "14px",
-  border: "1px solid rgba(203,213,225,0.9)",
+  border: "1px solid rgba(207,200,186,0.9)",
   background: "#fff",
   fontSize: "14px",
 };
 
 const darkCardStyle: CSSProperties = {
-  background: "#0f172a",
+  background: "#15171C",
   color: "#fff",
   borderRadius: "24px",
   padding: "22px",
@@ -1242,7 +1242,7 @@ const summarySubWhiteStyle: CSSProperties = {
 
 const tableCardStyle: CSSProperties = {
   background: "rgba(255,255,255,0.75)",
-  border: "1px solid rgba(226,232,240,0.95)",
+  border: "1px solid rgba(220,214,202,0.95)",
   borderRadius: "24px",
   padding: "20px",
   marginBottom: "24px",
@@ -1251,7 +1251,7 @@ const tableCardStyle: CSSProperties = {
 const tableTitleStyle: CSSProperties = {
   fontSize: "18px",
   fontWeight: 800,
-  color: "#0f172a",
+  color: "#15171C",
   marginBottom: "16px",
 };
 
@@ -1266,7 +1266,7 @@ const rankItemStyle: CSSProperties = {
   gap: "12px",
   alignItems: "center",
   background: "#fff",
-  border: "1px solid rgba(226,232,240,0.9)",
+  border: "1px solid rgba(220,214,202,0.9)",
   borderRadius: "18px",
   padding: "14px",
 };
@@ -1274,13 +1274,13 @@ const rankItemStyle: CSSProperties = {
 const rankNameStyle: CSSProperties = {
   fontSize: "15px",
   fontWeight: 800,
-  color: "#0f172a",
+  color: "#15171C",
 };
 
 const rankSubStyle: CSSProperties = {
   marginTop: "5px",
   fontSize: "12px",
-  color: "#64748b",
+  color: "#5B5E66",
 };
 
 const rankAmountWrapStyle: CSSProperties = {
@@ -1290,13 +1290,13 @@ const rankAmountWrapStyle: CSSProperties = {
 const rankAmountStyle: CSSProperties = {
   fontSize: "16px",
   fontWeight: 800,
-  color: "#0f172a",
+  color: "#15171C",
 };
 
 const rankCountStyle: CSSProperties = {
   marginTop: "4px",
   fontSize: "12px",
-  color: "#64748b",
+  color: "#5B5E66",
 };
 
 const miniListStyle: CSSProperties = {
@@ -1308,7 +1308,7 @@ const miniRowStyle: CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   padding: "12px 0",
-  borderBottom: "1px solid rgba(226,232,240,0.9)",
+  borderBottom: "1px solid rgba(220,214,202,0.9)",
 };
 
 const tableStyle: CSSProperties = {
@@ -1318,24 +1318,24 @@ const tableStyle: CSSProperties = {
 
 const thStyle: CSSProperties = {
   padding: "12px",
-  background: "#f8fafc",
-  borderBottom: "1px solid rgba(226,232,240,0.9)",
+  background: "#FBFAF7",
+  borderBottom: "1px solid rgba(220,214,202,0.9)",
   textAlign: "left",
   fontSize: "13px",
-  color: "#475569",
+  color: "#5B5E66",
 };
 
 const tdStyle: CSSProperties = {
   padding: "12px",
-  borderBottom: "1px solid rgba(226,232,240,0.7)",
+  borderBottom: "1px solid rgba(220,214,202,0.7)",
   fontSize: "14px",
-  color: "#0f172a",
+  color: "#15171C",
 };
 
 const emptyStyle: CSSProperties = {
   padding: "20px",
   borderRadius: "18px",
-  background: "#f8fafc",
-  color: "#64748b",
+  background: "#FBFAF7",
+  color: "#5B5E66",
   textAlign: "center",
 };

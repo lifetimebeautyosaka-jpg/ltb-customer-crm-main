@@ -1830,7 +1830,7 @@ const ticketIssueInfo =
   const totalStyle: CSSProperties = {
     fontWeight: 900,
     fontSize: 28,
-    color: "#fff",
+    color: "#15171C",
   };
     const styles = createStyles(isMobile, isTablet);
 
@@ -2271,7 +2271,7 @@ const ticketIssueInfo =
                               </div>
                             </div>
                           ))}
-                          <div style={{ ...styles.summaryItem, borderTop: "2px solid rgba(255,255,255,0.35)" }}>
+                          <div style={{ ...styles.summaryItem, borderTop: "2px solid #DCD6CA" }}>
                             <div>
                               <strong>全店舗の合計</strong>
                               <p>割合 100% / 前受金 {formatCurrency(totalAdvance)}</p>
@@ -2319,7 +2319,7 @@ const ticketIssueInfo =
                               </div>
                             </div>
                           ))}
-                          <div style={{ ...styles.summaryItem, borderTop: "2px solid rgba(255,255,255,0.35)" }}>
+                          <div style={{ ...styles.summaryItem, borderTop: "2px solid #DCD6CA" }}>
                             <div>
                               <strong>全担当者の合計</strong>
                               <p>割合 100% / 前受金 {formatCurrency(totalAdvance)}</p>
@@ -2456,8 +2456,8 @@ function createStyles(
   isTablet: boolean
 ): Record<string, CSSProperties> {
   const glass: CSSProperties = {
-    background: "rgba(22, 26, 35, 0.68)",
-    border: "1px solid rgba(255,255,255,0.09)",
+    background: "#FFFFFF",
+    border: "1px solid #DCD6CA",
     boxShadow: "0 24px 70px rgba(0,0,0,0.34)",
     backdropFilter: "blur(22px)",
   };
@@ -2473,8 +2473,8 @@ function createStyles(
       minHeight: "100vh",
       padding: isMobile ? "10px 0" : 22,
       background:
-        "radial-gradient(circle at 15% 15%, rgba(91,141,255,0.18), transparent 28%), radial-gradient(circle at 80% 65%, rgba(255,122,89,0.12), transparent 24%), linear-gradient(135deg,#070b12 0%,#101827 45%,#060a11 100%)",
-      color: "#f8fafc",
+        "#F7F5F0",
+      color: "#15171C",
       fontFamily:
         '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       overflowX: "hidden",
@@ -2508,8 +2508,8 @@ function createStyles(
       borderRadius: 14,
       display: "grid",
       placeItems: "center",
-      background: "linear-gradient(135deg,#ffffff,#94a3b8)",
-      color: "#111827",
+      background: "linear-gradient(135deg,#ffffff,#8E8A82)",
+      color: "#15171C",
       fontWeight: 900,
     },
 
@@ -2524,10 +2524,10 @@ function createStyles(
       borderRadius: 14,
       display: "grid",
       placeItems: "center",
-      color: "rgba(255,255,255,0.62)",
+      color: "#5B5E66",
       textDecoration: "none",
-      background: "rgba(255,255,255,0.04)",
-      border: "1px solid rgba(255,255,255,0.05)",
+      background: "#FFFFFF",
+      border: "1px solid #DCD6CA",
     },
 
     sideItemActive: {
@@ -2538,12 +2538,12 @@ function createStyles(
       placeItems: "center",
       color: "#fff",
       textDecoration: "none",
-      background: "linear-gradient(135deg,#2563eb,#60a5fa)",
-      boxShadow: "0 14px 30px rgba(37,99,235,0.35)",
+      background: "linear-gradient(135deg,#8A6220,#CDB68A)",
+      boxShadow: "0 14px 30px rgba(176,129,51,0.35)",
     },
 
     sideBottom: {
-      color: "rgba(255,255,255,0.5)",
+      color: "#5B5E66",
       fontSize: 18,
     },
 mainPanel: {
@@ -2570,7 +2570,7 @@ mainPanel: {
       margin: 0,
       fontSize: 11,
       letterSpacing: "0.18em",
-      color: "rgba(255,255,255,0.45)",
+      color: "#5B5E66",
       fontWeight: 800,
     },
 
@@ -2584,7 +2584,7 @@ mainPanel: {
 
     lead: {
       margin: "10px 0 0",
-      color: "rgba(255,255,255,0.6)",
+      color: "#5B5E66",
       fontSize: 13,
       lineHeight: 1.7,
       fontWeight: 700,
@@ -2603,10 +2603,10 @@ mainPanel: {
       display: "inline-flex",
       alignItems: "center",
       justifyContent: "center",
-      color: "#fff",
+      color: "#15171C",
       textDecoration: "none",
-      background: "rgba(255,255,255,0.06)",
-      border: "1px solid rgba(255,255,255,0.08)",
+      background: "#FFFFFF",
+      border: "1px solid #DCD6CA",
       fontWeight: 800,
       fontSize: 13,
     },
@@ -2616,7 +2616,7 @@ mainPanel: {
       padding: "0 16px",
       borderRadius: 14,
       color: "#fff",
-      background: "linear-gradient(135deg,#2563eb,#60a5fa)",
+      background: "linear-gradient(135deg,#8A6220,#CDB68A)",
       border: "none",
       fontWeight: 900,
       cursor: "pointer",
@@ -2625,14 +2625,14 @@ mainPanel: {
     successBox: {
       ...card,
       marginBottom: 14,
-      color: "#bbf7d0",
+      color: "#166534",
       border: "1px solid rgba(34,197,94,0.3)",
     },
 
     errorBox: {
       ...card,
       marginBottom: 14,
-      color: "#fecaca",
+      color: "#B91C1C",
       border: "1px solid rgba(239,68,68,0.3)",
     },
 
@@ -2673,8 +2673,8 @@ mainPanel: {
     },
 
     summaryBox: {
-      background: "rgba(255,255,255,0.04)",
-      border: "1px solid rgba(255,255,255,0.08)",
+      background: "#FFFFFF",
+      border: "1px solid #DCD6CA",
       borderRadius: 20,
       padding: 14,
     },
@@ -2696,8 +2696,8 @@ mainPanel: {
       gap: 12,
       padding: 12,
       borderRadius: 16,
-      background: "rgba(255,255,255,0.04)",
-      border: "1px solid rgba(255,255,255,0.06)",
+      background: "#FFFFFF",
+      border: "1px solid #DCD6CA",
     },
 
     summaryAmount: {
@@ -2711,9 +2711,9 @@ mainPanel: {
       minHeight: 42,
       padding: "0 14px",
       borderRadius: 14,
-      border: "1px solid rgba(255,255,255,0.10)",
-      background: "rgba(255,255,255,0.06)",
-      color: "#fff",
+      border: "1px solid #DCD6CA",
+      background: "#FFFFFF",
+      color: "#15171C",
       fontWeight: 800,
     },
 
@@ -2723,7 +2723,7 @@ mainPanel: {
       display: "flex",
       flexWrap: "wrap",
       gap: 12,
-      color: "#dbeafe",
+      color: "#8A6220",
     },
 
     contentGrid: {
@@ -2755,7 +2755,7 @@ mainPanel: {
 
     sectionLead: {
       margin: "6px 0 0",
-      color: "rgba(255,255,255,0.56)",
+      color: "#5B5E66",
       fontSize: 12,
       fontWeight: 700,
       lineHeight: 1.7,
@@ -2776,7 +2776,7 @@ mainPanel: {
       display: "grid",
       gap: 7,
       fontSize: 12,
-      color: "rgba(255,255,255,0.68)",
+      color: "#5B5E66",
       fontWeight: 800,
       marginTop: 12,
     },
@@ -2784,9 +2784,9 @@ mainPanel: {
     input: {
   minHeight: 42,
   borderRadius: 14,
-  border: "1px solid rgba(255,255,255,0.10)",
-  background: "rgba(255,255,255,0.06)",
-  color: "#fff",
+  border: "1px solid #DCD6CA",
+  background: "#FFFFFF",
+  color: "#15171C",
   padding: "0 12px",
   outline: "none",
   boxSizing: "border-box",
@@ -2800,9 +2800,9 @@ mainPanel: {
     textarea: {
       minHeight: 110,
       borderRadius: 14,
-      border: "1px solid rgba(255,255,255,0.10)",
-      background: "rgba(255,255,255,0.06)",
-      color: "#fff",
+      border: "1px solid #DCD6CA",
+      background: "#FFFFFF",
+      color: "#15171C",
       padding: 12,
       outline: "none",
       resize: "vertical",
@@ -2813,8 +2813,8 @@ mainPanel: {
     paymentBox: {
   marginTop: 16,
   borderRadius: 18,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.035)",
+  border: "1px solid #DCD6CA",
+  background: "#FFFFFF",
   padding: isMobile ? 10 : 12,
   width: "100%",
   maxWidth: "100%",
@@ -2835,8 +2835,8 @@ mainPanel: {
       padding: "0 12px",
       borderRadius: 12,
       border: "none",
-      background: "rgba(96,165,250,0.22)",
-      color: "#dbeafe",
+      background: "rgba(176,129,51,0.22)",
+      color: "#8A6220",
       fontWeight: 900,
       cursor: "pointer",
     },
@@ -2855,7 +2855,7 @@ mainPanel: {
       borderRadius: 14,
       border: "1px solid rgba(239,68,68,0.28)",
       background: "rgba(239,68,68,0.12)",
-      color: "#fecaca",
+      color: "#B91C1C",
       fontWeight: 900,
       cursor: "pointer",
       width: "100%",
@@ -2869,8 +2869,8 @@ maxWidth: "100%",
       display: "flex",
       justifyContent: "space-between",
       alignItems: "center",
-      background: "rgba(37,99,235,0.16)",
-      border: "1px solid rgba(96,165,250,0.20)",
+      background: "rgba(176,129,51,0.16)",
+      border: "1px solid rgba(176,129,51,0.20)",
     },
 
     primaryButton: {
@@ -2879,7 +2879,7 @@ maxWidth: "100%",
       marginTop: 14,
       borderRadius: 16,
       border: "none",
-      background: "linear-gradient(135deg,#2563eb,#60a5fa)",
+      background: "linear-gradient(135deg,#8A6220,#CDB68A)",
       color: "#fff",
       fontSize: 15,
       fontWeight: 900,
@@ -2900,17 +2900,17 @@ maxWidth: "100%",
     th: {
       textAlign: "left",
       padding: "10px 8px",
-      color: "rgba(255,255,255,0.48)",
+      color: "#5B5E66",
       fontSize: 12,
-      borderBottom: "1px solid rgba(255,255,255,0.08)",
+      borderBottom: "1px solid #DCD6CA",
       whiteSpace: "nowrap",
     },
 
     td: {
       padding: "12px 8px",
-      color: "rgba(255,255,255,0.82)",
+      color: "#3A3D45",
       fontSize: 13,
-      borderBottom: "1px solid rgba(255,255,255,0.06)",
+      borderBottom: "1px solid #DCD6CA",
       whiteSpace: "nowrap",
     },
 
@@ -2925,9 +2925,9 @@ maxWidth: "100%",
     searchInput: {
       minHeight: 42,
       borderRadius: 14,
-      border: "1px solid rgba(255,255,255,0.10)",
-      background: "rgba(255,255,255,0.06)",
-      color: "#fff",
+      border: "1px solid #DCD6CA",
+      background: "#FFFFFF",
+      color: "#15171C",
       padding: "0 12px",
       minWidth: isMobile ? "100%" : 260,
     },
@@ -2938,7 +2938,7 @@ maxWidth: "100%",
       borderRadius: 12,
       border: "1px solid rgba(239,68,68,0.28)",
       background: "rgba(239,68,68,0.12)",
-      color: "#fecaca",
+      color: "#B91C1C",
       fontWeight: 900,
       cursor: "pointer",
     },
@@ -2952,8 +2952,8 @@ maxWidth: "100%",
     mobileSaleCard: {
       padding: 14,
       borderRadius: 18,
-      background: "rgba(255,255,255,0.04)",
-      border: "1px solid rgba(255,255,255,0.08)",
+      background: "#FFFFFF",
+      border: "1px solid #DCD6CA",
     },
 
     mobileSaleTop: {
@@ -2964,7 +2964,7 @@ maxWidth: "100%",
 
     mobileSaleDate: {
       margin: "4px 0 0",
-      color: "rgba(255,255,255,0.55)",
+      color: "#5B5E66",
       fontSize: 12,
     },
 
@@ -2973,16 +2973,16 @@ maxWidth: "100%",
       flexWrap: "wrap",
       gap: 6,
       marginTop: 10,
-      color: "rgba(255,255,255,0.64)",
+      color: "#5B5E66",
       fontSize: 12,
     },
 
     emptyBox: {
       padding: 18,
       borderRadius: 16,
-      background: "rgba(255,255,255,0.035)",
-      border: "1px dashed rgba(255,255,255,0.12)",
-      color: "rgba(255,255,255,0.52)",
+      background: "#FFFFFF",
+      border: "1px dashed #DCD6CA",
+      color: "#5B5E66",
       textAlign: "center",
       fontSize: 13,
       fontWeight: 700,

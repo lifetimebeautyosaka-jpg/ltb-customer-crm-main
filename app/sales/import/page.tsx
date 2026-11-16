@@ -331,7 +331,7 @@ export default function SalesImportPage() {
       <div style={{ maxWidth: 1200, margin: "0 auto", display: "grid", gap: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
           <div>
-            <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>SALES IMPORT</div>
+            <div style={{ fontSize: 12, color: "#5B5E66", fontWeight: 700 }}>SALES IMPORT</div>
             <h1 style={{ margin: "4px 0 0", fontSize: 24 }}>売上の一括取り込み</h1>
           </div>
           <Link href="/sales" style={linkStyle}>売上管理へ</Link>
@@ -363,10 +363,10 @@ export default function SalesImportPage() {
                   {rows.map((r) => {
                     const w = warnings.get(r.key) || [];
                     return (
-                      <tr key={r.key} style={{ background: r.include && blocking(r) ? "#fef2f2" : r.include ? "#fff" : "#f1f5f9" }}>
+                      <tr key={r.key} style={{ background: r.include && blocking(r) ? "#fef2f2" : r.include ? "#fff" : "#F1EDE5" }}>
                         <td style={tdStyle}><input type="checkbox" checked={r.include} onChange={(e) => update(r.key, { include: e.target.checked })} /></td>
                         <td style={tdStyle}><input value={r.date} onChange={(e) => update(r.key, { date: e.target.value })} style={cellInput(100)} /></td>
-                        <td style={tdStyle}>{r.customerName}{r.customerId ? <div style={{ fontSize: 11, color: "#64748b" }}>ID {r.customerId}</div> : null}</td>
+                        <td style={tdStyle}>{r.customerName}{r.customerId ? <div style={{ fontSize: 11, color: "#5B5E66" }}>ID {r.customerId}</div> : null}</td>
                         <td style={tdStyle}>
                           <select value={r.serviceType} onChange={(e) => update(r.key, { serviceType: e.target.value })} style={cellInput(96)}>
                             {SERVICE_TYPES.map((v) => <option key={v}>{v}</option>)}
@@ -409,15 +409,15 @@ export default function SalesImportPage() {
   );
 }
 
-const pageStyle: CSSProperties = { minHeight: "100vh", padding: "24px 16px 80px", background: "#f1f5f9", color: "#0f172a" };
-const cardStyle: CSSProperties = { background: "#fff", borderRadius: 16, padding: 18, boxShadow: "0 8px 24px rgba(15,23,42,0.06)" };
-const noteStyle: CSSProperties = { marginTop: 10, fontSize: 12, color: "#64748b", lineHeight: 1.7 };
+const pageStyle: CSSProperties = { minHeight: "100vh", padding: "24px 16px 80px", background: "#F7F5F0", color: "#15171C" };
+const cardStyle: CSSProperties = { background: "#fff", borderRadius: 16, padding: 18, boxShadow: "0 8px 24px rgba(21,23,28,0.06)" };
+const noteStyle: CSSProperties = { marginTop: 10, fontSize: 12, color: "#5B5E66", lineHeight: 1.7 };
 const okStyle: CSSProperties = { padding: 12, borderRadius: 12, background: "#dcfce7", color: "#166534" };
 const errorStyle: CSSProperties = { padding: 12, borderRadius: 12, background: "#fee2e2", color: "#991b1b" };
-const linkStyle: CSSProperties = { padding: "8px 14px", borderRadius: 12, background: "#0f172a", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700 };
-const thStyle: CSSProperties = { textAlign: "left", padding: "8px 6px", borderBottom: "2px solid #e2e8f0", whiteSpace: "nowrap" };
-const tdStyle: CSSProperties = { padding: "6px", borderBottom: "1px solid #e2e8f0", verticalAlign: "top" };
-const buttonStyle: CSSProperties = { minHeight: 44, padding: "0 20px", borderRadius: 12, border: "none", background: "#0f172a", color: "#fff", fontWeight: 800, cursor: "pointer" };
+const linkStyle: CSSProperties = { padding: "8px 14px", borderRadius: 12, background: "#15171C", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700 };
+const thStyle: CSSProperties = { textAlign: "left", padding: "8px 6px", borderBottom: "2px solid #DCD6CA", whiteSpace: "nowrap" };
+const tdStyle: CSSProperties = { padding: "6px", borderBottom: "1px solid #DCD6CA", verticalAlign: "top" };
+const buttonStyle: CSSProperties = { minHeight: 44, padding: "0 20px", borderRadius: 12, border: "none", background: "#15171C", color: "#fff", fontWeight: 800, cursor: "pointer" };
 function cellInput(width: number): CSSProperties {
-  return { width, minHeight: 30, padding: "0 6px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 13 };
+  return { width, minHeight: 30, padding: "0 6px", borderRadius: 6, border: "1px solid #CFC8BA", fontSize: 13 };
 }

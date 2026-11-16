@@ -462,15 +462,15 @@ function getHeatColor(level?: number) {
 }
 
 function getHeatShadow(level?: number) {
-  if (level === 1) return "0 0 0 8px rgba(250, 204, 21, 0.18), 0 10px 24px rgba(15,23,42,0.10)";
-  if (level === 2) return "0 0 0 10px rgba(251, 146, 60, 0.20), 0 12px 28px rgba(15,23,42,0.12)";
-  if (level === 3) return "0 0 0 12px rgba(239, 68, 68, 0.24), 0 14px 32px rgba(15,23,42,0.14)";
-  return "0 10px 24px rgba(15,23,42,0.10)";
+  if (level === 1) return "0 0 0 8px rgba(250, 204, 21, 0.18), 0 10px 24px rgba(21,23,28,0.10)";
+  if (level === 2) return "0 0 0 10px rgba(251, 146, 60, 0.20), 0 12px 28px rgba(21,23,28,0.12)";
+  if (level === 3) return "0 0 0 12px rgba(239, 68, 68, 0.24), 0 14px 32px rgba(21,23,28,0.14)";
+  return "0 10px 24px rgba(21,23,28,0.10)";
 }
 
 function getHeatTextColor(level?: number) {
   if (level === 1 || level === 2 || level === 3) return "#fff";
-  return "#334155";
+  return "#3A3D45";
 }
 
 export default function TrainingPage() {
@@ -1040,14 +1040,14 @@ export default function TrainingPage() {
                 style={{
                   fontSize: 12,
                   letterSpacing: "0.12em",
-                  color: "#64748b",
+                  color: "#5B5E66",
                   marginBottom: 6,
                   fontWeight: 700,
                 }}
               >
                 TRAINING SESSION
               </div>
-              <h1 style={{ margin: 0, fontSize: 28, color: "#0f172a" }}>
+              <h1 style={{ margin: 0, fontSize: 28, color: "#15171C" }}>
                 {editingSessionId
                   ? "トレーニング履歴を編集"
                   : "トレーニング履歴を登録"}
@@ -1055,7 +1055,7 @@ export default function TrainingPage() {
               <div
                 style={{
                   marginTop: 10,
-                  color: "#334155",
+                  color: "#3A3D45",
                   fontSize: 15,
                   fontWeight: 700,
                 }}
@@ -1114,7 +1114,7 @@ export default function TrainingPage() {
                 <input
                   value={customerName}
                   readOnly
-                  style={{ ...inputStyle, background: "#f8fafc" }}
+                  style={{ ...inputStyle, background: "#FBFAF7" }}
                 />
               </label>
 
@@ -1285,7 +1285,7 @@ export default function TrainingPage() {
                         border:
                           level && level > 0
                             ? "2px solid rgba(255,255,255,0.30)"
-                            : "2px solid rgba(148,163,184,0.20)",
+                            : "2px solid rgba(142,138,130,0.20)",
                       }}
                     >
                       <span style={bodyPointInnerStyle}>
@@ -1597,7 +1597,7 @@ export default function TrainingPage() {
                 />
               </label>
 
-              <div style={{ marginTop: 10, fontSize: 13, color: "#64748b" }}>
+              <div style={{ marginTop: 10, fontSize: 13, color: "#5B5E66" }}>
                 {uploading ? "アップロード中..." : "複数画像アップロードOK"}
               </div>
 
@@ -1618,7 +1618,7 @@ export default function TrainingPage() {
                         position: "relative",
                         borderRadius: 18,
                         overflow: "hidden",
-                        border: "1px solid rgba(148,163,184,0.16)",
+                        border: "1px solid rgba(142,138,130,0.16)",
                         background: "#fff",
                       }}
                     >
@@ -1685,7 +1685,7 @@ export default function TrainingPage() {
               }}
             >
               <h2 style={sectionTitleStyle}>トレーニング履歴</h2>
-              <div style={{ fontSize: 13, color: "#64748b" }}>
+              <div style={{ fontSize: 13, color: "#5B5E66" }}>
                 件数：{history.length}
               </div>
             </div>
@@ -1944,19 +1944,19 @@ function InfoBlock({
 const sectionTitleStyle: CSSProperties = {
   margin: "0 0 14px",
   fontSize: 22,
-  color: "#0f172a",
+  color: "#15171C",
 };
 
 const subSectionTitleStyle: CSSProperties = {
   fontSize: 13,
-  color: "#475569",
+  color: "#5B5E66",
   fontWeight: 800,
   marginBottom: 10,
 };
 
 const labelStyle: CSSProperties = {
   fontSize: 13,
-  color: "#334155",
+  color: "#3A3D45",
   fontWeight: 700,
 };
 
@@ -1964,7 +1964,7 @@ const inputStyle: CSSProperties = {
   width: "100%",
   minHeight: 46,
   borderRadius: 14,
-  border: "1px solid rgba(148,163,184,0.28)",
+  border: "1px solid rgba(142,138,130,0.28)",
   background: "#fff",
   padding: "0 14px",
   fontSize: 14,
@@ -1975,7 +1975,7 @@ const inputStyle: CSSProperties = {
 const textareaStyle: CSSProperties = {
   width: "100%",
   borderRadius: 14,
-  border: "1px solid rgba(148,163,184,0.28)",
+  border: "1px solid rgba(142,138,130,0.28)",
   background: "#fff",
   padding: "12px 14px",
   fontSize: 14,
@@ -2003,9 +2003,9 @@ const secondaryButtonStyle: CSSProperties = {
   minHeight: 44,
   padding: "0 16px",
   borderRadius: 12,
-  border: "1px solid rgba(148,163,184,0.28)",
+  border: "1px solid rgba(142,138,130,0.28)",
   background: "#fff",
-  color: "#0f172a",
+  color: "#15171C",
   cursor: "pointer",
   fontWeight: 700,
 };
@@ -2014,9 +2014,9 @@ const secondaryButtonMiniStyle: CSSProperties = {
   minHeight: 36,
   padding: "0 12px",
   borderRadius: 10,
-  border: "1px solid rgba(148,163,184,0.28)",
+  border: "1px solid rgba(142,138,130,0.28)",
   background: "#fff",
-  color: "#0f172a",
+  color: "#15171C",
   cursor: "pointer",
   fontWeight: 700,
   fontSize: 13,
@@ -2066,8 +2066,8 @@ const countBadgeStyle: CSSProperties = {
   minHeight: 36,
   padding: "0 12px",
   borderRadius: 999,
-  background: "rgba(59,130,246,0.08)",
-  color: "#1d4ed8",
+  background: "rgba(176,129,51,0.08)",
+  color: "#6E4E19",
   fontSize: 13,
   fontWeight: 700,
 };
@@ -2076,9 +2076,9 @@ const addRowButtonTopStyle: CSSProperties = {
   minHeight: 38,
   padding: "0 14px",
   borderRadius: 12,
-  border: "1px solid rgba(59,130,246,0.18)",
+  border: "1px solid rgba(176,129,51,0.18)",
   background: "rgba(239,246,255,0.96)",
-  color: "#1d4ed8",
+  color: "#6E4E19",
   cursor: "pointer",
   fontWeight: 700,
 };
@@ -2109,7 +2109,7 @@ const legendChipStyle: CSSProperties = {
 
 const legendTextStyle: CSSProperties = {
   fontSize: 12,
-  color: "#64748b",
+  color: "#5B5E66",
   fontWeight: 700,
 };
 
@@ -2122,25 +2122,25 @@ const toggleSideButtonStyle: CSSProperties = {
   minHeight: 36,
   padding: "0 14px",
   borderRadius: 12,
-  border: "1px solid rgba(148,163,184,0.24)",
+  border: "1px solid rgba(142,138,130,0.24)",
   background: "#fff",
-  color: "#334155",
+  color: "#3A3D45",
   fontWeight: 700,
   cursor: "pointer",
 };
 
 const toggleSideButtonActiveStyle: CSSProperties = {
-  background: "rgba(37,99,235,0.10)",
-  border: "1px solid rgba(37,99,235,0.22)",
-  color: "#1d4ed8",
+  background: "rgba(176,129,51,0.10)",
+  border: "1px solid rgba(176,129,51,0.22)",
+  color: "#6E4E19",
 };
 
 const bodyMapStageStyle: CSSProperties = {
   position: "relative",
   height: 520,
   borderRadius: 24,
-  background: "linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)",
-  border: "1px solid rgba(148,163,184,0.16)",
+  background: "linear-gradient(180deg, #FBFAF7 0%, #F3ECDD 100%)",
+  border: "1px solid rgba(142,138,130,0.16)",
   overflow: "hidden",
 };
 
@@ -2157,7 +2157,7 @@ const bodyHeadStyle: CSSProperties = {
   width: 70,
   height: 70,
   borderRadius: "50%",
-  background: "rgba(148,163,184,0.22)",
+  background: "rgba(142,138,130,0.22)",
 };
 
 const bodyTorsoStyle: CSSProperties = {
@@ -2168,7 +2168,7 @@ const bodyTorsoStyle: CSSProperties = {
   width: 140,
   height: 190,
   borderRadius: 40,
-  background: "rgba(148,163,184,0.22)",
+  background: "rgba(142,138,130,0.22)",
 };
 
 const bodyArmLeftStyle: CSSProperties = {
@@ -2178,7 +2178,7 @@ const bodyArmLeftStyle: CSSProperties = {
   width: 38,
   height: 190,
   borderRadius: 30,
-  background: "rgba(148,163,184,0.18)",
+  background: "rgba(142,138,130,0.18)",
   transform: "rotate(8deg)",
 };
 
@@ -2189,7 +2189,7 @@ const bodyArmRightStyle: CSSProperties = {
   width: 38,
   height: 190,
   borderRadius: 30,
-  background: "rgba(148,163,184,0.18)",
+  background: "rgba(142,138,130,0.18)",
   transform: "rotate(-8deg)",
 };
 
@@ -2200,7 +2200,7 @@ const bodyLegLeftStyle: CSSProperties = {
   width: 42,
   height: 210,
   borderRadius: 30,
-  background: "rgba(148,163,184,0.18)",
+  background: "rgba(142,138,130,0.18)",
 };
 
 const bodyLegRightStyle: CSSProperties = {
@@ -2210,7 +2210,7 @@ const bodyLegRightStyle: CSSProperties = {
   width: 42,
   height: 210,
   borderRadius: 30,
-  background: "rgba(148,163,184,0.18)",
+  background: "rgba(142,138,130,0.18)",
 };
 
 const bodyPointButtonStyle: CSSProperties = {
@@ -2252,7 +2252,7 @@ const bodyPointLevelStyle: CSSProperties = {
 
 const bodyMapHelpStyle: CSSProperties = {
   fontSize: 13,
-  color: "#64748b",
+  color: "#5B5E66",
 };
 
 const chipWrapStyle: CSSProperties = {
@@ -2267,8 +2267,8 @@ const chipStyle: CSSProperties = {
   minHeight: 30,
   padding: "0 10px",
   borderRadius: 999,
-  background: "rgba(37,99,235,0.08)",
-  color: "#1d4ed8",
+  background: "rgba(176,129,51,0.08)",
+  color: "#6E4E19",
   fontSize: 12,
   fontWeight: 700,
 };
@@ -2279,8 +2279,8 @@ const emptyChipStyle: CSSProperties = {
   minHeight: 30,
   padding: "0 10px",
   borderRadius: 999,
-  background: "rgba(148,163,184,0.10)",
-  color: "#64748b",
+  background: "rgba(142,138,130,0.10)",
+  color: "#5B5E66",
   fontSize: 12,
   fontWeight: 700,
 };
@@ -2299,8 +2299,8 @@ const selectedChipButtonStyle: CSSProperties = {
 
 const exerciseCardStyle: CSSProperties = {
   borderRadius: 20,
-  background: "rgba(248,250,252,0.88)",
-  border: "1px solid rgba(148,163,184,0.14)",
+  background: "rgba(251,250,247,0.88)",
+  border: "1px solid rgba(142,138,130,0.14)",
   padding: 16,
 };
 
@@ -2316,7 +2316,7 @@ const exerciseCardHeaderStyle: CSSProperties = {
 const exerciseCardIndexStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 800,
-  color: "#0f172a",
+  color: "#15171C",
 };
 
 const trainingDeleteButtonStyle: CSSProperties = {
@@ -2345,7 +2345,7 @@ const removeImageButtonStyle: CSSProperties = {
   padding: "0 10px",
   borderRadius: 999,
   border: "none",
-  background: "rgba(15,23,42,0.82)",
+  background: "rgba(21,23,28,0.82)",
   color: "#fff",
   fontSize: 12,
   fontWeight: 700,
@@ -2358,27 +2358,27 @@ const emptyStateStyle: CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   borderRadius: 18,
-  background: "rgba(248,250,252,0.92)",
-  color: "#64748b",
+  background: "rgba(251,250,247,0.92)",
+  color: "#5B5E66",
   fontSize: 14,
 };
 
 const historyCardStyle: CSSProperties = {
   borderRadius: 22,
-  background: "rgba(248,250,252,0.94)",
-  border: "1px solid rgba(148,163,184,0.14)",
+  background: "rgba(251,250,247,0.94)",
+  border: "1px solid rgba(142,138,130,0.14)",
   padding: 18,
 };
 
 const historyDateStyle: CSSProperties = {
   fontSize: 18,
   fontWeight: 800,
-  color: "#0f172a",
+  color: "#15171C",
 };
 
 const historyMetaStyle: CSSProperties = {
   fontSize: 12,
-  color: "#64748b",
+  color: "#5B5E66",
   marginTop: 4,
 };
 
@@ -2392,26 +2392,26 @@ const metricPillStyle: CSSProperties = {
   borderRadius: 14,
   padding: "12px 12px 10px",
   background: "#fff",
-  border: "1px solid rgba(148,163,184,0.16)",
+  border: "1px solid rgba(142,138,130,0.16)",
 };
 
 const metricPillLabelStyle: CSSProperties = {
   fontSize: 11,
-  color: "#64748b",
+  color: "#5B5E66",
   marginBottom: 4,
   fontWeight: 700,
 };
 
 const metricPillValueStyle: CSSProperties = {
   fontSize: 15,
-  color: "#0f172a",
+  color: "#15171C",
   fontWeight: 800,
 };
 
 const setCardStyle: CSSProperties = {
   borderRadius: 16,
   background: "#fff",
-  border: "1px solid rgba(148,163,184,0.14)",
+  border: "1px solid rgba(142,138,130,0.14)",
   padding: 14,
 };
 
@@ -2426,13 +2426,13 @@ const setCardHeaderStyle: CSSProperties = {
 
 const setCardIndexStyle: CSSProperties = {
   fontSize: 12,
-  color: "#64748b",
+  color: "#5B5E66",
   fontWeight: 700,
 };
 
 const setCardExerciseStyle: CSSProperties = {
   fontSize: 16,
-  color: "#0f172a",
+  color: "#15171C",
   fontWeight: 800,
 };
 
@@ -2444,42 +2444,42 @@ const setMetricGridStyle: CSSProperties = {
 
 const miniMetricStyle: CSSProperties = {
   borderRadius: 12,
-  background: "rgba(248,250,252,0.92)",
-  border: "1px solid rgba(148,163,184,0.14)",
+  background: "rgba(251,250,247,0.92)",
+  border: "1px solid rgba(142,138,130,0.14)",
   padding: "10px 10px 8px",
 };
 
 const miniMetricLabelStyle: CSSProperties = {
   fontSize: 10,
-  color: "#64748b",
+  color: "#5B5E66",
   marginBottom: 4,
   fontWeight: 700,
 };
 
 const miniMetricValueStyle: CSSProperties = {
   fontSize: 13,
-  color: "#0f172a",
+  color: "#15171C",
   fontWeight: 700,
 };
 
 const setMemoStyle: CSSProperties = {
   marginTop: 10,
   borderRadius: 12,
-  background: "rgba(248,250,252,0.92)",
-  border: "1px solid rgba(148,163,184,0.14)",
+  background: "rgba(251,250,247,0.92)",
+  border: "1px solid rgba(142,138,130,0.14)",
   padding: 12,
 };
 
 const setMemoLabelStyle: CSSProperties = {
   fontSize: 11,
-  color: "#64748b",
+  color: "#5B5E66",
   fontWeight: 700,
   marginBottom: 4,
 };
 
 const setMemoTextStyle: CSSProperties = {
   fontSize: 13,
-  color: "#0f172a",
+  color: "#15171C",
   lineHeight: 1.7,
 };
 
@@ -2487,19 +2487,19 @@ const infoBlockStyle: CSSProperties = {
   borderRadius: 14,
   padding: 14,
   background: "#fff",
-  border: "1px solid rgba(148,163,184,0.14)",
+  border: "1px solid rgba(142,138,130,0.14)",
 };
 
 const infoBlockTitleStyle: CSSProperties = {
   fontSize: 12,
-  color: "#64748b",
+  color: "#5B5E66",
   fontWeight: 700,
   marginBottom: 6,
 };
 
 const infoBlockTextStyle: CSSProperties = {
   fontSize: 14,
-  color: "#0f172a",
+  color: "#15171C",
   lineHeight: 1.8,
 };
 
@@ -2513,7 +2513,7 @@ const historyImageCardStyle: CSSProperties = {
   borderRadius: 16,
   overflow: "hidden",
   background: "#fff",
-  border: "1px solid rgba(148,163,184,0.14)",
+  border: "1px solid rgba(142,138,130,0.14)",
 };
 
 const historyImageStyle: CSSProperties = {

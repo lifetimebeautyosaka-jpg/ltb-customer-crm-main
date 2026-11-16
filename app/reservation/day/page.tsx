@@ -87,11 +87,11 @@ const STAFF_COLORS: Record<string, string> = {
   入江: "#a1887f",
   中西: "#ec4899",
   池田: "#8b5cf6",
-  石川: "#3b82f6",
+  石川: "#B08133",
   菱谷: "#f59e0b",
-  林: "#111827",
-  井上: "#6b7280",
-  その他: "#9ca3af",
+  林: "#15171C",
+  井上: "#5B5E66",
+  その他: "#8E8A82",
 };
 
 function detectServiceType(menu?: string | null): "ストレッチ" | "トレーニング" {
@@ -180,7 +180,7 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
               width: "72px",
               height: "6px",
               borderRadius: "999px",
-              background: "#d1d5db",
+              background: "#CFC8BA",
               margin: "0 auto 18px",
             }}
           />
@@ -195,7 +195,7 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
               flexWrap: "wrap",
             }}
           >
-            <div style={{ fontSize: "28px", fontWeight: 800, color: "#111827", letterSpacing: "-0.03em" }}>
+            <div style={{ fontSize: "28px", fontWeight: 800, color: "#15171C", letterSpacing: "-0.03em" }}>
               {formatJapaneseDate(date)}
             </div>
 
@@ -249,7 +249,7 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
               marginBottom: "18px",
               fontSize: "12px",
               fontWeight: 700,
-              color: "#4b5563",
+              color: "#3A3D45",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
@@ -271,7 +271,7 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
                   width: "10px",
                   height: "10px",
                   borderRadius: "999px",
-                  background: "#2563eb",
+                  background: "#8A6220",
                   display: "inline-block",
                 }}
               />
@@ -299,7 +299,7 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
               {items.map((item) => {
-                const color = STAFF_COLORS[item.staff_name || "その他"] || "#9ca3af";
+                const color = STAFF_COLORS[item.staff_name || "その他"] || "#8E8A82";
                 const usage = usageMap.get(item.id);
                 const isSalesRegistered = salesReservationSet.has(item.id);
                 const serviceType = detectServiceType(item.menu);
@@ -323,7 +323,7 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
                     }}
                   >
                     <div style={{ textAlign: "right", paddingTop: "2px" }}>
-                      <div style={{ fontSize: "16px", fontWeight: 800, color: "#111827" }}>
+                      <div style={{ fontSize: "16px", fontWeight: 800, color: "#15171C" }}>
                         {item.start_time || "未定"}
                       </div>
                     </div>
@@ -344,14 +344,14 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
                         style={{
                           display: "block",
                           textDecoration: "none",
-                          color: "#111827",
+                          color: "#15171C",
                         }}
                       >
                         <div
                           style={{
                             fontSize: "24px",
                             fontWeight: 800,
-                            color: "#111827",
+                            color: "#15171C",
                             letterSpacing: "-0.03em",
                             lineHeight: 1.2,
                           }}
@@ -404,9 +404,9 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
                             <span
                               style={{
                                 ...chipStyle,
-                                background: "#eff6ff",
-                                color: "#1d4ed8",
-                                border: "1px solid #93c5fd",
+                                background: "#F3ECDD",
+                                color: "#6E4E19",
+                                border: "1px solid #CDB68A",
                               }}
                             >
                               売上登録済み
@@ -433,7 +433,7 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
                             style={{
                               marginTop: "8px",
                               fontSize: "14px",
-                              color: "#6b7280",
+                              color: "#5B5E66",
                               lineHeight: 1.5,
                               whiteSpace: "pre-wrap",
                             }}
@@ -496,8 +496,8 @@ export default async function ReservationDayPage(props: { searchParams?: SearchP
 const subButtonStyle: React.CSSProperties = {
   textDecoration: "none",
   background: "#ffffff",
-  color: "#111827",
-  border: "1px solid #d1d5db",
+  color: "#15171C",
+  border: "1px solid #CFC8BA",
   borderRadius: "12px",
   padding: "10px 14px",
   fontWeight: 700,
@@ -506,19 +506,19 @@ const subButtonStyle: React.CSSProperties = {
 
 const chipStyle: React.CSSProperties = {
   borderRadius: "999px",
-  border: "1px solid #d1d5db",
+  border: "1px solid #CFC8BA",
   padding: "6px 10px",
   fontSize: "12px",
   fontWeight: 700,
   background: "#fff",
-  color: "#111827",
+  color: "#15171C",
 };
 
 const actionButtonStyle: React.CSSProperties = {
   textDecoration: "none",
   background: "#ffffff",
-  color: "#111827",
-  border: "1px solid #d1d5db",
+  color: "#15171C",
+  border: "1px solid #CFC8BA",
   borderRadius: "12px",
   padding: "10px 14px",
   fontWeight: 700,
@@ -527,9 +527,9 @@ const actionButtonStyle: React.CSSProperties = {
 
 const actionDarkButtonStyle: React.CSSProperties = {
   textDecoration: "none",
-  background: "#111827",
+  background: "#15171C",
   color: "#ffffff",
-  border: "1px solid #111827",
+  border: "1px solid #15171C",
   borderRadius: "12px",
   padding: "10px 14px",
   fontWeight: 700,
@@ -537,9 +537,9 @@ const actionDarkButtonStyle: React.CSSProperties = {
 };
 
 const doneButtonStyle: React.CSSProperties = {
-  background: "#eff6ff",
-  color: "#1d4ed8",
-  border: "1px solid #93c5fd",
+  background: "#F3ECDD",
+  color: "#6E4E19",
+  border: "1px solid #CDB68A",
   borderRadius: "12px",
   padding: "10px 14px",
   fontWeight: 700,
@@ -549,10 +549,10 @@ const doneButtonStyle: React.CSSProperties = {
 
 const emptyStyle: React.CSSProperties = {
   background: "#ffffff",
-  border: "1px solid #e5e7eb",
+  border: "1px solid #DCD6CA",
   borderRadius: "20px",
   padding: "24px",
   textAlign: "center",
-  color: "#6b7280",
+  color: "#5B5E66",
   fontWeight: 700,
 };

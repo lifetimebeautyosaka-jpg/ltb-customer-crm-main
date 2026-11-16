@@ -221,7 +221,7 @@ export default function FollowupPage() {
       <div style={{ maxWidth: 1100, margin: "0 auto", display: "grid", gap: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
           <div>
-            <div style={{ fontSize: 12, color: "#64748b", fontWeight: 700 }}>FOLLOW UP</div>
+            <div style={{ fontSize: 12, color: "#5B5E66", fontWeight: 700 }}>FOLLOW UP</div>
             <h1 style={{ margin: "4px 0 0", fontSize: 24 }}>フォロー確認</h1>
           </div>
           <Link href="/dashboard" style={linkButtonStyle}>ダッシュボードへ</Link>
@@ -265,7 +265,7 @@ export default function FollowupPage() {
                       <Link key={t.id} href={`/customer/${t.customer_id}`} style={{ ...rowStyle, textDecoration: "none", color: "inherit" }}>
                         <strong>{trimmed(t.customer_name) || "名前未設定"}</strong>
                         <span>{trimmed(t.ticket_name)}・残り{t.remaining_count}回</span>
-                        <span style={badgeStyle(days < 0 ? "#dc2626" : days <= 7 ? "#f59e0b" : "#2563eb")}>
+                        <span style={badgeStyle(days < 0 ? "#dc2626" : days <= 7 ? "#f59e0b" : "#8A6220")}>
                           {days < 0 ? `期限切れ（${formatDate(t.expiry_date)}）` : `あと${days}日（${formatDate(t.expiry_date)}）`}
                         </span>
                       </Link>
@@ -285,7 +285,7 @@ export default function FollowupPage() {
                     <Link key={c.customerId} href={`/customer/${c.customerId}`} style={{ ...rowStyle, textDecoration: "none", color: "inherit" }}>
                       <strong>{c.customerName}</strong>
                       <span>{c.tickets.join("、")}</span>
-                      <span style={badgeStyle("#64748b")}>
+                      <span style={badgeStyle("#5B5E66")}>
                         最終来店 {c.lastVisit ? `${formatDate(c.lastVisit)}（${diffDays(c.lastVisit, today)}日前）` : "半年以上前"}
                       </span>
                     </Link>
@@ -301,14 +301,14 @@ export default function FollowupPage() {
   );
 }
 
-const pageStyle: CSSProperties = { minHeight: "100vh", padding: "24px 16px 80px", background: "#f1f5f9", color: "#0f172a" };
-const cardStyle: CSSProperties = { background: "#fff", borderRadius: 20, padding: 18, boxShadow: "0 8px 24px rgba(15,23,42,0.06)" };
+const pageStyle: CSSProperties = { minHeight: "100vh", padding: "24px 16px 80px", background: "#F7F5F0", color: "#15171C" };
+const cardStyle: CSSProperties = { background: "#fff", borderRadius: 20, padding: 18, boxShadow: "0 8px 24px rgba(21,23,28,0.06)" };
 const titleStyle: CSSProperties = { margin: "0 0 12px", fontSize: 17 };
-const rowStyle: CSSProperties = { display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", padding: "10px 12px", borderRadius: 12, background: "#f8fafc", fontSize: 14 };
-const emptyStyle: CSSProperties = { padding: 12, color: "#64748b", fontSize: 14 };
-const noteStyle: CSSProperties = { marginTop: 10, fontSize: 12, color: "#64748b" };
+const rowStyle: CSSProperties = { display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", padding: "10px 12px", borderRadius: 12, background: "#FBFAF7", fontSize: 14 };
+const emptyStyle: CSSProperties = { padding: 12, color: "#5B5E66", fontSize: 14 };
+const noteStyle: CSSProperties = { marginTop: 10, fontSize: 12, color: "#5B5E66" };
 const errorStyle: CSSProperties = { padding: 12, borderRadius: 12, background: "#fee2e2", color: "#991b1b" };
-const linkButtonStyle: CSSProperties = { padding: "8px 14px", borderRadius: 12, background: "#0f172a", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700 };
+const linkButtonStyle: CSSProperties = { padding: "8px 14px", borderRadius: 12, background: "#15171C", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 700 };
 function badgeStyle(color: string): CSSProperties {
   return { marginLeft: "auto", padding: "4px 10px", borderRadius: 999, background: `${color}1a`, color, fontSize: 12, fontWeight: 700 };
 }
