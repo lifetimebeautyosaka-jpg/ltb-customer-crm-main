@@ -1891,6 +1891,14 @@ const ticketIssueInfo =
                 一括取り込み
               </Link>
 
+              <Link href="/sales/stores" style={styles.secondaryButton}>
+                店舗別集計
+              </Link>
+
+              <Link href="/sales/freee" style={styles.secondaryButton}>
+                freee用に書き出す
+              </Link>
+
               <button
                 type="button"
                 onClick={exportCsv}
