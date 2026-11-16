@@ -1105,10 +1105,22 @@ export default function DashboardPage() {
         }
         .gu-two { display: grid; grid-template-columns: 1fr; gap: 16px; }
 
+        /* パソコン：上は「売上」と「今日やること」を左右に並べ、予約は横いっぱい、
+           その下の欄は2列に高さをそろえて流し込む（左だけ空く・右だけ長いのを防ぐ） */
         @media (min-width: 1024px) {
-          .gu-container { max-width: 1120px; display: grid; grid-template-columns: 560px minmax(0, 1fr); column-gap: 40px; }
-          .gu-col-side { padding-top: 96px; }
-          .gu-two { grid-template-columns: 1fr 1fr; }
+          .gu-container { max-width: 1120px; }
+          .gu-col-main {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            align-items: start;
+          }
+          .gu-header, .gu-daybar, .gu-error, #reservations { grid-column: 1 / -1; }
+          .gu-daybar { max-width: 520px; }
+          .gu-kpi { grid-column: 1; }
+          .gu-tasks { grid-column: 2; margin: 28px 24px 28px 0; }
+          .gu-col-side { column-count: 2; column-gap: 0; }
+          .gu-col-side .gu-section { break-inside: avoid; display: inline-block; width: 100%; }
+          .gu-two { grid-template-columns: 1fr; }
         }
       `}</style>
 
@@ -1151,6 +1163,7 @@ export default function DashboardPage() {
 
             {error ? <div className="gu-error">読み込みエラー：{error}</div> : null}
 
+            <div className="gu-kpi">
             <section className="gu-today">
               <span className="gu-label">{isTodaySelected ? "TODAY'S SALES" : `${selectedDateLabel} の売上`}</span>
               <span className="gu-today-amount gu-num">{loading ? "…" : formatYen(stats.todaySalesAmount)}</span>
@@ -1196,6 +1209,7 @@ export default function DashboardPage() {
                 </span>
               </div>
             </section>
+            </div>
 
             <section className="gu-tasks" aria-labelledby="gu-tasks-title">
               <div className="gu-tasks-head">
