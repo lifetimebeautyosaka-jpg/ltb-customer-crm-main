@@ -9,7 +9,7 @@ import { fetchAllRows } from "@/lib/fetchAllRows";
 // 売上 ＝ 通常売上 ＋ 回数券消化（施術した分）。前受金（回数券の販売）は参考として別の列に出す
 // 新規 ＝ その月の予約のうち、来店区分が「新規」（または初回フラグあり）でキャンセル以外のもの
 
-type SaleRow = { sale_type: string | null; amount: number | null; store_name: string | null };
+type SaleRow = { sale_type: string | null; amount: number | null; store_name: string | null; menu_type: string | null };
 type ReservationRow = {
   store_name: string | null;
   visit_type: string | null;
@@ -32,6 +32,10 @@ function monthRange(month: string) {
 
 function yen(v: number) {
   return `${Math.round(v).toLocaleString("ja-JP")}円`;
+}
+
+function pct(part: number, whole: number) {
+  return whole > 0 ? `${((part / whole) * 100).toFixed(1)}%` : "—";
 }
 
 function storeOf(name: string | null) {
@@ -59,7 +63,7 @@ export default function StoreSummaryPage() {
         fetchAllRows<SaleRow>((from, to) =>
           supabase
             .from("sales")
-            .select("sale_type, amount, store_name")
+            .select("sale_type, amount, store_name, menu_type")
             .gte("sale_date", start)
             .lt("sale_date", end)
             .order("id", { ascending: true })
@@ -88,9 +92,9 @@ export default function StoreSummaryPage() {
   }, [month]);
 
   const rows = useMemo(() => {
-    const map = new Map<string, { net: number; advance: number; count: number; newCount: number }>();
+    const map = new Map<string, { net: number; advance: number; count: number; newCount: number; training: number; stretch: number }>();
     const get = (store: string) => {
-      const row = map.get(store) || { net: 0, advance: 0, count: 0, newCount: 0 };
+      const row = map.get(store) || { net: 0, advance: 0, count: 0, newCount: 0, training: 0, stretch: 0 };
       map.set(store, row);
       return row;
     };
@@ -103,6 +107,8 @@ export default function StoreSummaryPage() {
       else {
         row.net += amount;
         row.count += 1;
+        if ((s.menu_type || "").trim() === "トレーニング") row.training += amount;
+        else row.stretch += amount;
       }
     }
 
@@ -119,8 +125,15 @@ export default function StoreSummaryPage() {
   }, [sales, reservations]);
 
   const total = rows.reduce(
-    (t, [, v]) => ({ net: t.net + v.net, advance: t.advance + v.advance, count: t.count + v.count, newCount: t.newCount + v.newCount }),
-    { net: 0, advance: 0, count: 0, newCount: 0 }
+    (t, [, v]) => ({
+      net: t.net + v.net,
+      advance: t.advance + v.advance,
+      count: t.count + v.count,
+      newCount: t.newCount + v.newCount,
+      training: t.training + v.training,
+      stretch: t.stretch + v.stretch,
+    }),
+    { net: 0, advance: 0, count: 0, newCount: 0, training: 0, stretch: 0 }
   );
 
   return (
@@ -144,6 +157,16 @@ export default function StoreSummaryPage() {
         {error ? <div style={errorStyle}>{error}</div> : null}
         {loading ? <div style={cardStyle}>読み込み中...</div> : (
           <section style={cardStyle}>
+            <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>
+                全店舗：トレーニング {pct(total.training, total.net)}（{yen(total.training)}） ／ ストレッチ（施術） {pct(total.stretch, total.net)}（{yen(total.stretch)}）
+              </div>
+              <div style={{ display: "flex", height: 14, borderRadius: 7, overflow: "hidden", background: "#e2e8f0" }}>
+                <div style={{ width: total.net > 0 ? `${(total.training / total.net) * 100}%` : 0, background: "#f97316" }} title="トレーニング" />
+                <div style={{ width: total.net > 0 ? `${(total.stretch / total.net) * 100}%` : 0, background: "#2563eb" }} title="ストレッチ（施術）" />
+              </div>
+              <div style={{ fontSize: 11, color: "#64748b" }}>オレンジ：トレーニング ／ 青：ストレッチ（施術）</div>
+            </div>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                 <thead>
@@ -151,6 +174,8 @@ export default function StoreSummaryPage() {
                     <th style={thStyle}>店舗</th>
                     <th style={thRight}>売上（施術分）</th>
                     <th style={thRight}>売上の割合</th>
+                    <th style={thRight}>トレーニング</th>
+                    <th style={thRight}>ストレッチ（施術）</th>
                     <th style={thRight}>件数</th>
                     <th style={thRight}>新規</th>
                     <th style={thRight}>前受金（参考）</th>
@@ -171,6 +196,8 @@ export default function StoreSummaryPage() {
                             <span style={{ minWidth: 48 }}>{share.toFixed(1)}%</span>
                           </div>
                         </td>
+                        <td style={tdRight}>{yen(v.training)}<div style={subStyle}>{pct(v.training, v.net)}</div></td>
+                        <td style={tdRight}>{yen(v.stretch)}<div style={subStyle}>{pct(v.stretch, v.net)}</div></td>
                         <td style={tdRight}>{v.count}件</td>
                         <td style={tdRight}>{v.newCount}人</td>
                         <td style={{ ...tdRight, color: "#64748b" }}>{yen(v.advance)}</td>
@@ -181,6 +208,8 @@ export default function StoreSummaryPage() {
                     <td style={{ ...tdStyle, fontWeight: 800 }}>全店舗の合計</td>
                     <td style={{ ...tdRight, fontWeight: 800 }}>{yen(total.net)}</td>
                     <td style={{ ...tdRight, fontWeight: 800 }}>100%</td>
+                    <td style={{ ...tdRight, fontWeight: 800 }}>{yen(total.training)}<div style={subStyle}>{pct(total.training, total.net)}</div></td>
+                    <td style={{ ...tdRight, fontWeight: 800 }}>{yen(total.stretch)}<div style={subStyle}>{pct(total.stretch, total.net)}</div></td>
                     <td style={{ ...tdRight, fontWeight: 800 }}>{total.count}件</td>
                     <td style={{ ...tdRight, fontWeight: 800 }}>{total.newCount}人</td>
                     <td style={{ ...tdRight, fontWeight: 800, color: "#64748b" }}>{yen(total.advance)}</td>
@@ -209,3 +238,4 @@ const thStyle: CSSProperties = { textAlign: "left", padding: "8px 6px", borderBo
 const thRight: CSSProperties = { ...thStyle, textAlign: "right" };
 const tdStyle: CSSProperties = { padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" };
 const tdRight: CSSProperties = { ...tdStyle, textAlign: "right" };
+const subStyle: CSSProperties = { fontSize: 11, color: "#64748b", fontWeight: 500 };
