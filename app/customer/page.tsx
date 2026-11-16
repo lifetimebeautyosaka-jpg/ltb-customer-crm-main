@@ -472,6 +472,18 @@ export default function CustomerPage() {
               ← ダッシュボードへ戻る
             </Link>
 
+            <Link
+              href="/ltv"
+              style={{
+                ...styles.topWhiteButton,
+                width: mobile ? "100%" : "auto",
+                textDecoration: "none",
+                textAlign: "center",
+              }}
+            >
+              LTVランキング
+            </Link>
+
             <button
               type="button"
               onClick={() => void fetchCustomers()}

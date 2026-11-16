@@ -61,6 +61,7 @@ export default function LtvRankingPage() {
   const [error, setError] = useState("");
   const [period, setPeriod] = useState<"all" | "year">("all");
   const [store, setStore] = useState("");
+  const [staff, setStaff] = useState("");
   const [keyword, setKeyword] = useState("");
   const [showAll, setShowAll] = useState(false);
   const today = ymd(new Date());
@@ -158,8 +159,12 @@ export default function LtvRankingPage() {
       .sort((a, b) => b.net - a.net);
   }, [sales, customers, period, today]);
 
+  const staffs = useMemo(() => Array.from(new Set(ranked.map((r) => r.staff).filter(Boolean))).sort(), [ranked]);
   const filtered = ranked.filter(
-    (r) => (!store || r.store === store) && (!keyword.trim() || r.name.includes(keyword.trim()))
+    (r) =>
+      (!store || r.store === store) &&
+      (!staff || r.staff === staff) &&
+      (!keyword.trim() || r.name.includes(keyword.trim()))
   );
   const shown = showAll ? filtered : filtered.slice(0, 50);
   const total = filtered.reduce((s, r) => s + r.net, 0);
@@ -197,13 +202,22 @@ export default function LtvRankingPage() {
               </select>
             </label>
             <label style={labelStyle}>
+              メイン担当
+              <select value={staff} onChange={(e) => setStaff(e.target.value)} style={inputStyle}>
+                <option value="">すべて</option>
+                {staffs.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </label>
+            <label style={labelStyle}>
               名前で検索
               <input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="例 森本" style={inputStyle} />
             </label>
           </div>
           <div style={{ ...noteStyle, marginTop: 10 }}>
             LTV ＝ 純売上（通常売上＋回数券消化）。前受金は消化と二重になるので含めません。
-            「支払額」は実際にいただいた金額（通常売上＋回数券の購入代）です。最終来店から60日以上空いている方は「離脱注意」と表示します。
+            「支払額」は実際にいただいた金額（通常売上＋回数券の購入代）です。メイン担当は一番多く担当したスタッフです。最終来店から60日以上空いている方は「離脱注意」と表示します。
           </div>
         </section>
 
@@ -224,7 +238,7 @@ export default function LtvRankingPage() {
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                   <thead>
                     <tr>
-                      {["順位", "お客様", "LTV", "支払額", "来店", "平均単価", "店舗", "担当", "初回", "最終来店"].map((h) => (
+                      {["順位", "お客様", "LTV", "メイン担当", "支払額", "来店", "平均単価", "店舗", "初回", "最終来店"].map((h) => (
                         <th key={h} style={thStyle}>{h}</th>
                       ))}
                     </tr>
@@ -240,11 +254,11 @@ export default function LtvRankingPage() {
                             {r.id.startsWith("name:") ? r.name : <Link href={`/customer/${r.id}`}>{r.name}</Link>}
                           </td>
                           <td style={{ ...tdStyle, fontWeight: 800 }}>{yen(r.net)}</td>
+                          <td style={{ ...tdStyle, fontWeight: 700 }}>{r.staff || "—"}</td>
                           <td style={tdStyle}>{yen(r.paid)}</td>
                           <td style={tdStyle}>{r.visits}回</td>
                           <td style={tdStyle}>{r.visits ? yen(r.net / r.visits) : "—"}</td>
                           <td style={tdStyle}>{r.store || "—"}</td>
-                          <td style={tdStyle}>{r.staff || "—"}</td>
                           <td style={tdStyle}>{r.first || "—"}</td>
                           <td style={tdStyle}>
                             {r.last || "—"}

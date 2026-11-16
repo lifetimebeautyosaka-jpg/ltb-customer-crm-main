@@ -102,6 +102,7 @@ type LtvCustomer = {
   customerName: string;
   amount: number;
   count: number;
+  mainStaff: string;
 };
 
 type MonthlySummaryItem = {
@@ -732,10 +733,11 @@ export default function DashboardPage() {
         const ltvSalesResult = await fetchAllRows<SaleRow>((from, to) =>
           supabase
             .from("sales")
-            .select("id, customer_id, customer_name, amount, sale_type")
+            .select("id, customer_id, customer_name, amount, sale_type, staff_name")
             .order("id", { ascending: true })
             .range(from, to)
         );
+        const ltvStaff = new Map<string, Map<string, number>>();
         const ltvMap = new Map<string, LtvCustomer>();
         for (const sale of ltvSalesResult.data) {
           if (isAdvanceSale(sale)) continue;
@@ -747,14 +749,25 @@ export default function DashboardPage() {
             (customerId ? getCustomerName(customerMapById.get(customerId)) : "") ||
             "名前未設定";
           const key = customerId || `name-${normalizeName(customerName)}`;
-          const current = ltvMap.get(key) || { customerId: key, customerName, amount: 0, count: 0 };
+          const current = ltvMap.get(key) || { customerId: key, customerName, amount: 0, count: 0, mainStaff: "" };
           current.amount += amount;
           current.count += 1;
           ltvMap.set(key, current);
+          const staff = trimmed(sale.staff_name);
+          if (staff) {
+            const counts = ltvStaff.get(key) || new Map<string, number>();
+            counts.set(staff, (counts.get(staff) || 0) + 1);
+            ltvStaff.set(key, counts);
+          }
         }
         const ltvList: LtvCustomer[] = Array.from(ltvMap.values())
           .sort((a, b) => b.amount - a.amount)
-          .slice(0, 5);
+          .slice(0, 10)
+          .map((item) => {
+            const counts = Array.from(ltvStaff.get(item.customerId)?.entries() || []);
+            counts.sort((a, b) => b[1] - a[1]);
+            return { ...item, mainStaff: counts[0]?.[0] || "" };
+          });
 
         setReservations(displayReservations);
         setTodoItems(nextTodoItems);
@@ -1944,7 +1957,7 @@ export default function DashboardPage() {
                 <div className="panel-head">
                   <div>
                     <div className="panel-title">LTV上位顧客</div>
-                    <div className="panel-sub">純売上の累計 上位5名</div>
+                    <div className="panel-sub">純売上の累計 上位10名</div>
                   </div>
                   <Link href="/ltv" style={{ fontSize: 13, fontWeight: 700 }}>ランキングを見る →</Link>
                 </div>
@@ -1970,7 +1983,7 @@ export default function DashboardPage() {
                           {index + 1}. {item.customerName}
                         </div>
                         <div className="side-sub">
-                          LTV {formatYen(item.amount)} / 売上 {item.count}件
+                          LTV {formatYen(item.amount)} / メイン担当 {item.mainStaff || "—"} / {item.count}件
                         </div>
                       </Link>
                     ))}
