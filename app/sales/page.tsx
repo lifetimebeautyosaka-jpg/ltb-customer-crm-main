@@ -2238,55 +2238,97 @@ const ticketIssueInfo =
 
             <div style={styles.monthlySummaryGrid}>
               <div style={styles.summaryBox}>
-                <h3 style={styles.summaryTitle}>店舗別売上</h3>
+                <h3 style={styles.summaryTitle}>店舗別売上（通常売上＋回数券消化）</h3>
 
                 {storeMonthlyRows.length === 0 ? (
                   <div style={styles.emptyBox}>店舗別データがありません</div>
                 ) : (
                   <div style={styles.summaryList}>
-                    {storeMonthlyRows.map((row) => (
-                      <div key={row.name} style={styles.summaryItem}>
-                        <div>
-                          <strong>{row.name}</strong>
-                          <p>
-                            売上 {formatCurrency(row.netSalesTotal)} / 前受金{" "}
-                            {formatCurrency(row.advanceTotal)}
-                          </p>
-                        </div>
+                    {(() => {
+                      // 売上 ＝ 通常売上＋回数券消化（前受金は二重計上になるので含めない）
+                      const totalNet = storeMonthlyRows.reduce((sum, r) => sum + r.netSalesTotal, 0);
+                      const totalAdvance = storeMonthlyRows.reduce((sum, r) => sum + r.advanceTotal, 0);
+                      const totalCount = storeMonthlyRows.reduce((sum, r) => sum + r.count, 0);
+                      const sorted = [...storeMonthlyRows].sort((a, b) => b.netSalesTotal - a.netSalesTotal);
+                      return (
+                        <>
+                          {sorted.map((row) => (
+                            <div key={row.name} style={styles.summaryItem}>
+                              <div>
+                                <strong>{row.name}</strong>
+                                <p>
+                                  割合 {totalNet > 0 ? ((row.netSalesTotal / totalNet) * 100).toFixed(1) : "0.0"}% / 前受金{" "}
+                                  {formatCurrency(row.advanceTotal)}
+                                </p>
+                              </div>
 
-                        <div style={styles.summaryAmount}>
-                          <strong>{formatCurrency(row.grandTotal)}</strong>
-                          <small>{row.count}件</small>
-                        </div>
-                      </div>
-                    ))}
+                              <div style={styles.summaryAmount}>
+                                <strong>{formatCurrency(row.netSalesTotal)}</strong>
+                                <small>{row.count}件</small>
+                              </div>
+                            </div>
+                          ))}
+                          <div style={{ ...styles.summaryItem, borderTop: "2px solid rgba(255,255,255,0.35)" }}>
+                            <div>
+                              <strong>全店舗の合計</strong>
+                              <p>割合 100% / 前受金 {formatCurrency(totalAdvance)}</p>
+                            </div>
+                            <div style={styles.summaryAmount}>
+                              <strong>{formatCurrency(totalNet)}</strong>
+                              <small>{totalCount}件</small>
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
 
               <div style={styles.summaryBox}>
-                <h3 style={styles.summaryTitle}>担当者別売上</h3>
+                <h3 style={styles.summaryTitle}>担当者別売上（通常売上＋回数券消化）</h3>
 
                 {staffMonthlyRows.length === 0 ? (
                   <div style={styles.emptyBox}>担当者別データがありません</div>
                 ) : (
                   <div style={styles.summaryList}>
-                    {staffMonthlyRows.map((row) => (
-                      <div key={row.name} style={styles.summaryItem}>
-                        <div>
-                          <strong>{row.name}</strong>
-                          <p>
-                            売上 {formatCurrency(row.netSalesTotal)} / 前受金{" "}
-                            {formatCurrency(row.advanceTotal)}
-                          </p>
-                        </div>
+                    {(() => {
+                      // 売上 ＝ 通常売上＋回数券消化（前受金は二重計上になるので含めない）
+                      const totalNet = staffMonthlyRows.reduce((sum, r) => sum + r.netSalesTotal, 0);
+                      const totalAdvance = staffMonthlyRows.reduce((sum, r) => sum + r.advanceTotal, 0);
+                      const totalCount = staffMonthlyRows.reduce((sum, r) => sum + r.count, 0);
+                      const sorted = [...staffMonthlyRows].sort((a, b) => b.netSalesTotal - a.netSalesTotal);
+                      return (
+                        <>
+                          {sorted.map((row) => (
+                            <div key={row.name} style={styles.summaryItem}>
+                              <div>
+                                <strong>{row.name}</strong>
+                                <p>
+                                  割合 {totalNet > 0 ? ((row.netSalesTotal / totalNet) * 100).toFixed(1) : "0.0"}% / 前受金{" "}
+                                  {formatCurrency(row.advanceTotal)}
+                                </p>
+                              </div>
 
-                        <div style={styles.summaryAmount}>
-                          <strong>{formatCurrency(row.grandTotal)}</strong>
-                          <small>{row.count}件</small>
-                        </div>
-                      </div>
-                    ))}
+                              <div style={styles.summaryAmount}>
+                                <strong>{formatCurrency(row.netSalesTotal)}</strong>
+                                <small>{row.count}件</small>
+                              </div>
+                            </div>
+                          ))}
+                          <div style={{ ...styles.summaryItem, borderTop: "2px solid rgba(255,255,255,0.35)" }}>
+                            <div>
+                              <strong>全担当者の合計</strong>
+                              <p>割合 100% / 前受金 {formatCurrency(totalAdvance)}</p>
+                            </div>
+                            <div style={styles.summaryAmount}>
+                              <strong>{formatCurrency(totalNet)}</strong>
+                              <small>{totalCount}件</small>
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
