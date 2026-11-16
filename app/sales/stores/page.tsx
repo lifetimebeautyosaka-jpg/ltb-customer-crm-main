@@ -10,7 +10,7 @@ import { classifyService } from "@/lib/serviceCategory";
 // 売上 ＝ 通常売上 ＋ 回数券消化（施術した分）。前受金（回数券の販売）は参考として別の列に出す
 // 新規 ＝ その月の予約のうち、来店区分が「新規」（または初回フラグあり）でキャンセル以外のもの
 
-type SaleRow = { sale_type: string | null; amount: number | null; store_name: string | null; menu_type: string | null; customer_name: string | null; memo: string | null };
+type SaleRow = { sale_type: string | null; amount: number | null; store_name: string | null; menu_type: string | null; customer_name: string | null; memo: string | null; sale_date: string | null; reservation_id: number | string | null };
 type ReservationRow = {
   store_name: string | null;
   visit_type: string | null;
@@ -64,7 +64,7 @@ export default function StoreSummaryPage() {
         fetchAllRows<SaleRow>((from, to) =>
           supabase
             .from("sales")
-            .select("sale_type, amount, store_name, menu_type, customer_name, memo")
+            .select("sale_type, amount, store_name, menu_type, customer_name, memo, sale_date, reservation_id")
             .gte("sale_date", start)
             .lt("sale_date", end)
             .order("id", { ascending: true })
@@ -100,6 +100,8 @@ export default function StoreSummaryPage() {
       return row;
     };
     STORES.forEach((s) => get(s));
+    // 来店1回を1件として数える（同じ来店の指名料・延長などはまとめる）
+    const visits = new Map<string, Set<string>>();
 
     for (const s of sales) {
       const row = get(storeOf(s.store_name));
@@ -107,12 +109,16 @@ export default function StoreSummaryPage() {
       if ((s.sale_type || "").trim() === "前受金") row.advance += amount;
       else {
         row.net += amount;
-        row.count += 1;
+        const store = storeOf(s.store_name);
+        if (!visits.has(store)) visits.set(store, new Set());
+        visits.get(store)!.add(s.reservation_id ? `r-${s.reservation_id}` : `c-${(s.customer_name || "").trim()}-${s.sale_date}`);
         const type = classifyService({ menuType: s.menu_type, storeName: s.store_name, text: `${s.memo || ""} ${s.customer_name || ""}` });
         if (type === "トレーニング") row.training += amount;
         else row.stretch += amount; // リラクゼーション（ストレッチ・ヘッドスパ・オイルマッサージ・足ツボ）
       }
     }
+
+    for (const [store, set] of visits) get(store).count = set.size;
 
     for (const r of reservations) {
       const status = (r.reservation_status || "").trim();
@@ -181,7 +187,8 @@ export default function StoreSummaryPage() {
                     <th style={thRight}>売上の割合</th>
                     <th style={thRight}>トレーニング</th>
                     <th style={thRight}>リラクゼーション</th>
-                    <th style={thRight}>件数</th>
+                    <th style={thRight}>来店数</th>
+                    <th style={thRight}>平均単価</th>
                     <th style={thRight}>新規</th>
                     <th style={thRight}>前受金（参考）</th>
                   </tr>
@@ -204,6 +211,7 @@ export default function StoreSummaryPage() {
                         <td style={tdRight}>{yen(v.training)}<div style={subStyle}>{pct(v.training, v.net)}</div></td>
                         <td style={tdRight}>{yen(v.stretch)}<div style={subStyle}>{pct(v.stretch, v.net)}</div></td>
                         <td style={tdRight}>{v.count}件</td>
+                        <td style={tdRight}>{v.count ? yen(v.net / v.count) : "—"}</td>
                         <td style={tdRight}>{v.newCount}人</td>
                         <td style={{ ...tdRight, color: "#64748b" }}>{yen(v.advance)}</td>
                       </tr>
@@ -216,6 +224,7 @@ export default function StoreSummaryPage() {
                     <td style={{ ...tdRight, fontWeight: 800 }}>{yen(total.training)}<div style={subStyle}>{pct(total.training, total.net)}</div></td>
                     <td style={{ ...tdRight, fontWeight: 800 }}>{yen(total.stretch)}<div style={subStyle}>{pct(total.stretch, total.net)}</div></td>
                     <td style={{ ...tdRight, fontWeight: 800 }}>{total.count}件</td>
+                    <td style={{ ...tdRight, fontWeight: 800 }}>{total.count ? yen(total.net / total.count) : "—"}</td>
                     <td style={{ ...tdRight, fontWeight: 800 }}>{total.newCount}人</td>
                     <td style={{ ...tdRight, fontWeight: 800, color: "#64748b" }}>{yen(total.advance)}</td>
                   </tr>

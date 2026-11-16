@@ -28,7 +28,13 @@ type SaleRow = {
   menu_type: string | null;
   customer_name: string | null;
   memo: string | null;
+  reservation_id: number | string | null;
 };
+
+// 来店1回を1件として数える（指名料・延長など、同じ来店の売上は1件にまとめる）
+function visitKey(s: SaleRow) {
+  return s.reservation_id ? `r-${s.reservation_id}` : `c-${(s.customer_name || "").trim()}-${s.sale_date}`;
+}
 
 const STORES = ["すべて", "江戸堀", "箕面", "福島", "福島P", "天満橋", "天満橋Ts", "中崎町", "江坂", "西梅田"];
 const MONTHS_SHOWN = 12;
@@ -80,7 +86,7 @@ export default function ServiceAnalysisPage() {
       const res = await fetchAllRows<SaleRow>((from, to) =>
         supabase
           .from("sales")
-          .select("sale_date, sale_type, amount, store_name, menu_type, customer_name, memo")
+          .select("sale_date, sale_type, amount, store_name, menu_type, customer_name, memo, reservation_id")
           .gte("sale_date", `${new Date().getFullYear() - 1}-01-01`)
           .order("id", { ascending: true })
           .range(from, to)
@@ -94,6 +100,7 @@ export default function ServiceAnalysisPage() {
   // 月 × 中分類 の売上
   const table = useMemo(() => {
     const data = new Map<string, Record<ChartCategory, number>>();
+    const visits = new Map<string, Set<string>>();
     months.forEach((m) => data.set(m, Object.fromEntries(CHART_CATEGORIES.map((c) => [c, 0])) as Record<ChartCategory, number>));
     for (const s of sales) {
       if ((s.sale_type || "").trim() === "前受金") continue;
@@ -107,12 +114,15 @@ export default function ServiceAnalysisPage() {
         text: `${s.memo || ""} ${s.customer_name || ""}`,
       });
       row[type] += Number(s.amount || 0);
+      if (!visits.has(m)) visits.set(m, new Set());
+      visits.get(m)!.add(visitKey(s));
     }
     return months.map((m) => {
       const row = data.get(m)!;
       const total = CHART_CATEGORIES.reduce((sum, c) => sum + row[c], 0);
       const training = row["トレーニング"];
-      return { month: m, row, total, training, relax: total - training };
+      const visitCount = visits.get(m)?.size || 0;
+      return { month: m, row, total, training, relax: total - training, visitCount, unit: visitCount ? total / visitCount : 0 };
     });
   }, [sales, store, months]);
 
@@ -148,6 +158,8 @@ export default function ServiceAnalysisPage() {
     const byMonth = Array.from({ length: 12 }, () => 0);
     const byType = Object.fromEntries(SERVICE_TYPES.map((t) => [t, 0])) as Record<ServiceTypeName, number>;
     const byStore = new Map<string, number>();
+    const visitsAll = new Set<string>();
+    const visitsByType = Object.fromEntries(SERVICE_TYPES.map((t) => [t, new Set<string>()])) as Record<ServiceTypeName, Set<string>>;
     for (const s of sales) {
       if ((s.sale_type || "").trim() === "前受金") continue;
       const storeName = (s.store_name || "").trim() || "未設定";
@@ -159,6 +171,8 @@ export default function ServiceAnalysisPage() {
       const type = classifyService({ menuType: s.menu_type, storeName: s.store_name, text: `${s.memo || ""} ${s.customer_name || ""}` });
       byType[type] += amount;
       byStore.set(storeName, (byStore.get(storeName) || 0) + amount);
+      visitsAll.add(visitKey(s));
+      visitsByType[type].add(visitKey(s));
     }
     const total = byMonth.reduce((a, b) => a + b, 0);
     const now = new Date();
@@ -179,6 +193,9 @@ export default function ServiceAnalysisPage() {
       average: total / monthsWithData,
       monthsWithData,
       prevYearTotal,
+      visitCount: visitsAll.size,
+      unit: visitsAll.size ? total / visitsAll.size : 0,
+      visitsByType: Object.fromEntries(SERVICE_TYPES.map((t) => [t, visitsByType[t].size])) as Record<ServiceTypeName, number>,
     };
   }, [sales, store, year]);
 
@@ -245,6 +262,11 @@ export default function ServiceAnalysisPage() {
                   <div style={statValue}>{yen(yearly.average)}</div>
                 </div>
                 <div style={statStyle}>
+                  <div style={statLabel}>平均単価（来店1回あたり）</div>
+                  <div style={statValue}>{yearly.visitCount ? yen(yearly.unit) : "—"}</div>
+                  <div style={{ fontSize: 11, color: "#64748b" }}>来店 {yearly.visitCount.toLocaleString("ja-JP")}件</div>
+                </div>
+                <div style={statStyle}>
                   <div style={statLabel}>前年の同じ期間との比較</div>
                   <div style={statValue}>{yearly.prevYearTotal ? growth(yearly.total, yearly.prevYearTotal) : "データなし"}</div>
                 </div>
@@ -268,7 +290,7 @@ export default function ServiceAnalysisPage() {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
                 <table style={tableStyle}>
                   <thead>
-                    <tr><th style={thStyle}>サービス</th><th style={thRight}>年間売上</th><th style={thRight}>構成比</th></tr>
+                    <tr><th style={thStyle}>サービス</th><th style={thRight}>年間売上</th><th style={thRight}>構成比</th><th style={thRight}>件数</th><th style={thRight}>平均単価</th></tr>
                   </thead>
                   <tbody>
                     {SERVICE_TYPES.map((t) => (
@@ -279,6 +301,8 @@ export default function ServiceAnalysisPage() {
                         </td>
                         <td style={tdRight}>{yen(yearly.byType[t])}</td>
                         <td style={tdRight}>{pct(yearly.byType[t], yearly.total)}</td>
+                        <td style={tdRight}>{yearly.visitsByType[t]}件</td>
+                        <td style={tdRight}>{yearly.visitsByType[t] ? yen(yearly.byType[t] / yearly.visitsByType[t]) : "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -424,6 +448,8 @@ export default function ServiceAnalysisPage() {
                       <th style={thRight}>リラクゼーション</th>
                       <th style={thRight}>合計</th>
                       <th style={thRight}>トレーニングの割合</th>
+                      <th style={thRight}>来店数</th>
+                      <th style={thRight}>平均単価</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -434,6 +460,8 @@ export default function ServiceAnalysisPage() {
                         <td style={tdRight}>{yen(t.relax)}</td>
                         <td style={{ ...tdRight, fontWeight: 700 }}>{yen(t.total)}</td>
                         <td style={tdRight}>{pct(t.training, t.total)}</td>
+                        <td style={tdRight}>{t.visitCount}件</td>
+                        <td style={{ ...tdRight, fontWeight: 700 }}>{t.visitCount ? yen(t.unit) : "—"}</td>
                       </tr>
                     ))}
                   </tbody>
