@@ -65,6 +65,8 @@ export default function ServiceAnalysisPage() {
   const [store, setStore] = useState("すべて");
   // 金額で見るか、構成比（その月の合計を100%）で見るか
   const [mode, setMode] = useState<"amount" | "share">("share");
+  const thisYear = new Date().getFullYear();
+  const [year, setYear] = useState(thisYear);
   const [sales, setSales] = useState<SaleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -79,7 +81,7 @@ export default function ServiceAnalysisPage() {
         supabase
           .from("sales")
           .select("sale_date, sale_type, amount, store_name, menu_type, customer_name, memo")
-          .gte("sale_date", `${months[0]}-01`)
+          .gte("sale_date", `${new Date().getFullYear() - 1}-01-01`)
           .order("id", { ascending: true })
           .range(from, to)
       );
@@ -141,6 +143,45 @@ export default function ServiceAnalysisPage() {
     };
   }, [sales, store, months]);
 
+  // 年間の売上（1〜12月）
+  const yearly = useMemo(() => {
+    const byMonth = Array.from({ length: 12 }, () => 0);
+    const byType = Object.fromEntries(SERVICE_TYPES.map((t) => [t, 0])) as Record<ServiceTypeName, number>;
+    const byStore = new Map<string, number>();
+    for (const s of sales) {
+      if ((s.sale_type || "").trim() === "前受金") continue;
+      const storeName = (s.store_name || "").trim() || "未設定";
+      if (store !== "すべて" && storeName !== store) continue;
+      const date = s.sale_date || "";
+      if (Number(date.slice(0, 4)) !== year) continue;
+      const amount = Number(s.amount || 0);
+      byMonth[Number(date.slice(5, 7)) - 1] += amount;
+      const type = classifyService({ menuType: s.menu_type, storeName: s.store_name, text: `${s.memo || ""} ${s.customer_name || ""}` });
+      byType[type] += amount;
+      byStore.set(storeName, (byStore.get(storeName) || 0) + amount);
+    }
+    const total = byMonth.reduce((a, b) => a + b, 0);
+    const now = new Date();
+    const monthsWithData = year === now.getFullYear() ? now.getMonth() + 1 : 12;
+    const prevYearTotal = sales.reduce((sum, s) => {
+      if ((s.sale_type || "").trim() === "前受金") return sum;
+      if (store !== "すべて" && ((s.store_name || "").trim() || "未設定") !== store) return sum;
+      const d = s.sale_date || "";
+      // 前年の同じ期間（1月〜同じ月まで）と比べる
+      if (Number(d.slice(0, 4)) !== year - 1 || Number(d.slice(5, 7)) > monthsWithData) return sum;
+      return sum + Number(s.amount || 0);
+    }, 0);
+    return {
+      byMonth,
+      byType,
+      byStore: Array.from(byStore.entries()).sort((a, b) => b[1] - a[1]),
+      total,
+      average: total / monthsWithData,
+      monthsWithData,
+      prevYearTotal,
+    };
+  }, [sales, store, year]);
+
   const maxTotal = Math.max(1, ...table.map((t) => t.total));
   const scaleOf = (t: { total: number }) => (mode === "share" ? (t.total || 1) : maxTotal);
   const current = table[table.length - 1];
@@ -185,6 +226,83 @@ export default function ServiceAnalysisPage() {
         {error ? <div style={errorStyle}>{error}</div> : null}
         {loading ? <div style={cardStyle}>読み込み中...</div> : (
           <>
+            <section style={cardStyle}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                <h2 style={titleStyle}>年間の売上（{year}年・{store === "すべて" ? "全店舗" : store}）</h2>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {[thisYear, thisYear - 1].map((y) => (
+                    <button key={y} type="button" onClick={() => setYear(y)} style={{ ...chipStyle, ...(year === y ? chipActiveStyle : {}) }}>{y}年</button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
+                <div style={statStyle}>
+                  <div style={statLabel}>年間の売上（{yearly.monthsWithData === 12 ? "1〜12月" : `1〜${yearly.monthsWithData}月`}）</div>
+                  <div style={statValue}>{yen(yearly.total)}</div>
+                </div>
+                <div style={statStyle}>
+                  <div style={statLabel}>1か月の平均</div>
+                  <div style={statValue}>{yen(yearly.average)}</div>
+                </div>
+                <div style={statStyle}>
+                  <div style={statLabel}>前年の同じ期間との比較</div>
+                  <div style={statValue}>{yearly.prevYearTotal ? growth(yearly.total, yearly.prevYearTotal) : "データなし"}</div>
+                </div>
+              </div>
+              <svg viewBox="0 0 760 180" style={{ width: "100%", height: "auto" }} role="img" aria-label="月別の売上">
+                {yearly.byMonth.map((v, i) => {
+                  const max = Math.max(1, ...yearly.byMonth);
+                  const bw = 760 / 12;
+                  const h = (v / max) * 130;
+                  return (
+                    <g key={i}>
+                      <rect x={i * bw + bw * 0.2} y={150 - h} width={bw * 0.6} height={h} fill="#0f172a" opacity={0.8}>
+                        <title>{`${i + 1}月：${yen(v)}`}</title>
+                      </rect>
+                      <text x={i * bw + bw / 2} y={150 - h - 4} textAnchor="middle" fontSize="10" fill="#0f172a">{v ? man(v) : ""}</text>
+                      <text x={i * bw + bw / 2} y={168} textAnchor="middle" fontSize="11" fill="#475569">{i + 1}月</text>
+                    </g>
+                  );
+                })}
+              </svg>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr><th style={thStyle}>サービス</th><th style={thRight}>年間売上</th><th style={thRight}>構成比</th></tr>
+                  </thead>
+                  <tbody>
+                    {SERVICE_TYPES.map((t) => (
+                      <tr key={t}>
+                        <td style={tdStyle}>
+                          <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: CATEGORY_COLORS[t], marginRight: 6 }} />
+                          {t}
+                        </td>
+                        <td style={tdRight}>{yen(yearly.byType[t])}</td>
+                        <td style={tdRight}>{pct(yearly.byType[t], yearly.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {store === "すべて" ? (
+                  <table style={tableStyle}>
+                    <thead>
+                      <tr><th style={thStyle}>店舗</th><th style={thRight}>年間売上</th><th style={thRight}>構成比</th></tr>
+                    </thead>
+                    <tbody>
+                      {yearly.byStore.map(([name, v]) => (
+                        <tr key={name}>
+                          <td style={tdStyle}>{name}</td>
+                          <td style={tdRight}>{yen(v)}</td>
+                          <td style={tdRight}>{pct(v, yearly.total)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : null}
+              </div>
+              <div style={noteStyle}>売上 ＝ 通常売上＋回数券消化（前受金は含めません）。データは2026年1月から入っています。</div>
+            </section>
+
             <section style={cardStyle}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                 <h2 style={titleStyle}>
@@ -423,3 +541,6 @@ const thStyle: CSSProperties = { textAlign: "left", padding: "8px 6px", borderBo
 const thRight: CSSProperties = { ...thStyle, textAlign: "right" };
 const tdStyle: CSSProperties = { padding: "8px 6px", borderBottom: "1px solid #e2e8f0", whiteSpace: "nowrap" };
 const tdRight: CSSProperties = { ...tdStyle, textAlign: "right" };
+const statStyle: CSSProperties = { padding: 12, borderRadius: 12, background: "#f8fafc", display: "grid", gap: 4 };
+const statLabel: CSSProperties = { fontSize: 12, color: "#64748b", fontWeight: 700 };
+const statValue: CSSProperties = { fontSize: 22, fontWeight: 800 };
