@@ -2,6 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import {
+  ACQUISITION_CHANNELS,
+  DEFAULT_ACQUISITION_CHANNEL,
+  normalizeAcquisitionChannel,
+} from "@/lib/acquisitionChannels";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { BG, CARD, BUTTON_PRIMARY } from "../../styles/theme";
@@ -40,6 +45,7 @@ type Customer = {
   lastVisitDate?: string | null;
   ltv?: number | string | null;
   storeName?: string | null;
+  acquisitionChannel?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -81,6 +87,7 @@ const emptyForm: Customer = {
   lastVisitDate: "",
   ltv: "",
   storeName: "",
+  acquisitionChannel: DEFAULT_ACQUISITION_CHANNEL,
 };
 
 function toNullableNumber(value: any) {
@@ -119,6 +126,7 @@ function normalizeCustomer(item: any): Customer {
     lastVisitDate: item?.lastVisitDate ?? item?.last_visit_date ?? "",
     ltv: item?.ltv ?? "",
     storeName: item?.storeName ?? item?.store_name ?? "",
+    acquisitionChannel: normalizeAcquisitionChannel(item?.acquisitionChannel ?? item?.acquisition_channel),
     created_at: item?.created_at ?? null,
     updated_at: item?.updated_at ?? null,
   };
@@ -153,6 +161,7 @@ function buildDbPayload(customer: Customer) {
     last_visit_date: customer.lastVisitDate || null,
     ltv: toNullableNumber(customer.ltv),
     store_name: customer.storeName || null,
+    acquisition_channel: normalizeAcquisitionChannel(customer.acquisitionChannel),
     updated_at: new Date().toISOString(),
   };
 }
@@ -584,6 +593,22 @@ export default function CustomerPage() {
                 }
               />
               <Field
+                label="流入元"
+                input={
+                  <select
+                    value={String(form.acquisitionChannel || DEFAULT_ACQUISITION_CHANNEL)}
+                    onChange={(e) => handleChange("acquisitionChannel", e.target.value)}
+                    style={styles.input}
+                  >
+                    {ACQUISITION_CHANNELS.map((ch) => (
+                      <option key={ch} value={ch}>
+                        {ch}
+                      </option>
+                    ))}
+                  </select>
+                }
+              />
+              <Field
                 label="性別"
                 input={
                   <select
@@ -967,6 +992,7 @@ export default function CustomerPage() {
                       }}
                     >
                       <MiniInfo label="店舗" value={customer.storeName || "未設定"} />
+                      <MiniInfo label="流入元" value={customer.acquisitionChannel || "—"} />
                       <MiniInfo label="身長" value={withUnit(customer.height, "cm")} />
                       <MiniInfo label="体重" value={withUnit(customer.weight, "kg")} />
                       <MiniInfo label="目標" value={customer.goal || "未設定"} />

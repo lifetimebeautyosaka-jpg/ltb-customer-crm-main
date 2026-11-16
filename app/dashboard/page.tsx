@@ -139,6 +139,7 @@ const quickLinks = [
   { title: "勤怠管理", href: "/attendance", desc: "出勤・給与・スタッフ管理" },
   { title: "フォロー確認", href: "/followup", desc: "回数券の期限・次回予約なし・打刻忘れ" },
   { title: "前受金の残高", href: "/tickets/balance", desc: "未使用の回数券の金額・期限切れの回数券" },
+  { title: "リピート率", href: "/repeat-rate", desc: "新規の2回目来店率（スタッフ・店舗・流入元別）" },
   { title: "食事管理", href: "/meal", desc: "食事投稿・フィードバック" },
   { title: "アカウント", href: "/account", desc: "店舗・スタッフ・設定" },
 ];

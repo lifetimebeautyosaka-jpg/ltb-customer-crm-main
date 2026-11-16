@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { ACQUISITION_CHANNELS, DEFAULT_ACQUISITION_CHANNEL } from "@/lib/acquisitionChannels";
 
 const supabase =
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
@@ -191,6 +192,7 @@ export default function ReservationEditPage() {
   const [customerName, setCustomerName] = useState("");
   const [customerKana, setCustomerKana] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [acquisitionChannel, setAcquisitionChannel] = useState<string>(DEFAULT_ACQUISITION_CHANNEL);
 
   const [formDate, setFormDate] = useState("");
   const [startTime, setStartTime] = useState("10:00");
@@ -427,6 +429,7 @@ export default function ReservationEditPage() {
         name,
         kana: kana || null,
         phone: rawPhone || null,
+        acquisition_channel: acquisitionChannel || DEFAULT_ACQUISITION_CHANNEL,
       })
       .select("id")
       .single();
@@ -630,6 +633,23 @@ export default function ReservationEditPage() {
                   style={styles.input}
                 />
               </div>
+
+              {!selectedCustomerId && (
+                <div>
+                  <label style={styles.label}>流入元（新規顧客）</label>
+                  <select
+                    value={acquisitionChannel}
+                    onChange={(e) => setAcquisitionChannel(e.target.value)}
+                    style={styles.input}
+                  >
+                    {ACQUISITION_CHANNELS.map((ch) => (
+                      <option key={ch} value={ch}>
+                        {ch}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label style={styles.label}>日付</label>

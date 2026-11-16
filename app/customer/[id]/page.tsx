@@ -20,6 +20,7 @@ type CustomerRow = {
   age?: number | null;
   birthday?: string | null;
   address?: string | null;
+  acquisition_channel?: string | null;
   memo?: string | null;
   goal?: string | null;
   goals?: string | null;
@@ -160,6 +161,7 @@ type NormalizedCustomer = {
   age: string;
   birthday: string;
   address: string;
+  acquisitionChannel: string;
   goal: string;
   memo: string;
   createdAt: string;
@@ -255,6 +257,7 @@ function normalizeCustomer(row: CustomerRow): NormalizedCustomer {
     age: row.age !== null && row.age !== undefined ? String(row.age) : "",
     birthday: row.birthday || "",
     address: row.address || "",
+    acquisitionChannel: row.acquisition_channel || "",
     goal: row.goal || row.goals || "",
     memo: row.memo || "",
     createdAt: row.created_at || "",
@@ -1292,6 +1295,7 @@ export default function CustomerDetailPage() {
             <InfoItem label="年齢" value={customer?.age || "—"} />
             <InfoItem label="誕生日" value={customer?.birthday || "—"} />
             <InfoItem label="住所" value={customer?.address || "—"} />
+            <InfoItem label="流入元" value={customer?.acquisitionChannel || "—"} />
           </div>
 
           <div style={{ display: "grid", gap: 14, marginTop: 16 }}>
